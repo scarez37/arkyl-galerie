@@ -40,7 +40,7 @@ try {
     echo "<h2>1. Ajout de la colonne password_hash</h2>";
     
     try {
-        $db->exec("ALTER TABLE artists ADD COLUMN password_hash VARCHAR(255) DEFAULT NULL AFTER email");
+        $db->exec("ALTER TABLE artists ADD COLUMN password_hash VARCHAR(255)");
         echo "<div class='success'>✅ Colonne password_hash ajoutée</div>";
     } catch (PDOException $e) {
         if (strpos($e->getMessage(), 'Duplicate column name') !== false) {

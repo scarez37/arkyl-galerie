@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARKYL - Espace Créateur</title>
+    <style>
+        :root { --primary: #d35400; --dark: #2c3e50; --bg: #f4f7f6; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        h2 { color: var(--dark); border-bottom: 3px solid var(--primary); padding-bottom: 10px; text-align: center; text-transform: uppercase; letter-spacing: 2px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: var(--dark); }
+        input, select, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        textarea { resize: vertical; }
+        button { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #e67e22; transform: translateY(-2px); }
+        .success-msg { display: none; background: #2ecc71; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Ajouter une œuvre à ARKYL</h2>
+        <p style="text-align: center; color: #666;">"L'Afrique en lumière, l'art en mouvement"</p>
+        
+        <div id="successMessage" class="success-msg">✅ L'œuvre a été ajoutée avec succès à la galerie !</div>
+
+        <form id="artForm">
+            <div class="form-group">
+                <label for="title">Titre de l'œuvre</label>
+                <input type="text" id="title" placeholder="Ex: Masque de la Sagesse" required>
+            </div>
+
+            <div class="form-group">
+                <label for="category">Catégorie</label>
+                <select id="category">
+                    <option value="Peinture">Peinture</option>
+                    <option value="Sculpture">Sculpture</option>
+                    <option value="Masques">Masques</option>
+                    <option value="Tissus">Tissus</option>
+                    <option value="Photographie">Photographie</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="price">Prix (FCFA)</label>
+                <input type="number" id="price" placeholder="Ex: 50000" required>
+            </div>
+
+            <div class="form-group">
+                <label for="image_url">Lien de l'image (URL)</label>
+                <input type="url" id="image_url" placeholder="https://exemple.com/image.jpg" required>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" rows="4" placeholder="Décrivez l'histoire de cette œuvre..."></textarea>
+            </div>
+
+            <input type="hidden" id="artist_id" value="1"> <button type="submit" id="submitBtn">Mettre en vente sur ARKYL</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('artForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            btn.innerText = "Envoi en cours...";
+            btn.disabled = true;
+
+            const data = {
+                action: 'create_artwork',
+                artist_id: document.getElementById('artist_id').value,
+                title: document.getElementById('title').value,
+                category: document.getElementById('category').value,
+                price: document.getElementById('price').value,
+                image_url: document.getElementById('image_url').value,
+                description: document.getElementById('description').value
+            };
+
+            try {
+                // On utilise une adresse relative pour que ça marche aussi bien en local qu'en ligne
+                const response = await fetch('api.php?action=create_artwork', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if(result.success) {
+                    document.getElementById('successMessage').style.display = 'block';
+                    document.getElementById('artForm').reset();
+                    window.scrollTo(0, 0);
+                } else {
+                    alert('Erreur: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('Erreur de connexion au serveur.');
+            } finally {
+                btn.innerText = "Mettre en vente sur ARKYL";
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 <?php
 /**
- * Système d'authentification ARKYL - VERSION SQLITE
+ * Système d'authentification ARKYL - VERSION SQLITE (Complet)
  */
 session_start();
 
@@ -9,14 +9,13 @@ header('Access-Control-Allow-Origin: *');
 
 require_once 'config_mysql.php';
 
-$db = getDB();
-$action = $_GET['action'] ?? '';
+try {
+    $db = getDB();
+    $action = $_GET['action'] ?? '';
+    $data = json_decode(file_get_contents('php://input'), true);
 
-// Récupérer les données JSON envoyées
-$data = json_decode(file_get_contents('php://input'), true);
-
-if ($action === 'register') {
-    try {
+    // --- ACTION : INSCRIPTION ---
+    if ($action === 'register') {
         $name = $data['name'] ?? '';
         $email = $data['email'] ?? '';
         $password = $data['password'] ?? '';
@@ -27,30 +26,50 @@ if ($action === 'register') {
             exit;
         }
 
-        // Vérifier si l'email existe déjà
-        $check = $db->prepare("SELECT id FROM artists WHERE email = ?");
-        $check->execute([$email]);
-        if ($check->fetch()) {
-            echo json_encode(['success' => false, 'message' => 'Cet email est déjà utilisé']);
-            exit;
-        }
-
-        // Hachage du mot de passe
         $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
 
-        // Insertion (Version SQLite)
         $stmt = $db->prepare("INSERT INTO artists (name, artist_name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$name, $artist_name, $email, $hashedPassword, 'artist']);
 
-        // Créer la session automatiquement
-        $_SESSION['user_id'] = $db->lastInsertId();
-        $_SESSION['user_email'] = $email;
-
         echo json_encode(['success' => true, 'message' => 'Inscription réussie']);
+    } 
 
-    } catch (PDOException $e) {
-        echo json_encode(['success' => false, 'message' => 'Erreur base de données : ' . $e->getMessage()]);
+    // --- ACTION : CONNEXION ---
+    elseif ($action === 'login') {
+        $email = $data['email'] ?? '';
+        $password = $data['password'] ?? '';
+
+        if (empty($email) || empty($password)) {
+            echo json_encode(['success' => false, 'message' => 'Veuillez remplir tous les champs']);
+            exit;
+        }
+
+        $stmt = $db->prepare("SELECT * FROM artists WHERE email = ?");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($user && password_verify($password, $user['password_hash'])) {
+            // On stocke les informations en session
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['user_name'] = $user['name'];
+            $_SESSION['role'] = $user['role'];
+
+            echo json_encode(['success' => true, 'message' => 'Connexion réussie']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Email ou mot de passe incorrect']);
+        }
     }
-} 
-// Ajoutez ici la gestion du login si nécessaire, mais testons déjà l'inscription.
+
+    // --- ACTION : VÉRIFIER LA SESSION (Pour le Dashboard) ---
+    elseif ($action === 'check_session') {
+        if (isset($_SESSION['user_id'])) {
+            echo json_encode(['success' => true, 'user_id' => $_SESSION['user_id']]);
+        } else {
+            echo json_encode(['success' => false]);
+        }
+    }
+
+} catch (PDOException $e) {
+    echo json_encode(['success' => false, 'message' => 'Erreur : ' . $e->getMessage()]);
+}
 ?>

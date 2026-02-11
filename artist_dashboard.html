@@ -3,37 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Espace Artiste - Ma Galerie</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Tableau de Bord Artiste - ARKYL</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        :root {
+            --primary: #000000;
+            --accent: #d4af37; /* Or */
+            --bg: #f4f4f4;
+            --white: #ffffff;
+            --text: #333333;
         }
-        .container { max-width: 1200px; margin: 0 auto; }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         
-        /* En-tête */
-        .header {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        body { background-color: var(--bg); color: var(--text); }
+
+        /* HEADER */
+        .dashboard-header {
+            background: var(--white);
+            padding: 20px 40px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
-        .header h1 { color: #333; font-size: 1.5rem; }
+        .logo { font-size: 1.5rem; font-weight: 600; letter-spacing: 2px; }
+        .user-info { display: flex; align-items: center; gap: 15px; }
         .btn-logout {
-            background: #e74c3c; color: white; border: none; padding: 10px 20px;
-            border-radius: 8px; cursor: pointer; transition: 0.3s;
+            background: none; border: 1px solid var(--primary); padding: 8px 15px;
+            cursor: pointer; transition: 0.3s; border-radius: 5px;
         }
-        .btn-logout:hover { background: #c0392b; }
+        .btn-logout:hover { background: var(--primary); color: var(--white); }
 
-        /* Statistiques */
+        /* CONTAINER PRINCIPAL */
+        .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; }
+
+        /* STATS CARDS */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -41,289 +48,246 @@
             margin-bottom: 40px;
         }
         .stat-card {
-            background: white;
-            padding: 25px;
-            border-radius: 15px;
-            text-align: center;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            transition: transform 0.3s;
+            background: var(--white); padding: 25px; border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;
+            transition: transform 0.2s;
         }
         .stat-card:hover { transform: translateY(-5px); }
-        .stat-icon { font-size: 2em; margin-bottom: 10px; color: #667eea; }
-        .stat-value { font-size: 2.5em; font-weight: bold; color: #333; margin: 10px 0; }
-        .stat-label { color: #666; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-number { font-size: 2.5rem; font-weight: 600; color: var(--primary); margin: 10px 0; }
+        .stat-label { color: #777; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
 
-        /* Contenu Principal */
-        .main-content {
+        /* SECTION AJOUT ET LISTE */
+        .content-grid {
             display: grid;
             grid-template-columns: 1fr 2fr;
             gap: 30px;
         }
-        @media (max-width: 768px) { .main-content { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { .content-grid { grid-template-columns: 1fr; } }
 
-        /* Formulaire d'ajout */
-        .form-card {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            height: fit-content;
+        /* FORMULAIRE */
+        .form-panel {
+            background: var(--white); padding: 30px; border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02); h-height: fit-content;
         }
         .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 8px; color: #444; font-weight: 500; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; }
         .form-control {
-            width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 8px;
-            font-size: 16px; transition: 0.3s;
+            width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;
+            font-size: 1rem;
         }
-        .form-control:focus { border-color: #667eea; outline: none; }
         .btn-submit {
-            width: 100%; background: #2ecc71; color: white; border: none; padding: 15px;
-            border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer;
-            transition: 0.3s;
+            width: 100%; background: var(--primary); color: var(--white);
+            border: none; padding: 15px; border-radius: 8px; font-weight: 600;
+            cursor: pointer; transition: 0.3s;
         }
-        .btn-submit:hover { background: #27ae60; }
-        .btn-submit:disabled { background: #ccc; cursor: not-allowed; }
+        .btn-submit:hover { background: #333; }
 
-        /* Liste des œuvres */
-        .artworks-list {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        /* LISTE DES ŒUVRES */
+        .artworks-panel {
+            background: var(--white); padding: 30px; border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
         }
         .artwork-item {
-            display: flex; align-items: center; padding: 15px;
-            border-bottom: 1px solid #eee; transition: 0.3s;
+            display: flex; align-items: center; padding: 15px 0;
+            border-bottom: 1px solid #eee;
         }
-        .artwork-item:last-child { border-bottom: none; }
-        .artwork-item:hover { background-color: #f9f9f9; }
         .artwork-thumb {
-            width: 80px; height: 80px; border-radius: 8px; object-fit: cover; margin-right: 20px;
+            width: 60px; height: 60px; border-radius: 6px; object-fit: cover; margin-right: 15px;
+            background: #eee;
         }
-        .artwork-info { flex-grow: 1; }
-        .artwork-title { font-weight: bold; color: #333; margin-bottom: 5px; }
-        .artwork-price { color: #667eea; font-weight: bold; }
+        .artwork-details { flex-grow: 1; }
+        .artwork-title { font-weight: 600; }
+        .artwork-price { color: var(--accent); font-weight: 600; }
         .btn-delete {
-            background: #ffebee; color: #c0392b; border: none; width: 40px; height: 40px;
-            border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            color: #ff4757; background: none; border: none; cursor: pointer; padding: 5px;
         }
-        .btn-delete:hover { background: #ffcdd2; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <div class="header">
-            <div>
-                <h1>Tableau de Bord Artiste</h1>
-                <p style="color: #666;">Gérez vos œuvres et suivez vos ventes</p>
-            </div>
-            <button onclick="logout()" class="btn-logout">
-                <i class="fas fa-sign-out-alt"></i> Déconnexion
-            </button>
+    <header class="dashboard-header">
+        <div class="logo">ARKYL <span style="font-size:0.5em; color:gray">DASHBOARD</span></div>
+        <div class="user-info">
+            <span id="artist-name-display">Bonjour, Artiste</span>
+            <button onclick="logout()" class="btn-logout">Déconnexion</button>
         </div>
+    </header>
 
+    <div class="container">
+        
         <div class="stats-grid">
             <div class="stat-card">
-                <i class="fas fa-shopping-cart stat-icon"></i>
-                <div class="stat-value" id="total-sales">0</div>
-                <div class="stat-label">Ventes Réalisées</div>
+                <div class="stat-number" id="stat-sales">0</div>
+                <div class="stat-label">Ventes</div>
             </div>
             <div class="stat-card">
-                <i class="fas fa-wallet stat-icon" style="color: #f1c40f;"></i>
-                <div class="stat-value" id="total-revenue">0.00 €</div>
-                <div class="stat-label">Revenus Nets</div>
+                <div class="stat-number" id="stat-revenue">0 €</div>
+                <div class="stat-label">Revenus</div>
             </div>
             <div class="stat-card">
-                <i class="fas fa-eye stat-icon" style="color: #3498db;"></i>
-                <div class="stat-value" id="total-views">0</div>
+                <div class="stat-number" id="stat-views">0</div>
                 <div class="stat-label">Vues Totales</div>
             </div>
         </div>
 
-        <div class="main-content">
-            
-            <div class="form-card">
-                <h2 style="margin-bottom: 20px; color: #333;">Ajouter une œuvre</h2>
+        <div class="content-grid">
+            <div class="form-panel">
+                <h3 style="margin-bottom:20px;">Ajouter une œuvre</h3>
                 <form id="add-form" onsubmit="ajouterOeuvre(event)">
                     <div class="form-group">
-                        <label>Titre de l'œuvre</label>
+                        <label>Titre</label>
                         <input type="text" id="art-title" class="form-control" required placeholder="Ex: Masque Baoulé">
                     </div>
                     <div class="form-group">
-                        <label>Prix (FCFA ou €)</label>
-                        <input type="number" id="art-price" class="form-control" required placeholder="Ex: 50000">
+                        <label>Prix (€)</label>
+                        <input type="number" id="art-price" class="form-control" required placeholder="Ex: 150">
                     </div>
                     <div class="form-group">
                         <label>Description</label>
-                        <textarea id="art-desc" class="form-control" rows="4" placeholder="L'histoire de cette œuvre..."></textarea>
+                        <textarea id="art-desc" class="form-control" rows="3" placeholder="Histoire de l'œuvre..."></textarea>
                     </div>
                     <div class="form-group">
-                        <label>Photo de l'œuvre</label>
+                        <label>Image</label>
                         <input type="file" id="art-image" class="form-control" accept="image/*" required>
                     </div>
-                    <button type="submit" id="submit-btn" class="btn-submit">
-                        <i class="fas fa-plus-circle"></i> Publier maintenant
-                    </button>
+                    <button type="submit" id="btn-add" class="btn-submit">Publier l'œuvre</button>
                 </form>
             </div>
 
-            <div class="artworks-list">
-                <h2 style="margin-bottom: 20px; color: #333;">Mes œuvres en ligne</h2>
-                <div id="gallery-list">
-                    <p style="color: #888; text-align: center; padding: 20px;">Chargement...</p>
+            <div class="artworks-panel">
+                <h3 style="margin-bottom:20px;">Vos œuvres en ligne</h3>
+                <div id="artworks-list">
+                    <p style="text-align:center; color:#999; margin-top:20px;">Chargement...</p>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        const API_URL = 'api_complete.php';
-        const artistId = localStorage.getItem('user_id');
+        // CONFIGURATION CRITIQUE : On pointe vers le bon fichier PHP
+        const API_URL = 'api_complete.php'; 
+        const STATS_URL = 'get_stats.php';
 
-        // 1. Vérification de sécurité au démarrage
-        document.addEventListener('DOMContentLoaded', () => {
-            if (!artistId) {
-                alert("Session expirée. Veuillez vous reconnecter.");
-                window.location.href = 'login.html';
-                return;
-            }
+        // 1. Vérification Connexion
+        const artistId = localStorage.getItem('user_id');
+        const artistName = localStorage.getItem('user_name');
+
+        if (!artistId) {
+            alert("Vous devez être connecté !");
+            window.location.href = 'login.html'; // Ou index.html
+        } else {
+            document.getElementById('artist-name-display').textContent = "Artiste : " + (artistName || "Inconnu");
             chargerStats();
             chargerMesOeuvres();
-        });
+        }
 
-        // 2. Charger les VRAIES statistiques (get_stats.php)
+        // 2. Charger les Stats
         async function chargerStats() {
             try {
-                const response = await fetch(`get_stats.php?artist_id=${artistId}`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    document.getElementById('total-sales').textContent = data.stats.total_sales;
-                    document.getElementById('total-revenue').textContent = data.stats.revenue + ' €'; // Tu peux mettre FCFA ici
-                    document.getElementById('total-views').textContent = data.stats.total_views;
+                // On ajoute un timestamp &t=... pour éviter le cache
+                const res = await fetch(`${STATS_URL}?artist_id=${artistId}&t=${Date.now()}`);
+                const data = await res.json();
+                if(data.success) {
+                    document.getElementById('stat-sales').textContent = data.stats.total_sales || 0;
+                    document.getElementById('stat-revenue').textContent = (data.stats.revenue || 0) + " €";
+                    document.getElementById('stat-views').textContent = data.stats.total_views || 0;
                 }
-            } catch (error) {
-                console.error("Erreur stats:", error);
-            }
+            } catch (e) { console.error("Erreur stats", e); }
         }
 
-        // 3. Ajouter une œuvre (Envoi image Base64 vers api_complete.php)
-        async function ajouterOeuvre(event) {
-            event.preventDefault();
-            const btn = document.getElementById('submit-btn');
-            
-            // Récupération des champs
-            const title = document.getElementById('art-title').value;
-            const price = document.getElementById('art-price').value;
-            const desc = document.getElementById('art-desc').value;
-            const imageFile = document.getElementById('art-image').files[0];
-
-            if (!imageFile) return alert("Veuillez choisir une image");
-
-            btn.disabled = true;
-            btn.textContent = "Publication en cours...";
-
-            try {
-                // Conversion de l'image en texte (Base64)
-                const base64Image = await toBase64(imageFile);
-
-                // Envoi à l'API
-                const response = await fetch(`${API_URL}?action=add_artwork`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        artist_id: artistId,
-                        title: title,
-                        description: desc,
-                        price: price,
-                        image: base64Image
-                    })
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    alert("✅ Œuvre publiée avec succès !");
-                    document.getElementById('add-form').reset(); // Vider le formulaire
-                    chargerMesOeuvres(); // Mettre à jour la liste à droite
-                } else {
-                    alert("Erreur : " + result.message);
-                }
-            } catch (error) {
-                console.error(error);
-                alert("Erreur lors de l'envoi de l'image.");
-            } finally {
-                btn.disabled = false;
-                btn.textContent = "Publier maintenant";
-            }
-        }
-
-        // 4. Afficher la liste des œuvres de l'artiste
+        // 3. Charger la liste des œuvres
         async function chargerMesOeuvres() {
-            const container = document.getElementById('gallery-list');
+            const list = document.getElementById('artworks-list');
             try {
-                // On utilise api_galerie_publique pour lire, mais on filtre coté JS ou PHP si besoin
-                // Ici on va utiliser l'API publique et filtrer pour l'artiste actuel
-                const response = await fetch('api_galerie_publique.php');
-                const result = await response.json();
-
-                if (result.success) {
-                    const mesOeuvres = result.data.filter(art => art.user_id == artistId || art.artist_id == artistId);
+                // On utilise l'API publique pour lire (c'est plus simple)
+                const res = await fetch(`api_galerie_publique.php?t=${Date.now()}`);
+                const json = await res.json();
+                
+                if(json.success) {
+                    // On filtre pour ne garder que les œuvres de CET artiste
+                    const mesOeuvres = json.data.filter(art => art.user_id == artistId);
                     
-                    if (mesOeuvres.length === 0) {
-                        container.innerHTML = '<p style="text-align:center; color:#999;">Aucune œuvre pour l\'instant.</p>';
+                    if(mesOeuvres.length === 0) {
+                        list.innerHTML = "<p style='text-align:center; color:#999;'>Aucune œuvre publiée.</p>";
                         return;
                     }
 
-                    container.innerHTML = mesOeuvres.map(art => `
+                    list.innerHTML = mesOeuvres.map(art => `
                         <div class="artwork-item">
                             <img src="${art.image_url}" class="artwork-thumb">
-                            <div class="artwork-info">
+                            <div class="artwork-details">
                                 <div class="artwork-title">${art.title}</div>
                                 <div class="artwork-price">${art.price} €</div>
                             </div>
                             <button onclick="supprimerOeuvre(${art.id})" class="btn-delete" title="Supprimer">
-                                <i class="fas fa-trash-alt"></i>
+                                <i class="fas fa-trash"></i>
                             </button>
                         </div>
                     `).join('');
                 }
-            } catch (error) {
-                container.innerHTML = '<p>Impossible de charger la liste.</p>';
+            } catch (e) {
+                list.innerHTML = "<p style='color:red'>Erreur de chargement</p>";
             }
         }
 
-        // 5. Supprimer une œuvre
-        async function supprimerOeuvre(id) {
-            if (!confirm("Voulez-vous vraiment supprimer cette œuvre ?")) return;
+        // 4. Ajouter une œuvre
+        async function ajouterOeuvre(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-add');
+            btn.textContent = "Envoi en cours...";
+            btn.disabled = true;
 
             try {
-                // Note: api_complete.php doit gérer DELETE action=delete_artwork
-                const response = await fetch(`${API_URL}?action=delete_artwork&id=${id}`, {
-                    method: 'DELETE'
+                // Récupération des données
+                const title = document.getElementById('art-title').value;
+                const price = document.getElementById('art-price').value;
+                const desc = document.getElementById('art-desc').value;
+                const file = document.getElementById('art-image').files[0];
+
+                // Conversion Image en Base64
+                const base64 = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.readAsDataURL(file);
                 });
-                const result = await response.json();
-                
-                if (result.success) {
+
+                // Envoi à l'API
+                const res = await fetch(`${API_URL}?action=add_artwork`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        artist_id: artistId,
+                        title: title, 
+                        price: price, 
+                        description: desc, 
+                        image: base64
+                    })
+                });
+
+                const data = await res.json();
+                if(data.success) {
+                    alert("✅ Œuvre publiée !");
+                    document.getElementById('add-form').reset();
                     chargerMesOeuvres(); // Rafraichir la liste
                 } else {
-                    alert("Erreur: " + result.message);
+                    alert("Erreur: " + data.message);
                 }
-            } catch (e) {
-                console.error(e);
+
+            } catch (err) {
+                alert("Erreur technique : " + err);
+            } finally {
+                btn.textContent = "Publier l'œuvre";
+                btn.disabled = false;
             }
         }
 
-        // Utilitaire : Convertir fichier en Base64
-        const toBase64 = file => new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
-        });
+        // 5. Supprimer une œuvre (Optionnel, si api_complete le gère)
+        async function supprimerOeuvre(id) {
+            if(!confirm("Supprimer cette œuvre ?")) return;
+            // Note: Il faudra ajouter la fonction DELETE dans api_complete.php si elle n'y est pas
+            alert("Fonction suppression bientôt disponible !");
+        }
 
-        // Déconnexion
         function logout() {
             localStorage.removeItem('user_id');
             localStorage.removeItem('user_name');

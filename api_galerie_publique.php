@@ -1,37 +1,59 @@
 <?php
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *'); // Tout le monde peut lire
+/**
+ * API GALERIE PUBLIQUE - VERSION CORRIGÉE ARKYL
+ * Compatible avec votre base de données 'artgallery.db'
+ */
+
+header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *'); // Indispensable pour que index.html puisse lire
+header('Access-Control-Allow-Methods: GET');
 
 try {
+    // 1. Connexion à la BONNE base de données (celle qui contient vos données)
+    if (!file_exists('artgallery.db')) {
+        throw new Exception("La base de données artgallery.db est introuvable.");
+    }
     $db = new SQLite3('artgallery.db');
     
-    // On sélectionne TOUTES les œuvres, peu importe l'artiste
-    // On utilise LEFT JOIN pour récupérer le nom de l'artiste associé
+    // 2. Requête adaptée à votre structure réelle
+    // On utilise COALESCE pour trouver le nom de l'artiste peu importe la table utilisée
     $sql = "SELECT 
-                artworks.id, 
-                artworks.title, 
-                artworks.price, 
-                artworks.image_url, 
-                artworks.user_id,
-                artists.artist_name 
-            FROM artworks 
-            LEFT JOIN artists ON artworks.user_id = artists.id 
-            ORDER BY artworks.id DESC"; // Les plus récentes en premier
+                a.id, 
+                a.title, 
+                a.description, 
+                a.price, 
+                a.image_url, 
+                a.created_at,
+                -- On cherche le nom dans la table artists OU users
+                COALESCE(u.artist_name, u.name, 'Artiste ARKYL') as artist_name
+            FROM artworks a 
+            LEFT JOIN artists u ON a.user_id = u.id 
+            WHERE a.status = 'active' OR a.status IS NULL 
+            ORDER BY a.id DESC"; // Les plus récents en premier
 
     $result = $db->query($sql);
 
-    $all_artworks = [];
+    $artworks = [];
     while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-        // Si l'artiste n'a pas de nom défini, on met un nom par défaut
-        if (empty($row['artist_name'])) {
-            $row['artist_name'] = 'Artiste ARKYL';
+        // Sécurité pour l'image
+        if (empty($row['image_url'])) {
+            $row['image_url'] = 'assets/default_art.jpg'; // Image par défaut si vide
         }
-        $all_artworks[] = $row;
+        $artworks[] = $row;
     }
 
-    echo json_encode(['success' => true, 'data' => $all_artworks]);
+    // On renvoie la réponse propre
+    echo json_encode([
+        'success' => true, 
+        'count' => count($artworks),
+        'data' => $artworks
+    ], JSON_UNESCAPED_UNICODE);
 
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    // En cas d'erreur, on renvoie un message clair
+    echo json_encode([
+        'success' => false, 
+        'message' => $e->getMessage()
+    ]);
 }
 ?>

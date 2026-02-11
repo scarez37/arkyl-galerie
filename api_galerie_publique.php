@@ -1,59 +1,59 @@
 <?php
 /**
- * API GALERIE PUBLIQUE - VERSION CORRIGÉE ARKYL
- * Compatible avec votre base de données 'artgallery.db'
+ * API GALERIE PUBLIQUE - VERSION FINALISÉE
+ * Compatible avec la structure : artworks(artist_id) -> artists(id)
  */
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *'); // Indispensable pour que index.html puisse lire
-header('Access-Control-Allow-Methods: GET');
+header('Access-Control-Allow-Origin: *'); // Permet à index.html de lire les données
 
 try {
-    // 1. Connexion à la BONNE base de données (celle qui contient vos données)
+    // 1. Connexion à la base SQLite
     if (!file_exists('artgallery.db')) {
         throw new Exception("La base de données artgallery.db est introuvable.");
     }
     $db = new SQLite3('artgallery.db');
     
-    // 2. Requête adaptée à votre structure réelle
-    // On utilise COALESCE pour trouver le nom de l'artiste peu importe la table utilisée
+    // 2. La Requête SQL CORRIGÉE
+    // On remplace 'user_id' par 'artist_id' pour correspondre à votre base
     $sql = "SELECT 
                 a.id, 
                 a.title, 
-                a.description, 
+                a.category,
                 a.price, 
                 a.image_url, 
-                a.created_at,
-                -- On cherche le nom dans la table artists OU users
+                a.description,
+                a.artist_id,
+                -- On récupère le nom de l'artiste depuis la table 'artists'
                 COALESCE(u.artist_name, u.name, 'Artiste ARKYL') as artist_name
             FROM artworks a 
-            LEFT JOIN artists u ON a.user_id = u.id 
+            LEFT JOIN artists u ON a.artist_id = u.id 
             WHERE a.status = 'active' OR a.status IS NULL 
-            ORDER BY a.id DESC"; // Les plus récents en premier
+            ORDER BY a.id DESC";
 
     $result = $db->query($sql);
 
+    if (!$result) {
+        throw new Exception($db->lastErrorMsg());
+    }
+
     $artworks = [];
     while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-        // Sécurité pour l'image
+        // Sécurité image : si vide, on met une image par défaut
         if (empty($row['image_url'])) {
-            $row['image_url'] = 'assets/default_art.jpg'; // Image par défaut si vide
+            $row['image_url'] = 'https://via.placeholder.com/400x300?text=Oeuvre+Arkyl'; 
         }
+        
+        // Nettoyage des données pour éviter les bugs d'affichage
+        $row['price'] = $row['price'] . ' €'; 
+        
         $artworks[] = $row;
     }
 
-    // On renvoie la réponse propre
-    echo json_encode([
-        'success' => true, 
-        'count' => count($artworks),
-        'data' => $artworks
-    ], JSON_UNESCAPED_UNICODE);
+    // Réponse finale
+    echo json_encode(['success' => true, 'count' => count($artworks), 'data' => $artworks]);
 
 } catch (Exception $e) {
-    // En cas d'erreur, on renvoie un message clair
-    echo json_encode([
-        'success' => false, 
-        'message' => $e->getMessage()
-    ]);
+    echo json_encode(['success' => false, 'message' => "Erreur SQL : " . $e->getMessage()]);
 }
 ?>

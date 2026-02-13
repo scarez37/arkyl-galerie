@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil Artiste - ARKYL</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Poppins', sans-serif; background: #f9f9f9; color: #1a1a1a; }
+        .hero-artiste {
+            background: linear-gradient(135deg, #000000 0%, #2c3e50 100%);
+            color: white; padding: 80px 20px 100px;
+            text-align: center; position: relative;
+        }
+        .btn-retour {
+            position: absolute; top: 20px; left: 20px;
+            color: white; text-decoration: none; font-weight: 600;
+            background: rgba(255,255,255,0.1); padding: 8px 15px; border-radius: 30px; transition: 0.3s;
+        }
+        .btn-retour:hover { background: rgba(255,255,255,0.3); }
+        .artist-avatar {
+            width: 100px; height: 100px; border-radius: 50%;
+            background: #d4af37; color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2.5rem; margin: 0 auto 20px;
+            border: 4px solid rgba(255,255,255,0.2);
+        }
+        h1 { font-size: 2.5rem; font-weight: 800; letter-spacing: 1px; margin-bottom: 10px; }
+        .bio-placeholder { opacity: 0.7; font-weight: 300; max-width: 600px; margin: 0 auto; }
+        .container { max-width: 1100px; margin: -50px auto 50px; padding: 0 20px; position: relative; z-index: 2; }
+        .stats-bar {
+            background: white; padding: 25px; border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 40px;
+        }
+        .stat-count { font-size: 1.2rem; font-weight: 600; color: #333; }
+        .stat-label { color: #888; font-size: 0.9rem; }
+        .grid-oeuvres {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+        }
+        .card {
+            background: white; border-radius: 12px; overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05); transition: transform 0.3s;
+        }
+        .card:hover { transform: translateY(-5px); }
+        .card-img-container { height: 250px; overflow: hidden; background: #eee; }
+        .card img { width: 100%; height: 100%; object-fit: cover; transition: 0.5s; }
+        .card:hover img { transform: scale(1.05); }
+        .card-body { padding: 20px; }
+        .card h3 { font-size: 1.1rem; margin-bottom: 5px; }
+        .card-price { color: #d4af37; font-weight: 700; font-size: 1.1rem; margin-bottom: 15px; display: block; }
+        .btn-buy {
+            width: 100%; padding: 10px; background: black; color: white;
+            border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: background 0.2s;
+        }
+        .btn-buy:hover { background: #d4af37; }
+        .empty-state { grid-column: 1 / -1; text-align: center; padding: 50px; color: #888; }
+        .empty-state i { font-size: 3rem; margin-bottom: 15px; display: block; opacity: 0.5; }
+        .loading { text-align: center; padding: 60px; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="hero-artiste">
+        <a href="index.html" class="btn-retour"><i class="fas fa-arrow-left"></i> Retour à la galerie</a>
+        <div class="artist-avatar"><i class="fas fa-user"></i></div>
+        <h1 id="artist-name">Chargement...</h1>
+        <p class="bio-placeholder">Membre de la communauté d'artistes ARKYL</p>
+    </div>
+    <div class="container">
+        <div class="stats-bar">
+            <div>
+                <span class="stat-label">Collection</span>
+                <div class="stat-count" id="works-count">—</div>
+            </div>
+            <button onclick="alert('Fonction s\'abonner bientôt disponible')" style="border:1px solid #ddd; background:white; padding:8px 20px; border-radius:20px; cursor:pointer;">
+                <i class="far fa-heart"></i> Suivre
+            </button>
+        </div>
+        <div id="artist-grid" class="grid-oeuvres">
+            <div class="loading"><i class="fas fa-spinner fa-spin"></i> Chargement des œuvres...</div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const params     = new URLSearchParams(window.location.search);
+            const artistName = params.get('name');
+            const nameEl     = document.getElementById('artist-name');
+            const gridEl     = document.getElementById('artist-grid');
+            const countEl    = document.getElementById('works-count');
+
+            if (!artistName) { window.location.href = 'index.html'; return; }
+
+            const nameDecoded = decodeURIComponent(artistName);
+            nameEl.textContent = nameDecoded;
+            document.title     = `${nameDecoded} - ARKYL`;
+
+            try {
+                const response = await fetch(`api_galerie_publique.php?t=${Date.now()}`);
+                const result   = await response.json();
+                if (!result.success || !result.data) throw new Error('API indisponible');
+
+                const oeuvres = result.data.filter(art =>
+                    art.artist_name &&
+                    art.artist_name.trim().toLowerCase() === nameDecoded.trim().toLowerCase()
+                );
+
+                if (oeuvres.length === 0) {
+                    countEl.textContent = '0 œuvre';
+                    gridEl.innerHTML = `<div class="empty-state"><i class="fas fa-paint-brush"></i><p>Cet artiste n'a pas encore publié d'œuvres.</p></div>`;
+                    return;
+                }
+
+                countEl.textContent = `${oeuvres.length} œuvre${oeuvres.length > 1 ? 's' : ''}`;
+                gridEl.innerHTML = oeuvres.map(art => `
+                    <div class="card">
+                        <div class="card-img-container">
+                            <img src="${art.image_url}" alt="${art.title}"
+                                 onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E%F0%9F%8E%A8%3C/text%3E%3C/svg%3E'">
+                        </div>
+                        <div class="card-body">
+                            <h3>${art.title}</h3>
+                            <span class="card-price">${Number(art.price).toLocaleString('fr-FR')} FCFA</span>
+                            <button class="btn-buy" onclick="window.location.href='index.html'">Voir dans la boutique</button>
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                console.error('Erreur profil:', error);
+                countEl.textContent = 'Erreur';
+                gridEl.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Impossible de charger les œuvres.</p></div>`;
+            }
+        });
+    </script>
+</body>
+</html>

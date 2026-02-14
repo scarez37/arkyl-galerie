@@ -13035,7 +13035,46 @@
         }
     </style>
 
-    
+    <script>
+    document.addEventListener('DOMContentLoaded', chargerLaVraieGalerie);
+
+    async function chargerLaVraieGalerie() {
+        const grille = document.getElementById('product-grid'); 
+        if (!grille) return; 
+
+        try {
+            // L'adresse COMPLÈTE et ABSOLUE de ton serveur API
+            const urlAPI = 'https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now();
+            
+            const reponse = await fetch(urlAPI);
+            const resultat = await reponse.json();
+
+            grille.innerHTML = ''; // On vide le texte de chargement
+
+            if (resultat.success && resultat.data.length > 0) {
+                resultat.data.forEach(oeuvre => {
+                    const carte = `
+                        <div class="product-card" style="border: 1px solid #eee; border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
+                            <img src="${oeuvre.image_url}" alt="${oeuvre.title}" style="width:100%; height:250px; object-fit:cover;">
+                            <div class="product-info" style="padding: 15px;">
+                                <h3 style="margin-top: 0;">${oeuvre.title}</h3>
+                                <p>Par : <a href="profil.html?name=${encodeURIComponent(oeuvre.artist_name)}" style="color:#d4af37; text-decoration:none; font-weight:bold;">${oeuvre.artist_name}</a></p>
+                                <p style="font-weight:bold; font-size: 1.2em; margin-top:10px;">${oeuvre.price} FCFA</p>
+                            </div>
+                        </div>
+                    `;
+                    grille.innerHTML += carte;
+                });
+            } else {
+                grille.innerHTML = '<p style="text-align:center; width:100%;">La galerie est vide pour le moment.</p>';
+            }
+
+        } catch (erreur) {
+            console.error("Erreur de communication :", erreur);
+            grille.innerHTML = '<p style="color:red; text-align:center;">Serveur injoignable pour le moment.</p>';
+        }
+    }
+</script>
 
 </body>
 </html>

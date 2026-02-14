@@ -10,7 +10,7 @@
     <style>
         :root {
             --primary: #000000;
-            --accent: #d4af37; /* Or */
+            --accent: #d4af37;
             --bg: #f4f4f4;
             --white: #ffffff;
             --text: #333333;
@@ -20,7 +20,6 @@
         
         body { background-color: var(--bg); color: var(--text); }
 
-        /* HEADER */
         .dashboard-header {
             background: var(--white);
             padding: 20px 40px;
@@ -37,10 +36,8 @@
         }
         .btn-logout:hover { background: var(--primary); color: var(--white); }
 
-        /* CONTAINER PRINCIPAL */
         .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; }
 
-        /* STATS CARDS */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -56,7 +53,6 @@
         .stat-number { font-size: 2.5rem; font-weight: 600; color: var(--primary); margin: 10px 0; }
         .stat-label { color: #777; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
 
-        /* SECTION AJOUT ET LISTE */
         .content-grid {
             display: grid;
             grid-template-columns: 1fr 2fr;
@@ -64,10 +60,9 @@
         }
         @media (max-width: 768px) { .content-grid { grid-template-columns: 1fr; } }
 
-        /* FORMULAIRE */
         .form-panel {
             background: var(--white); padding: 30px; border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.02); h-height: fit-content;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02); height: fit-content;
         }
         .form-group { margin-bottom: 20px; }
         .form-group label { display: block; margin-bottom: 8px; font-weight: 500; }
@@ -82,7 +77,6 @@
         }
         .btn-submit:hover { background: #333; }
 
-        /* LISTE DES ŒUVRES */
         .artworks-panel {
             background: var(--white); padding: 30px; border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.02);
@@ -139,6 +133,17 @@
                         <input type="text" id="art-title" class="form-control" required placeholder="Ex: Masque Baoulé">
                     </div>
                     <div class="form-group">
+                        <label>Catégorie</label>
+                        <select id="art-category" class="form-control" required>
+                            <option value="">Choisir...</option>
+                            <option value="sculpture">Sculpture</option>
+                            <option value="peinture">Peinture</option>
+                            <option value="photographie">Photographie</option>
+                            <option value="textile">Textile</option>
+                            <option value="autre">Autre</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label>Prix (€)</label>
                         <input type="number" id="art-price" class="form-control" required placeholder="Ex: 150">
                     </div>
@@ -164,48 +169,48 @@
     </div>
 
     <script>
-        // CONFIGURATION CRITIQUE : On pointe vers le bon fichier PHP
-        const API_URL = 'api_complete.php'; 
-        const STATS_URL = 'get_stats.php';
+        // ✅ CORRIGÉ : Utilise api.php (le bon fichier)
+        const API_URL = 'api.php';
 
-        // 1. Vérification Connexion
+        // Vérification Connexion
         const artistId = localStorage.getItem('user_id');
         const artistName = localStorage.getItem('user_name');
 
         if (!artistId) {
             alert("Vous devez être connecté !");
-            window.location.href = 'login.html'; // Ou index.html
+            window.location.href = 'login.html';
         } else {
             document.getElementById('artist-name-display').textContent = "Artiste : " + (artistName || "Inconnu");
             chargerStats();
             chargerMesOeuvres();
         }
 
-        // 2. Charger les Stats
+        // Charger les stats
         async function chargerStats() {
             try {
-                // On ajoute un timestamp &t=... pour éviter le cache
-                const res = await fetch(`${STATS_URL}?artist_id=${artistId}&t=${Date.now()}`);
+                const res = await fetch(`${API_URL}?action=get_artist_stats&artist_id=${artistId}&t=${Date.now()}`);
                 const data = await res.json();
                 if(data.success) {
                     document.getElementById('stat-sales').textContent = data.stats.total_sales || 0;
                     document.getElementById('stat-revenue').textContent = (data.stats.revenue || 0) + " €";
                     document.getElementById('stat-views').textContent = data.stats.total_views || 0;
                 }
-            } catch (e) { console.error("Erreur stats", e); }
+            } catch (e) { 
+                console.error("Erreur stats", e); 
+            }
         }
 
-        // 3. Charger la liste des œuvres
+        // Charger la liste des œuvres
         async function chargerMesOeuvres() {
             const list = document.getElementById('artworks-list');
             try {
-                // On utilise l'API publique pour lire (c'est plus simple)
-                const res = await fetch(`api_galerie_publique.php?t=${Date.now()}`);
+                // ✅ CORRIGÉ : Utilise api.php?action=artworks
+                const res = await fetch(`${API_URL}?action=artworks&t=${Date.now()}`);
                 const json = await res.json();
                 
                 if(json.success) {
-                    // On filtre pour ne garder que les œuvres de CET artiste
-                    const mesOeuvres = json.data.filter(art => art.user_id == artistId);
+                    // ✅ CORRIGÉ : Utilise artist_id au lieu de user_id
+                    const mesOeuvres = json.data.filter(art => art.artist_id == artistId);
                     
                     if(mesOeuvres.length === 0) {
                         list.innerHTML = "<p style='text-align:center; color:#999;'>Aucune œuvre publiée.</p>";
@@ -214,9 +219,9 @@
 
                     list.innerHTML = mesOeuvres.map(art => `
                         <div class="artwork-item">
-                            <img src="${art.image_url}" class="artwork-thumb">
+                            <img src="${art.image_url}" class="artwork-thumb" alt="${escapeHtml(art.title)}">
                             <div class="artwork-details">
-                                <div class="artwork-title">${art.title}</div>
+                                <div class="artwork-title">${escapeHtml(art.title)}</div>
                                 <div class="artwork-price">${art.price} €</div>
                             </div>
                             <button onclick="supprimerOeuvre(${art.id})" class="btn-delete" title="Supprimer">
@@ -226,11 +231,12 @@
                     `).join('');
                 }
             } catch (e) {
+                console.error('Erreur:', e);
                 list.innerHTML = "<p style='color:red'>Erreur de chargement</p>";
             }
         }
 
-        // 4. Ajouter une œuvre
+        // Ajouter une œuvre
         async function ajouterOeuvre(e) {
             e.preventDefault();
             const btn = document.getElementById('btn-add');
@@ -238,8 +244,8 @@
             btn.disabled = true;
 
             try {
-                // Récupération des données
                 const title = document.getElementById('art-title').value;
+                const category = document.getElementById('art-category').value;
                 const price = document.getElementById('art-price').value;
                 const desc = document.getElementById('art-desc').value;
                 const file = document.getElementById('art-image').files[0];
@@ -251,47 +257,72 @@
                     reader.readAsDataURL(file);
                 });
 
-                // Envoi à l'API
+                // ✅ CORRIGÉ : Envoi à api.php?action=add_artwork
                 const res = await fetch(`${API_URL}?action=add_artwork`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         artist_id: artistId,
-                        title: title, 
-                        price: price, 
-                        description: desc, 
-                        image: base64
+                        title: title,
+                        category: category,
+                        price: price,
+                        description: desc,
+                        image_url: base64  // L'API le convertit en fichier
                     })
                 });
 
                 const data = await res.json();
                 if(data.success) {
-                    alert("✅ Œuvre publiée !");
+                    alert("✅ Œuvre publiée avec succès !");
                     document.getElementById('add-form').reset();
-                    chargerMesOeuvres(); // Rafraichir la liste
+                    chargerMesOeuvres();
+                    chargerStats();
                 } else {
-                    alert("Erreur: " + data.message);
+                    alert("Erreur: " + (data.message || "Inconnue"));
                 }
 
             } catch (err) {
-                alert("Erreur technique : " + err);
+                console.error('Erreur:', err);
+                alert("Erreur technique : " + err.message);
             } finally {
                 btn.textContent = "Publier l'œuvre";
                 btn.disabled = false;
             }
         }
 
-        // 5. Supprimer une œuvre (Optionnel, si api_complete le gère)
+        // Supprimer une œuvre
         async function supprimerOeuvre(id) {
             if(!confirm("Supprimer cette œuvre ?")) return;
-            // Note: Il faudra ajouter la fonction DELETE dans api_complete.php si elle n'y est pas
-            alert("Fonction suppression bientôt disponible !");
+            
+            try {
+                const res = await fetch(`${API_URL}?action=delete_artwork&id=${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await res.json();
+                if(data.success) {
+                    alert("✅ Œuvre supprimée");
+                    chargerMesOeuvres();
+                    chargerStats();
+                } else {
+                    alert("Erreur: " + (data.message || "Inconnue"));
+                }
+            } catch (err) {
+                alert("Erreur: " + err.message);
+            }
         }
 
         function logout() {
             localStorage.removeItem('user_id');
             localStorage.removeItem('user_name');
             window.location.href = 'index.html';
+        }
+
+        // ✅ Protection XSS : échapper le HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
     </script>
 </body>

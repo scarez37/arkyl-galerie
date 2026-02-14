@@ -1,37 +1,47 @@
 <?php
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *'); // Tout le monde peut lire
+/**
+ * API GALERIE PUBLIQUE - VERSION CORRIGÉE
+ * Affiche TOUTES les œuvres sans restriction
+ */
+header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *'); // IMPORTANT : Autorise tous les appareils
 
 try {
+    // 1. Connexion à la base de données
     $db = new SQLite3('artgallery.db');
     
-    // On sélectionne TOUTES les œuvres, peu importe l'artiste
-    // On utilise LEFT JOIN pour récupérer le nom de l'artiste associé
+    // 2. REQUÊTE CORRIGÉE (artist_id au lieu de user_id)
     $sql = "SELECT 
-                artworks.id, 
-                artworks.title, 
-                artworks.price, 
-                artworks.image_url, 
-                artworks.user_id,
-                artists.artist_name 
-            FROM artworks 
-            LEFT JOIN artists ON artworks.user_id = artists.id 
-            ORDER BY artworks.id DESC"; // Les plus récentes en premier
+                a.id, 
+                a.title, 
+                a.price, 
+                a.image_url, 
+                a.artist_id,
+                COALESCE(u.artist_name, u.name, 'Artiste ARKYL') as artist_name
+            FROM artworks a 
+            LEFT JOIN artists u ON a.artist_id = u.id 
+            ORDER BY a.id DESC"; // Les plus récentes en haut
 
     $result = $db->query($sql);
 
-    $all_artworks = [];
-    while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-        // Si l'artiste n'a pas de nom défini, on met un nom par défaut
-        if (empty($row['artist_name'])) {
-            $row['artist_name'] = 'Artiste ARKYL';
-        }
-        $all_artworks[] = $row;
+    // Si la requête échoue, on arrête tout
+    if (!$result) {
+        throw new Exception($db->lastErrorMsg());
     }
 
-    echo json_encode(['success' => true, 'data' => $all_artworks]);
+    $artworks = [];
+    while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+        // Petite sécurité si l'image est vide
+        if (empty($row['image_url'])) {
+            $row['image_url'] = 'https://via.placeholder.com/300?text=Image+Indisponible';
+        }
+        $artworks[] = $row;
+    }
+
+    // On envoie le résultat final
+    echo json_encode(['success' => true, 'data' => $artworks]);
 
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => "Erreur SQL : " . $e->getMessage()]);
 }
 ?>

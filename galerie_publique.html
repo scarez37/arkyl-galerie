@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galerie Publique - ARKYL</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #000000;
+            --accent: #d4af37;
+            --bg: #f4f4f4;
+            --white: #ffffff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            font-family: 'Poppins', sans-serif;
+            background: var(--bg);
+            color: #333;
+        }
+
+        /* HEADER */
+        header {
+            background: var(--white);
+            padding: 20px 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .logo {
+            font-size: 2rem;
+            font-weight: 600;
+            letter-spacing: 3px;
+            color: var(--primary);
+        }
+        .subtitle {
+            color: #777;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        /* CONTAINER */
+        .container {
+            max-width: 1400px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 40px;
+            color: var(--primary);
+        }
+
+        /* GRID DES ŒUVRES */
+        .artworks-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 30px;
+        }
+
+        .artwork-card {
+            background: var(--white);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+
+        .artwork-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .artwork-image {
+            width: 100%;
+            height: 280px;
+            object-fit: cover;
+            background: #f0f0f0;
+        }
+
+        .artwork-info {
+            padding: 20px;
+        }
+
+        .artwork-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--primary);
+        }
+
+        .artwork-artist {
+            color: #888;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+        }
+
+        .artwork-price {
+            font-size: 1.4rem;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .btn-contact {
+            background: var(--primary);
+            color: var(--white);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            margin-top: 12px;
+            cursor: pointer;
+            width: 100%;
+            transition: 0.3s;
+        }
+
+        .btn-contact:hover {
+            background: #333;
+        }
+
+        /* LOADING */
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+            font-size: 1.1rem;
+        }
+
+        /* EMPTY STATE */
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #999;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        /* MODAL DÉTAILS */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--white);
+            border-radius: 12px;
+            max-width: 800px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-image {
+            width: 100%;
+            height: 400px;
+            object-fit: cover;
+        }
+
+        .modal-details {
+            padding: 30px;
+        }
+
+        .btn-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: var(--white);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        @media (max-width: 768px) {
+            .artworks-grid {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">ARKYL</div>
+        <div class="subtitle">Galerie d'Art Africain Contemporain</div>
+    </header>
+
+    <div class="container">
+        <h2 class="section-title">Toutes les Œuvres</h2>
+        
+        <div id="artworks-container">
+            <div class="loading">Chargement des œuvres...</div>
+        </div>
+    </div>
+
+    <!-- MODAL DÉTAILS -->
+    <div id="modal" class="modal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <button class="btn-close" onclick="closeModal()">×</button>
+            <img id="modal-image" class="modal-image" src="" alt="">
+            <div class="modal-details">
+                <h2 id="modal-title"></h2>
+                <p id="modal-artist" style="color:#888; margin-bottom:15px;"></p>
+                <p id="modal-description" style="margin-bottom:20px; line-height:1.6;"></p>
+                <div id="modal-price" style="font-size:1.8rem; color:var(--accent); font-weight:600; margin-bottom:15px;"></div>
+                <button class="btn-contact" onclick="contactArtist()">Contacter l'Artiste</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'api_galerie_publique.php';
+        let currentArtwork = null;
+
+        // Charger TOUTES les œuvres au démarrage
+        chargerToutesLesOeuvres();
+
+        async function chargerToutesLesOeuvres() {
+            const container = document.getElementById('artworks-container');
+            
+            try {
+                // Ajout d'un timestamp pour éviter le cache
+                const response = await fetch(`${API_URL}?t=${Date.now()}`);
+                const json = await response.json();
+
+                if (!json.success) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <p style="color:red;">Erreur : ${json.message}</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const artworks = json.data;
+
+                // Si aucune œuvre
+                if (!artworks || artworks.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i>🎨</i>
+                            <h3>Aucune œuvre pour le moment</h3>
+                            <p>Les artistes n'ont pas encore publié d'œuvres.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Afficher TOUTES les œuvres (sans filtre)
+                container.innerHTML = `
+                    <div class="artworks-grid">
+                        ${artworks.map(art => `
+                            <div class="artwork-card" onclick="openModal(${art.id})">
+                                <img src="${art.image_url}" class="artwork-image" alt="${art.title}">
+                                <div class="artwork-info">
+                                    <div class="artwork-title">${art.title}</div>
+                                    <div class="artwork-artist">par ${art.artist_name}</div>
+                                    <div class="artwork-price">${art.price} €</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+
+                // Stocker les données pour le modal
+                window.artworksData = artworks;
+
+                console.log(`✅ ${artworks.length} œuvres chargées`);
+
+            } catch (error) {
+                console.error('Erreur:', error);
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <p style="color:red;">Erreur de connexion : ${error.message}</p>
+                        <button onclick="chargerToutesLesOeuvres()" class="btn-contact">Réessayer</button>
+                    </div>
+                `;
+            }
+        }
+
+        function openModal(artworkId) {
+            const artwork = window.artworksData.find(a => a.id == artworkId);
+            if (!artwork) return;
+
+            currentArtwork = artwork;
+
+            document.getElementById('modal-image').src = artwork.image_url;
+            document.getElementById('modal-title').textContent = artwork.title;
+            document.getElementById('modal-artist').textContent = 'Par ' + artwork.artist_name;
+            document.getElementById('modal-description').textContent = artwork.description || 'Aucune description disponible.';
+            document.getElementById('modal-price').textContent = artwork.price + ' €';
+
+            document.getElementById('modal').classList.add('active');
+        }
+
+        function closeModal(event) {
+            if (!event || event.target.id === 'modal') {
+                document.getElementById('modal').classList.remove('active');
+                currentArtwork = null;
+            }
+        }
+
+        function contactArtist() {
+            if (!currentArtwork) return;
+            alert(`Contacter l'artiste ${currentArtwork.artist_name} pour l'œuvre "${currentArtwork.title}".\n\nFonctionnalité à venir : formulaire de contact ou WhatsApp.`);
+        }
+
+        // Fermer modal avec ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+    </script>
+
+</body>
+</html>

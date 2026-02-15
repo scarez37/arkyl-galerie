@@ -1,58 +1,144 @@
 <?php
+// ==================== API AJOUTER AU PANIER ====================
+// Fichier: api_ajouter_panier.php
+// Serveur: Render
+// Base de données: SQLite
+
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
+// Gestion preflight CORS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
-try {
-    // 1. Essayer de lire le flux JSON (méthode moderne)
-    $json = file_get_contents('php://input');
-    $data = json_decode($json, true);
+// ==================== CHERCHER LA BASE DE DONNÉES ====================
+// Essayer plusieurs emplacements possibles
+$possiblePaths = [
+    '/opt/render/project/src/galerie.db',
+    __DIR__ . '/galerie.db',
+    '/var/data/galerie.db',
+    '/tmp/galerie.db',
+    getcwd() . '/galerie.db'
+];
 
-    // 2. Si le JSON est vide, essayer de lire les données POST classiques
-    if (empty($data)) {
-        $data = $_POST;
+$dbPath = null;
+foreach ($possiblePaths as $path) {
+    if (file_exists($path)) {
+        $dbPath = $path;
+        break;
     }
+}
 
-    // 3. Vérification de sécurité : si c'est toujours vide, là on s'arrête
-    if (empty($data)) {
-        echo json_encode(['success' => false, 'message' => "Le serveur n'a reçu aucune donnée exploitable."]);
+// Si la base n'existe nulle part, la créer dans le dossier actuel
+if (!$dbPath) {
+    $dbPath = __DIR__ . '/galerie.db';
+}
+
+// Connexion à la base de données SQLite
+try {
+    $db = new PDO('sqlite:' . $dbPath);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'Erreur de connexion à la base de données',
+        'error' => $e->getMessage(),
+        'tried_path' => $dbPath,
+        'all_paths_tried' => $possiblePaths
+    ]);
+    exit;
+}
+
+// Récupération des données POST
+$input = file_get_contents('php://input');
+$data = json_decode($input, true);
+
+// Validation des données
+if (!isset($data['artwork_id']) || empty($data['artwork_id'])) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'ID de l\'œuvre manquant'
+    ]);
+    exit;
+}
+
+$artwork_id = intval($data['artwork_id']);
+$user_id = $data['user_id'] ?? 'guest_' . session_id();
+$quantity = isset($data['quantity']) ? intval($data['quantity']) : 1;
+
+// Vérification que l'œuvre existe
+try {
+    $stmt = $db->prepare("SELECT id, title, price FROM artworks WHERE id = :id");
+    $stmt->execute([':id' => $artwork_id]);
+    $artwork = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$artwork) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Œuvre introuvable (ID: ' . $artwork_id . ')'
+        ]);
         exit;
     }
-
-    // 4. Connexion à la base
-    $db = new SQLite3('artgallery.db');
-
-    // 5. Préparation de la requête
-    $sql = "INSERT INTO artworks (title, price, image_url, artist_id, description, category) 
-            VALUES (:title, :price, :image_url, :artist_id, :description, :category)";
-            
-    $stmt = $db->prepare($sql);
-
-    // On utilise l'ID de l'artiste ou on met 1 par défaut pour le test
-    $artist_id = isset($data['artist_id']) ? $data['artist_id'] : 1;
-
-    $stmt->bindValue(':title', $data['title'] ?? 'Sans titre', SQLITE3_TEXT);
-    $stmt->bindValue(':price', $data['price'] ?? '0', SQLITE3_TEXT);
-    $stmt->bindValue(':image_url', $data['image_url'] ?? '', SQLITE3_TEXT);
-    $stmt->bindValue(':artist_id', $artist_id, SQLITE3_INTEGER);
-    $stmt->bindValue(':description', $data['description'] ?? '', SQLITE3_TEXT);
-    $stmt->bindValue(':category', $data['category'] ?? 'Art', SQLITE3_TEXT);
-
-    $result = $stmt->execute();
-
-    if ($result) {
-        echo json_encode(['success' => true, 'message' => "L'œuvre a été publiée avec succès !"]);
+    
+    // Créer la table panier si elle n'existe pas
+    $db->exec("CREATE TABLE IF NOT EXISTS cart (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        artwork_id INTEGER NOT NULL,
+        quantity INTEGER DEFAULT 1,
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (artwork_id) REFERENCES artworks(id)
+    )");
+    
+    // Vérifier si l'œuvre est déjà dans le panier
+    $checkStmt = $db->prepare("SELECT id, quantity FROM cart WHERE user_id = :user_id AND artwork_id = :artwork_id");
+    $checkStmt->execute([
+        ':user_id' => $user_id,
+        ':artwork_id' => $artwork_id
+    ]);
+    $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($existing) {
+        // Mettre à jour la quantité
+        $newQuantity = $existing['quantity'] + $quantity;
+        $updateStmt = $db->prepare("UPDATE cart SET quantity = :quantity WHERE id = :id");
+        $updateStmt->execute([
+            ':quantity' => $newQuantity,
+            ':id' => $existing['id']
+        ]);
+        
+        echo json_encode([
+            'success' => true,
+            'message' => 'Quantité mise à jour dans le panier',
+            'action' => 'updated',
+            'quantity' => $newQuantity
+        ]);
     } else {
-        throw new Exception("Erreur lors de l'insertion en base de données.");
+        // Ajouter au panier
+        $insertStmt = $db->prepare("INSERT INTO cart (user_id, artwork_id, quantity) VALUES (:user_id, :artwork_id, :quantity)");
+        $insertStmt->execute([
+            ':user_id' => $user_id,
+            ':artwork_id' => $artwork_id,
+            ':quantity' => $quantity
+        ]);
+        
+        echo json_encode([
+            'success' => true,
+            'message' => 'Œuvre "' . $artwork['title'] . '" ajoutée au panier',
+            'action' => 'added',
+            'cart_id' => $db->lastInsertId()
+        ]);
     }
-
-} catch (Exception $e) {
-    echo json_encode(['success' => false, 'message' => "Erreur : " . $e->getMessage()]);
+    
+} catch (PDOException $e) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'Erreur lors de l\'ajout au panier',
+        'error' => $e->getMessage()
+    ]);
 }
 ?>

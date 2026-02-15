@@ -1,38 +1,57 @@
 <?php
-// ==================== API SUPPRESSION D'ŒUVRE ====================
+// ==================== API SUPPRESSION D'ŒUVRE (VERSION CORRIGÉE) ====================
 // Fichier: api_supprimer_oeuvre.php
-// Serveur: Render
-// Base de données: SQLite
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-// Gestion preflight CORS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
-// Connexion à la base de données SQLite
+// ==================== CHERCHER LA BASE DE DONNÉES ====================
+$possiblePaths = [
+    '/opt/render/project/src/galerie.db',
+    __DIR__ . '/galerie.db',
+    '/var/data/galerie.db',
+    '/tmp/galerie.db',
+    getcwd() . '/galerie.db',
+    dirname(__FILE__) . '/galerie.db'
+];
+
+$dbPath = null;
+foreach ($possiblePaths as $path) {
+    if (file_exists($path)) {
+        $dbPath = $path;
+        break;
+    }
+}
+
+if (!$dbPath) {
+    $dbPath = __DIR__ . '/galerie.db';
+}
+
+// Connexion à la base de données
 try {
-    $db = new PDO('sqlite:/opt/render/project/src/galerie.db');
+    $db = new PDO('sqlite:' . $dbPath);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     echo json_encode([
         'success' => false,
         'message' => 'Erreur de connexion à la base de données',
-        'error' => $e->getMessage()
+        'error' => $e->getMessage(),
+        'db_path_tried' => $dbPath
     ]);
     exit;
 }
 
-// Récupération des données POST
+// Récupération des données
 $input = file_get_contents('php://input');
 $data = json_decode($input, true);
 
-// Validation des données
 if (!isset($data['id']) || empty($data['id'])) {
     echo json_encode([
         'success' => false,
@@ -43,9 +62,9 @@ if (!isset($data['id']) || empty($data['id'])) {
 
 $artwork_id = intval($data['id']);
 
-// Vérification que l'œuvre existe
 try {
-    $stmt = $db->prepare("SELECT id, title, artist_id FROM artworks WHERE id = :id");
+    // Vérifier que l'œuvre existe
+    $stmt = $db->prepare("SELECT id, title FROM artworks WHERE id = :id");
     $stmt->execute([':id' => $artwork_id]);
     $artwork = $stmt->fetch(PDO::FETCH_ASSOC);
     
@@ -57,12 +76,15 @@ try {
         exit;
     }
     
-    // Suppression de l'œuvre
+    // SUPPRESSION DE L'ŒUVRE
     $deleteStmt = $db->prepare("DELETE FROM artworks WHERE id = :id");
     $deleteStmt->execute([':id' => $artwork_id]);
     
-    // Vérification que la suppression a bien eu lieu
     if ($deleteStmt->rowCount() > 0) {
+        // Supprimer aussi du panier et des favoris
+        $db->exec("DELETE FROM cart WHERE artwork_id = $artwork_id");
+        $db->exec("DELETE FROM favorites WHERE artwork_id = $artwork_id");
+        
         echo json_encode([
             'success' => true,
             'message' => 'Œuvre "' . $artwork['title'] . '" supprimée avec succès',
@@ -71,7 +93,7 @@ try {
     } else {
         echo json_encode([
             'success' => false,
-            'message' => 'La suppression a échoué (aucune ligne affectée)'
+            'message' => 'La suppression a échoué'
         ]);
     }
     

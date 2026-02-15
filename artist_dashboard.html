@@ -290,25 +290,31 @@
             }
         }
 
-        // Supprimer une œuvre
+        // ✅ NOUVELLE VERSION : Suppression via api_supprimer_oeuvre.php
         async function supprimerOeuvre(id) {
-            if(!confirm("Supprimer cette œuvre ?")) return;
+            if(!confirm("Voulez-vous vraiment supprimer cette œuvre du serveur ?")) return;
             
             try {
-                const res = await fetch(`${API_URL}?action=delete_artwork&id=${id}`, {
-                    method: 'DELETE'
+                // Appel à l'API de suppression dédiée sur Render
+                const res = await fetch('https://arkyl-galerie.onrender.com/api_supprimer_oeuvre.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
                 });
                 
                 const data = await res.json();
+                
                 if(data.success) {
-                    alert("✅ Œuvre supprimée");
+                    alert("✅ " + data.message);
                     chargerMesOeuvres();
                     chargerStats();
                 } else {
-                    alert("Erreur: " + (data.message || "Inconnue"));
+                    alert("🛑 Erreur du serveur : " + (data.message || "Inconnue"));
+                    console.error("Détails de l'erreur:", data);
                 }
             } catch (err) {
-                alert("Erreur: " + err.message);
+                console.error("Erreur technique lors de la suppression:", err);
+                alert("❌ Erreur de connexion au serveur : " + err.message);
             }
         }
 

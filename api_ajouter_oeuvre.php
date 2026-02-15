@@ -1,144 +1,184 @@
 <?php
-// ==================== API AJOUTER AU PANIER ====================
-// Fichier: api_ajouter_panier.php
-// Serveur: Render
-// Base de données: SQLite
-
+/**
+ * API AJOUTER ŒUVRE
+ * Permet aux artistes de publier leurs œuvres dans la galerie
+ */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-// Gestion preflight CORS
+// Gérer les requêtes OPTIONS (preflight)
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
-    exit;
+    exit();
 }
 
-// ==================== CHERCHER LA BASE DE DONNÉES ====================
-// Essayer plusieurs emplacements possibles
-$possiblePaths = [
-    '/opt/render/project/src/galerie.db',
-    __DIR__ . '/galerie.db',
-    '/var/data/galerie.db',
-    '/tmp/galerie.db',
-    getcwd() . '/galerie.db'
-];
-
-$dbPath = null;
-foreach ($possiblePaths as $path) {
-    if (file_exists($path)) {
-        $dbPath = $path;
-        break;
-    }
+// Vérifier que c'est une requête POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    echo json_encode([
+        'success' => false,
+        'message' => 'Méthode non autorisée. Utilisez POST.'
+    ], JSON_UNESCAPED_UNICODE);
+    exit();
 }
 
-// Si la base n'existe nulle part, la créer dans le dossier actuel
-if (!$dbPath) {
-    $dbPath = __DIR__ . '/galerie.db';
-}
-
-// Connexion à la base de données SQLite
 try {
-    $db = new PDO('sqlite:' . $dbPath);
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Erreur de connexion à la base de données',
-        'error' => $e->getMessage(),
-        'tried_path' => $dbPath,
-        'all_paths_tried' => $possiblePaths
-    ]);
-    exit;
-}
-
-// Récupération des données POST
-$input = file_get_contents('php://input');
-$data = json_decode($input, true);
-
-// Validation des données
-if (!isset($data['artwork_id']) || empty($data['artwork_id'])) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'ID de l\'œuvre manquant'
-    ]);
-    exit;
-}
-
-$artwork_id = intval($data['artwork_id']);
-$user_id = $data['user_id'] ?? 'guest_' . session_id();
-$quantity = isset($data['quantity']) ? intval($data['quantity']) : 1;
-
-// Vérification que l'œuvre existe
-try {
-    $stmt = $db->prepare("SELECT id, title, price FROM artworks WHERE id = :id");
-    $stmt->execute([':id' => $artwork_id]);
-    $artwork = $stmt->fetch(PDO::FETCH_ASSOC);
+    // Lire les données JSON envoyées
+    $rawInput = file_get_contents('php://input');
+    $data = json_decode($rawInput, true);
     
-    if (!$artwork) {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Œuvre introuvable (ID: ' . $artwork_id . ')'
-        ]);
-        exit;
+    // Debug : Log des données reçues
+    error_log("📥 Données reçues : " . print_r($data, true));
+    
+    if (!$data) {
+        throw new Exception('Aucune donnée reçue ou JSON invalide');
     }
     
-    // Créer la table panier si elle n'existe pas
-    $db->exec("CREATE TABLE IF NOT EXISTS cart (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        artwork_id INTEGER NOT NULL,
-        quantity INTEGER DEFAULT 1,
-        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (artwork_id) REFERENCES artworks(id)
-    )");
+    // Validation des champs obligatoires
+    $requiredFields = ['title', 'category', 'price', 'image_url', 'artist_id'];
+    $missingFields = [];
     
-    // Vérifier si l'œuvre est déjà dans le panier
-    $checkStmt = $db->prepare("SELECT id, quantity FROM cart WHERE user_id = :user_id AND artwork_id = :artwork_id");
-    $checkStmt->execute([
-        ':user_id' => $user_id,
-        ':artwork_id' => $artwork_id
-    ]);
-    $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
-    
-    if ($existing) {
-        // Mettre à jour la quantité
-        $newQuantity = $existing['quantity'] + $quantity;
-        $updateStmt = $db->prepare("UPDATE cart SET quantity = :quantity WHERE id = :id");
-        $updateStmt->execute([
-            ':quantity' => $newQuantity,
-            ':id' => $existing['id']
-        ]);
-        
-        echo json_encode([
-            'success' => true,
-            'message' => 'Quantité mise à jour dans le panier',
-            'action' => 'updated',
-            'quantity' => $newQuantity
-        ]);
-    } else {
-        // Ajouter au panier
-        $insertStmt = $db->prepare("INSERT INTO cart (user_id, artwork_id, quantity) VALUES (:user_id, :artwork_id, :quantity)");
-        $insertStmt->execute([
-            ':user_id' => $user_id,
-            ':artwork_id' => $artwork_id,
-            ':quantity' => $quantity
-        ]);
-        
-        echo json_encode([
-            'success' => true,
-            'message' => 'Œuvre "' . $artwork['title'] . '" ajoutée au panier',
-            'action' => 'added',
-            'cart_id' => $db->lastInsertId()
-        ]);
+    foreach ($requiredFields as $field) {
+        if (!isset($data[$field]) || $data[$field] === '') {
+            $missingFields[] = $field;
+        }
     }
     
-} catch (PDOException $e) {
+    if (!empty($missingFields)) {
+        throw new Exception('Champs manquants : ' . implode(', ', $missingFields));
+    }
+    
+    // Connexion à la base de données artgallery.db
+    $db = new SQLite3('artgallery.db');
+    $db->busyTimeout(5000);
+    
+    // Vérifier que l'artist_id existe dans la table artists
+    $artistCheck = $db->prepare("SELECT id FROM artists WHERE id = :artist_id");
+    $artistCheck->bindValue(':artist_id', $data['artist_id'], SQLITE3_INTEGER);
+    $artistResult = $artistCheck->execute();
+    
+    if (!$artistResult->fetchArray()) {
+        throw new Exception('Artist ID ' . $data['artist_id'] . ' introuvable dans la base de données');
+    }
+    
+    // Préparer les données pour l'insertion
+    $title = $data['title'];
+    $category = $data['category'];
+    $price = floatval($data['price']);
+    $image_url = $data['image_url'];
+    $artist_id = intval($data['artist_id']);
+    $description = isset($data['description']) ? $data['description'] : '';
+    
+    // Gérer les photos multiples (si envoyées)
+    $photos = null;
+    if (isset($data['photos']) && is_array($data['photos'])) {
+        $photos = json_encode($data['photos']);
+    } else if (!empty($image_url)) {
+        // Si pas de tableau photos, créer un tableau avec l'image principale
+        $photos = json_encode([$image_url]);
+    }
+    
+    // Gérer les dimensions (si envoyées)
+    $dimensions = null;
+    if (isset($data['dimensions']) && is_array($data['dimensions'])) {
+        $dimensions = json_encode($data['dimensions']);
+    }
+    
+    // Gérer la technique
+    $technique = isset($data['technique']) ? $data['technique'] : null;
+    $technique_custom = isset($data['technique_custom']) ? $data['technique_custom'] : null;
+    
+    // Badge par défaut
+    $badge = isset($data['badge']) ? $data['badge'] : 'Disponible';
+    
+    // Préparer la requête d'insertion
+    $sql = "INSERT INTO artworks (
+        artist_id,
+        title,
+        category,
+        price,
+        image_url,
+        description,
+        photos,
+        dimensions,
+        technique,
+        technique_custom,
+        badge,
+        status,
+        created_at
+    ) VALUES (
+        :artist_id,
+        :title,
+        :category,
+        :price,
+        :image_url,
+        :description,
+        :photos,
+        :dimensions,
+        :technique,
+        :technique_custom,
+        :badge,
+        'active',
+        datetime('now')
+    )";
+    
+    $stmt = $db->prepare($sql);
+    
+    // Bind des valeurs
+    $stmt->bindValue(':artist_id', $artist_id, SQLITE3_INTEGER);
+    $stmt->bindValue(':title', $title, SQLITE3_TEXT);
+    $stmt->bindValue(':category', $category, SQLITE3_TEXT);
+    $stmt->bindValue(':price', $price, SQLITE3_FLOAT);
+    $stmt->bindValue(':image_url', $image_url, SQLITE3_TEXT);
+    $stmt->bindValue(':description', $description, SQLITE3_TEXT);
+    $stmt->bindValue(':photos', $photos, SQLITE3_TEXT);
+    $stmt->bindValue(':dimensions', $dimensions, SQLITE3_TEXT);
+    $stmt->bindValue(':technique', $technique, SQLITE3_TEXT);
+    $stmt->bindValue(':technique_custom', $technique_custom, SQLITE3_TEXT);
+    $stmt->bindValue(':badge', $badge, SQLITE3_TEXT);
+    
+    // Exécuter l'insertion
+    $result = $stmt->execute();
+    
+    if (!$result) {
+        throw new Exception('Erreur lors de l\'insertion : ' . $db->lastErrorMsg());
+    }
+    
+    // Récupérer l'ID de l'œuvre créée
+    $newArtworkId = $db->lastInsertRowID();
+    
+    // Log de succès
+    error_log("✅ Œuvre créée avec ID : " . $newArtworkId);
+    
+    $db->close();
+    
+    // Réponse de succès
+    echo json_encode([
+        'success' => true,
+        'message' => 'Œuvre publiée avec succès !',
+        'artwork_id' => $newArtworkId,
+        'data' => [
+            'id' => $newArtworkId,
+            'title' => $title,
+            'category' => $category,
+            'price' => $price,
+            'artist_id' => $artist_id
+        ]
+    ], JSON_UNESCAPED_UNICODE);
+    
+} catch (Exception $e) {
+    // Log de l'erreur
+    error_log("❌ Erreur ajout œuvre : " . $e->getMessage());
+    
+    http_response_code(500);
     echo json_encode([
         'success' => false,
-        'message' => 'Erreur lors de l\'ajout au panier',
-        'error' => $e->getMessage()
-    ]);
+        'message' => $e->getMessage(),
+        'debug' => [
+            'received_data' => isset($data) ? $data : null,
+            'error_details' => $e->getMessage()
+        ]
+    ], JSON_UNESCAPED_UNICODE);
 }
 ?>

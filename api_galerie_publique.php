@@ -3,38 +3,50 @@ header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, OPTIONS');
 
-// Gestion du Preflight CORS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
 try {
-    // LE SECRET EST ICI : On pointe vers la BONNE base de données
-    $db = new SQLite3('artgallery.db');
+    // 1. On cherche la base de données là où elle existe (galerie.db ou artgallery.db)
+    $possiblePaths = [
+        '/opt/render/project/src/galerie.db',
+        __DIR__ . '/galerie.db',
+        '/opt/render/project/src/artgallery.db',
+        __DIR__ . '/artgallery.db'
+    ];
     
-    // On récupère toutes les œuvres, de la plus récente à la plus ancienne
-    $result = $db->query("SELECT * FROM artworks ORDER BY id DESC");
-    
-    $oeuvres = [];
-    if ($result) {
-        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-            $oeuvres[] = $row;
+    $dbPath = null;
+    foreach ($possiblePaths as $path) {
+        if (file_exists($path)) {
+            $dbPath = $path;
+            break;
         }
     }
 
-    // On envoie les données au Javascript de la page d'accueil
+    if (!$dbPath) {
+        throw new Exception("Base de données introuvable.");
+    }
+
+    // 2. Connexion avec PDO (la méthode préférée de ton serveur)
+    $db = new PDO('sqlite:' . $dbPath);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    // 3. Récupération des œuvres
+    $stmt = $db->query("SELECT * FROM artworks ORDER BY id DESC");
+    $oeuvres = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
     echo json_encode([
         'success' => true,
         'data' => $oeuvres
     ]);
 
 } catch (Exception $e) {
-    // Si ça plante, on renvoie la vraie erreur pour comprendre
-    http_response_code(500);
+    // Si ça plante, on renvoie une erreur JSON propre, pas de HTML !
     echo json_encode([
         'success' => false,
-        'message' => "Erreur du serveur : " . $e->getMessage()
+        'message' => "Erreur : " . $e->getMessage()
     ]);
 }
 ?>

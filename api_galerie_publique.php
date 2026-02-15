@@ -1,7 +1,8 @@
 <?php
 /**
- * API GALERIE PUBLIQUE - VERSION COMPLÈTE CORRIGÉE
- * Affiche TOUTES les œuvres avec TOUTES leurs informations
+ * API GALERIE PUBLIQUE - VERSION TEMPORAIRE
+ * Compatible avec la structure actuelle (sans les colonnes photos, dimensions, etc.)
+ * À REMPLACER après avoir exécuté update_database.php
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -17,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 try {
     // 1. Connexion à la base de données
     $db = new SQLite3('artgallery.db');
-    $db->busyTimeout(5000); // Timeout de 5 secondes
+    $db->busyTimeout(5000);
     
     // 2. Vérifier si on demande une œuvre spécifique
     $artwork_id = isset($_GET['artwork_id']) ? intval($_GET['artwork_id']) : null;
@@ -32,15 +33,10 @@ try {
                     a.artist_id,
                     a.category,
                     a.description,
-                    a.photos,
-                    a.dimensions,
-                    a.technique,
-                    a.technique_custom,
-                    a.badge,
+                    a.status,
                     a.created_at,
                     COALESCE(u.artist_name, u.name, 'Artiste ARKYL') as artist_name,
-                    u.country as artist_country,
-                    u.profile_image as artist_avatar
+                    u.email as artist_email
                 FROM artworks a 
                 LEFT JOIN artists u ON a.artist_id = u.id 
                 WHERE a.id = :artwork_id
@@ -64,44 +60,22 @@ try {
             exit();
         }
         
-        // Décoder les photos JSON
-        $photos = [];
-        if (!empty($row['photos'])) {
-            $decoded = json_decode($row['photos'], true);
-            if (is_array($decoded)) {
-                $photos = $decoded;
-            }
-        }
-        // Fallback sur image_url si pas de photos
-        if (empty($photos) && !empty($row['image_url'])) {
-            $photos = [$row['image_url']];
-        }
-        
-        // Décoder les dimensions JSON
-        $dimensions = null;
-        if (!empty($row['dimensions'])) {
-            $decoded = json_decode($row['dimensions'], true);
-            if (is_array($decoded)) {
-                $dimensions = $decoded;
-            }
-        }
-        
-        // Construire l'objet œuvre complet
+        // Construire l'objet œuvre avec valeurs par défaut pour colonnes manquantes
         $artwork = [
             'id' => intval($row['id']),
             'title' => $row['title'] ?? 'Sans titre',
             'artist_name' => $row['artist_name'] ?? 'Artiste inconnu',
-            'artist_country' => $row['artist_country'] ?? null,
-            'artist_avatar' => $row['artist_avatar'] ?? null,
+            'artist_country' => null, // Pas de colonne country dans artists actuellement
+            'artist_avatar' => null,  // Pas de colonne profile_image actuellement
             'category' => $row['category'] ?? 'Non spécifiée',
             'price' => intval($row['price'] ?? 0),
             'image_url' => $row['image_url'] ?? 'https://via.placeholder.com/300?text=Image+Indisponible',
-            'photos' => $photos,
+            'photos' => [$row['image_url']], // Pour l'instant, une seule photo
             'description' => $row['description'] ?? 'Aucune description disponible.',
-            'dimensions' => $dimensions,
-            'technique' => $row['technique'] ?? null,
-            'techniqueCustom' => $row['technique_custom'] ?? null,
-            'badge' => $row['badge'] ?? 'Disponible',
+            'dimensions' => null, // Pas encore dans la BDD
+            'technique' => null,  // Pas encore dans la BDD
+            'techniqueCustom' => null, // Pas encore dans la BDD
+            'badge' => ($row['status'] === 'active') ? 'Disponible' : 'Non disponible',
             'created_at' => $row['created_at'] ?? null
         ];
         
@@ -120,17 +94,13 @@ try {
                     a.artist_id,
                     a.category,
                     a.description,
-                    a.photos,
-                    a.dimensions,
-                    a.technique,
-                    a.technique_custom,
-                    a.badge,
+                    a.status,
                     a.created_at,
                     COALESCE(u.artist_name, u.name, 'Artiste ARKYL') as artist_name,
-                    u.country as artist_country,
-                    u.profile_image as artist_avatar
+                    u.email as artist_email
                 FROM artworks a 
                 LEFT JOIN artists u ON a.artist_id = u.id 
+                WHERE a.status = 'active'
                 ORDER BY a.id DESC";
 
         $result = $db->query($sql);
@@ -141,44 +111,22 @@ try {
 
         $artworks = [];
         while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-            // Décoder les photos JSON
-            $photos = [];
-            if (!empty($row['photos'])) {
-                $decoded = json_decode($row['photos'], true);
-                if (is_array($decoded)) {
-                    $photos = $decoded;
-                }
-            }
-            // Fallback sur image_url si pas de photos
-            if (empty($photos) && !empty($row['image_url'])) {
-                $photos = [$row['image_url']];
-            }
-            
-            // Décoder les dimensions JSON
-            $dimensions = null;
-            if (!empty($row['dimensions'])) {
-                $decoded = json_decode($row['dimensions'], true);
-                if (is_array($decoded)) {
-                    $dimensions = $decoded;
-                }
-            }
-            
-            // Construire l'objet œuvre
+            // Construire l'objet œuvre avec valeurs par défaut
             $artworks[] = [
                 'id' => intval($row['id']),
                 'title' => $row['title'] ?? 'Sans titre',
                 'artist_name' => $row['artist_name'] ?? 'Artiste inconnu',
-                'artist_country' => $row['artist_country'] ?? null,
-                'artist_avatar' => $row['artist_avatar'] ?? null,
+                'artist_country' => null,
+                'artist_avatar' => null,
                 'category' => $row['category'] ?? 'Non spécifiée',
                 'price' => intval($row['price'] ?? 0),
-                'image_url' => !empty($photos) ? $photos[0] : 'https://via.placeholder.com/300?text=Image+Indisponible',
-                'photos' => $photos,
+                'image_url' => $row['image_url'] ?? 'https://via.placeholder.com/300?text=Image+Indisponible',
+                'photos' => [$row['image_url']], // Une seule photo pour l'instant
                 'description' => $row['description'] ?? 'Aucune description disponible.',
-                'dimensions' => $dimensions,
-                'technique' => $row['technique'] ?? null,
-                'techniqueCustom' => $row['technique_custom'] ?? null,
-                'badge' => $row['badge'] ?? 'Disponible',
+                'dimensions' => null,
+                'technique' => null,
+                'techniqueCustom' => null,
+                'badge' => 'Disponible',
                 'created_at' => $row['created_at'] ?? null
             ];
         }

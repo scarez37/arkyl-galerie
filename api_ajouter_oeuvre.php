@@ -40,9 +40,14 @@ try {
     $artist_id = !empty($data['artist_id']) ? $data['artist_id'] : 1;
     $artist_name = !empty($data['artist_name']) ? $data['artist_name'] : "Artiste Inconnu";
 
-    // LE SECRET EST LÀ : On ajoute TOUS les nouveaux champs (technique, dimensions, etc.)
-    $sql = "INSERT INTO artworks (title, price, image_url, artist_id, artist_name, description, category, technique, dimensions) 
-            VALUES (:title, :price, :image_url, :artist_id, :artist_name, :description, :category, :technique, :dimensions)";
+    // 🛠️ LA MAGIE EST ICI : On transforme les objets et tableaux Javascript en texte pour SQLite
+    $technique = !empty($data['technique']) ? $data['technique'] : 'Non spécifiée';
+    $dimensions = !empty($data['dimensions']) ? (is_array($data['dimensions']) ? json_encode($data['dimensions']) : $data['dimensions']) : 'Non spécifiées';
+    $photos = !empty($data['photos']) ? (is_array($data['photos']) ? json_encode($data['photos']) : $data['photos']) : '[]';
+
+    // On insère TOUT dans la base de données
+    $sql = "INSERT INTO artworks (title, price, image_url, artist_id, artist_name, description, category, technique, dimensions, photos) 
+            VALUES (:title, :price, :image_url, :artist_id, :artist_name, :description, :category, :technique, :dimensions, :photos)";
             
     $stmt = $db->prepare($sql);
     $stmt->execute([
@@ -53,8 +58,9 @@ try {
         ':artist_name' => $artist_name,
         ':description' => $data['description'] ?? '',
         ':category' => $data['category'] ?? 'Art',
-        ':technique' => $data['technique'] ?? 'Non spécifiée',
-        ':dimensions' => $data['dimensions'] ?? 'Non spécifiées'
+        ':technique' => $technique,
+        ':dimensions' => $dimensions,
+        ':photos' => $photos
     ]);
 
     echo json_encode(['success' => true, 'message' => "L'œuvre a été publiée avec succès !"]);

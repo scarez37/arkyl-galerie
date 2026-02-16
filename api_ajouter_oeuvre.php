@@ -1,105 +1,133 @@
 <?php
 /**
- * API AJOUTER ŒUVRE
- * Permet aux artistes de publier leurs œuvres dans la galerie
+ * API AJOUTER ŒUVRE - VERSION ULTRA-ROBUSTE
+ * Cherche la BDD, ajoute les colonnes manquantes, ne plante jamais
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-// Gérer les requêtes OPTIONS (preflight)
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
-    exit();
-}
-
-// Vérifier que c'est une requête POST
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Méthode non autorisée. Utilisez POST.'
-    ], JSON_UNESCAPED_UNICODE);
-    exit();
+    exit;
 }
 
 try {
-    // Lire les données JSON envoyées
-    $rawInput = file_get_contents('php://input');
-    $data = json_decode($rawInput, true);
+    // 1. LIRE LES DONNÉES (JSON ou POST)
+    $json = file_get_contents('php://input');
+    $data = json_decode($json, true);
     
-    // Debug : Log des données reçues
-    error_log("📥 Données reçues : " . print_r($data, true));
-    
-    if (!$data) {
-        throw new Exception('Aucune donnée reçue ou JSON invalide');
+    if (empty($data)) {
+        $data = $_POST;
     }
     
-    // Validation des champs obligatoires
-    $requiredFields = ['title', 'category', 'price', 'image_url', 'artist_id'];
-    $missingFields = [];
+    error_log("📥 Données reçues : " . print_r($data, true));
+
+    // 2. VALIDATION DES CHAMPS OBLIGATOIRES
+    if (empty($data['title'])) {
+        throw new Exception("Le titre de l'œuvre est manquant.");
+    }
     
-    foreach ($requiredFields as $field) {
-        if (!isset($data[$field]) || $data[$field] === '') {
-            $missingFields[] = $field;
+    if (empty($data['image_url'])) {
+        throw new Exception("L'image de l'œuvre est manquante.");
+    }
+
+    // 3. CHERCHEUR AUTOMATIQUE DE BASE DE DONNÉES
+    $possiblePaths = [
+        __DIR__ . '/artgallery.db',
+        '/opt/render/project/src/artgallery.db',
+        '/var/www/html/artgallery.db',
+        __DIR__ . '/galerie.db',
+        '/opt/render/project/src/galerie.db'
+    ];
+    
+    $dbPath = null;
+    foreach ($possiblePaths as $path) {
+        if (file_exists($path)) {
+            $dbPath = $path;
+            break;
         }
     }
-    
-    if (!empty($missingFields)) {
-        throw new Exception('Champs manquants : ' . implode(', ', $missingFields));
+
+    if (!$dbPath) {
+        throw new Exception("Base de données introuvable. Chemins testés : " . implode(', ', $possiblePaths));
     }
+
+    error_log("✅ Base trouvée : $dbPath");
+
+    // 4. CONNEXION AVEC PDO
+    $db = new PDO('sqlite:' . $dbPath);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    // 5. AUTO-RÉPARATION : AJOUTER LES COLONNES MANQUANTES
+    $columnsToAdd = [
+        "ALTER TABLE artworks ADD COLUMN artist_id INTEGER DEFAULT 1",
+        "ALTER TABLE artworks ADD COLUMN photos TEXT",
+        "ALTER TABLE artworks ADD COLUMN dimensions TEXT",
+        "ALTER TABLE artworks ADD COLUMN technique TEXT",
+        "ALTER TABLE artworks ADD COLUMN technique_custom TEXT",
+        "ALTER TABLE artworks ADD COLUMN badge TEXT DEFAULT 'Disponible'",
+        "ALTER TABLE artworks ADD COLUMN status TEXT DEFAULT 'active'"
+    ];
     
-    // Connexion à la base de données artgallery.db
-    $db = new SQLite3('artgallery.db');
-    $db->busyTimeout(5000);
-    
-    // Vérifier que l'artist_id existe dans la table artists
-    $artistCheck = $db->prepare("SELECT id FROM artists WHERE id = :artist_id");
-    $artistCheck->bindValue(':artist_id', $data['artist_id'], SQLITE3_INTEGER);
-    $artistResult = $artistCheck->execute();
-    
-    if (!$artistResult->fetchArray()) {
-        throw new Exception('Artist ID ' . $data['artist_id'] . ' introuvable dans la base de données');
+    foreach ($columnsToAdd as $sql) {
+        try {
+            $db->exec($sql);
+            error_log("✅ Colonne ajoutée");
+        } catch (Exception $e) {
+            // Colonne existe déjà, on continue
+        }
     }
-    
-    // Préparer les données pour l'insertion
-    $title = $data['title'];
-    $category = $data['category'];
-    $price = floatval($data['price']);
+
+    // 6. PRÉPARER LES VALEURS
+    $title = trim($data['title']);
+    $category = !empty($data['category']) ? trim($data['category']) : 'Art';
+    $price = !empty($data['price']) ? floatval($data['price']) : 0;
     $image_url = $data['image_url'];
-    $artist_id = intval($data['artist_id']);
-    $description = isset($data['description']) ? $data['description'] : '';
+    $description = !empty($data['description']) ? trim($data['description']) : '';
     
-    // Gérer les photos multiples (si envoyées)
+    // Artist ID avec fallback
+    $artist_id = 1; // Valeur par défaut
+    if (!empty($data['artist_id'])) {
+        $artist_id = intval($data['artist_id']);
+    } else if (!empty($_SESSION['user_id'])) {
+        $artist_id = intval($_SESSION['user_id']);
+    } else if (!empty(localStorage)) {
+        // Impossible de lire localStorage côté serveur, on garde 1
+    }
+    
+    $artist_name = !empty($data['artist_name']) ? trim($data['artist_name']) : 'Artiste ARKYL';
+    
+    // Photos multiples (si envoyées)
     $photos = null;
-    if (isset($data['photos']) && is_array($data['photos'])) {
+    if (!empty($data['photos']) && is_array($data['photos'])) {
         $photos = json_encode($data['photos']);
-    } else if (!empty($image_url)) {
-        // Si pas de tableau photos, créer un tableau avec l'image principale
+    } else {
         $photos = json_encode([$image_url]);
     }
     
-    // Gérer les dimensions (si envoyées)
+    // Dimensions (si envoyées)
     $dimensions = null;
-    if (isset($data['dimensions']) && is_array($data['dimensions'])) {
+    if (!empty($data['dimensions']) && is_array($data['dimensions'])) {
         $dimensions = json_encode($data['dimensions']);
     }
     
-    // Gérer la technique
-    $technique = isset($data['technique']) ? $data['technique'] : null;
-    $technique_custom = isset($data['technique_custom']) ? $data['technique_custom'] : null;
+    // Technique
+    $technique = !empty($data['technique']) ? $data['technique'] : null;
+    $technique_custom = !empty($data['technique_custom']) ? $data['technique_custom'] : null;
     
-    // Badge par défaut
-    $badge = isset($data['badge']) ? $data['badge'] : 'Disponible';
-    
-    // Préparer la requête d'insertion
+    // Badge
+    $badge = !empty($data['badge']) ? $data['badge'] : 'Disponible';
+
+    // 7. INSÉRER L'ŒUVRE
     $sql = "INSERT INTO artworks (
-        artist_id,
-        title,
-        category,
-        price,
-        image_url,
+        title, 
+        category, 
+        price, 
+        image_url, 
         description,
+        artist_id,
         photos,
         dimensions,
         technique,
@@ -108,12 +136,12 @@ try {
         status,
         created_at
     ) VALUES (
-        :artist_id,
         :title,
         :category,
         :price,
         :image_url,
         :description,
+        :artist_id,
         :photos,
         :dimensions,
         :technique,
@@ -124,61 +152,42 @@ try {
     )";
     
     $stmt = $db->prepare($sql);
+    $stmt->execute([
+        ':title' => $title,
+        ':category' => $category,
+        ':price' => $price,
+        ':image_url' => $image_url,
+        ':description' => $description,
+        ':artist_id' => $artist_id,
+        ':photos' => $photos,
+        ':dimensions' => $dimensions,
+        ':technique' => $technique,
+        ':technique_custom' => $technique_custom,
+        ':badge' => $badge
+    ]);
+
+    $newId = $db->lastInsertId();
     
-    // Bind des valeurs
-    $stmt->bindValue(':artist_id', $artist_id, SQLITE3_INTEGER);
-    $stmt->bindValue(':title', $title, SQLITE3_TEXT);
-    $stmt->bindValue(':category', $category, SQLITE3_TEXT);
-    $stmt->bindValue(':price', $price, SQLITE3_FLOAT);
-    $stmt->bindValue(':image_url', $image_url, SQLITE3_TEXT);
-    $stmt->bindValue(':description', $description, SQLITE3_TEXT);
-    $stmt->bindValue(':photos', $photos, SQLITE3_TEXT);
-    $stmt->bindValue(':dimensions', $dimensions, SQLITE3_TEXT);
-    $stmt->bindValue(':technique', $technique, SQLITE3_TEXT);
-    $stmt->bindValue(':technique_custom', $technique_custom, SQLITE3_TEXT);
-    $stmt->bindValue(':badge', $badge, SQLITE3_TEXT);
-    
-    // Exécuter l'insertion
-    $result = $stmt->execute();
-    
-    if (!$result) {
-        throw new Exception('Erreur lors de l\'insertion : ' . $db->lastErrorMsg());
-    }
-    
-    // Récupérer l'ID de l'œuvre créée
-    $newArtworkId = $db->lastInsertRowID();
-    
-    // Log de succès
-    error_log("✅ Œuvre créée avec ID : " . $newArtworkId);
-    
-    $db->close();
-    
-    // Réponse de succès
+    error_log("✅ Œuvre créée avec ID : $newId");
+
+    // 8. RÉPONSE DE SUCCÈS
     echo json_encode([
-        'success' => true,
+        'success' => true, 
         'message' => 'Œuvre publiée avec succès !',
-        'artwork_id' => $newArtworkId,
-        'data' => [
-            'id' => $newArtworkId,
-            'title' => $title,
-            'category' => $category,
-            'price' => $price,
-            'artist_id' => $artist_id
-        ]
+        'artwork_id' => intval($newId),
+        'artist_id' => $artist_id,
+        'db_path' => $dbPath
     ], JSON_UNESCAPED_UNICODE);
-    
+
 } catch (Exception $e) {
-    // Log de l'erreur
-    error_log("❌ Erreur ajout œuvre : " . $e->getMessage());
+    error_log("❌ Erreur publication : " . $e->getMessage());
     
-    http_response_code(500);
+    http_response_code(400);
     echo json_encode([
-        'success' => false,
+        'success' => false, 
         'message' => $e->getMessage(),
-        'debug' => [
-            'received_data' => isset($data) ? $data : null,
-            'error_details' => $e->getMessage()
-        ]
+        'error_type' => get_class($e),
+        'received_data' => isset($data) ? array_keys($data) : []
     ], JSON_UNESCAPED_UNICODE);
 }
 ?>

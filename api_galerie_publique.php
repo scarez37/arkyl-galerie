@@ -8,32 +8,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+// 🔧 UTILISER LA CONFIGURATION CENTRALISÉE
+require_once __DIR__ . '/db_config.php';
+
 try {
-    // 1. On cherche la base de données là où elle existe
-    $possiblePaths = [
-        '/opt/render/project/src/galerie.db',
-        __DIR__ . '/galerie.db',
-        '/opt/render/project/src/artgallery.db',
-        __DIR__ . '/artgallery.db'
-    ];
+    // 🆕 Utiliser la fonction de config au lieu de chercher manuellement
+    $dbPath = getDatabasePath();
     
-    $dbPath = null;
-    foreach ($possiblePaths as $path) {
-        if (file_exists($path)) {
-            $dbPath = $path;
-            break;
-        }
+    if (!file_exists($dbPath)) {
+        throw new Exception("Base de données introuvable : $dbPath");
     }
 
-    if (!$dbPath) {
-        throw new Exception("Base de données introuvable.");
-    }
+    // Connexion avec PDO
+    $db = getDatabase(); // Utilise la fonction de db_config.php
 
-    // 2. Connexion avec PDO
-    $db = new PDO('sqlite:' . $dbPath);
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-    // 🆕 3. Vérifier si on demande UNE œuvre spécifique ou TOUTES
+    // 🆕 Vérifier si on demande UNE œuvre spécifique ou TOUTES
     if (isset($_GET['artwork_id']) && !empty($_GET['artwork_id'])) {
         // ===== MODE : UNE SEULE ŒUVRE =====
         $artworkId = intval($_GET['artwork_id']);
@@ -45,7 +34,12 @@ try {
         if (!$oeuvre) {
             echo json_encode([
                 'success' => false,
-                'message' => "Œuvre #$artworkId introuvable"
+                'message' => "Œuvre #$artworkId introuvable",
+                'debug' => [
+                    'db_path' => $dbPath,
+                    'db_exists' => file_exists($dbPath),
+                    'db_size' => filesize($dbPath)
+                ]
             ]);
             exit;
         }
@@ -55,12 +49,16 @@ try {
         
         echo json_encode([
             'success' => true,
-            'data' => $formatted
-        ]);
+            'data' => $formatted,
+            'debug' => [
+                'db_path' => $dbPath,
+                'raw_columns' => array_keys($oeuvre)
+            ]
+        ], JSON_UNESCAPED_UNICODE);
         
     } else {
         // ===== MODE : TOUTES LES ŒUVRES =====
-        $stmt = $db->query("SELECT * FROM artworks ORDER BY id DESC");
+        $stmt = $db->query("SELECT * FROM artworks WHERE status = 'active' ORDER BY id DESC");
         $oeuvres = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Formater chaque œuvre
@@ -68,15 +66,20 @@ try {
         
         echo json_encode([
             'success' => true,
-            'data' => $formatted
-        ]);
+            'data' => $formatted,
+            'count' => count($formatted),
+            'debug' => [
+                'db_path' => $dbPath
+            ]
+        ], JSON_UNESCAPED_UNICODE);
     }
 
 } catch (Exception $e) {
     echo json_encode([
         'success' => false,
-        'message' => "Erreur : " . $e->getMessage()
-    ]);
+        'message' => "Erreur : " . $e->getMessage(),
+        'debug' => getDebugInfo()
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 // 🔧 FONCTION DE FORMATAGE

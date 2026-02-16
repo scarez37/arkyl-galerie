@@ -30,6 +30,14 @@
         }
         .logo { font-size: 1.5rem; font-weight: 600; letter-spacing: 2px; }
         .user-info { display: flex; align-items: center; gap: 15px; }
+        .user-badge {
+            background: var(--accent);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
         .btn-logout {
             background: none; border: 1px solid var(--primary); padding: 8px 15px;
             cursor: pointer; transition: 0.3s; border-radius: 5px;
@@ -95,6 +103,16 @@
         .btn-delete {
             color: #ff4757; background: none; border: none; cursor: pointer; padding: 5px;
         }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .alert-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
     </style>
 </head>
 <body>
@@ -102,6 +120,7 @@
     <header class="dashboard-header">
         <div class="logo">ARKYL <span style="font-size:0.5em; color:gray">DASHBOARD</span></div>
         <div class="user-info">
+            <span class="user-badge" id="user-id-display">ID: -</span>
             <span id="artist-name-display">Bonjour, Artiste</span>
             <button onclick="logout()" class="btn-logout">Déconnexion</button>
         </div>
@@ -109,18 +128,20 @@
 
     <div class="container">
         
+        <div id="alert-box" class="alert"></div>
+        
         <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="stat-artworks">0</div>
+                <div class="stat-label">Œuvres publiées</div>
+            </div>
             <div class="stat-card">
                 <div class="stat-number" id="stat-sales">0</div>
                 <div class="stat-label">Ventes</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number" id="stat-revenue">0 €</div>
+                <div class="stat-number" id="stat-revenue">0 FCFA</div>
                 <div class="stat-label">Revenus</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="stat-views">0</div>
-                <div class="stat-label">Vues Totales</div>
             </div>
         </div>
 
@@ -129,30 +150,31 @@
                 <h3 style="margin-bottom:20px;">Ajouter une œuvre</h3>
                 <form id="add-form" onsubmit="ajouterOeuvre(event)">
                     <div class="form-group">
-                        <label>Titre</label>
+                        <label>Titre *</label>
                         <input type="text" id="art-title" class="form-control" required placeholder="Ex: Masque Baoulé">
                     </div>
                     <div class="form-group">
-                        <label>Catégorie</label>
+                        <label>Catégorie *</label>
                         <select id="art-category" class="form-control" required>
                             <option value="">Choisir...</option>
-                            <option value="sculpture">Sculpture</option>
-                            <option value="peinture">Peinture</option>
-                            <option value="photographie">Photographie</option>
-                            <option value="textile">Textile</option>
-                            <option value="autre">Autre</option>
+                            <option value="Sculpture">Sculpture</option>
+                            <option value="Peinture">Peinture</option>
+                            <option value="Photographie">Photographie</option>
+                            <option value="Textile">Textile</option>
+                            <option value="Art numérique">Art numérique</option>
+                            <option value="Autre">Autre</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Prix (€)</label>
-                        <input type="number" id="art-price" class="form-control" required placeholder="Ex: 150">
+                        <label>Prix (FCFA) *</label>
+                        <input type="number" id="art-price" class="form-control" required placeholder="Ex: 150000" min="0">
                     </div>
                     <div class="form-group">
                         <label>Description</label>
                         <textarea id="art-desc" class="form-control" rows="3" placeholder="Histoire de l'œuvre..."></textarea>
                     </div>
                     <div class="form-group">
-                        <label>Image</label>
+                        <label>Image *</label>
                         <input type="file" id="art-image" class="form-control" accept="image/*" required>
                     </div>
                     <button type="submit" id="btn-add" class="btn-submit">Publier l'œuvre</button>
@@ -169,163 +191,247 @@
     </div>
 
     <script>
-        // ✅ CORRIGÉ : Utilise api.php (le bon fichier)
-        const API_URL = 'api.php';
+        // Configuration
+        const API_URL = 'https://arkyl-galerie.onrender.com/api_galerie_publique.php';
+        const API_ADD = 'https://arkyl-galerie.onrender.com/api_ajouter_oeuvre.php';
+        const API_DELETE = 'https://arkyl-galerie.onrender.com/api_supprimer_oeuvre.php';
 
         // Vérification Connexion
         const artistId = localStorage.getItem('user_id');
         const artistName = localStorage.getItem('user_name');
+        const artistEmail = localStorage.getItem('user_email');
+
+        console.log('🔍 Vérification de connexion:');
+        console.log('  - User ID:', artistId);
+        console.log('  - User Name:', artistName);
+        console.log('  - User Email:', artistEmail);
 
         if (!artistId) {
-            alert("Vous devez être connecté !");
-            window.location.href = 'login.html';
+            showAlert('Vous devez d\'abord vous inscrire !', 'warning');
+            setTimeout(() => {
+                window.location.href = 'inscription.html';
+            }, 2000);
         } else {
-            document.getElementById('artist-name-display').textContent = "Artiste : " + (artistName || "Inconnu");
-            chargerStats();
+            // Afficher les infos utilisateur
+            document.getElementById('user-id-display').textContent = "ID: " + artistId;
+            document.getElementById('artist-name-display').textContent = artistName || "Artiste";
+            
+            // Charger les données
             chargerMesOeuvres();
         }
 
-        // Charger les stats
-        async function chargerStats() {
-            try {
-                const res = await fetch(`${API_URL}?action=get_artist_stats&artist_id=${artistId}&t=${Date.now()}`);
-                const data = await res.json();
-                if(data.success) {
-                    document.getElementById('stat-sales').textContent = data.stats.total_sales || 0;
-                    document.getElementById('stat-revenue').textContent = (data.stats.revenue || 0) + " €";
-                    document.getElementById('stat-views').textContent = data.stats.total_views || 0;
-                }
-            } catch (e) { 
-                console.error("Erreur stats", e); 
-            }
+        // Fonction d'alerte
+        function showAlert(message, type = 'success') {
+            const alertBox = document.getElementById('alert-box');
+            alertBox.className = `alert alert-${type}`;
+            alertBox.textContent = message;
+            alertBox.style.display = 'block';
+            
+            setTimeout(() => {
+                alertBox.style.display = 'none';
+            }, 5000);
         }
 
         // Charger la liste des œuvres
         async function chargerMesOeuvres() {
             const list = document.getElementById('artworks-list');
+            
             try {
-                // ✅ CORRIGÉ : Utilise api.php?action=artworks
-                const res = await fetch(`${API_URL}?action=artworks&t=${Date.now()}`);
+                console.log('📥 Chargement des œuvres depuis:', API_URL);
+                
+                const res = await fetch(`${API_URL}?t=${Date.now()}`);
                 const json = await res.json();
                 
-                if(json.success) {
-                    // ✅ CORRIGÉ : Utilise artist_id au lieu de user_id
-                    const mesOeuvres = json.data.filter(art => art.artist_id == artistId);
+                console.log('📥 Réponse API galerie:', json);
+                
+                if(json.success && json.data) {
+                    // Filtrer les œuvres de cet artiste
+                    const mesOeuvres = json.data.filter(art => 
+                        String(art.artist_id) === String(artistId)
+                    );
+                    
+                    console.log(`✅ ${mesOeuvres.length} œuvre(s) trouvée(s) pour l'artiste ID ${artistId}`);
+                    
+                    // Mettre à jour les stats
+                    document.getElementById('stat-artworks').textContent = mesOeuvres.length;
                     
                     if(mesOeuvres.length === 0) {
-                        list.innerHTML = "<p style='text-align:center; color:#999;'>Aucune œuvre publiée.</p>";
+                        list.innerHTML = "<p style='text-align:center; color:#999;'>Aucune œuvre publiée. Ajoutez votre première création ! 🎨</p>";
                         return;
                     }
 
                     list.innerHTML = mesOeuvres.map(art => `
                         <div class="artwork-item">
-                            <img src="${art.image_url}" class="artwork-thumb" alt="${escapeHtml(art.title)}">
+                            <img src="${art.image_url || art.photos?.[0] || 'https://via.placeholder.com/60'}" 
+                                 class="artwork-thumb" 
+                                 alt="${escapeHtml(art.title)}">
                             <div class="artwork-details">
                                 <div class="artwork-title">${escapeHtml(art.title)}</div>
-                                <div class="artwork-price">${art.price} €</div>
+                                <div class="artwork-price">${art.price} FCFA</div>
+                                <div style="font-size:0.85rem; color:#666;">${escapeHtml(art.category)}</div>
                             </div>
-                            <button onclick="supprimerOeuvre(${art.id})" class="btn-delete" title="Supprimer">
+                            <button onclick="supprimerOeuvre(${art.id}, '${escapeHtml(art.title)}')" 
+                                    class="btn-delete" 
+                                    title="Supprimer">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
                     `).join('');
+                } else {
+                    list.innerHTML = "<p style='color:red; text-align:center;'>Erreur de chargement</p>";
                 }
             } catch (e) {
-                console.error('Erreur:', e);
-                list.innerHTML = "<p style='color:red'>Erreur de chargement</p>";
+                console.error('❌ Erreur chargement:', e);
+                list.innerHTML = "<p style='color:red; text-align:center;'>Serveur injoignable</p>";
             }
         }
 
         // Ajouter une œuvre
         async function ajouterOeuvre(e) {
             e.preventDefault();
+            
             const btn = document.getElementById('btn-add');
-            btn.textContent = "Envoi en cours...";
+            btn.textContent = "⏳ Envoi en cours...";
             btn.disabled = true;
 
             try {
-                const title = document.getElementById('art-title').value;
+                // Récupérer les valeurs
+                const title = document.getElementById('art-title').value.trim();
                 const category = document.getElementById('art-category').value;
                 const price = document.getElementById('art-price').value;
-                const desc = document.getElementById('art-desc').value;
+                const desc = document.getElementById('art-desc').value.trim();
                 const file = document.getElementById('art-image').files[0];
 
+                // Vérifications
+                if (!title || !category || !price || !file) {
+                    showAlert('Veuillez remplir tous les champs obligatoires', 'error');
+                    return;
+                }
+
+                // Vérifier que l'artiste a un ID
+                const currentArtistId = localStorage.getItem('user_id');
+                const currentArtistName = localStorage.getItem('user_name') || 'Artiste';
+                
+                console.log('🔍 Vérification avant envoi:');
+                console.log('  - Artist ID:', currentArtistId);
+                console.log('  - Artist Name:', currentArtistName);
+                
+                if (!currentArtistId) {
+                    showAlert('Erreur : Vous devez d\'abord vous inscrire !', 'error');
+                    setTimeout(() => {
+                        window.location.href = 'inscription.html';
+                    }, 2000);
+                    return;
+                }
+
                 // Conversion Image en Base64
-                const base64 = await new Promise((resolve) => {
+                const base64 = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = (e) => reject(e);
                     reader.readAsDataURL(file);
                 });
 
-                // ✅ CORRIGÉ : Envoi à api.php?action=add_artwork
-                const res = await fetch(`${API_URL}?action=add_artwork`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        artist_id: artistId,
-                        title: title,
-                        category: category,
-                        price: price,
-                        description: desc,
-                        image_url: base64  // L'API le convertit en fichier
-                    })
+                // Préparer les données
+                const dataToSend = {
+                    artist_id: parseInt(currentArtistId),
+                    artist_name: currentArtistName,
+                    artist_country: 'Côte d\'Ivoire',
+                    title: title,
+                    category: category,
+                    price: parseFloat(price),
+                    description: desc,
+                    image_url: base64
+                };
+
+                console.log('📤 Données à envoyer:', {
+                    ...dataToSend,
+                    image_url: base64.substring(0, 50) + '... [IMAGE TRONQUÉE]'
                 });
 
-                const data = await res.json();
+                // Envoi à l'API
+                const res = await fetch(API_ADD, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dataToSend)
+                });
+
+                const responseText = await res.text();
+                console.log('📥 Réponse brute du serveur:', responseText);
+
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('❌ Erreur parsing JSON:', parseError);
+                    console.error('Réponse reçue:', responseText);
+                    throw new Error('Le serveur a renvoyé une réponse invalide');
+                }
+
+                console.log('📥 Réponse parsée:', data);
+
                 if(data.success) {
-                    alert("✅ Œuvre publiée avec succès !");
+                    showAlert('✅ Œuvre publiée avec succès !', 'success');
                     document.getElementById('add-form').reset();
-                    chargerMesOeuvres();
-                    chargerStats();
+                    
+                    // Recharger la liste après 1 seconde
+                    setTimeout(() => {
+                        chargerMesOeuvres();
+                    }, 1000);
                 } else {
-                    alert("Erreur: " + (data.message || "Inconnue"));
+                    showAlert('❌ ' + (data.message || 'Erreur inconnue'), 'error');
+                    console.error('Erreur serveur:', data);
                 }
 
             } catch (err) {
-                console.error('Erreur:', err);
-                alert("Erreur technique : " + err.message);
+                console.error('❌ Erreur technique:', err);
+                showAlert('❌ Erreur : ' + err.message, 'error');
             } finally {
                 btn.textContent = "Publier l'œuvre";
                 btn.disabled = false;
             }
         }
 
-        // ✅ NOUVELLE VERSION : Suppression via api_supprimer_oeuvre.php
-        async function supprimerOeuvre(id) {
-            if(!confirm("Voulez-vous vraiment supprimer cette œuvre du serveur ?")) return;
+        // Supprimer une œuvre
+        async function supprimerOeuvre(id, titre) {
+            if(!confirm(`Voulez-vous vraiment supprimer "${titre}" ?`)) return;
             
             try {
-                // Appel à l'API de suppression dédiée sur Render
-                const res = await fetch('https://arkyl-galerie.onrender.com/api_supprimer_oeuvre.php', {
+                console.log('🗑️ Suppression de l\'œuvre ID:', id);
+                
+                const res = await fetch(API_DELETE, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: id })
                 });
                 
                 const data = await res.json();
+                console.log('📥 Réponse suppression:', data);
                 
                 if(data.success) {
-                    alert("✅ " + data.message);
+                    showAlert('✅ Œuvre supprimée', 'success');
                     chargerMesOeuvres();
-                    chargerStats();
                 } else {
-                    alert("🛑 Erreur du serveur : " + (data.message || "Inconnue"));
-                    console.error("Détails de l'erreur:", data);
+                    showAlert('❌ ' + (data.message || 'Erreur de suppression'), 'error');
                 }
             } catch (err) {
-                console.error("Erreur technique lors de la suppression:", err);
-                alert("❌ Erreur de connexion au serveur : " + err.message);
+                console.error('❌ Erreur suppression:', err);
+                showAlert('❌ Erreur : ' + err.message, 'error');
             }
         }
 
         function logout() {
-            localStorage.removeItem('user_id');
-            localStorage.removeItem('user_name');
-            window.location.href = 'index.html';
+            if (confirm('Voulez-vous vraiment vous déconnecter ?')) {
+                localStorage.removeItem('user_id');
+                localStorage.removeItem('user_name');
+                localStorage.removeItem('user_email');
+                window.location.href = 'index.html';
+            }
         }
 
-        // ✅ Protection XSS : échapper le HTML
+        // Protection XSS
         function escapeHtml(text) {
+            if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;

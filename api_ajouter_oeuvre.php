@@ -93,9 +93,8 @@ try {
         $artist_id = intval($data['artist_id']);
     } else if (!empty($_SESSION['user_id'])) {
         $artist_id = intval($_SESSION['user_id']);
-    } else if (!empty(localStorage)) {
-        // Impossible de lire localStorage côté serveur, on garde 1
     }
+    // Note: localStorage n'existe que côté client, pas en PHP
     
     $artist_name = !empty($data['artist_name']) ? trim($data['artist_name']) : 'Artiste ARKYL';
     

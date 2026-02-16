@@ -174,8 +174,21 @@
                         <textarea id="art-desc" class="form-control" rows="3" placeholder="Histoire de l'œuvre..."></textarea>
                     </div>
                     <div class="form-group">
-                        <label>Image *</label>
-                        <input type="file" id="art-image" class="form-control" accept="image/*" required>
+                        <label>Technique</label>
+                        <input type="text" id="art-technique" class="form-control" placeholder="Ex: Acrylique sur toile, Bois sculpté, etc.">
+                    </div>
+                    <div class="form-group">
+                        <label>Dimensions</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                            <input type="number" id="art-width" class="form-control" placeholder="Largeur (cm)" min="0" step="0.1">
+                            <input type="number" id="art-height" class="form-control" placeholder="Hauteur (cm)" min="0" step="0.1">
+                            <input type="number" id="art-depth" class="form-control" placeholder="Profondeur (cm)" min="0" step="0.1">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Images * (5 maximum)</label>
+                        <input type="file" id="art-images" class="form-control" accept="image/*" multiple required>
+                        <small style="color: #999; font-size: 0.85rem; display: block; margin-top: 5px;">Vous pouvez sélectionner jusqu'à 5 photos de votre œuvre</small>
                     </div>
                     <button type="submit" id="btn-add" class="btn-submit">Publier l'œuvre</button>
                 </form>
@@ -300,11 +313,21 @@
                 const category = document.getElementById('art-category').value;
                 const price = document.getElementById('art-price').value;
                 const desc = document.getElementById('art-desc').value.trim();
-                const file = document.getElementById('art-image').files[0];
+                const technique = document.getElementById('art-technique').value.trim();
+                const width = document.getElementById('art-width').value;
+                const height = document.getElementById('art-height').value;
+                const depth = document.getElementById('art-depth').value;
+                const files = document.getElementById('art-images').files;
 
                 // Vérifications
-                if (!title || !category || !price || !file) {
+                if (!title || !category || !price || files.length === 0) {
                     showAlert('Veuillez remplir tous les champs obligatoires', 'error');
+                    return;
+                }
+                
+                // Vérifier le nombre de photos (max 5)
+                if (files.length > 5) {
+                    showAlert('Maximum 5 photos autorisées', 'error');
                     return;
                 }
 
@@ -324,13 +347,23 @@
                     return;
                 }
 
-                // Conversion Image en Base64
-                const base64 = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.onerror = (e) => reject(e);
-                    reader.readAsDataURL(file);
-                });
+                // Conversion Images en Base64
+                const photosBase64 = [];
+                for (let i = 0; i < files.length; i++) {
+                    const base64 = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.onerror = (e) => reject(e);
+                        reader.readAsDataURL(files[i]);
+                    });
+                    photosBase64.push(base64);
+                }
+
+                // Créer l'objet dimensions
+                const dimensions = {};
+                if (width) dimensions.width = parseFloat(width);
+                if (height) dimensions.height = parseFloat(height);
+                if (depth) dimensions.depth = parseFloat(depth);
 
                 // Préparer les données
                 const dataToSend = {
@@ -341,12 +374,16 @@
                     category: category,
                     price: parseFloat(price),
                     description: desc,
-                    image_url: base64
+                    technique: technique || null,
+                    dimensions: Object.keys(dimensions).length > 0 ? dimensions : null,
+                    photos: photosBase64,
+                    image_url: photosBase64[0] // Première photo comme image principale
                 };
 
                 console.log('📤 Données à envoyer:', {
                     ...dataToSend,
-                    image_url: base64.substring(0, 50) + '... [IMAGE TRONQUÉE]'
+                    photos: `[${photosBase64.length} photo(s)]`,
+                    image_url: photosBase64[0].substring(0, 50) + '... [IMAGE TRONQUÉE]'
                 });
 
                 // Envoi à l'API

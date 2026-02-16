@@ -1,8 +1,7 @@
 <?php
 // ==================== API AJOUTER AUX FAVORIS ====================
 // Fichier: api_ajouter_favoris.php
-// Serveur: Render
-// Base de données: SQLite
+// Utilise la configuration centralisée de la base de données
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -15,10 +14,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+// 🔧 UTILISER LA CONFIGURATION CENTRALISÉE
+require_once __DIR__ . '/db_config.php';
+
 // Connexion à la base de données SQLite
 try {
-    $db = new PDO('sqlite:/opt/render/project/src/galerie.db');
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $db = getDatabase(); // Utilise la fonction de db_config.php
 } catch (PDOException $e) {
     echo json_encode([
         'success' => false,

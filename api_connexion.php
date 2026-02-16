@@ -1,8 +1,4 @@
 <?php
-/**
- * API CONNEXION ARTISTE
- * Permet aux artistes de se reconnecter
- */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -14,7 +10,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 try {
-    // Lire les données JSON
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
@@ -22,11 +17,10 @@ try {
         throw new Exception("Veuillez remplir tous les champs.");
     }
 
-    // Chercheur automatique de base de données
+    // 1. Chercheur de Base de données
     $possiblePaths = [
         __DIR__ . '/artgallery.db',
         '/opt/render/project/src/artgallery.db',
-        '/var/www/html/artgallery.db',
         __DIR__ . '/galerie.db',
         '/opt/render/project/src/galerie.db'
     ];
@@ -39,48 +33,48 @@ try {
         }
     }
 
-    if (!$dbPath) {
-        throw new Exception("Base de données introuvable sur le serveur.");
-    }
+    if (!$dbPath) throw new Exception("Base de données introuvable.");
 
-    // Connexion avec PDO (pour password_verify)
+    // 2. Connexion PDO
     $db = new PDO('sqlite:' . $dbPath);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    // Chercher l'artiste avec cet email
-    $stmt = $db->prepare("SELECT id, name, artist_name, email, password, country FROM artists WHERE email = :email");
+    // 3. 🛠️ LE MAGIQUE : Réparation automatique de la base !
+    try { $db->exec("ALTER TABLE artists ADD COLUMN password TEXT"); } catch (Exception $e) { /* Existe déjà */ }
+    try { $db->exec("ALTER TABLE artists ADD COLUMN country TEXT"); } catch (Exception $e) { /* Existe déjà */ }
+    try { $db->exec("ALTER TABLE artists ADD COLUMN created_at TEXT"); } catch (Exception $e) { /* Existe déjà */ }
+
+    // 4. On cherche l'artiste
+    $stmt = $db->prepare("SELECT * FROM artists WHERE email = :email");
     $stmt->execute([':email' => $data['email']]);
     $artist = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    // Vérifier si l'artiste existe
-    if (!$artist) {
+    if ($artist) {
+        // 5. ASTUCE : Si c'est un de tes vieux comptes de test sans mot de passe, on enregistre celui que tu viens de taper !
+        if (empty($artist['password'])) {
+            $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
+            $upd = $db->prepare("UPDATE artists SET password = :pwd WHERE id = :id");
+            $upd->execute([':pwd' => $hashedPassword, ':id' => $artist['id']]);
+            $artist['password'] = $hashedPassword;
+        }
+
+        // 6. On vérifie le mot de passe
+        if (password_verify($data['password'], $artist['password'])) {
+            echo json_encode([
+                'success' => true,
+                'message' => 'Connexion réussie !',
+                'user_id' => $artist['id'],
+                'user_name' => $artist['artist_name'] ?? $artist['name'],
+                'user_email' => $artist['email']
+            ]);
+        } else {
+            throw new Exception("Mot de passe incorrect.");
+        }
+    } else {
         throw new Exception("Aucun compte trouvé avec cet email.");
     }
 
-    // Vérifier le mot de passe
-    if (!password_verify($data['password'], $artist['password'])) {
-        throw new Exception("Mot de passe incorrect.");
-    }
-
-    // Log de succès
-    error_log("✅ Connexion réussie : ID=" . $artist['id'] . ", Email=" . $artist['email']);
-
-    // Réponse de succès
-    echo json_encode([
-        'success' => true,
-        'message' => 'Connexion réussie ! Bienvenue 🎨',
-        'user_id' => intval($artist['id']),
-        'user_name' => $artist['artist_name'] ?? $artist['name'],
-        'user_email' => $artist['email']
-    ], JSON_UNESCAPED_UNICODE);
-
 } catch (Exception $e) {
-    error_log("❌ Erreur connexion : " . $e->getMessage());
-    
-    http_response_code(400);
-    echo json_encode([
-        'success' => false, 
-        'message' => $e->getMessage()
-    ], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['success' => false, 'message' => "Erreur : " . $e->getMessage()]);
 }
 ?>

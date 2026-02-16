@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inscription Artiste - ARKYL</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #1a1a1a 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 450px;
+            animation: slideIn 0.5s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .logo h1 {
+            font-size: 36px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #d4a574, #c49565);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 3px;
+        }
+        
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-weight: 400;
+            font-size: 18px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #d4a574;
+            box-shadow: 0 0 0 3px rgba(212, 165, 116, 0.1);
+        }
+        
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #d4a574, #c49565);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(212, 165, 116, 0.3);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(212, 165, 116, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .error-msg {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            text-align: center;
+            margin-top: 15px;
+            display: none;
+            border: 1px solid #fcc;
+        }
+        
+        .success-msg {
+            background: #efe;
+            color: #3c3;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            text-align: center;
+            margin-top: 15px;
+            display: none;
+            border: 1px solid #cfc;
+        }
+        
+        .login-link {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .login-link a {
+            color: #d4a574;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-box">
+    <div class="logo">
+        <h1>ARKYL</h1>
+    </div>
+    <h2>Rejoignez notre galerie d'artistes 🎨</h2>
+    
+    <form id="inscriptionForm">
+        <div class="form-group">
+            <label>Nom complet *</label>
+            <input type="text" id="name" required placeholder="Ex: Cédric Kouassi">
+        </div>
+        
+        <div class="form-group">
+            <label>Nom d'artiste (optionnel)</label>
+            <input type="text" id="artist_name" placeholder="Ex: Cedric">
+        </div>
+        
+        <div class="form-group">
+            <label>Email *</label>
+            <input type="email" id="email" required placeholder="cedric@email.com">
+        </div>
+        
+        <div class="form-group">
+            <label>Mot de passe *</label>
+            <input type="password" id="password" required placeholder="Créer un mot de passe sécurisé" minlength="6">
+        </div>
+        
+        <div class="form-group">
+            <label>Pays</label>
+            <input type="text" id="country" value="Côte d'Ivoire">
+        </div>
+        
+        <button type="submit" id="btnSubmit">S'inscrire et commencer</button>
+        
+        <div id="errorMsg" class="error-msg"></div>
+        <div id="successMsg" class="success-msg"></div>
+    </form>
+    
+    <div class="login-link">
+        Déjà inscrit ? <a href="connexion.html">Se connecter</a>
+    </div>
+</div>
+
+<script>
+    document.getElementById('inscriptionForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const btn = document.getElementById('btnSubmit');
+        const errorMsg = document.getElementById('errorMsg');
+        const successMsg = document.getElementById('successMsg');
+        
+        // Réinitialiser les messages
+        errorMsg.style.display = 'none';
+        successMsg.style.display = 'none';
+        
+        // Désactiver le bouton
+        btn.textContent = "⏳ Création du compte...";
+        btn.disabled = true;
+
+        const data = {
+            name: document.getElementById('name').value.trim(),
+            artist_name: document.getElementById('artist_name').value.trim(),
+            email: document.getElementById('email').value.trim(),
+            password: document.getElementById('password').value,
+            country: document.getElementById('country').value.trim()
+        };
+
+        try {
+            const response = await fetch('https://arkyl-galerie.onrender.com/api_inscription.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Enregistrer les informations dans localStorage (nouveau système)
+                localStorage.setItem('user_id', result.user_id);
+                localStorage.setItem('user_name', result.user_name);
+                localStorage.setItem('user_email', result.user_email);
+                
+                // Aussi enregistrer dans l'ancien format pour compatibilité
+                const artistAccount = {
+                    id: result.user_id,
+                    name: result.user_name,
+                    email: result.user_email,
+                    country: data.country || 'Côte d\'Ivoire',
+                    avatar: '',
+                    isArtist: true
+                };
+                localStorage.setItem('arkyl_artist_account', JSON.stringify(artistAccount));
+                
+                // Message de succès
+                successMsg.textContent = "🎉 " + result.message + " Redirection vers l'espace artiste...";
+                successMsg.style.display = 'block';
+                
+                // Redirection vers index.html en mode artiste
+                setTimeout(() => {
+                    window.location.href = 'index.html?mode=artist';
+                }, 2000);
+                
+            } else {
+                errorMsg.textContent = "❌ " + result.message;
+                errorMsg.style.display = 'block';
+                btn.textContent = "S'inscrire et commencer";
+                btn.disabled = false;
+            }
+        } catch (erreur) {
+            errorMsg.textContent = "❌ Erreur de connexion au serveur. Vérifiez votre connexion internet.";
+            errorMsg.style.display = 'block';
+            btn.textContent = "S'inscrire et commencer";
+            btn.disabled = false;
+            console.error('Erreur:', erreur);
+        }
+    });
+</script>
+
+</body>
+</html>

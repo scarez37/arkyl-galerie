@@ -1,13 +1,16 @@
 <?php
 // ==================== API COMPTER FAVORIS ====================
 // Fichier: api_get_favorites_count.php
+// Utilise la configuration centralisée de la base de données
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
+// 🔧 UTILISER LA CONFIGURATION CENTRALISÉE
+require_once __DIR__ . '/db_config.php';
+
 try {
-    $db = new PDO('sqlite:/opt/render/project/src/galerie.db');
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $db = getDatabase(); // Utilise la fonction de db_config.php
     
     $user_id = $_GET['user_id'] ?? '';
     

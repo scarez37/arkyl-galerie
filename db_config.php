@@ -1,67 +1,87 @@
 <?php
 /**
- * 🔧 CONFIGURATION CENTRALISÉE DE LA BASE DE DONNÉES
- * 
- * Ce fichier définit quel fichier de base de données utiliser.
- * Tous les autres fichiers PHP doivent l'inclure avec :
- * require_once __DIR__ . '/db_config.php';
+ * 🔧 CONFIGURATION BASE DE DONNÉES POSTGRESQL
+ * Ce fichier gère la connexion à PostgreSQL sur Render
  */
 
-// Fonction pour trouver et retourner le chemin de la base de données
-function getDatabasePath() {
-    // Liste des chemins possibles, par ORDRE DE PRIORITÉ
-    $possiblePaths = [
-        // 1. Chemin détecté par diagnostic_db.php
-        '/var/www/html/artgallery.db',
-        
-        // 2. Chemins Render
-        '/opt/render/project/src/artgallery.db',
-        '/opt/render/project/src/galerie.db',
-        
-        // 3. Chemin relatif (même dossier)
-        __DIR__ . '/artgallery.db',
-        __DIR__ . '/galerie.db',
-    ];
-    
-    // Chercher le premier qui existe
-    foreach ($possiblePaths as $path) {
-        if (file_exists($path)) {
-            return $path;
-        }
-    }
-    
-    // Si aucun n'existe, retourner le chemin par défaut
-    // (celui qui sera créé si besoin)
-    return '/var/www/html/artgallery.db';
-}
+// 👉 REMPLACE LE TEXTE CI-DESSOUS PAR TON LIEN POSTGRESQL DE RENDER
+define('DATABASE_URL', 'TON_LIEN_SECRET_ICI');
 
-// Fonction pour obtenir une connexion PDO
+/**
+ * Fonction pour obtenir une connexion PDO à PostgreSQL
+ */
 function getDatabase() {
-    $dbPath = getDatabasePath();
-    
-    // Créer la connexion
-    $db = new PDO('sqlite:' . $dbPath);
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-    
-    return $db;
+    try {
+        // Parser l'URL PostgreSQL de Render
+        $dbopts = parse_url(DATABASE_URL);
+        
+        // Construire le DSN pour PostgreSQL
+        $dsn = "pgsql:host=" . $dbopts["host"] . 
+               ";port=5432" .
+               ";dbname=" . ltrim($dbopts["path"], '/') .
+               ";sslmode=require";
+        
+        // Créer la connexion PDO
+        $db = new PDO(
+            $dsn,
+            $dbopts["user"],
+            $dbopts["pass"]
+        );
+        
+        // Configurer PDO
+        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        
+        return $db;
+        
+    } catch (PDOException $e) {
+        // En cas d'erreur, logger et retourner null
+        error_log("Erreur connexion PostgreSQL : " . $e->getMessage());
+        throw new Exception("Impossible de se connecter à la base de données");
+    }
 }
 
-// Pour debug : afficher quel fichier est utilisé
+/**
+ * Fonction pour obtenir le chemin de la base (pour compatibilité)
+ */
+function getDatabasePath() {
+    return DATABASE_URL;
+}
+
+/**
+ * Fonction de debug (infos sur la connexion)
+ */
 function getDebugInfo() {
-    $path = getDatabasePath();
-    $exists = file_exists($path) ? 'OUI' : 'NON';
-    $size = file_exists($path) ? filesize($path) : 0;
+    $dbopts = parse_url(DATABASE_URL);
     
     return [
-        'path' => $path,
-        'exists' => $exists,
-        'size' => $size,
-        'readable' => is_readable($path) ? 'OUI' : 'NON',
-        'writable' => is_writable($path) ? 'OUI' : 'NON'
+        'type' => 'PostgreSQL',
+        'host' => $dbopts["host"],
+        'database' => ltrim($dbopts["path"], '/'),
+        'status' => 'connected'
     ];
 }
 
-// Définir le chemin comme constante globale
-define('DB_PATH', getDatabasePath());
+/**
+ * Test de connexion (à supprimer en production)
+ */
+function testConnection() {
+    try {
+        $db = getDatabase();
+        return [
+            'success' => true,
+            'message' => 'Connexion PostgreSQL réussie !',
+            'info' => getDebugInfo()
+        ];
+    } catch (Exception $e) {
+        return [
+            'success' => false,
+            'message' => $e->getMessage()
+        ];
+    }
+}
+
+// Auto-test en mode debug (décommenter pour tester)
+// header('Content-Type: application/json');
+// echo json_encode(testConnection(), JSON_PRETTY_PRINT);
 ?>

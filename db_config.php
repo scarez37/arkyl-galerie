@@ -5,7 +5,7 @@
  */
 
 // 👉 REMPLACE LE TEXTE CI-DESSOUS PAR TON LIEN POSTGRESQL DE RENDER
-define('DATABASE_URL', 'TON_LIEN_SECRET_ICI');
+define('DATABASE_URL', 'postgresql://arkyl_db_user:196PXpwGBH4Qr31JPyyeog0S1hn04XVs@dpg-d69ptr7gi27c73clct3g-a/arkyl_db');
 
 /**
  * Fonction pour obtenir une connexion PDO à PostgreSQL

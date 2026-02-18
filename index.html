@@ -1322,7 +1322,38 @@
             animation: scroll-news 50s linear infinite;
             align-items: center;
             height: 100%;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
+        .news-ticker-content.paused {
+            animation-play-state: paused;
+        }
+        .ticker-nav-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(6px);
+            border: 1px solid rgba(255,255,255,0.25);
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .ticker-nav-btn:hover {
+            background: rgba(255,255,255,0.35);
+            transform: translateY(-50%) scale(1.1);
+        }
+        .ticker-nav-prev { left: 6px; }
+        .ticker-nav-next { right: 6px; }
+        .news-ticker-scroll { position: relative; }
 
         .news-ticker-item {
             display: inline-flex;
@@ -1664,14 +1695,77 @@
         }
 
         @media (max-width: 768px) {
+            /* Ticker : layout vertical compact */
+            .news-ticker-container {
+                padding: 12px 14px;
+                border-radius: 14px;
+                margin-bottom: 20px;
+            }
             .news-ticker-wrapper {
                 flex-direction: column;
-                gap: 15px;
+                gap: 10px;
             }
-            
             .news-ticker-label {
                 width: 100%;
                 justify-content: center;
+                padding: 10px 16px;
+                font-size: 10px;
+                border-radius: 10px;
+            }
+            .news-ticker-scroll {
+                height: 110px;
+            }
+            .news-ticker-icon {
+                width: 140px;
+                height: 80px;
+                font-size: 34px;
+                border-radius: 10px;
+            }
+            .news-ticker-text {
+                font-size: 11px !important;
+                padding: 4px 8px !important;
+                max-width: 140px;
+            }
+            .news-ticker-item:hover {
+                transform: none; /* désactiver hover élévation sur mobile */
+            }
+            /* Boutons nav ticker : plus petits */
+            .ticker-nav-btn {
+                width: 28px;
+                height: 28px;
+                font-size: 13px;
+            }
+
+            /* Filtres catégories : scroll horizontal au lieu de wrap */
+            .filter-container {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                justify-content: flex-start;
+                gap: 8px;
+                padding-bottom: 8px;
+                margin-bottom: 20px;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+            .filter-container::-webkit-scrollbar { display: none; }
+            .filter-btn {
+                flex-shrink: 0;
+                padding: 9px 16px;
+                font-size: 12px;
+                white-space: nowrap;
+            }
+
+            /* Grille produits : 2 colonnes sur mobile */
+            .products-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+                margin-bottom: 24px;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .products-grid {
+                grid-template-columns: 1fr;
             }
         }
 
@@ -3685,16 +3779,17 @@
             }
 
             .page {
-                padding: 140px 15px 80px;
+                padding: 120px 12px 70px;
             }
 
             .page-title {
-                font-size: 32px;
+                font-size: 22px;
+                margin-bottom: 16px;
             }
 
             .products-grid {
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-                gap: 15px;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
             }
 
             .cart-grid {
@@ -5300,7 +5395,9 @@
             <div class="news-ticker-wrapper">
                 <span class="news-ticker-label">📰 ACTUALITÉS</span>
                 <div class="news-ticker-scroll">
-                    <div class="news-ticker-content">
+                    <button class="ticker-nav-btn ticker-nav-prev" onclick="tickerNav(-1)" title="Précédent">‹</button>
+                    <button class="ticker-nav-btn ticker-nav-next" onclick="tickerNav(1)" title="Suivant">›</button>
+                    <div class="news-ticker-content" id="newsTickerContent">
                         <!-- Item 1 - Avec image -->
                         <div class="news-ticker-item">
                             <div class="news-ticker-icon gradient-1">
@@ -12504,6 +12601,65 @@
             showToast('✅ Actualité supprimée');
         }
 
+        // ==================== IMAGE LIGHTBOX (plein écran) ====================
+        function openImageLightbox(src) {
+            let lb = document.getElementById('imageLightboxOverlay');
+            if (!lb) {
+                lb = document.createElement('div');
+                lb.id = 'imageLightboxOverlay';
+                lb.style.cssText = `
+                    position: fixed; inset: 0; z-index: 99999;
+                    background: rgba(0,0,0,0.92);
+                    display: flex; align-items: center; justify-content: center;
+                    cursor: zoom-out;
+                    animation: fadeInLb 0.2s ease;
+                `;
+                lb.innerHTML = `
+                    <style>
+                        @keyframes fadeInLb { from { opacity:0; } to { opacity:1; } }
+                        @keyframes zoomInLb { from { transform: scale(0.85); opacity:0; } to { transform: scale(1); opacity:1; } }
+                        #imageLightboxImg {
+                            max-width: 92vw; max-height: 92vh;
+                            object-fit: contain; border-radius: 12px;
+                            box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+                            animation: zoomInLb 0.25s cubic-bezier(0.34,1.56,0.64,1);
+                            cursor: default;
+                        }
+                        #imageLightboxClose {
+                            position: fixed; top: 20px; right: 24px;
+                            background: rgba(255,255,255,0.15); border: none;
+                            color: white; font-size: 28px; width: 48px; height: 48px;
+                            border-radius: 50%; cursor: pointer; display: flex;
+                            align-items: center; justify-content: center;
+                            transition: background 0.2s;
+                            backdrop-filter: blur(4px);
+                        }
+                        #imageLightboxClose:hover { background: rgba(255,255,255,0.3); }
+                    </style>
+                    <button id="imageLightboxClose" onclick="event.stopPropagation(); closeImageLightbox();">✕</button>
+                    <img id="imageLightboxImg" src="" alt="Vue agrandie">
+                `;
+                lb.addEventListener('click', closeImageLightbox);
+                lb.querySelector('#imageLightboxImg').addEventListener('click', e => e.stopPropagation());
+                document.body.appendChild(lb);
+                // Fermer avec Echap
+                document.addEventListener('keydown', _lbKeyHandler);
+            }
+            document.getElementById('imageLightboxImg').src = src;
+            lb.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeImageLightbox() {
+            const lb = document.getElementById('imageLightboxOverlay');
+            if (lb) lb.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+
+        function _lbKeyHandler(e) {
+            if (e.key === 'Escape') closeImageLightbox();
+        }
+
         // ==================== NEWS LIGHTBOX FUNCTIONS ====================
         function openNewsLightbox(index) {
             const news = newsItems[index];
@@ -13134,7 +13290,59 @@
 </script>
 
 <!-- Module Favoris & Panier Base de Données -->
-<script src="arkyl-favoris-panier-db.js"></script>
+<script src="arkyl-favoris-panier-db.js">
+        // ==================== TICKER NAVIGATION ====================
+        (function() {
+            let tickerPaused = false;
+            let tickerOffset = 0;          // px décalage manuel
+            const STEP = 320;              // px par clic
+
+            function getContent() { return document.getElementById('newsTickerContent'); }
+
+            // Pause/reprise au survol (déjà géré en CSS hover, mais on renforce)
+            document.addEventListener('DOMContentLoaded', function() {
+                const scroll = document.querySelector('.news-ticker-scroll');
+                if (!scroll) return;
+                scroll.addEventListener('mouseenter', () => {
+                    const c = getContent();
+                    if (c) c.classList.add('paused');
+                });
+                scroll.addEventListener('mouseleave', () => {
+                    const c = getContent();
+                    if (c && !tickerPaused) c.classList.remove('paused');
+                });
+            });
+
+            window.tickerNav = function(dir) {
+                const c = getContent();
+                if (!c) return;
+
+                // Pause l'animation CSS
+                c.classList.add('paused');
+                tickerPaused = true;
+
+                // Calcul du décalage
+                tickerOffset += dir * STEP;
+
+                // Limites : on ne laisse pas aller trop loin dans chaque sens
+                const maxOffset = c.scrollWidth / 2; // moitié = les doublons
+                if (tickerOffset > 0) tickerOffset = 0;
+                if (tickerOffset < -maxOffset) tickerOffset = -maxOffset + STEP;
+
+                c.style.transform = `translateX(${tickerOffset}px)`;
+
+                // Reprend l'auto-scroll après 5s d'inactivité
+                clearTimeout(window._tickerResumeTimer);
+                window._tickerResumeTimer = setTimeout(() => {
+                    tickerPaused = false;
+                    tickerOffset = 0;
+                    c.style.transform = '';
+                    c.classList.remove('paused');
+                }, 5000);
+            };
+        })();
+
+</script>
 
 </body>
 </html>

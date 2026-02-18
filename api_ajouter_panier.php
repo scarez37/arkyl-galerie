@@ -38,28 +38,28 @@ try {
     $user_id = $data['user_id'] ?? 'guest_' . uniqid();
     $quantity = isset($data['quantity']) ? intval($data['quantity']) : 1;
     
+    // 🛠️ SÉCURITÉ : On vérifie (et on crée) la table au cas où
+    $db->exec("CREATE TABLE IF NOT EXISTS cart (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        artwork_id INTEGER NOT NULL,
+        quantity INTEGER DEFAULT 1,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (artwork_id) REFERENCES artworks(id) ON DELETE CASCADE
+    )");
+    
     // Vérification que l'œuvre existe
-    $stmt = $db->prepare("SELECT id, title, price FROM artworks WHERE id = :id");
+    $stmt = $db->prepare("SELECT id, title FROM artworks WHERE id = :id");
     $stmt->execute([':id' => $artwork_id]);
     $artwork = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$artwork) {
         echo json_encode([
             'success' => false,
-            'message' => 'Œuvre introuvable (ID: ' . $artwork_id . ')'
+            'message' => 'Œuvre introuvable'
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }
-    
-    // Créer la table panier si elle n'existe pas
-    $db->exec("CREATE TABLE IF NOT EXISTS cart (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        artwork_id INTEGER NOT NULL,
-        quantity INTEGER DEFAULT 1,
-        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (artwork_id) REFERENCES artworks(id)
-    )");
     
     // Vérifier si l'œuvre est déjà dans le panier
     $checkStmt = $db->prepare("SELECT id, quantity FROM cart WHERE user_id = :user_id AND artwork_id = :artwork_id");
@@ -96,8 +96,7 @@ try {
         echo json_encode([
             'success' => true,
             'message' => 'Œuvre "' . $artwork['title'] . '" ajoutée au panier',
-            'action' => 'added',
-            'cart_id' => $db->lastInsertId()
+            'action' => 'added'
         ], JSON_UNESCAPED_UNICODE);
     }
     

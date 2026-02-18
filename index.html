@@ -9643,11 +9643,15 @@
                 }
                 
                 // Créer les métadonnées avec les vraies données
-                let dimensionsText = '80 × 60 cm'; // Valeur par défaut
-                if (product.dimensions && (product.dimensions.width || product.dimensions.height)) {
+                let dimensionsText = 'Non spécifiées';
+                let dims2 = product.dimensions;
+                if (dims2 && typeof dims2 === 'string') {
+                    try { dims2 = JSON.parse(dims2); } catch(e) { dims2 = null; }
+                }
+                if (dims2 && (dims2.width || dims2.height)) {
                     const parts = [];
-                    if (product.dimensions.width) parts.push(`L ${product.dimensions.width} cm`);
-                    if (product.dimensions.height) parts.push(`H ${product.dimensions.height} cm`);
+                    if (dims2.width) parts.push(`L ${dims2.width} cm`);
+                    if (dims2.height) parts.push(`H ${dims2.height} cm`);
                     dimensionsText = parts.join(' × ');
                 }
                 
@@ -12839,10 +12843,15 @@
             
             // Créer les métadonnées avec TOUTES les informations
             let dimensionsText = 'Non spécifiées';
-            if (product.dimensions && (product.dimensions.width || product.dimensions.height)) {
+            // Parser les dimensions : depuis PostgreSQL c arrive comme string JSON
+            let dims = product.dimensions;
+            if (dims && typeof dims === 'string') {
+                try { dims = JSON.parse(dims); } catch(e) { dims = null; }
+            }
+            if (dims && (dims.width || dims.height)) {
                 const parts = [];
-                if (product.dimensions.width) parts.push(`L ${product.dimensions.width} cm`);
-                if (product.dimensions.height) parts.push(`H ${product.dimensions.height} cm`);
+                if (dims.width) parts.push(`L ${dims.width} cm`);
+                if (dims.height) parts.push(`H ${dims.height} cm`);
                 dimensionsText = parts.join(' × ');
             }
             

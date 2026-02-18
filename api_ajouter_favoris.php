@@ -1,7 +1,6 @@
 <?php
 // ==================== API AJOUTER AUX FAVORIS ====================
 // Fichier: api_ajouter_favoris.php
-// Utilise la configuration centralisée de la base de données
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -17,9 +16,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // 🔧 UTILISER LA CONFIGURATION CENTRALISÉE
 require_once __DIR__ . '/db_config.php';
 
-// Connexion à la base de données SQLite
+// Connexion à la base de données PostgreSQL
 try {
-    $db = getDatabase(); // Utilise la fonction de db_config.php
+    $db = getDatabase(); 
 } catch (PDOException $e) {
     echo json_encode([
         'success' => false,
@@ -43,7 +42,7 @@ if (!isset($data['artwork_id']) || empty($data['artwork_id'])) {
 }
 
 $artwork_id = intval($data['artwork_id']);
-$user_id = $data['user_id'] ?? 'guest_' . session_id(); // ID utilisateur ou session
+$user_id = $data['user_id'] ?? 'guest_' . session_id(); 
 
 // Vérification que l'œuvre existe
 try {
@@ -59,14 +58,14 @@ try {
         exit;
     }
     
-    // Créer la table favoris si elle n'existe pas
+    // 🛠️ CORRECTION : Syntaxe PostgreSQL avec SERIAL et TIMESTAMP
     $db->exec("CREATE TABLE IF NOT EXISTS favorites (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
         artwork_id INTEGER NOT NULL,
-        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, artwork_id),
-        FOREIGN KEY (artwork_id) REFERENCES artworks(id)
+        FOREIGN KEY (artwork_id) REFERENCES artworks(id) ON DELETE CASCADE
     )");
     
     // Vérifier si l'œuvre est déjà dans les favoris
@@ -100,8 +99,7 @@ try {
             'success' => true,
             'message' => 'Œuvre "' . $artwork['title'] . '" ajoutée aux favoris',
             'action' => 'added',
-            'is_favorite' => true,
-            'favorite_id' => $db->lastInsertId()
+            'is_favorite' => true
         ]);
     }
     

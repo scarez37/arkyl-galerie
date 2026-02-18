@@ -17,23 +17,9 @@ try {
         throw new Exception("Veuillez remplir tous les champs.");
     }
 
-    // 1. Chercheur de Base de données
-    $possiblePaths = [
-        __DIR__ . '/artgallery.db',
-        '/opt/render/project/src/artgallery.db',
-        __DIR__ . '/galerie.db',
-        '/opt/render/project/src/galerie.db'
-    ];
-    
-    $dbPath = null;
-    foreach ($possiblePaths as $path) {
-        if (file_exists($path)) {
-            $dbPath = $path;
-            break;
-        }
-    }
-
-    if (!$dbPath) throw new Exception("Base de données introuvable.");
+    // Connexion au nouveau Cerveau PostgreSQL
+    require_once __DIR__ . '/db_config.php';
+    $db = getDatabase();
 
     // 2. Connexion PDO
     $db = new PDO('sqlite:' . $dbPath);

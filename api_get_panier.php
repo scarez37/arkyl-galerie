@@ -19,14 +19,14 @@ try {
         exit;
     }
     
-    // Créer la table si elle n'existe pas
+    // 🛠️ CORRECTION POSTGRESQL : SERIAL, VARCHAR, TIMESTAMP
     $db->exec("CREATE TABLE IF NOT EXISTS cart (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
         artwork_id INTEGER NOT NULL,
         quantity INTEGER DEFAULT 1,
-        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (artwork_id) REFERENCES artworks(id)
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (artwork_id) REFERENCES artworks(id) ON DELETE CASCADE
     )");
     
     // Récupérer le panier avec les détails des œuvres
@@ -44,34 +44,23 @@ try {
     $stmt->execute([':user_id' => $user_id]);
     $cartItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Formater chaque œuvre
     $formatted = [];
     $totalPrice = 0;
     
     foreach ($cartItems as $item) {
-        // Gérer les photos
+        $dimensions = 'Non spécifiées';
+        if (!empty($item['dimensions'])) {
+            $dimensions = $item['dimensions'];
+        }
+        
         $photos = [];
         if (!empty($item['photos'])) {
             $decoded = json_decode($item['photos'], true);
-            if (is_array($decoded)) {
-                $photos = $decoded;
-            } else {
-                $photos = [$item['photos']];
-            }
-        } elseif (!empty($item['image'])) {
-            $photos = [$item['image']];
+            $photos = is_array($decoded) ? $decoded : [$item['photos']];
         } elseif (!empty($item['image_url'])) {
             $photos = [$item['image_url']];
-        }
-        
-        // Gérer les dimensions
-        $dimensions = null;
-        if (!empty($item['width']) || !empty($item['height']) || !empty($item['depth'])) {
-            $dimensions = json_encode([
-                'width' => !empty($item['width']) ? floatval($item['width']) : null,
-                'height' => !empty($item['height']) ? floatval($item['height']) : null,
-                'depth' => !empty($item['depth']) ? floatval($item['depth']) : null
-            ], JSON_UNESCAPED_UNICODE);
+        } elseif (!empty($item['image'])) {
+            $photos = [$item['image']];
         }
         
         $price = !empty($item['price']) ? floatval($item['price']) : 0;
@@ -91,7 +80,6 @@ try {
             'artist_name' => $item['artist_name'] ?? $item['artist'] ?? null,
             'artist_country' => $item['artist_country'] ?? null,
             'badge' => $item['badge'] ?? 'Disponible',
-            'image' => !empty($photos) ? $photos[0] : null,
             'image_url' => !empty($photos) ? $photos[0] : null,
             'photos' => $photos,
             'cart_id' => $item['cart_id'],
@@ -108,10 +96,11 @@ try {
         'total_price' => $totalPrice
     ], JSON_UNESCAPED_UNICODE);
     
-} catch (PDOException $e) {
+} catch (Exception $e) {
+    http_response_code(500);
     echo json_encode([
         'success' => false,
-        'message' => 'Erreur',
+        'message' => 'Erreur lors de la récupération du panier',
         'error' => $e->getMessage()
     ], JSON_UNESCAPED_UNICODE);
 }

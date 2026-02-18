@@ -1,8 +1,4 @@
 <?php
-/**
- * API INSCRIPTION ARTISTE - VERSION ULTRA-ROBUSTE
- * Ne plante jamais, cherche la base automatiquement, crée les colonnes si nécessaire
- */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -14,7 +10,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 try {
-    // 1. Lire les données JSON
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
@@ -25,31 +20,8 @@ try {
     // Connexion au nouveau Cerveau PostgreSQL
     require_once __DIR__ . '/db_config.php';
     $db = getDatabase();
-    }
 
-    // 3. CONNEXION AVEC PDO (plus robuste pour ALTER TABLE)
-    $db = new PDO('sqlite:' . $dbPath);
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-    // 4. AJOUT AUTOMATIQUE DES COLONNES MANQUANTES (sans planter si elles existent)
-    $columnsToAdd = [
-        "ALTER TABLE artists ADD COLUMN password TEXT",
-        "ALTER TABLE artists ADD COLUMN country TEXT DEFAULT 'Côte d''Ivoire'",
-        "ALTER TABLE artists ADD COLUMN artist_name TEXT",
-        "ALTER TABLE artists ADD COLUMN profile_image TEXT",
-        "ALTER TABLE artists ADD COLUMN bio TEXT",
-        "ALTER TABLE artists ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
-    ];
-    
-    foreach ($columnsToAdd as $sql) {
-        try {
-            $db->exec($sql);
-        } catch (Exception $e) {
-            // La colonne existe déjà, on continue sans erreur
-        }
-    }
-
-    // 5. VÉRIFIER SI L'EMAIL EXISTE DÉJÀ
+    // VÉRIFIER SI L'EMAIL EXISTE DÉJÀ
     $checkStmt = $db->prepare("SELECT id FROM artists WHERE email = :email");
     $checkStmt->execute([':email' => $data['email']]);
     
@@ -57,18 +29,18 @@ try {
         throw new Exception("Cet email est déjà utilisé par un autre artiste.");
     }
 
-    // 6. SÉCURISER LE MOT DE PASSE
+    // SÉCURISER LE MOT DE PASSE
     $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
 
-    // 7. PRÉPARER LES VALEURS
+    // PRÉPARER LES VALEURS
     $name = trim($data['name']);
     $artist_name = !empty($data['artist_name']) ? trim($data['artist_name']) : $name;
     $email = trim($data['email']);
     $country = !empty($data['country']) ? trim($data['country']) : "Côte d'Ivoire";
 
-    // 8. INSÉRER LE NOUVEL ARTISTE
+    // INSÉRER LE NOUVEL ARTISTE (Syntaxe PostgreSQL)
     $sql = "INSERT INTO artists (name, artist_name, email, password, country, created_at) 
-            VALUES (:name, :artist_name, :email, :password, :country, datetime('now'))";
+            VALUES (:name, :artist_name, :email, :password, :country, CURRENT_TIMESTAMP)";
     
     $stmt = $db->prepare($sql);
     $stmt->execute([
@@ -79,32 +51,21 @@ try {
         ':country' => $country
     ]);
 
-    // 9. RÉCUPÉRER L'ID CRÉÉ
     $newArtistId = $db->lastInsertId();
 
-    // 10. LOG DE SUCCÈS
-    error_log("✅ Nouvel artiste créé : ID=$newArtistId, Email=$email");
-
-    // 11. RÉPONSE DE SUCCÈS
     echo json_encode([
         'success' => true, 
         'message' => 'Inscription réussie ! Bienvenue sur ARKYL 🎨',
         'user_id' => intval($newArtistId),
         'user_name' => $artist_name,
-        'user_email' => $email,
-        'db_path' => $dbPath // Pour debug
+        'user_email' => $email
     ], JSON_UNESCAPED_UNICODE);
 
 } catch (Exception $e) {
-    // TOUJOURS RENVOYER DU JSON MÊME EN CAS D'ERREUR
-    error_log("❌ Erreur inscription : " . $e->getMessage());
-    
     http_response_code(400);
     echo json_encode([
         'success' => false, 
-        'message' => $e->getMessage(),
-        'error_type' => get_class($e),
-        'error_line' => $e->getLine()
+        'message' => $e->getMessage()
     ], JSON_UNESCAPED_UNICODE);
 }
 ?>

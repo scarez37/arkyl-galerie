@@ -21,7 +21,7 @@ try {
     
     // Créer la table si elle n'existe pas
     $db->exec("CREATE TABLE IF NOT EXISTS favorites (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id TEXT NOT NULL,
         artwork_id INTEGER NOT NULL,
         added_at DATETIME DEFAULT CURRENT_TIMESTAMP,

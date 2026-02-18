@@ -22,25 +22,9 @@ try {
         throw new Exception("Veuillez remplir tous les champs obligatoires.");
     }
 
-    // 2. CHERCHEUR AUTOMATIQUE DE BASE DE DONNÉES
-    $possiblePaths = [
-        __DIR__ . '/artgallery.db',              // Dossier actuel
-        '/opt/render/project/src/artgallery.db', // Render
-        '/var/www/html/artgallery.db',           // Apache standard
-        __DIR__ . '/galerie.db',                 // Ancien nom
-        '/opt/render/project/src/galerie.db'     // Ancien nom Render
-    ];
-    
-    $dbPath = null;
-    foreach ($possiblePaths as $path) {
-        if (file_exists($path)) {
-            $dbPath = $path;
-            break;
-        }
-    }
-
-    if (!$dbPath) {
-        throw new Exception("Base de données introuvable. Chemins testés : " . implode(', ', $possiblePaths));
+    // Connexion au nouveau Cerveau PostgreSQL
+    require_once __DIR__ . '/db_config.php';
+    $db = getDatabase();
     }
 
     // 3. CONNEXION AVEC PDO (plus robuste pour ALTER TABLE)

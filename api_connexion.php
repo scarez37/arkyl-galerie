@@ -21,36 +21,19 @@ try {
     require_once __DIR__ . '/db_config.php';
     $db = getDatabase();
 
-    // 2. Connexion PDO
-    $db = new PDO('sqlite:' . $dbPath);
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-    // 3. 🛠️ LE MAGIQUE : Réparation automatique de la base !
-    try { $db->exec("ALTER TABLE artists ADD COLUMN password TEXT"); } catch (Exception $e) { /* Existe déjà */ }
-    try { $db->exec("ALTER TABLE artists ADD COLUMN country TEXT"); } catch (Exception $e) { /* Existe déjà */ }
-    try { $db->exec("ALTER TABLE artists ADD COLUMN created_at TEXT"); } catch (Exception $e) { /* Existe déjà */ }
-
-    // 4. On cherche l'artiste
+    // On cherche l'artiste
     $stmt = $db->prepare("SELECT * FROM artists WHERE email = :email");
     $stmt->execute([':email' => $data['email']]);
     $artist = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($artist) {
-        // 5. ASTUCE : Si c'est un de tes vieux comptes de test sans mot de passe, on enregistre celui que tu viens de taper !
-        if (empty($artist['password'])) {
-            $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
-            $upd = $db->prepare("UPDATE artists SET password = :pwd WHERE id = :id");
-            $upd->execute([':pwd' => $hashedPassword, ':id' => $artist['id']]);
-            $artist['password'] = $hashedPassword;
-        }
-
-        // 6. On vérifie le mot de passe
+        // On vérifie le mot de passe
         if (password_verify($data['password'], $artist['password'])) {
             echo json_encode([
                 'success' => true,
                 'message' => 'Connexion réussie !',
                 'user_id' => $artist['id'],
-                'user_name' => $artist['artist_name'] ?? $artist['name'],
+                'user_name' => !empty($artist['artist_name']) ? $artist['artist_name'] : $artist['name'],
                 'user_email' => $artist['email']
             ]);
         } else {

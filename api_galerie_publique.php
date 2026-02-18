@@ -41,7 +41,7 @@ try {
         
     } else {
         // ===== MODE : TOUTES LES ŒUVRES =====
-        $stmt = $db->query("SELECT * FROM artworks WHERE status = 'active' ORDER BY id DESC");
+        $stmt = $db->query("SELECT * FROM artworks WHERE status = 'publiée' ORDER BY id DESC");
         $oeuvres = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Formater chaque œuvre

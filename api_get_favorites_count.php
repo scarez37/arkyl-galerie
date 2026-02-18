@@ -1,16 +1,15 @@
 <?php
 // ==================== API COMPTER FAVORIS ====================
 // Fichier: api_get_favorites_count.php
-// Utilise la configuration centralisée de la base de données
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
-// 🔧 UTILISER LA CONFIGURATION CENTRALISÉE
+// 🛠️ CORRECTION : On utilise db_config.php pour PostgreSQL !
 require_once __DIR__ . '/db_config.php';
 
 try {
-    $db = getDatabase(); // Utilise la fonction de db_config.php
+    $db = getDatabase();
     
     $user_id = $_GET['user_id'] ?? '';
     

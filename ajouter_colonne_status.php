@@ -38,7 +38,7 @@ try {
     
     // Mettre à jour les œuvres sans status
     echo "<p>Mise à jour des œuvres existantes...</p>";
-    $stmt = $db->exec("UPDATE artworks SET status = 'publiée' WHERE status IS NULL");
+    $stmt = $db->exec("UPDATE artworks SET status = 'publiée'");
     echo "<div class='success'>";
     echo "<p>✅ Œuvres mises à jour !</p>";
     echo "</div>";

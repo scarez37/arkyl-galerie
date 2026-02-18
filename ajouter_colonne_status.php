@@ -28,17 +28,17 @@ try {
     // Ajouter la colonne status si elle n'existe pas
     echo "<p>Ajout de la colonne 'status'...</p>";
     
-    $db->exec("ALTER TABLE artworks ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active'");
+    $db->exec("ALTER TABLE artworks ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'publiée'");
     
     echo "<div class='success'>";
     echo "<h2>✅ Succès !</h2>";
     echo "<p>La colonne 'status' a été ajoutée à la table artworks.</p>";
-    echo "<p>Toutes les œuvres existantes ont automatiquement le statut 'active'.</p>";
+    echo "<p>Toutes les œuvres existantes ont automatiquement le statut 'publiée'.</p>";
     echo "</div>";
     
     // Mettre à jour les œuvres sans status
     echo "<p>Mise à jour des œuvres existantes...</p>";
-    $stmt = $db->exec("UPDATE artworks SET status = 'active' WHERE status IS NULL");
+    $stmt = $db->exec("UPDATE artworks SET status = 'publiée' WHERE status IS NULL");
     echo "<div class='success'>";
     echo "<p>✅ Œuvres mises à jour !</p>";
     echo "</div>";

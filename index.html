@@ -712,6 +712,151 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
 
+        /* Hamburger Menu Button */
+        .hamburger-btn {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 5px;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            cursor: pointer;
+            padding: 8px;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 1002;
+        }
+        .hamburger-btn:hover {
+            background: rgba(212, 175, 55, 0.2);
+            border-color: rgba(212, 175, 55, 0.4);
+        }
+        .hamburger-btn.active {
+            background: rgba(212, 175, 55, 0.25);
+            border-color: rgba(212, 175, 55, 0.6);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+        }
+        .hamburger-btn span {
+            display: block;
+            width: 100%;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.85);
+            border-radius: 2px;
+            transition: all 0.35s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+        .hamburger-btn.active span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+        .hamburger-btn.active span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+        .hamburger-btn.active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+        /* ===== MENU ORBITAL ===== */
+        /* Le dropdown devient un conteneur de positionnement */
+        .hamburger-dropdown {
+            position: fixed;
+            top: 20px;
+            right: calc(5% + 5px);
+            left: auto;
+            width: 50px;
+            height: 50px;
+            z-index: 1001;
+            pointer-events: none;
+            display: block !important;
+        }
+        .hamburger-dropdown.open { pointer-events: auto; }
+
+        /* Chaque item est un satellite orbitant */
+        .hamburger-menu-item {
+            position: absolute;
+            top: 0; left: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: rgba(20, 20, 20, 0.92);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 50px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            font-family: inherit;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3), 0 0 0 1px rgba(212,175,55,0.1);
+            opacity: 0;
+            transform: translate(0px, 0px) scale(0.4);
+            transition:
+                opacity 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+                transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+                background 0.2s ease,
+                box-shadow 0.2s ease;
+            pointer-events: none;
+        }
+
+        .hamburger-dropdown.open .hamburger-menu-item:nth-child(1) {
+            opacity: 1;
+            transform: translate(-200px, 70px) scale(1);
+            transition-delay: 0s;
+            pointer-events: auto;
+            --tx: -200px; --ty: 70px;
+        }
+        .hamburger-dropdown.open .hamburger-menu-item:nth-child(2) {
+            opacity: 1;
+            transform: translate(-280px, 110px) scale(1);
+            transition-delay: 0.07s;
+            pointer-events: auto;
+            --tx: -280px; --ty: 110px;
+        }
+        .hamburger-dropdown.open .hamburger-menu-item:nth-child(3) {
+            opacity: 1;
+            transform: translate(-370px, 130px) scale(1);
+            transition-delay: 0.14s;
+            pointer-events: auto;
+            --tx: -370px; --ty: 130px;
+        }
+
+        /* Fermeture : retour vers le centre */
+        .hamburger-dropdown:not(.open) .hamburger-menu-item:nth-child(1) { transition-delay: 0.1s; }
+        .hamburger-dropdown:not(.open) .hamburger-menu-item:nth-child(2) { transition-delay: 0.05s; }
+        .hamburger-dropdown:not(.open) .hamburger-menu-item:nth-child(3) { transition-delay: 0s; }
+
+        .hamburger-menu-item:hover {
+            background: rgba(212, 175, 55, 0.2);
+            border-color: rgba(212, 175, 55, 0.7);
+            box-shadow: 0 6px 24px rgba(212,175,55,0.25), 0 0 0 1px rgba(212,175,55,0.3);
+            color: #d4af37;
+            transform: translate(var(--tx), var(--ty)) scale(1.06) !important;
+        }
+
+        .hamburger-menu-item svg {
+            filter: drop-shadow(0 0 4px rgba(212,175,55,0.4));
+            flex-shrink: 0;
+        }
+        .hamburger-menu-item:hover svg {
+            filter: drop-shadow(0 0 8px rgba(212,175,55,0.9));
+        }
+
+        /* Trait orbital décoratif */
+        .hamburger-dropdown::before {
+            content: '';
+            position: absolute;
+            top: 20px; left: 20px;
+            width: 280px;
+            height: 120px;
+            border: 1px dashed rgba(212, 175, 55, 0.2);
+            border-radius: 50%;
+            transform: rotate(-15deg);
+            opacity: 0;
+            transition: opacity 0.4s ease 0.1s;
+            pointer-events: none;
+        }
+        .hamburger-dropdown.open::before {
+            opacity: 1;
+        }
+
         .logo-container {
             display: flex;
             align-items: center;
@@ -822,9 +967,9 @@
             background: rgba(255, 255, 255, 0.2);
             border: none;
             color: white;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -834,9 +979,19 @@
             position: relative;
         }
 
+        .icon-btn svg {
+            width: 26px;
+            height: 26px;
+            filter: drop-shadow(0 0 6px rgba(212,175,55,0.5));
+        }
+
         .icon-btn:hover {
             background: rgba(255, 255, 255, 0.35);
             transform: scale(1.1);
+        }
+
+        .icon-btn:hover svg {
+            filter: drop-shadow(0 0 10px rgba(212,175,55,0.9));
         }
 
         .badge {
@@ -868,7 +1023,7 @@
             z-index: 999;
             display: none;
             overflow-y: auto;
-            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
 
         .notifications-panel.show {
@@ -1262,37 +1417,30 @@
         }
 
         /* ============ NEWS TICKER - LIQUID GLASS STYLE ============ */
+        /* ===== SKETCH FILTER (SVG) ===== */
+        .sketch-filter { position: absolute; width: 0; height: 0; }
+
         .news-ticker-container {
-            background: linear-gradient(135deg, 
-                rgba(20, 20, 25, 0.98) 0%, 
-                rgba(30, 30, 40, 0.95) 100%);
-            backdrop-filter: blur(25px) saturate(160%);
-            -webkit-backdrop-filter: blur(25px) saturate(160%);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 20px;
-            padding: 25px 30px;
+            background: transparent;
+            border: none;
+            border-radius: 16px;
+            padding: 10px 0;
             margin-bottom: 35px;
-            overflow: hidden;
+            overflow: visible;
             position: relative;
-            box-shadow: 
-                0 15px 50px rgba(0, 0, 0, 0.4),
-                0 0 0 1px rgba(255, 255, 255, 0.08),
-                inset 0 1px 0 rgba(255, 255, 255, 0.12);
+            box-shadow: none;
+            width: 100%;
         }
 
-        .news-ticker-container::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, 
-                rgba(210, 105, 30, 0.15) 0%, 
-                transparent 60%);
-            animation: pulse-glow 4s ease-in-out infinite;
-            z-index: 0;
-            pointer-events: none;
+        /* Hachures retirées */
+        .news-ticker-container::before { display: none; }
+
+        /* Contour crayon irrégulier — retiré */
+        .news-ticker-container::after { display: none; }
+
+        /* Texte caché par défaut — révélé au clic */
+        .news-ticker-text {
+            display: none;
         }
 
         @keyframes pulse-glow {
@@ -1305,43 +1453,36 @@
             align-items: center;
             gap: 25px;
             position: relative;
-            z-index: 1;
+            z-index: 2;
         }
 
         .news-ticker-label {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, 
-                rgba(210, 105, 30, 0.95) 0%, 
-                rgba(184, 134, 11, 0.95) 100%);
-            color: white;
-            padding: 14px 24px;
-            border-radius: 14px;
+            background: transparent;
+            color: #2a2a2a;
+            padding: 10px 18px;
+            border-radius: 4px;
             font-size: 11px;
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 1.5px;
             min-width: fit-content;
-            box-shadow: 
-                0 8px 25px rgba(210, 105, 30, 0.4),
-                inset 0 2px 0 rgba(255, 255, 255, 0.3),
-                inset 0 -1px 0 rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.2);
             position: relative;
-            overflow: hidden;
+            border: none;
+            font-family: 'Courier New', monospace;
+            /* Rectangle dessiné à la main */
+            box-shadow:
+                2px 2px 0 #2a2a2a,
+                -1px -1px 0 #2a2a2a,
+                1px -1px 0 #2a2a2a,
+                -1px 1px 0 #2a2a2a;
+            outline: 2px solid #2a2a2a;
+            outline-offset: 2px;
         }
 
-        .news-ticker-label::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 50%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-            animation: label-shine 2.5s ease-in-out infinite;
-        }
+        .news-ticker-label::before { display: none; }
 
         @keyframes label-shine {
             0% { left: -100%; }
@@ -1352,7 +1493,7 @@
             flex: 1;
             overflow: hidden;
             position: relative;
-            height: 160px;
+            height: 420px;
         }
 
         .news-ticker-content {
@@ -1372,10 +1513,9 @@
             top: 50%;
             transform: translateY(-50%);
             z-index: 10;
-            background: rgba(255,255,255,0.15);
-            backdrop-filter: blur(6px);
-            border: 1px solid rgba(255,255,255,0.25);
-            color: white;
+            background: transparent;
+            border: 2px solid #2a2a2a;
+            color: #2a2a2a;
             width: 36px;
             height: 36px;
             border-radius: 50%;
@@ -1386,9 +1526,11 @@
             justify-content: center;
             transition: all 0.2s;
             flex-shrink: 0;
+            box-shadow: 2px 2px 0 #2a2a2a;
+            font-family: 'Courier New', monospace;
         }
         .ticker-nav-btn:hover {
-            background: rgba(255,255,255,0.35);
+            background: rgba(0,0,0,0.08);
             transform: translateY(-50%) scale(1.1);
         }
         .ticker-nav-prev { left: 6px; }
@@ -1403,7 +1545,7 @@
             padding: 0;
             margin-right: 0;
             background: transparent;
-            border-radius: 16px;
+            border-radius: 8px;
             border: none;
             transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
@@ -1415,49 +1557,30 @@
         }
 
         .news-ticker-icon {
-            width: 220px;
-            height: 130px;
-            border-radius: 14px;
+            width: 480px;
+            height: 400px;
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 50px;
+            font-size: 60px;
             flex-shrink: 0;
-            box-shadow: 
-                0 8px 30px rgba(0, 0, 0, 0.4),
-                0 0 0 1px rgba(255, 255, 255, 0.15),
-                inset 0 1px 0 rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.2);
             overflow: hidden;
             position: relative;
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.4s ease;
             background-size: cover;
             background-position: center;
+            border: 1.5px solid #2a2a2a;
+            box-shadow: 2px 2px 0 rgba(40,30,20,0.3);
         }
 
         .news-ticker-item:hover .news-ticker-icon {
-            box-shadow: 
-                0 15px 50px rgba(0, 0, 0, 0.5),
-                0 0 0 2px rgba(210, 105, 30, 0.6),
-                inset 0 1px 0 rgba(255, 255, 255, 0.3);
-            border-color: rgba(210, 105, 30, 0.8);
+            transform: scale(1.02);
         }
 
-        .news-ticker-icon::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(180deg, 
-                transparent 0%, 
-                rgba(0, 0, 0, 0.7) 100%);
-            opacity: 0;
-            transition: opacity 0.5s ease;
-            z-index: 1;
-        }
+        .news-ticker-icon::before { display: none; }
 
-        .news-ticker-item:hover .news-ticker-icon::before {
-            opacity: 1;
-        }
+        .news-ticker-item:hover .news-ticker-icon::before { display: none; }
 
         .news-ticker-icon img {
             width: 100%;
@@ -1474,50 +1597,46 @@
         }
 
         .news-ticker-icon.gradient-1 {
-            background: linear-gradient(135deg, #D2691E 0%, #CD853F 100%);
+            background: linear-gradient(135deg, #c8c8c8 0%, #e8e8e8 100%);
         }
 
         .news-ticker-icon.gradient-2 {
-            background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%);
+            background: linear-gradient(135deg, #b0b0b0 0%, #d0d0d0 100%);
         }
 
         .news-ticker-icon.gradient-3 {
-            background: linear-gradient(135deg, #B8860B 0%, #DAA520 100%);
+            background: linear-gradient(135deg, #c0c0c0 0%, #e0e0e0 100%);
         }
 
         .news-ticker-icon.gradient-4 {
-            background: linear-gradient(135deg, #CD853F 0%, #DEB887 100%);
+            background: linear-gradient(135deg, #d0d0d0 0%, #f0f0f0 100%);
         }
 
         .news-ticker-icon.gradient-5 {
-            background: linear-gradient(135deg, #D2691E 0%, #F4A460 100%);
-        }
-
-        .news-ticker-text {
-            font-size: 12px;
-            font-weight: 700;
-            color: rgba(255, 255, 255, 0.9);
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-            letter-spacing: 0.5px;
-            margin-top: 10px;
-            padding: 8px 16px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            max-width: 220px;
-            text-align: center;
-            white-space: normal;
-            line-height: 1.4;
-            transition: all 0.3s ease;
-            position: relative;
-            z-index: 2;
+            background: linear-gradient(135deg, #c4c4c4 0%, #e4e4e4 100%);
         }
 
         .news-ticker-item:hover .news-ticker-text {
-            background: rgba(210, 105, 30, 0.3);
-            border-color: rgba(210, 105, 30, 0.6);
-            color: white;
+            /* texte masqué, visible seulement via lightbox au clic */
+        }
+
+        /* Indicateur crayon "cliquer pour lire" au survol */
+        .news-ticker-item::after {
+            content: '✎';
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 16px;
+            color: rgba(40, 30, 20, 0.5);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            font-family: 'Courier New', monospace;
+            pointer-events: none;
+        }
+
+        .news-ticker-item:hover::after {
+            opacity: 1;
         }
 
         /* ============ NEWS LIGHTBOX MODAL ============ */
@@ -3811,11 +3930,24 @@
                 padding: 2px 6px;
             }
 
+            .logo-container {
+                order: 1;
+                flex-shrink: 0;
+            }
+
             .search-bar {
                 order: 3;
+                flex: none;
                 max-width: 100%;
                 width: 100%;
                 margin: 10px 0 0 0;
+            }
+
+            .nav-icons {
+                order: 2;
+                flex: 1;
+                justify-content: space-evenly;
+                margin-left: 10px;
             }
 
             .page {
@@ -5194,7 +5326,7 @@
 
     <!-- Floating Gallery Button (visible on admin page) -->
     <button class="floating-gallery-btn" id="floatingGalleryBtn" onclick="backToClientMode()">
-        🏪 Retour Galerie
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:6px"><defs><linearGradient id="g-floathome" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="url(#g-floathome)"/><path d="M9 22V12h6v10" stroke="#1a1a2e" stroke-width="1.5" fill="none"/></svg> Retour Galerie
     </button>
 
     <!-- Loading Overlay -->
@@ -5212,47 +5344,107 @@
         </div>
         <div class="search-bar">
             <input type="text" class="search-input" id="globalSearch" placeholder="Rechercher une œuvre, un artiste...">
-            <button class="search-btn" onclick="performSearch()">🔍</button>
+            <button class="search-btn" onclick="performSearch()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-search" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="11" cy="11" r="7" stroke="url(#g-search)" stroke-width="2.2" fill="none"/><path d="M16.5 16.5L21 21" stroke="url(#g-search)" stroke-width="2.2" stroke-linecap="round"/></svg></button>
         </div>
         <div class="nav-icons">
             <button class="icon-btn" onclick="manualRefresh()" title="Actualiser" style="display:none;">
-                🔄
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <defs>
+                        <linearGradient id="g-refresh" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#d4af37"/>
+                            <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.7"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M4 12a8 8 0 0 1 14.93-4H16a1 1 0 0 0 0 2h4a1 1 0 0 0 1-1V5a1 1 0 0 0-2 0v2.09A9.99 9.99 0 0 0 2 12a1 1 0 0 0 2 0zm16 0a8 8 0 0 1-14.93 4H8a1 1 0 0 0 0-2H4a1 1 0 0 0-1 1v4a1 1 0 0 0 2 0v-2.09A9.99 9.99 0 0 0 22 12a1 1 0 0 0-2 0z" fill="url(#g-refresh)"/>
+                </svg>
             </button>
             <button class="icon-btn" onclick="toggleNotifications()" title="Notifications">
-                🔔
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <defs>
+                        <linearGradient id="g-bell" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#d4af37"/>
+                            <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.7"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M12 2a7 7 0 0 0-7 7v3.17L3.34 14.5A1 1 0 0 0 4 16h16a1 1 0 0 0 .66-1.75L19 12.17V9a7 7 0 0 0-7-7zm0 20a3 3 0 0 0 2.83-2H9.17A3 3 0 0 0 12 22z" fill="url(#g-bell)"/>
+                </svg>
                 <span class="badge" id="notifBadge" style="display:none;">0</span>
             </button>
             <button class="icon-btn" onclick="navigateTo('favorites')" title="Favoris">
-                ❤️
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <defs>
+                        <linearGradient id="g-heart" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#d4af37"/>
+                            <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.7"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="url(#g-heart)"/>
+                </svg>
                 <span class="badge" id="favBadge" style="display:none;">0</span>
             </button>
             <button class="icon-btn" onclick="navigateTo('cart')" title="Panier">
-                🛒
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <defs>
+                        <linearGradient id="g-bag" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#d4af37"/>
+                            <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.7"/>
+                        </linearGradient>
+                    </defs>
+                    <rect x="4" y="8" width="16" height="13" rx="2.5" fill="url(#g-bag)"/>
+                    <path d="M9 8V6a3 3 0 0 1 6 0v2" stroke="#c0c0c8" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                </svg>
                 <span class="badge" id="cartBadge" style="display:none;">0</span>
             </button>
-            <button class="icon-btn" onclick="navigateTo('myArtists')" title="Mes Artistes">
-                👥
+            <!-- Bouton Menu Hamburger -->
+            <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleHamburgerMenu()" title="Menu">
+                <span></span>
+                <span></span>
+                <span></span>
             </button>
-            <!-- Bouton Espace Artiste -->
-            <button class="icon-btn" onclick="handleArtistSpace()" title="Espace Artiste">
-                🎨
-            </button>
-            
-            <!-- Connexion Collectionneur (par défaut) -->
-            <div id="authContainer">
-                <!-- Google Sign-In button will be rendered here by Google Identity Services -->
-                <div class="google-login-btn" id="googleLoginBtn" style="display:none;">
-                    <!-- Le bouton Google Sign-In sera inséré automatiquement ici -->
-                </div>
-                
-                <div class="user-profile-btn" id="userProfileBtn" onclick="toggleUserMenu()" style="display:none;">
-                    <img id="userAvatar" class="user-avatar" src="" alt="Avatar">
-                    <span class="user-name" id="userName"></span>
-                    <span class="admin-indicator" id="adminBadge" style="display:none;">ADMIN</span>
-                </div>
-            </div>
         </div>
     </nav>
+
+    <!-- Hamburger Menu Dropdown -->
+    <div class="hamburger-dropdown" id="hamburgerDropdown">
+        <div class="hamburger-menu-item" id="authContainer">
+            <!-- Google Sign-In button will be rendered here by Google Identity Services -->
+            <div class="google-login-btn" id="googleLoginBtn" style="display:none;">
+                <!-- Le bouton Google Sign-In sera inséré automatiquement ici -->
+            </div>
+            <div class="user-profile-btn" id="userProfileBtn" onclick="toggleUserMenu()" style="display:none;">
+                <img id="userAvatar" class="user-avatar" src="" alt="Avatar">
+                <span class="user-name" id="userName"></span>
+                <span class="admin-indicator" id="adminBadge" style="display:none;">ADMIN</span>
+            </div>
+        </div>
+        <button class="hamburger-menu-item" onclick="handleArtistSpace(); toggleHamburgerMenu()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <defs>
+                    <linearGradient id="g-palette" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#d4af37"/>
+                        <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
+                    </linearGradient>
+                </defs>
+                <path d="M12 2C6.48 2 2 6.48 2 12c0 5.52 4.48 10 10 10 .83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" fill="url(#g-palette)"/>
+            </svg>
+            Espace Artiste
+        </button>
+        <button class="hamburger-menu-item" onclick="navigateTo('myArtists'); toggleHamburgerMenu()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <defs>
+                    <linearGradient id="g-users" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#d4af37"/>
+                        <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
+                    </linearGradient>
+                </defs>
+                <circle cx="9" cy="7" r="4" fill="url(#g-users)"/>
+                <path d="M2 21v-2a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v2" fill="url(#g-users)"/>
+                <circle cx="18" cy="8" r="3" fill="#a0a0b0" opacity="0.7"/>
+                <path d="M22 21v-1.5a4.5 4.5 0 0 0-3-4.24" stroke="#a0a0b0" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.7"/>
+            </svg>
+            Mes Artistes
+        </button>
+    </div>
 
     <!-- User Menu Dropdown -->
     <div class="user-menu-dropdown" id="userMenuDropdown">
@@ -5262,25 +5454,32 @@
             <div id="userMenuType" style="font-size: 11px; margin-top: 5px; padding: 4px 10px; display: inline-block; border-radius: 12px;"></div>
         </div>
         <div class="user-menu-item" id="adminMenuBtn" onclick="goToAdmin()" style="display:none;">
-            ⚙️ Panneau Admin
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-settings" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" fill="url(#g-settings)"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="url(#g-settings)" stroke-width="1.5" fill="none"/></svg>
+            Panneau Admin
         </div>
         <div class="user-menu-item" id="adminNewsMenuBtn" onclick="goToAdminNews()" style="display:none;">
-            📰 Gérer les Actualités
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-news" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="3" y="4" width="18" height="16" rx="3" fill="url(#g-news)"/><path d="M7 8h10M7 12h7M7 16h5" stroke="#1a1a2e" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Gérer les Actualités
         </div>
         <div class="user-menu-item" id="adminOrdersMenuBtn" onclick="goToAdminOrders()" style="display:none;">
-            🛒 Gestion des Commandes
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-orders" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="4" y="8" width="16" height="13" rx="2.5" fill="url(#g-orders)"/><path d="M9 8V6a3 3 0 0 1 6 0v2" stroke="#1a1a2e" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+            Gestion des Commandes
         </div>
         <div class="user-menu-item" id="artistMenuBtn" onclick="openArtistEditModal()" style="display:none;">
-            🎨 Mon Profil Artiste
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-pal2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M12 2C6.48 2 2 6.48 2 12c0 5.52 4.48 10 10 10 .83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8z" fill="url(#g-pal2)"/><circle cx="6.5" cy="11.5" r="1.5" fill="#1a1a2e"/><circle cx="9.5" cy="7.5" r="1.5" fill="#1a1a2e"/><circle cx="14.5" cy="7.5" r="1.5" fill="#1a1a2e"/><circle cx="17.5" cy="11.5" r="1.5" fill="#1a1a2e"/></svg>
+            Mon Profil Artiste
         </div>
         <div class="user-menu-item" id="backToClientBtn" onclick="backToClientMode()" style="display:none;">
-            🏪 Retour Galerie
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-store" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="url(#g-store)"/><path d="M9 22V12h6v10" fill="#1a1a2e"/></svg>
+            Retour Galerie
         </div>
         <div class="user-menu-item" onclick="goToOrders()">
-            📦 Mes Commandes
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-pkg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z" fill="url(#g-pkg)"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" fill="#a0a0b0" opacity="0.7"/><path d="M12 12v4M10 14h4" stroke="#1a1a2e" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Mes Commandes
         </div>
         <div class="user-menu-item" onclick="handleLogout()" style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 5px; color: #ff6b6b; font-weight: 700;">
-            🚪 Se déconnecter
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="#ff6b6b" stroke-width="2" stroke-linecap="round"/><path d="M16 17l5-5-5-5M21 12H9" stroke="#ff6b6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Se déconnecter
         </div>
     </div>
 
@@ -5396,25 +5595,28 @@
             <div class="artist-badge">ARTISTE</div>
         </div>
         <div class="nav-menu">
-            <button class="nav-link active" id="artNavDashboard" onclick="showArtistSection('dashboard')">📊 Tableau de bord</button>
-            <button class="nav-link" id="artNavArtworks" onclick="showArtistSection('artworks')">🖼️ Mes œuvres</button>
+            <button class="nav-link active" id="artNavDashboard" onclick="showArtistSection('dashboard')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px"><defs><linearGradient id="g-dash" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="3" y="3" width="7" height="7" rx="1.5" fill="url(#g-dash)"/><rect x="14" y="3" width="7" height="7" rx="1.5" fill="url(#g-dash)" opacity="0.7"/><rect x="3" y="14" width="7" height="7" rx="1.5" fill="url(#g-dash)" opacity="0.7"/><rect x="14" y="14" width="7" height="7" rx="1.5" fill="url(#g-dash)" opacity="0.5"/></svg>Tableau de bord</button>
+            <button class="nav-link" id="artNavArtworks" onclick="showArtistSection('artworks')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px"><defs><linearGradient id="g-artnav" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="3" y="3" width="18" height="14" rx="2" fill="url(#g-artnav)"/><path d="M3 19h18" stroke="#a0a0b0" stroke-width="2" stroke-linecap="round"/></svg>Mes œuvres</button>
             <button class="nav-link" id="artNavSales" onclick="showArtistSection('sales')">💰 Ventes</button>
-            <button class="nav-link" id="artNavGallery" onclick="showArtistSection('gallery')">🎨 Galerie</button>
+            <button class="nav-link" id="artNavGallery" onclick="showArtistSection('gallery')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px"><defs><linearGradient id="g-galnav" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M12 2C6.48 2 2 6.48 2 12c0 5.52 4.48 10 10 10 .83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8z" fill="url(#g-galnav)"/><circle cx="6.5" cy="11.5" r="1.5" fill="#1a1a2e"/><circle cx="9.5" cy="7.5" r="1.5" fill="#1a1a2e"/><circle cx="14.5" cy="7.5" r="1.5" fill="#1a1a2e"/></svg>Galerie</button>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
             <div class="nav-artist-identity" onclick="openArtistEditModal()" style="cursor: pointer;" title="Cliquez pour modifier votre profil">
                 <div class="nav-avatar" id="navAvatar">🎨</div>
                 <div class="nav-artist-name" id="navArtistName">Artiste</div>
             </div>
-            <button class="icon-btn" onclick="openArtistEditModal()" title="Modifier mon profil">✏️</button>
-            <button class="icon-btn" onclick="switchToClientMode()" title="Retour galerie">🏪</button>
+            <button class="icon-btn" onclick="openArtistEditModal()" title="Modifier mon profil">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-edit" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="url(#g-edit)" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" fill="url(#g-edit)"/></svg>
+            </button>
+            <button class="icon-btn" onclick="switchToClientMode()" title="Retour galerie">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-home2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="url(#g-home2)"/><path d="M9 22V12h6v10" stroke="#1a1a2e" stroke-width="1.5" fill="none"/></svg>
+            </button>
         </div>
     </nav>
 
     <!-- Notifications Panel -->
     <div id="notificationsPanel" class="notifications-panel">
         <div class="notif-header" style="display: flex; justify-content: space-between; align-items: center; padding-right: 20px;">
-            <span>Notifications</span>
             <button onclick="markAllAsRead()" 
                     class="mark-all-read-btn"
                     title="Marquer toutes les notifications comme lues">
@@ -5431,87 +5633,86 @@
         <p class="page-subtitle">Découvrez des œuvres authentiques créées par les meilleurs artistes africains</p>
         
         <!-- News Ticker - Liquid Glass Style -->
+        <!-- Filtre SVG sketch/crayon -->
+        <svg class="sketch-filter" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <filter id="sketch" x="-10%" y="-10%" width="120%" height="120%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="4" seed="5" result="noise"/>
+                    <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.5" xChannelSelector="R" yChannelSelector="G"/>
+                </filter>
+            </defs>
+        </svg>
+
         <div class="news-ticker-container">
             <div class="news-ticker-wrapper">
-                <span class="news-ticker-label">📰 ACTUALITÉS</span>
                 <div class="news-ticker-scroll">
                     <button class="ticker-nav-btn ticker-nav-prev" onclick="tickerNav(-1)" title="Précédent">‹</button>
                     <button class="ticker-nav-btn ticker-nav-next" onclick="tickerNav(1)" title="Suivant">›</button>
                     <div class="news-ticker-content" id="newsTickerContent">
-                        <!-- Item 1 - Avec image -->
-                        <div class="news-ticker-item">
+                        <!-- Item 1 -->
+                        <div class="news-ticker-item" onclick="openNewsLightbox(0)" title="Nouvelle collection de Kofi Mensah disponible!">
                             <div class="news-ticker-icon gradient-1">
                                 <img src="https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=100&h=100&fit=crop" alt="Art" onerror="this.style.display='none'; this.parentElement.innerHTML='🎨';">
                             </div>
-                            <span class="news-ticker-text">Nouvelle collection de Kofi Mensah disponible!</span>
                         </div>
                         
-                        <!-- Item 2 - Avec image -->
-                        <div class="news-ticker-item">
+                        <!-- Item 2 -->
+                        <div class="news-ticker-item" onclick="openNewsLightbox(1)" title="Promotion -20% sur toutes les sculptures">
                             <div class="news-ticker-icon gradient-2">
                                 <img src="https://images.unsplash.com/photo-1582555172866-f73bb12a2ab3?w=100&h=100&fit=crop" alt="Promo" onerror="this.style.display='none'; this.parentElement.innerHTML='🔥';">
                             </div>
-                            <span class="news-ticker-text">Promotion -20% sur toutes les sculptures</span>
                         </div>
                         
-                        <!-- Item 3 - Avec image -->
-                        <div class="news-ticker-item">
+                        <!-- Item 3 -->
+                        <div class="news-ticker-item" onclick="openNewsLightbox(2)" title="Aya Diarra - Artiste du mois">
                             <div class="news-ticker-icon gradient-3">
                                 <img src="https://images.unsplash.com/photo-1561214115-f2f134cc4912?w=100&h=100&fit=crop" alt="Artiste" onerror="this.style.display='none'; this.parentElement.innerHTML='⭐';">
                             </div>
-                            <span class="news-ticker-text">Aya Diarra - Artiste du mois</span>
                         </div>
                         
-                        <!-- Item 4 - Avec emoji (pour montrer que ça fonctionne aussi) -->
-                        <div class="news-ticker-item">
+                        <!-- Item 4 -->
+                        <div class="news-ticker-item" onclick="openNewsLightbox(3)" title="Plus de 500 œuvres dans notre galerie">
                             <div class="news-ticker-icon gradient-4">
                                 🌟
                             </div>
-                            <span class="news-ticker-text">Plus de 500 œuvres dans notre galerie</span>
                         </div>
                         
-                        <!-- Item 5 - Avec image -->
-                        <div class="news-ticker-item">
+                        <!-- Item 5 -->
+                        <div class="news-ticker-item" onclick="openNewsLightbox(4)" title="Livraison gratuite dès 200 000 FCFA">
                             <div class="news-ticker-icon gradient-5">
                                 <img src="https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=100&h=100&fit=crop" alt="Cadeau" onerror="this.style.display='none'; this.parentElement.innerHTML='🎁';">
                             </div>
-                            <span class="news-ticker-text">Livraison gratuite dès 200 000 FCFA</span>
                         </div>
                         
-                        <!-- Duplicate for seamless loop -->
-                        <div class="news-ticker-item">
+                        <!-- Duplicates for seamless loop -->
+                        <div class="news-ticker-item" onclick="openNewsLightbox(0)" title="Nouvelle collection de Kofi Mensah disponible!">
                             <div class="news-ticker-icon gradient-1">
                                 <img src="https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=100&h=100&fit=crop" alt="Art" onerror="this.style.display='none'; this.parentElement.innerHTML='🎨';">
                             </div>
-                            <span class="news-ticker-text">Nouvelle collection de Kofi Mensah disponible!</span>
                         </div>
                         
-                        <div class="news-ticker-item">
+                        <div class="news-ticker-item" onclick="openNewsLightbox(1)" title="Promotion -20% sur toutes les sculptures">
                             <div class="news-ticker-icon gradient-2">
                                 <img src="https://images.unsplash.com/photo-1582555172866-f73bb12a2ab3?w=100&h=100&fit=crop" alt="Promo" onerror="this.style.display='none'; this.parentElement.innerHTML='🔥';">
                             </div>
-                            <span class="news-ticker-text">Promotion -20% sur toutes les sculptures</span>
                         </div>
                         
-                        <div class="news-ticker-item">
+                        <div class="news-ticker-item" onclick="openNewsLightbox(2)" title="Aya Diarra - Artiste du mois">
                             <div class="news-ticker-icon gradient-3">
                                 <img src="https://images.unsplash.com/photo-1561214115-f2f134cc4912?w=100&h=100&fit=crop" alt="Artiste" onerror="this.style.display='none'; this.parentElement.innerHTML='⭐';">
                             </div>
-                            <span class="news-ticker-text">Aya Diarra - Artiste du mois</span>
                         </div>
                         
-                        <div class="news-ticker-item">
+                        <div class="news-ticker-item" onclick="openNewsLightbox(3)" title="Plus de 500 œuvres dans notre galerie">
                             <div class="news-ticker-icon gradient-4">
                                 🌟
                             </div>
-                            <span class="news-ticker-text">Plus de 500 œuvres dans notre galerie</span>
                         </div>
                         
-                        <div class="news-ticker-item">
+                        <div class="news-ticker-item" onclick="openNewsLightbox(4)" title="Livraison gratuite dès 200 000 FCFA">
                             <div class="news-ticker-icon gradient-5">
                                 <img src="https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=100&h=100&fit=crop" alt="Cadeau" onerror="this.style.display='none'; this.parentElement.innerHTML='🎁';">
                             </div>
-                            <span class="news-ticker-text">Livraison gratuite dès 200 000 FCFA</span>
                         </div>
                     </div>
                 </div>
@@ -5519,11 +5720,14 @@
         </div>
         
         <div class="filter-container">
-            <button class="filter-btn active" onclick="filterProducts('all', event)">🎨 Toutes</button>
-            <button class="filter-btn" onclick="filterProducts('Peinture', event)">🖼️ Peintures</button>
+            <button class="filter-btn active" onclick="filterProducts('all', event)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px"><defs><linearGradient id="g-all" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="12" cy="12" r="9" fill="url(#g-all)"/></svg>Toutes</button>
+            <button class="filter-btn" onclick="filterProducts('Peinture', event)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px"><defs><linearGradient id="g-paint" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="3" y="3" width="18" height="14" rx="2" fill="url(#g-paint)"/><path d="M3 19h18" stroke="#a0a0b0" stroke-width="2" stroke-linecap="round"/></svg>Peintures</button>
             <button class="filter-btn" onclick="filterProducts('Sculpture', event)">🗿 Sculptures</button>
             <button class="filter-btn" onclick="filterProducts('Abstrait', event)">✨ Abstrait</button>
-            <button class="filter-btn" onclick="filterProducts('Plastique', event)">🎭 Art Plastique</button>
+            <button class="filter-btn" onclick="filterProducts('Plastique', event)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px"><defs><linearGradient id="g-sculpt" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M12 2l3.5 6.5H20l-4.5 4 1.5 6.5L12 15.5 7 19l1.5-6.5L4 8.5h4.5z" fill="url(#g-sculpt)"/></svg>Art Plastique</button>
             <button class="filter-btn" onclick="rafraichirGalerie(event)" style="margin-left: auto; background: rgba(76, 175, 80, 0.2); border: 1px solid rgba(76, 175, 80, 0.4);" title="Recharger la galerie depuis le serveur">Rafraîchir</button>
         </div>
 
@@ -5539,7 +5743,7 @@
             <h2 style="font-size:24px;margin-bottom:20px;text-align:center;">🌍 Ressources Externes</h2>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;">
                 <a href="https://www.google.com/search?q=art+africain+contemporain" target="_blank" rel="noopener noreferrer" style="padding:15px;background:rgba(255,255,255,0.15);border-radius:12px;text-decoration:none;color:white;display:flex;align-items:center;gap:10px;transition:all 0.3s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
-                    <span style="font-size:24px;">🔍</span>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-srch2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="11" cy="11" r="7" stroke="url(#g-srch2)" stroke-width="2.2" fill="none"/><path d="M16.5 16.5L21 21" stroke="url(#g-srch2)" stroke-width="2.2" stroke-linecap="round"/></svg>
                     <span>Rechercher art africain</span>
                 </a>
                 <a href="https://www.instagram.com/explore/tags/artafricain/" target="_blank" rel="noopener noreferrer" style="padding:15px;background:rgba(255,255,255,0.15);border-radius:12px;text-decoration:none;color:white;display:flex;align-items:center;gap:10px;transition:all 0.3s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
@@ -5581,14 +5785,14 @@
 
     <!-- ==================== MY ORDERS PAGE ==================== -->
     <div id="ordersPage" class="page">
-        <h1 class="page-title">📦 Mes Commandes</h1>
+        <h1 class="page-title"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:8px"><defs><linearGradient id="g-ord" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z" fill="url(#g-ord)"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" fill="#a0a0b0" opacity="0.7"/></svg>Mes Commandes</h1>
         <p class="page-subtitle">Suivez l'historique de vos achats</p>
         <div id="ordersContainer"></div>
     </div>
 
     <!-- ==================== ADMIN ORDERS PAGE ==================== -->
     <div id="adminOrdersPage" class="page">
-        <h1 class="page-title">🛒 Gestion des Commandes</h1>
+        <h1 class="page-title"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:8px"><defs><linearGradient id="g-gcmd" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="4" y="8" width="16" height="13" rx="2.5" fill="url(#g-gcmd)"/><path d="M9 8V6a3 3 0 0 1 6 0v2" stroke="#1a1a2e" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>Gestion des Commandes</h1>
         <p class="page-subtitle">Gérez toutes les commandes clients</p>
         
         <div id="adminOrdersFilters" style="margin-bottom: 30px; display: flex; gap: 15px; flex-wrap: wrap;">
@@ -5662,14 +5866,14 @@
 
     <!-- ==================== ADMIN NEWS MANAGEMENT PAGE ==================== -->
     <div id="adminNewsPage" class="page">
-        <h1 class="page-title">⚙️ Gestion des Actualités</h1>
+        <h1 class="page-title"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:8px"><defs><linearGradient id="g-gnws" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="3" y="4" width="18" height="16" rx="3" fill="url(#g-gnws)"/><path d="M7 8h10M7 12h7M7 16h5" stroke="#1a1a2e" stroke-width="1.5" stroke-linecap="round"/></svg>Gestion des Actualités</h1>
         <p class="page-subtitle">Gérez le contenu de la barre d'actualités</p>
         
         <div style="max-width: 900px; margin: 0 auto;">
             <!-- Bouton Ajouter -->
             <div style="margin-bottom: 30px; text-align: right;">
                 <button class="btn" onclick="openAddNewsModal()" style="background: linear-gradient(135deg, var(--terre-cuite), var(--terre-sombre)); border: none; color: white; padding: 14px 28px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer;">
-                    ➕ Ajouter une actualité
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="9" fill="#d4af37"/><path d="M12 8v8M8 12h8" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round"/></svg> Ajouter une actualité
                 </button>
             </div>
 
@@ -5750,20 +5954,20 @@
 
     <!-- ==================== ADMIN PAGE ==================== -->
     <div id="adminPage" class="page">
-        <h1 class="page-title">⚙️ Panneau d'Administration</h1>
+        <h1 class="page-title"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:8px"><defs><linearGradient id="g-adm" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" fill="url(#g-adm)"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="url(#g-adm)" stroke-width="1.5" fill="none"/></svg>Panneau d'Administration</h1>
         <p class="page-subtitle">Gérez les œuvres et les artistes de la galerie</p>
         
         <!-- Admin Tabs -->
         <div style="max-width: 1200px; margin: 0 auto;">
             <div style="display: flex; gap: 15px; margin-bottom: 30px; justify-content: center; flex-wrap: wrap;">
                 <button class="admin-tab-btn active" onclick="switchAdminTab('overview')" id="adminTabOverview">
-                    📊 Vue d'ensemble
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px"><defs><linearGradient id="g-tab1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="3" y="3" width="7" height="7" rx="1.5" fill="url(#g-tab1)"/><rect x="14" y="3" width="7" height="7" rx="1.5" fill="url(#g-tab1)" opacity="0.7"/><rect x="3" y="14" width="7" height="7" rx="1.5" fill="url(#g-tab1)" opacity="0.7"/><rect x="14" y="14" width="7" height="7" rx="1.5" fill="url(#g-tab1)" opacity="0.5"/></svg>Vue d'ensemble
                 </button>
                 <button class="admin-tab-btn" onclick="switchAdminTab('artworks')" id="adminTabArtworks">
-                    🖼️ Œuvres (Galerie)
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px"><defs><linearGradient id="g-tab2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="3" y="3" width="18" height="14" rx="2" fill="url(#g-tab2)"/><path d="M3 19h18" stroke="#a0a0b0" stroke-width="2" stroke-linecap="round"/></svg>Œuvres (Galerie)
                 </button>
                 <button class="admin-tab-btn" onclick="switchAdminTab('artists')" id="adminTabArtists">
-                    👨‍🎨 Artistes
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px"><defs><linearGradient id="g-tab3" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="12" cy="8" r="4" fill="url(#g-tab3)"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7" fill="#a0a0b0" opacity="0.7"/></svg>Artistes
                 </button>
             </div>
 
@@ -5771,7 +5975,7 @@
             <div id="adminOverviewSection" class="admin-section active">
                 <!-- Admin Search Bar -->
                 <div style="max-width: 700px; margin: 0 auto 30px; background: rgba(255,255,255,0.08); backdrop-filter: blur(20px); border-radius: 20px; padding: 10px 20px; display: flex; align-items: center; gap: 15px; border: 2px solid rgba(255,255,255,0.15); box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
-                    <span style="font-size: 24px;">🔍</span>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-srch" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="11" cy="11" r="7" stroke="url(#g-srch)" stroke-width="2.2" fill="none"/><path d="M16.5 16.5L21 21" stroke="url(#g-srch)" stroke-width="2.2" stroke-linecap="round"/></svg>
                     <input 
                         type="text" 
                         id="adminSearchInput" 
@@ -5811,22 +6015,22 @@
                 <!-- Statistics Cards -->
                 <div class="overview-stats-grid">
                     <div class="stat-card">
-                        <span class="stat-icon">🖼️</span>
+                        <span class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-stat1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="3" y="3" width="18" height="14" rx="2" fill="url(#g-stat1)"/><path d="M3 19h18" stroke="#a0a0b0" stroke-width="2" stroke-linecap="round"/></svg></span>
                         <div class="stat-value" id="overviewArtworksCount">0</div>
                         <div class="stat-label">Œuvres</div>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-icon">👨‍🎨</span>
+                        <span class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-stat2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="12" cy="8" r="4" fill="url(#g-stat2)"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7" fill="#a0a0b0" opacity="0.7"/></svg></span>
                         <div class="stat-value" id="overviewArtistsCount">0</div>
                         <div class="stat-label">Artistes</div>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-icon">📰</span>
+                        <span class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-stat3" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="3" y="4" width="18" height="16" rx="3" fill="url(#g-stat3)"/><path d="M7 8h10M7 12h7M7 16h5" stroke="#1a1a2e" stroke-width="1.5" stroke-linecap="round"/></svg></span>
                         <div class="stat-value" id="overviewNewsCount">0</div>
                         <div class="stat-label">Actualités</div>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-icon">💰</span>
+                        <span class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-stat4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="2" y="6" width="20" height="14" rx="3" fill="url(#g-stat4)"/><path d="M2 10h20" stroke="#1a1a2e" stroke-width="1.5"/><circle cx="7" cy="15" r="1.5" fill="#1a1a2e"/></svg></span>
                         <div class="stat-value" id="overviewTotalValue">0</div>
                         <div class="stat-label">Valeur Totale</div>
                     </div>
@@ -5835,19 +6039,19 @@
                 <!-- Quick Actions -->
                 <div class="overview-section">
                     <h3 class="overview-section-title">
-                        <span>⚡</span> Actions Rapides
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:6px"><defs><linearGradient id="g-zap" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="url(#g-zap)"/></svg> Actions Rapides
                     </h3>
                     <div class="quick-actions-grid">
                         <button class="quick-action-btn" onclick="switchAdminTab('artworks'); openAddArtworkModal();">
-                            <span class="quick-action-icon">➕</span>
+                            <span class="quick-action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-add1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="12" cy="12" r="9" fill="url(#g-add1)"/><path d="M12 8v8M8 12h8" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round"/></svg></span>
                             <span>Nouvelle Œuvre</span>
                         </button>
                         <button class="quick-action-btn" onclick="switchAdminTab('artists'); openAddArtistModal();">
-                            <span class="quick-action-icon">👤</span>
+                            <span class="quick-action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-add2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="10" cy="8" r="4" fill="url(#g-add2)"/><path d="M2 20c0-3.5 3.13-6 8-6" stroke="url(#g-add2)" stroke-width="1.8" fill="none"/><path d="M19 14v6M16 17h6" stroke="#a0a0b0" stroke-width="2" stroke-linecap="round"/></svg></span>
                             <span>Nouvel Artiste</span>
                         </button>
                         <button class="quick-action-btn" onclick="goToAdminNews(); openAddNewsModal();">
-                            <span class="quick-action-icon">📢</span>
+                            <span class="quick-action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-add3" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="3" y="4" width="18" height="16" rx="3" fill="url(#g-add3)"/><path d="M8 9h8M8 13h5" stroke="#1a1a2e" stroke-width="1.5" stroke-linecap="round"/><path d="M15 17v-4h4" stroke="#d4af37" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></span>
                             <span>Nouvelle Actualité</span>
                         </button>
                         <button class="quick-action-btn" onclick="navigateTo('orders');">
@@ -5884,7 +6088,7 @@
             <div id="adminArtworksSection" class="admin-section">
                 <!-- Search Bar for Artworks -->
                 <div style="max-width: 700px; margin: 0 auto 20px; background: rgba(255,255,255,0.08); backdrop-filter: blur(20px); border-radius: 20px; padding: 10px 20px; display: flex; align-items: center; gap: 15px; border: 2px solid rgba(255,255,255,0.15); box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
-                    <span style="font-size: 24px;">🔍</span>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-srch" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="11" cy="11" r="7" stroke="url(#g-srch)" stroke-width="2.2" fill="none"/><path d="M16.5 16.5L21 21" stroke="url(#g-srch)" stroke-width="2.2" stroke-linecap="round"/></svg>
                     <input 
                         type="text" 
                         id="artworksSearchInput" 
@@ -5904,7 +6108,7 @@
 
                 <div style="margin-bottom: 30px; text-align: right;">
                     <button class="btn" onclick="openAddArtworkModal()" style="background: linear-gradient(135deg, #4CAF50, #45a049); border: none; color: white; padding: 14px 28px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer;">
-                        ➕ Ajouter une œuvre
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="9" fill="#d4af37"/><path d="M12 8v8M8 12h8" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round"/></svg> Ajouter une œuvre
                     </button>
                 </div>
                 <div id="adminArtworksList"></div>
@@ -5914,7 +6118,7 @@
             <div id="adminArtistsSection" class="admin-section">
                 <!-- Search Bar for Artists -->
                 <div style="max-width: 700px; margin: 0 auto 20px; background: rgba(255,255,255,0.08); backdrop-filter: blur(20px); border-radius: 20px; padding: 10px 20px; display: flex; align-items: center; gap: 15px; border: 2px solid rgba(255,255,255,0.15); box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
-                    <span style="font-size: 24px;">🔍</span>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-srch" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="11" cy="11" r="7" stroke="url(#g-srch)" stroke-width="2.2" fill="none"/><path d="M16.5 16.5L21 21" stroke="url(#g-srch)" stroke-width="2.2" stroke-linecap="round"/></svg>
                     <input 
                         type="text" 
                         id="artistsSearchInput" 
@@ -5934,7 +6138,7 @@
 
                 <div style="margin-bottom: 30px; text-align: right;">
                     <button class="btn" onclick="openAddArtistModal()" style="background: linear-gradient(135deg, #2196F3, #1976D2); border: none; color: white; padding: 14px 28px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer;">
-                        ➕ Ajouter un artiste
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="9" fill="#d4af37"/><path d="M12 8v8M8 12h8" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round"/></svg> Ajouter un artiste
                     </button>
                 </div>
                 <div id="adminArtistsList"></div>
@@ -6617,6 +6821,27 @@
             }
         });
 
+        // ===== GLASS EFFECT GLOBAL APPLICATION =====
+        (function applyGlass() {
+            const selectors = [
+                '.product-card', '.filter-btn', '.stat-card', '.orders-stat-card',
+                '.benefit-card', '.back-button', '.action-btn', '.btn-large',
+                '.admin-tab-btn', '.quick-action-btn', '.news-ticker-container',
+                '.notifications-panel', '.notification-modal', '.news-lightbox',
+                '.modal-content', '.reg-modal-content', '.chat-window', '.toast',
+                '.nav-menu', '.ticker-nav-btn', '.like-button', '.product-price',
+                '.cart-items', '.empty-orders', '.search-bar', '.artist-edit-modal',
+                '.orders-stat-card', '.stat-card', '.overview-section', '.quick-action-btn',
+            ];
+            function apply() {
+                selectors.forEach(sel => {
+                    document.querySelectorAll(sel + ':not(.glass)').forEach(el => el.classList.add('glass'));
+                });
+            }
+            document.addEventListener('DOMContentLoaded', apply);
+            new MutationObserver(apply).observe(document.documentElement, { childList: true, subtree: true });
+        })();
+
         document.addEventListener('DOMContentLoaded', () => {
             // ✅ DÉTECTION AUTOMATIQUE DU MODE ARTISTE
             const urlParams = new URLSearchParams(window.location.search);
@@ -7175,6 +7400,23 @@
                 floatingGalleryBtn.classList.remove('show');
             }
         }
+
+        function toggleHamburgerMenu() {
+            const btn = document.getElementById('hamburgerBtn');
+            const dropdown = document.getElementById('hamburgerDropdown');
+            btn.classList.toggle('active');
+            dropdown.classList.toggle('open');
+        }
+
+        // Fermer le menu hamburger en cliquant ailleurs
+        document.addEventListener('click', function(e) {
+            const btn = document.getElementById('hamburgerBtn');
+            const dropdown = document.getElementById('hamburgerDropdown');
+            if (btn && dropdown && !btn.contains(e.target) && !dropdown.contains(e.target)) {
+                btn.classList.remove('active');
+                dropdown.classList.remove('open');
+            }
+        });
 
         function toggleUserMenu() {
             const dropdown = document.getElementById('userMenuDropdown');
@@ -8920,9 +9162,19 @@
 
         // ==================== NOTIFICATIONS ====================
         function toggleNotifications() {
-            document.getElementById('notificationsPanel').classList.toggle('show');
+            const panel = document.getElementById('notificationsPanel');
+            panel.classList.toggle('show');
             renderNotifications();
         }
+
+        // Fermer les notifications en cliquant ailleurs
+        document.addEventListener('click', function(e) {
+            const panel = document.getElementById('notificationsPanel');
+            const btn = document.querySelector('[onclick="toggleNotifications()"]');
+            if (panel && panel.classList.contains('show') && !panel.contains(e.target) && btn && !btn.contains(e.target)) {
+                panel.classList.remove('show');
+            }
+        });
 
         function renderNotifications() {
             const container = document.getElementById('notificationsList');
@@ -12458,7 +12710,6 @@
             const duplicatedNews = [...newsItems, ...newsItems];
             
             container.innerHTML = duplicatedNews.map((news, index) => {
-                // Use modulo to get the original index (since we duplicated the array)
                 const originalIndex = index % newsItems.length;
                 const iconHTML = news.isImage 
                     ? `<img src="${news.icon}" alt="Affiche" onerror="this.style.display='none'; this.parentElement.innerHTML='📰';">`
@@ -13339,10 +13590,30 @@
 
             function getContent() { return document.getElementById('newsTickerContent'); }
 
+            function applyOffset(delta) {
+                const c = getContent();
+                if (!c) return;
+                c.classList.add('paused');
+                tickerPaused = true;
+                tickerOffset += delta;
+                const maxOffset = c.scrollWidth / 2;
+                if (tickerOffset > 0) tickerOffset = 0;
+                if (tickerOffset < -maxOffset) tickerOffset = -maxOffset + Math.abs(delta);
+                c.style.transform = `translateX(${tickerOffset}px)`;
+                clearTimeout(window._tickerResumeTimer);
+                window._tickerResumeTimer = setTimeout(() => {
+                    tickerPaused = false;
+                    tickerOffset = 0;
+                    c.style.transform = '';
+                    c.classList.remove('paused');
+                }, 5000);
+            }
+
             // Pause/reprise au survol (déjà géré en CSS hover, mais on renforce)
             document.addEventListener('DOMContentLoaded', function() {
                 const scroll = document.querySelector('.news-ticker-scroll');
                 if (!scroll) return;
+
                 scroll.addEventListener('mouseenter', () => {
                     const c = getContent();
                     if (c) c.classList.add('paused');
@@ -13351,37 +13622,247 @@
                     const c = getContent();
                     if (c && !tickerPaused) c.classList.remove('paused');
                 });
+
+                // Défilement à la molette
+                scroll.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    applyOffset(-e.deltaY * 0.8);
+                }, { passive: false });
+
+                // Swipe tactile
+                let touchStartX = 0;
+                scroll.addEventListener('touchstart', (e) => {
+                    touchStartX = e.touches[0].clientX;
+                }, { passive: true });
+                scroll.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    const dx = e.touches[0].clientX - touchStartX;
+                    touchStartX = e.touches[0].clientX;
+                    applyOffset(dx);
+                }, { passive: false });
             });
 
             window.tickerNav = function(dir) {
-                const c = getContent();
-                if (!c) return;
-
-                // Pause l'animation CSS
-                c.classList.add('paused');
-                tickerPaused = true;
-
-                // Calcul du décalage
-                tickerOffset += dir * STEP;
-
-                // Limites : on ne laisse pas aller trop loin dans chaque sens
-                const maxOffset = c.scrollWidth / 2; // moitié = les doublons
-                if (tickerOffset > 0) tickerOffset = 0;
-                if (tickerOffset < -maxOffset) tickerOffset = -maxOffset + STEP;
-
-                c.style.transform = `translateX(${tickerOffset}px)`;
-
-                // Reprend l'auto-scroll après 5s d'inactivité
-                clearTimeout(window._tickerResumeTimer);
-                window._tickerResumeTimer = setTimeout(() => {
-                    tickerPaused = false;
-                    tickerOffset = 0;
-                    c.style.transform = '';
-                    c.classList.remove('paused');
-                }, 5000);
+                applyOffset(dir * STEP);
             };
         })();
 
+</script>
+
+<!-- ✨ Fond animé : particules dorées + symboles africains -->
+<canvas id="golden-particles" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:-1;"></canvas>
+<script>
+(function() {
+    const canvas = document.getElementById('golden-particles');
+    const ctx = canvas.getContext('2d');
+    let W, H, particles = [], symbols = [];
+
+    const COLORS = ['rgba(255,255,255,', 'rgba(240,240,240,', 'rgba(220,220,220,', 'rgba(200,200,200,'];
+
+    // Symboles Adinkra dessinés via Canvas 2D
+    // Chaque symbole = fonction(ctx, x, y, size)
+    const adinkraDrawers = [
+
+        // GYE NYAME — symbole de la suprématie divine (forme en S ornée)
+        function gyeNyame(ctx, x, y, s) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.beginPath();
+            ctx.moveTo(-s*0.5, 0);
+            ctx.bezierCurveTo(-s*0.5, -s*0.8, s*0.5, -s*0.8, s*0.5, 0);
+            ctx.bezierCurveTo(s*0.5, s*0.8, -s*0.5, s*0.8, -s*0.5, 0);
+            ctx.strokeStyle = 'inherit'; ctx.lineWidth = s*0.08;
+            ctx.stroke();
+            // Petits cercles décoratifs
+            [-s*0.5, s*0.5].forEach(cx => {
+                ctx.beginPath();
+                ctx.arc(cx, 0, s*0.12, 0, Math.PI*2);
+                ctx.stroke();
+            });
+            ctx.restore();
+        },
+
+        // SANKOFA — "revenir chercher ce qu'on a oublié" (oiseau regardant en arrière)
+        function sankofa(ctx, x, y, s) {
+            ctx.save();
+            ctx.translate(x, y);
+            // Corps coeur
+            ctx.beginPath();
+            ctx.moveTo(0, s*0.3);
+            ctx.bezierCurveTo(-s*0.6, -s*0.1, -s*0.6, -s*0.6, 0, -s*0.2);
+            ctx.bezierCurveTo(s*0.6, -s*0.6, s*0.6, -s*0.1, 0, s*0.3);
+            ctx.lineWidth = s*0.07; ctx.stroke();
+            // Tête retournée
+            ctx.beginPath();
+            ctx.arc(s*0.3, -s*0.4, s*0.15, 0, Math.PI*2);
+            ctx.stroke();
+            // Queue
+            ctx.beginPath();
+            ctx.moveTo(0, s*0.3);
+            ctx.lineTo(-s*0.2, s*0.55);
+            ctx.moveTo(0, s*0.3);
+            ctx.lineTo(s*0.1, s*0.58);
+            ctx.stroke();
+            ctx.restore();
+        },
+
+        // ADINKRAHENE — "roi des Adinkra" (3 cercles concentriques)
+        function adinkrahene(ctx, x, y, s) {
+            ctx.save();
+            ctx.translate(x, y);
+            [s*0.15, s*0.3, s*0.48].forEach(r => {
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, Math.PI*2);
+                ctx.lineWidth = s*0.06;
+                ctx.stroke();
+            });
+            ctx.restore();
+        },
+
+        // DWENNIMMEN — "bélier" (deux spirales en miroir = humilité + force)
+        function dwennimmen(ctx, x, y, s) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.lineWidth = s*0.07;
+            [[-1,1],[1,1],[1,-1],[-1,-1]].forEach(([sx,sy]) => {
+                ctx.beginPath();
+                ctx.arc(sx*s*0.25, sy*s*0.25, s*0.25, 0, Math.PI*1.5);
+                ctx.stroke();
+            });
+            ctx.restore();
+        },
+
+        // NYAME BIRIBI WO SORO — "étoile à 8 branches" (espoir, ciel)
+        function nyameSoro(ctx, x, y, s) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.lineWidth = s*0.07;
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(Math.cos(angle)*s*0.5, Math.sin(angle)*s*0.5);
+                ctx.stroke();
+            }
+            ctx.beginPath();
+            ctx.arc(0, 0, s*0.15, 0, Math.PI*2);
+            ctx.stroke();
+            ctx.restore();
+        },
+
+        // FUNTUNFUNEFU — "crocodiles siamois" (unité dans la diversité)
+        function funtun(ctx, x, y, s) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.lineWidth = s*0.07;
+            // Cercle central
+            ctx.beginPath(); ctx.arc(0,0,s*0.2,0,Math.PI*2); ctx.stroke();
+            // 4 têtes
+            const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+            dirs.forEach(([dx,dy]) => {
+                ctx.beginPath();
+                ctx.arc(dx*s*0.45, dy*s*0.45, s*0.12, 0, Math.PI*2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(dx*s*0.2, dy*s*0.2);
+                ctx.lineTo(dx*s*0.33, dy*s*0.33);
+                ctx.stroke();
+            });
+            ctx.restore();
+        },
+    ];
+
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
+
+    function createParticle() {
+        return {
+            x: Math.random() * W, y: Math.random() * H,
+            r: Math.random() * 2.2 + 0.5,
+            alpha: Math.random() * 0.5 + 0.08,
+            vx: (Math.random() - 0.5) * 0.35,
+            vy: -(Math.random() * 0.45 + 0.08),
+            color: COLORS[Math.floor(Math.random() * COLORS.length)],
+            twinkleSpeed: Math.random() * 0.015 + 0.004,
+            twinkleDir: Math.random() > 0.5 ? 1 : -1
+        };
+    }
+
+    function createSymbol() {
+        return {
+            x: Math.random() * W, y: Math.random() * H,
+            size: Math.random() * 28 + 18,
+            alpha: Math.random() * 0.06 + 0.03,
+            vx: (Math.random() - 0.5) * 0.12,
+            vy: -(Math.random() * 0.15 + 0.03),
+            rotation: Math.random() * Math.PI * 2,
+            rotSpeed: (Math.random() - 0.5) * 0.003,
+            drawFn: adinkraDrawers[Math.floor(Math.random() * adinkraDrawers.length)],
+            pulseSpeed: Math.random() * 0.008 + 0.002,
+            pulseDir: Math.random() > 0.5 ? 1 : -1
+        };
+    }
+
+    function init() {
+        resize();
+        particles = Array.from({length: 40}, createParticle);
+        symbols = Array.from({length: 7}, createSymbol);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, W, H);
+
+        // — Particules —
+        particles.forEach(p => {
+            p.alpha += p.twinkleSpeed * p.twinkleDir;
+            if (p.alpha >= 0.58 || p.alpha <= 0.04) p.twinkleDir *= -1;
+            p.x += p.vx; p.y += p.vy;
+            if (p.y < -5) p.y = H + 5;
+            if (p.x < -5) p.x = W + 5;
+            if (p.x > W + 5) p.x = -5;
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+            ctx.fillStyle = p.color + p.alpha + ')';
+            ctx.fill();
+
+            if (p.r > 1.4) {
+                const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r*4);
+                grd.addColorStop(0, p.color + (p.alpha*0.35) + ')');
+                grd.addColorStop(1, p.color + '0)');
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r*4, 0, Math.PI*2);
+                ctx.fillStyle = grd;
+                ctx.fill();
+            }
+        });
+
+        // — Symboles Adinkra —
+        symbols.forEach(s => {
+            s.rotation += s.rotSpeed;
+            s.x += s.vx; s.y += s.vy;
+            if (s.y < -80) s.y = H + 80;
+            if (s.x < -80) s.x = W + 80;
+            if (s.x > W + 80) s.x = -80;
+
+            ctx.save();
+            ctx.globalAlpha = 0.07;
+            ctx.strokeStyle = `rgba(212,175,55,1)`;
+            ctx.translate(s.x, s.y);
+            ctx.rotate(s.rotation);
+            s.drawFn(ctx, 0, 0, s.size);
+            ctx.restore();
+        });
+
+        requestAnimationFrame(draw);
+    }
+
+    window.addEventListener('resize', resize);
+    init();
+    draw();
+})();
 </script>
 
 </body>

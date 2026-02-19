@@ -2077,6 +2077,68 @@
             transform: scale(0.98);
         }
 
+        /* ===== ANIMATIONS PANIER & FAVORIS ===== */
+
+        /* Bouton panier — ajout réussi */
+        @keyframes cartSuccess {
+            0%   { transform: scale(1); }
+            30%  { transform: scale(1.22); box-shadow: 0 0 0 0 rgba(212,175,55,0.7); }
+            60%  { transform: scale(0.95); box-shadow: 0 0 0 12px rgba(212,175,55,0); }
+            100% { transform: scale(1); }
+        }
+        .add-cart-btn.cart-added {
+            animation: cartSuccess 0.55s ease forwards;
+            background: rgba(212, 175, 55, 0.45) !important;
+            border-color: rgba(212, 175, 55, 0.8) !important;
+            color: #f5e39a !important;
+        }
+
+        /* Particules qui s'échappent du bouton panier */
+        .cart-particle {
+            position: fixed;
+            pointer-events: none;
+            font-size: 16px;
+            z-index: 99999;
+            animation: floatUp 0.9s ease forwards;
+        }
+        @keyframes floatUp {
+            0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+            100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.4); }
+        }
+
+        /* Bouton favori — cœur qui pulse */
+        @keyframes heartPop {
+            0%   { transform: scale(1); }
+            25%  { transform: scale(1.55); filter: drop-shadow(0 0 8px rgba(255,80,80,0.9)); }
+            50%  { transform: scale(0.88); }
+            75%  { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        @keyframes heartUnpop {
+            0%   { transform: scale(1); }
+            40%  { transform: scale(0.7) rotate(-15deg); opacity: 0.5; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .fav-btn-pop {
+            animation: heartPop 0.55s cubic-bezier(0.36,0.07,0.19,0.97) forwards !important;
+        }
+        .fav-btn-unpop {
+            animation: heartUnpop 0.4s ease forwards !important;
+        }
+
+        /* Mini cœurs flottants */
+        .heart-particle {
+            position: fixed;
+            pointer-events: none;
+            font-size: 14px;
+            z-index: 99999;
+            animation: heartFloat 1s ease forwards;
+        }
+        @keyframes heartFloat {
+            0%   { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
+            100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.3) rotate(var(--rot)); }
+        }
+
         /* ============ CART PAGE ============ */
         .cart-grid {
             display: grid;
@@ -2206,20 +2268,50 @@
         }
 
         .remove-btn {
-            background: rgba(255, 77, 77, 0.3);
-            border: 1px solid rgba(255, 77, 77, 0.5);
-            color: white;
+            background: rgba(255, 77, 77, 0.15);
+            border: 1px solid rgba(255, 77, 77, 0.4);
+            color: #ff6b6b;
             padding: 8px 16px;
             border-radius: 20px;
             cursor: pointer;
             font-size: 13px;
             font-weight: 600;
             transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .remove-btn:hover {
-            background: rgba(255, 77, 77, 0.5);
+            background: rgba(255, 77, 77, 0.35);
+            border-color: rgba(255, 77, 77, 0.8);
+            color: #fff;
             transform: scale(1.05);
+            box-shadow: 0 0 12px rgba(255, 77, 77, 0.4);
+        }
+
+        .remove-btn.confirming {
+            background: rgba(255, 77, 77, 0.85);
+            border-color: #ff4d4d;
+            color: #fff;
+            animation: pulse-red 0.6s ease infinite alternate;
+        }
+
+        @keyframes pulse-green {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(76,175,80,0.5); }
+            50%       { box-shadow: 0 0 0 6px rgba(76,175,80,0); }
+        }
+
+        /* styles badges hamburger livraison */
+
+        .cart-item.removing {
+            animation: slideOut 0.4s ease forwards;
+        }
+
+        @keyframes slideOut {
+            0%   { opacity: 1; transform: translateX(0); max-height: 200px; }
+            60%  { opacity: 0; transform: translateX(60px); max-height: 200px; }
+            100% { opacity: 0; transform: translateX(60px); max-height: 0; padding: 0; margin: 0; overflow: hidden; }
         }
 
         /* Summary Card */
@@ -2275,21 +2367,62 @@
         }
 
         .shipping-option {
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 12px;
-            padding: 12px;
+            background: rgba(255, 255, 255, 0.07);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: 14px;
+            padding: 14px 16px;
             cursor: pointer;
             transition: all 0.3s ease;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: relative;
+            overflow: hidden;
         }
 
-        .shipping-option:hover,
+        .shipping-option:hover {
+            background: rgba(255, 255, 255, 0.13);
+            border-color: rgba(255,255,255,0.35);
+            transform: translateY(-1px);
+        }
+
         .shipping-option.selected {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: white;
+            background: rgba(212, 175, 55, 0.12);
+            border-color: #d4af37;
+            box-shadow: 0 0 16px rgba(212,175,55,0.25);
+        }
+
+        .shipping-option.selected::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(212,175,55,0.08) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .shipping-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .shipping-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .shipping-details { display: flex; flex-direction: column; gap: 2px; }
+
+        .shipping-name-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .shipping-name {
@@ -2297,10 +2430,57 @@
             font-size: 14px;
         }
 
+        .shipping-badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .badge-recommended { background: rgba(212,175,55,0.25); color: #d4af37; border: 1px solid rgba(212,175,55,0.4); }
+        .badge-fast        { background: rgba(76,175,80,0.2);   color: #81c784; border: 1px solid rgba(76,175,80,0.4); }
+        .badge-safe        { background: rgba(100,181,246,0.2); color: #90caf9; border: 1px solid rgba(100,181,246,0.4); }
+
         .shipping-info {
             font-size: 12px;
-            opacity: 0.8;
-            margin-top: 3px;
+            opacity: 0.7;
+            margin-top: 0;
+        }
+
+        .shipping-delivery-date {
+            font-size: 11px;
+            color: #a8d5a2;
+            margin-top: 2px;
+            font-weight: 500;
+        }
+
+        .shipping-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+        }
+
+        .shipping-price {
+            font-weight: 800;
+            font-size: 15px;
+            color: #fff;
+        }
+
+        .shipping-check {
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.3);
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s ease;
+            font-size: 11px;
+        }
+        .shipping-option.selected .shipping-check {
+            background: #d4af37;
+            border-color: #d4af37;
+            color: #1a1a1a;
+            font-weight: 900;
         }
 
         .payment-methods {
@@ -2359,6 +2539,161 @@
             margin-top: 15px;
             font-size: 13px;
             opacity: 0.8;
+        }
+
+        /* ============ TIERS DE CONFIANCE ============ */
+        .escrow-banner {
+            background: linear-gradient(135deg, rgba(212,175,55,0.12), rgba(212,175,55,0.05));
+            border: 1px solid rgba(212,175,55,0.35);
+            border-radius: 14px;
+            padding: 14px 18px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+        }
+        .escrow-banner-icon { font-size: 22px; flex-shrink: 0; }
+        .escrow-banner-text { color: rgba(255,255,255,0.85); line-height: 1.5; }
+        .escrow-banner-text strong { color: #d4af37; }
+
+        /* Statut Tiers de Confiance dans les commandes */
+        .escrow-status-bar {
+            background: rgba(0,0,0,0.25);
+            border-radius: 14px;
+            padding: 16px 20px;
+            margin: 16px 0;
+            border-left: 4px solid #d4af37;
+        }
+        .escrow-status-bar.pending  { border-left-color: #ff9800; }
+        .escrow-status-bar.shipped  { border-left-color: #2196f3; }
+        .escrow-status-bar.confirmed { border-left-color: #4caf50; }
+        .escrow-status-bar.released  { border-left-color: #9c27b0; }
+
+        .escrow-status-title {
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .escrow-status-desc { font-size: 12px; opacity: 0.7; line-height: 1.5; }
+
+        /* Barre de progression escrow */
+        .escrow-progress {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            margin: 20px 0 8px;
+            position: relative;
+        }
+        .escrow-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            position: relative;
+        }
+        .escrow-step-dot {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.2);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px;
+            transition: all 0.4s ease;
+            z-index: 1;
+        }
+        .escrow-step.done .escrow-step-dot    { background: #4caf50; border-color: #4caf50; }
+        .escrow-step.active .escrow-step-dot  { background: rgba(212,175,55,0.3); border-color: #d4af37; box-shadow: 0 0 12px rgba(212,175,55,0.5); }
+        .escrow-step-label {
+            font-size: 10px;
+            margin-top: 6px;
+            opacity: 0.7;
+            text-align: center;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .escrow-step.done .escrow-step-label   { opacity: 1; color: #81c784; }
+        .escrow-step.active .escrow-step-label { opacity: 1; color: #d4af37; }
+        .escrow-connector {
+            flex: 1;
+            height: 2px;
+            background: rgba(255,255,255,0.1);
+            margin-top: -22px;
+            transition: background 0.4s ease;
+        }
+        .escrow-connector.done { background: #4caf50; }
+
+        /* Bouton confirmation réception */
+        .confirm-reception-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4caf50, #388e3c);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .confirm-reception-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(76,175,80,0.4); }
+        .confirm-reception-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        /* Upload preuve d'expédition (admin) */
+        .proof-upload-zone {
+            border: 2px dashed rgba(33,150,243,0.4);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(33,150,243,0.05);
+            margin-top: 12px;
+        }
+        .proof-upload-zone:hover { border-color: rgba(33,150,243,0.8); background: rgba(33,150,243,0.1); }
+        .proof-upload-zone.has-file { border-color: rgba(76,175,80,0.6); background: rgba(76,175,80,0.08); }
+
+        /* Countdown déblocage auto */
+        .escrow-countdown {
+            font-size: 11px;
+            color: #ffb74d;
+            margin-top: 6px;
+            font-weight: 600;
+        }
+
+        /* Fonds bloqués badge */
+        .funds-locked-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(255,152,0,0.15);
+            border: 1px solid rgba(255,152,0,0.4);
+            color: #ffb74d;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .funds-released-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(156,39,176,0.15);
+            border: 1px solid rgba(156,39,176,0.4);
+            color: #ce93d8;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
         }
 
         /* ============ ORDERS PAGE ============ */
@@ -5425,19 +5760,48 @@
             </svg>
             Politique de retour
         </button>
-        <button class="hamburger-menu-item" onclick="">
+        <!-- Suivi livraison -->
+        <button class="hamburger-menu-item" onclick="navigateTo('orders'); toggleHamburgerMenu()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <defs>
-                    <linearGradient id="g-commande" x1="0" y1="0" x2="1" y2="1">
+                    <linearGradient id="g-suivi" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#2196f3"/>
+                        <stop offset="100%" stop-color="#90caf9" stop-opacity="0.8"/>
+                    </linearGradient>
+                </defs>
+                <rect x="1" y="3" width="15" height="13" rx="2" stroke="url(#g-suivi)" stroke-width="2" fill="none"/>
+                <path d="M16 8h4l3 5v4h-7V8z" stroke="url(#g-suivi)" stroke-width="2" stroke-linejoin="round" fill="none"/>
+                <circle cx="5.5" cy="18.5" r="2.5" stroke="url(#g-suivi)" stroke-width="2" fill="none"/>
+                <circle cx="18.5" cy="18.5" r="2.5" stroke="url(#g-suivi)" stroke-width="2" fill="none"/>
+            </svg>
+            Suivi de livraison
+        </button>
+
+        <button class="hamburger-menu-item" id="hamburgerConfirmBtn" onclick="navigateTo('orders'); toggleHamburgerMenu()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <defs>
+                    <linearGradient id="g-confirm" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#4caf50"/>
+                        <stop offset="100%" stop-color="#81c784" stop-opacity="0.8"/>
+                    </linearGradient>
+                </defs>
+                <path d="M20 6L9 17l-5-5" stroke="url(#g-confirm)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Confirmer réception ⚡
+        </button>
+        <button class="hamburger-menu-item" onclick="navigateTo('cart'); toggleHamburgerMenu()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <defs>
+                    <linearGradient id="g-lock" x1="0" y1="0" x2="1" y2="1">
                         <stop offset="0%" stop-color="#d4af37"/>
                         <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
                     </linearGradient>
                 </defs>
-                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" stroke="url(#g-commande)" stroke-width="2" stroke-linecap="round" fill="none"/>
-                <rect x="9" y="3" width="6" height="4" rx="1" stroke="url(#g-commande)" stroke-width="2" fill="none"/>
-                <path d="M9 12h6M9 16h4" stroke="url(#g-commande)" stroke-width="2" stroke-linecap="round"/>
+                <rect x="3" y="11" width="18" height="11" rx="2" stroke="url(#g-lock)" stroke-width="2" fill="none"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="url(#g-lock)" stroke-width="2" stroke-linecap="round" fill="none"/>
+                <circle cx="12" cy="16" r="1.5" fill="url(#g-lock)"/>
             </svg>
-            Commande
+            Paiement sécurisé
         </button>
         <button class="hamburger-menu-item" onclick="navigateTo('myArtists'); toggleHamburgerMenu()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -7451,11 +7815,13 @@
         let orbitalOpen = false;
 
         function positionOrbitalItems() {
-            const items = document.querySelectorAll('#hamburgerDropdown .hamburger-menu-item');
+            const allItems = document.querySelectorAll('#hamburgerDropdown .hamburger-menu-item');
+            // Exclure les items avec display:none du calcul d'espacement
+            const items = Array.from(allItems).filter(el => el.style.display !== 'none');
             const n = items.length;
-            const navbarHeight = 80; // hauteur approx navbar + marge
+            const navbarHeight = 80;
             const availableHeight = window.innerHeight - navbarHeight - 20;
-            const itemSpacing = Math.min(availableHeight / n, 70);
+            const itemSpacing = Math.min(availableHeight / n, 44);
             const totalHeight = itemSpacing * (n - 1);
             const startY = navbarHeight + (availableHeight - totalHeight) / 2;
 
@@ -7484,6 +7850,7 @@
             btn.classList.toggle('active', orbitalOpen);
             dropdown.classList.toggle('open', orbitalOpen);
             positionOrbitalItems();
+            if (orbitalOpen) updateHamburgerOrderBadges();
         }
 
         function closeHamburgerMenu() {
@@ -8884,11 +9251,17 @@
                     
                     showToast(result.message);
                     
-                    // Mettre à jour l'icône du bouton
+                    // Mettre à jour l'icône du bouton + animation ❤️
                     const likeButtons = document.querySelectorAll(`[onclick*="toggleFavorite(event, ${productId})"]`);
                     likeButtons.forEach(button => {
                         button.textContent = result.is_favorite ? '❤️' : '🤍';
+                        button.classList.remove('fav-btn-pop', 'fav-btn-unpop');
+                        void button.offsetWidth; // reset animation
+                        button.classList.add(result.is_favorite ? 'fav-btn-pop' : 'fav-btn-unpop');
+                        setTimeout(() => button.classList.remove('fav-btn-pop', 'fav-btn-unpop'), 600);
                     });
+                    // Particules cœur uniquement quand on ajoute
+                    if (result.is_favorite && event?.target) spawnHeartParticles(event.target, true);
                 } else {
                     showToast('🛑 ' + result.message);
                     console.error('Erreur serveur:', result);
@@ -8897,6 +9270,42 @@
             } catch (error) {
                 console.error('❌ Erreur toggle favori:', error);
                 showToast('❌ Erreur de connexion au serveur');
+            }
+        }
+
+        // ===== UTILITAIRES D'ANIMATION =====
+
+        function spawnCartParticles(btn) {
+            const rect = btn.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            const items = ['🛒', '✨', '⭐', '🛍️'];
+            for (let i = 0; i < 6; i++) {
+                const el = document.createElement('span');
+                el.className = 'cart-particle';
+                el.textContent = items[i % items.length];
+                const angle = (i / 6) * Math.PI * 2;
+                const dist = 55 + Math.random() * 40;
+                el.style.cssText = `left:${cx}px; top:${cy}px; --tx:${Math.cos(angle)*dist}px; --ty:${Math.sin(angle)*dist - 30}px; animation-delay:${i * 40}ms;`;
+                document.body.appendChild(el);
+                setTimeout(() => el.remove(), 1100);
+            }
+        }
+
+        function spawnHeartParticles(btn, adding) {
+            if (!adding) return;
+            const rect = btn.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            for (let i = 0; i < 7; i++) {
+                const el = document.createElement('span');
+                el.className = 'heart-particle';
+                el.textContent = ['❤️','💖','💗','💕'][i % 4];
+                const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.4;
+                const dist = 40 + Math.random() * 50;
+                el.style.cssText = `left:${cx}px; top:${cy}px; --tx:${Math.cos(angle)*dist}px; --ty:${Math.sin(angle)*dist}px; --rot:${(Math.random()-0.5)*60}deg; animation-delay:${i * 50}ms; font-size:${10+Math.random()*10}px;`;
+                document.body.appendChild(el);
+                setTimeout(() => el.remove(), 1200);
             }
         }
 
@@ -8955,6 +9364,11 @@
                     safeStorage.set('arkyl_cart', cartItems);
                     updateBadges();
                     
+                    // 🎉 Animation panier
+                    btn.classList.add('cart-added');
+                    spawnCartParticles(btn);
+                    setTimeout(() => btn.classList.remove('cart-added'), 600);
+
                     showToast(result.message);
                     btn.textContent = '✓';
                     
@@ -9114,14 +9528,17 @@
                                     <span class="qty-value">${item.quantity}</span>
                                     <button class="qty-btn" onclick="changeQuantity(${index}, 1)">+</button>
                                 </div>
-                                <button class="remove-btn" onclick="removeFromCart(${index})">🗑️ Retirer</button>
+                                <button class="remove-btn" id="remove-btn-${index}" onclick="confirmRemoveFromCart(${index}, this)">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                                    Retirer
+                                </button>
                             </div>
                         </div>
                     </div>
                 `;
             }).join('');
 
-            const shipping = 5000;
+            const shipping = 3000;
             const total = subtotal + shipping;
 
             container.innerHTML = `
@@ -9131,19 +9548,60 @@
                         <h2 class="summary-title">Récapitulatif</h2>
                         <div class="summary-row"><span>Sous-total</span><span>${formatPrice(subtotal)}</span></div>
                         <div class="shipping-section">
-                            <div class="shipping-title">🚚 Livraison</div>
-                            <div class="shipping-options">
-                                <div class="shipping-option selected" data-cost="5000">
-                                    <div><div class="shipping-name">SBTA Express</div><div class="shipping-info">2-3 jours • Abidjan</div></div>
-                                    <div style="font-weight: 700;">5 000 FCFA</div>
+                            <div class="shipping-title">🚚 Méthode de livraison</div>
+                            <div class="shipping-options" id="shippingOptions">
+                                <div class="shipping-option selected" data-cost="3000" data-days="3,5" onclick="selectShipping(this)">
+                                    <div class="shipping-left">
+                                        <div class="shipping-logo" style="background:rgba(212,175,55,0.15);">📮</div>
+                                        <div class="shipping-details">
+                                            <div class="shipping-name-row">
+                                                <span class="shipping-name">La Poste</span>
+                                                <span class="shipping-badge badge-recommended">⭐ Recommandé</span>
+                                            </div>
+                                            <div class="shipping-info">Envoi postal standard • 3-5 jours ouvrés</div>
+                                            <div class="shipping-delivery-date">📅 Estimée le ${getDeliveryDate(3,5)}</div>
+                                        </div>
+                                    </div>
+                                    <div class="shipping-right">
+                                        <span class="shipping-price">3 000 FCFA</span>
+                                        <div class="shipping-check">✓</div>
+                                    </div>
                                 </div>
-                                <div class="shipping-option" data-cost="7000">
-                                    <div><div class="shipping-name">AT Transport</div><div class="shipping-info">1-2 jours • Rapide</div></div>
-                                    <div style="font-weight: 700;">7 000 FCFA</div>
+
+                                <div class="shipping-option" data-cost="1500" data-days="4,7" onclick="selectShipping(this)">
+                                    <div class="shipping-left">
+                                        <div class="shipping-logo" style="background:rgba(76,175,80,0.15);">🚌</div>
+                                        <div class="shipping-details">
+                                            <div class="shipping-name-row">
+                                                <span class="shipping-name">Transport en commun</span>
+                                                <span class="shipping-badge badge-fast">💰 Économique</span>
+                                            </div>
+                                            <div class="shipping-info">Via réseau de bus • 4-7 jours ouvrés</div>
+                                            <div class="shipping-delivery-date">📅 Estimée le ${getDeliveryDate(4,7)}</div>
+                                        </div>
+                                    </div>
+                                    <div class="shipping-right">
+                                        <span class="shipping-price">1 500 FCFA</span>
+                                        <div class="shipping-check"></div>
+                                    </div>
                                 </div>
-                                <div class="shipping-option" data-cost="6000">
-                                    <div><div class="shipping-name">TSR Logistique</div><div class="shipping-info">2-4 jours • Fiable</div></div>
-                                    <div style="font-weight: 700;">6 000 FCFA</div>
+
+                                <div class="shipping-option" data-cost="0" data-days="0,1" onclick="selectShipping(this)">
+                                    <div class="shipping-left">
+                                        <div class="shipping-logo" style="background:rgba(100,181,246,0.15);">🤝</div>
+                                        <div class="shipping-details">
+                                            <div class="shipping-name-row">
+                                                <span class="shipping-name">Remise en main propre</span>
+                                                <span class="shipping-badge badge-safe">🆓 Gratuit</span>
+                                            </div>
+                                            <div class="shipping-info">Retrait chez le vendeur • Sur rendez-vous</div>
+                                            <div class="shipping-delivery-date">📅 Dès le ${getDeliveryDate(0,1)}</div>
+                                        </div>
+                                    </div>
+                                    <div class="shipping-right">
+                                        <span class="shipping-price">Gratuit</span>
+                                        <div class="shipping-check"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -9158,19 +9616,18 @@
                                 <div class="payment-method"><div class="payment-icon">🟣</div><div class="payment-name">Moov Money</div></div>
                             </div>
                         </div>
+                        <div class="escrow-banner">
+                            <div class="escrow-banner-icon">🔒</div>
+                            <div class="escrow-banner-text">
+                                <strong>Paiement sécurisé — Tiers de Confiance ARKYL</strong><br>
+                                Votre paiement reste bloqué sur notre compte jusqu'à confirmation de réception. L'artiste est payé seulement après votre accord.
+                            </div>
+                        </div>
                         <button class="checkout-btn" onclick="processCheckout()">Finaliser la commande</button>
                         <div class="security-badge">🔒 Paiement sécurisé et crypté</div>
                     </div>
                 </div>
             `;
-
-            document.querySelectorAll('.shipping-option').forEach(option => {
-                option.addEventListener('click', function() {
-                    document.querySelectorAll('.shipping-option').forEach(o => o.classList.remove('selected'));
-                    this.classList.add('selected');
-                    updateCartTotal();
-                });
-            });
 
             document.querySelectorAll('.payment-method').forEach(method => {
                 method.addEventListener('click', function() {
@@ -9180,10 +9637,35 @@
             });
         }
 
+        function getDeliveryDate(minDays, maxDays) {
+            const jours = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+            const mois  = ['jan','fév','mars','avr','mai','juin','juil','août','sep','oct','nov','déc'];
+            // On prend la date max pour être conservateur
+            const d = new Date();
+            let added = 0;
+            while (added < maxDays) {
+                d.setDate(d.getDate() + 1);
+                if (d.getDay() !== 0 && d.getDay() !== 6) added++; // jours ouvrés seulement
+            }
+            return `${jours[d.getDay()]} ${d.getDate()} ${mois[d.getMonth()]}`;
+        }
+
+        function selectShipping(el) {
+            document.querySelectorAll('.shipping-option').forEach(o => {
+                o.classList.remove('selected');
+                const check = o.querySelector('.shipping-check');
+                if (check) check.textContent = '';
+            });
+            el.classList.add('selected');
+            const check = el.querySelector('.shipping-check');
+            if (check) check.textContent = '✓';
+            updateCartTotal();
+        }
+
         function updateCartTotal() {
             const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
             const selectedShipping = document.querySelector('.shipping-option.selected');
-            const shipping = selectedShipping ? parseInt(selectedShipping.dataset.cost) : 5000;
+            const shipping = selectedShipping ? parseInt(selectedShipping.dataset.cost) : 3000;
             const total = subtotal + shipping;
 
             document.getElementById('shippingCost').textContent = formatPrice(shipping);
@@ -9209,13 +9691,53 @@
             renderCart();
         }
 
+        // Timers de confirmation par index
+        const _removeTimers = {};
+
+        function confirmRemoveFromCart(index, btn) {
+            // Si déjà en mode confirmation → supprimer
+            if (btn.classList.contains('confirming')) {
+                clearTimeout(_removeTimers[index]);
+                delete _removeTimers[index];
+
+                // Animation de sortie sur la carte
+                const cartItem = btn.closest('.cart-item');
+                if (cartItem) {
+                    cartItem.classList.add('removing');
+                    setTimeout(() => removeFromCart(index), 380);
+                } else {
+                    removeFromCart(index);
+                }
+                return;
+            }
+
+            // Premier clic → passer en mode confirmation
+            btn.classList.add('confirming');
+            btn.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Confirmer ?
+            `;
+
+            // Annuler automatiquement après 3 secondes
+            _removeTimers[index] = setTimeout(() => {
+                if (btn && btn.classList.contains('confirming')) {
+                    btn.classList.remove('confirming');
+                    btn.innerHTML = `
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                        Retirer
+                    `;
+                }
+                delete _removeTimers[index];
+            }, 3000);
+        }
+
         function removeFromCart(index) {
             const item = cartItems[index];
             cartItems.splice(index, 1);
             safeStorage.set('arkyl_cart', cartItems);
             updateBadges();
             renderCart();
-            showToast(`"${item.title}" retiré du panier`);
+            showToast(`✅ "${item.title}" retiré du panier`);
         }
 
         function processCheckout() {
@@ -9227,7 +9749,7 @@
                 // ✨ NOUVEAU: Créer et sauvegarder la commande
                 const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
                 const selectedShipping = document.querySelector('.shipping-option.selected');
-                const shipping = selectedShipping ? parseInt(selectedShipping.dataset.cost) : 5000;
+                const shipping = selectedShipping ? parseInt(selectedShipping.dataset.cost) : 3000;
                 const shippingName = selectedShipping ? selectedShipping.querySelector('.shipping-name').textContent : 'SBTA Express';
                 const selectedPayment = document.querySelector('.payment-method.selected');
                 const paymentMethod = selectedPayment ? selectedPayment.querySelector('.payment-name').textContent : 'MTN Money';
@@ -9235,6 +9757,7 @@
                 
                 const order = {
                     id: Date.now(),
+                    order_number: 'ARK-' + Date.now().toString().slice(-8),
                     date: new Date().toLocaleDateString('fr-FR', { 
                         year: 'numeric', 
                         month: 'long', 
@@ -9242,13 +9765,23 @@
                         hour: '2-digit',
                         minute: '2-digit'
                     }),
-                    items: cartItems.map(item => ({...item})), // Copie des items
+                    items: cartItems.map(item => ({...item})),
                     subtotal: subtotal,
                     shipping: shipping,
                     shippingName: shippingName,
                     paymentMethod: paymentMethod,
                     total: total,
                     status: 'En préparation',
+                    // ===== TIERS DE CONFIANCE =====
+                    escrow_status: 'payée_en_attente',   // payée_en_attente | expédiée | livrée_confirmée | fonds_libérés
+                    escrow_paid_at: new Date().toISOString(),
+                    escrow_shipped_at: null,
+                    escrow_confirmed_at: null,
+                    escrow_released_at: null,
+                    escrow_auto_release_date: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString(), // +21 jours
+                    tracking_number: null,
+                    shipping_proof_url: null,
+                    // ==============================
                     user: currentUser ? currentUser.name : 'Invité',
                     userEmail: currentUser ? currentUser.email : null
                 };
@@ -9320,17 +9853,85 @@
                 </div>
             `;
 
-            const ordersHtml = orderHistory.map(order => `
+            const ordersHtml = orderHistory.map(order => {
+                const es = order.escrow_status || 'payée_en_attente';
+                const steps = [
+                    { key: 'payée_en_attente', icon: '💳', label: 'Payée' },
+                    { key: 'expédiée',         icon: '🚚', label: 'Expédiée' },
+                    { key: 'livrée_confirmée', icon: '📬', label: 'Reçue' },
+                    { key: 'fonds_libérés',    icon: '💰', label: 'Payé' },
+                ];
+                const stepIndex = steps.findIndex(s => s.key === es);
+
+                const escrowProgressHtml = `
+                    <div class="escrow-progress">
+                        ${steps.map((s, i) => `
+                            ${i > 0 ? `<div class="escrow-connector ${i <= stepIndex ? 'done' : ''}"></div>` : ''}
+                            <div class="escrow-step ${i < stepIndex ? 'done' : i === stepIndex ? 'active' : ''}">
+                                <div class="escrow-step-dot">${i < stepIndex ? '✓' : s.icon}</div>
+                                <div class="escrow-step-label">${s.label}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+
+                const escrowDescMap = {
+                    'payée_en_attente': { cls: 'pending',   icon: '🔒', title: 'Fonds sécurisés — en attente d\'expédition', desc: 'Votre paiement est bloqué sur le compte ARKYL. Il sera libéré à l\'artiste uniquement après confirmation de votre réception.' },
+                    'expédiée':         { cls: 'shipped',   icon: '🚚', title: 'Colis en route — en attente de réception',    desc: 'L\'artiste a expédié votre œuvre. Confirmez la réception dès qu\'elle arrive pour libérer les fonds.' },
+                    'livrée_confirmée': { cls: 'confirmed', icon: '📬', title: 'Réception confirmée — libération en cours',   desc: 'Vous avez confirmé la réception. Les fonds sont en cours de transfert vers l\'artiste.' },
+                    'fonds_libérés':    { cls: 'released',  icon: '✅', title: 'Transaction complète — artiste payé',         desc: 'Les fonds ont été transférés à l\'artiste. Merci pour votre confiance !' },
+                };
+                const ed = escrowDescMap[es] || escrowDescMap['payée_en_attente'];
+
+                // Countdown déblocage auto (21 jours)
+                let countdownHtml = '';
+                if (es === 'expédiée' && order.escrow_auto_release_date) {
+                    const daysLeft = Math.max(0, Math.ceil((new Date(order.escrow_auto_release_date) - Date.now()) / (1000 * 60 * 60 * 24)));
+                    countdownHtml = `<div class="escrow-countdown">⏱ Libération automatique dans ${daysLeft} jour${daysLeft > 1 ? 's' : ''} si aucun litige</div>`;
+                }
+
+                // Bouton confirmation réception
+                const confirmBtnHtml = es === 'expédiée' ? `
+                    <button class="confirm-reception-btn" onclick="confirmReception('${order.id}')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                        J'ai bien reçu mon œuvre — Libérer les fonds
+                    </button>
+                ` : '';
+
+                // Infos tracking
+                const trackingHtml = order.tracking_number ? `
+                    <div style="background:rgba(33,150,243,0.1); border:1px solid rgba(33,150,243,0.3); border-radius:10px; padding:10px 14px; margin-top:10px; font-size:13px;">
+                        📦 N° de suivi : <strong>${order.tracking_number}</strong>
+                        ${order.shipping_proof_url ? ` · <a href="${order.shipping_proof_url}" target="_blank" style="color:#90caf9;">Voir preuve d'expédition</a>` : ''}
+                    </div>
+                ` : '';
+
+                return `
                 <div class="order-card">
                     <div class="order-header">
                         <div>
-                            <div class="order-id">Commande #${order.id}</div>
+                            <div class="order-id">Commande ${order.order_number || '#' + order.id}</div>
                             <div class="order-date">📅 ${order.date}</div>
                         </div>
-                        <div>
+                        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
                             <span class="order-status">${order.status}</span>
+                            <span class="${es === 'fonds_libérés' ? 'funds-released-badge' : 'funds-locked-badge'}">
+                                ${es === 'fonds_libérés' ? '✅ Fonds libérés' : '🔒 Fonds sécurisés'}
+                            </span>
                         </div>
                     </div>
+
+                    <!-- Progression Tiers de Confiance -->
+                    ${escrowProgressHtml}
+
+                    <div class="escrow-status-bar ${ed.cls}">
+                        <div class="escrow-status-title">${ed.icon} ${ed.title}</div>
+                        <div class="escrow-status-desc">${ed.desc}</div>
+                        ${countdownHtml}
+                    </div>
+
+                    ${trackingHtml}
+                    ${confirmBtnHtml}
                     
                     <div class="order-items-list">
                         ${order.items.map(item => `
@@ -9366,7 +9967,7 @@
                         </div>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
 
             container.innerHTML = `
                 <div class="orders-container">
@@ -9486,19 +10087,35 @@
 
                         <div style="display:flex; gap:10px; flex-wrap:wrap;">
                             ${order.status === 'En préparation' ? `
-                                <button onclick="changeOrderStatus('${order.id}', 'Expédiée')" style="flex:1; min-width:150px; padding:12px 20px; border:none; border-radius:12px; font-size:14px; font-weight:600; cursor:pointer; background:linear-gradient(135deg, #2196f3, #1976d2); color:white; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 15px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
-                                    🚚 Marquer comme Expédiée
-                                </button>
+                                <!-- Zone expédition avec preuve -->
+                                <div style="width:100%; background:rgba(33,150,243,0.08); border:1px solid rgba(33,150,243,0.25); border-radius:14px; padding:16px; margin-bottom:10px;">
+                                    <div style="font-weight:700; margin-bottom:12px; font-size:14px;">🚚 Marquer comme expédiée</div>
+                                    <input id="tracking-${order.id}" type="text" placeholder="N° de suivi (optionnel)" style="width:100%; padding:10px 14px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:10px; color:white; font-size:13px; margin-bottom:10px; box-sizing:border-box;">
+                                    <div class="proof-upload-zone" onclick="document.getElementById('proof-${order.id}').click()" id="proof-zone-${order.id}">
+                                        <input type="file" id="proof-${order.id}" accept="image/*,.pdf" style="display:none" onchange="document.getElementById('proof-zone-${order.id}').classList.add('has-file'); document.getElementById('proof-zone-${order.id}').innerHTML='✅ Fichier sélectionné : ' + this.files[0].name">
+                                        <div style="font-size:24px; margin-bottom:6px;">📎</div>
+                                        <div style="font-size:13px; font-weight:600;">Cliquer pour ajouter la photo du reçu d'expédition</div>
+                                        <div style="font-size:11px; opacity:0.6; margin-top:4px;">JPG, PNG ou PDF · Fortement recommandé</div>
+                                    </div>
+                                    <button onclick="markAsShippedWithProof('${order.id}')" style="width:100%; margin-top:10px; padding:12px; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; background:linear-gradient(135deg, #2196f3, #1976d2); color:white; transition:all 0.3s;">
+                                        🚚 Confirmer l'expédition & libérer l'attente
+                                    </button>
+                                </div>
                             ` : ''}
                             ${order.status === 'Expédiée' ? `
-                                <button onclick="changeOrderStatus('${order.id}', 'Livrée')" style="flex:1; min-width:150px; padding:12px 20px; border:none; border-radius:12px; font-size:14px; font-weight:600; cursor:pointer; background:linear-gradient(135deg, #4caf50, #388e3c); color:white; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 15px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
-                                    ✅ Confirmer la Livraison
+                                <div style="width:100%; background:rgba(76,175,80,0.08); border:1px solid rgba(76,175,80,0.25); border-radius:12px; padding:14px; margin-bottom:10px; font-size:13px;">
+                                    🔒 <strong>Fonds sécurisés</strong> — En attente de confirmation de réception par l'acheteur.<br>
+                                    <span style="opacity:0.7;">Libération automatique dans 21 jours si aucun litige.</span>
+                                    ${order.tracking_number ? `<br>📦 Suivi : <strong>${order.tracking_number}</strong>` : ''}
+                                </div>
+                                <button onclick="changeOrderStatus('${order.id}', 'Livrée')" style="flex:1; min-width:150px; padding:12px 20px; border:none; border-radius:12px; font-size:14px; font-weight:600; cursor:pointer; background:linear-gradient(135deg, #4caf50, #388e3c); color:white; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                                    ✅ Forcer confirmation livraison (admin)
                                 </button>
                             ` : ''}
                             ${order.status === 'Livrée' ? `
-                                <button disabled style="flex:1; min-width:150px; padding:12px 20px; border:none; border-radius:12px; font-size:14px; font-weight:600; opacity:0.6; cursor:not-allowed; background:rgba(255,255,255,0.15); color:white;">
-                                    ✅ Commande Livrée
-                                </button>
+                                <div style="width:100%; background:rgba(156,39,176,0.1); border:1px solid rgba(156,39,176,0.3); border-radius:12px; padding:14px; font-size:13px;">
+                                    💰 <strong>Fonds libérés</strong> — L'artiste a été payé le ${order.escrow_released_at ? new Date(order.escrow_released_at).toLocaleDateString('fr-FR') : 'N/A'}.
+                                </div>
                             ` : ''}
                         </div>
                     </div>
@@ -9555,8 +10172,13 @@
                 
                 if (newStatus === 'Expédiée') {
                     order.shippedDate = formattedDate;
+                    order.escrow_status = 'expédiée';
+                    order.escrow_shipped_at = new Date().toISOString();
                 } else if (newStatus === 'Livrée') {
                     order.deliveredDate = formattedDate;
+                    order.escrow_status = 'fonds_libérés';
+                    order.escrow_confirmed_at = new Date().toISOString();
+                    order.escrow_released_at  = new Date().toISOString();
                 }
                 
                 safeStorage.set('arkyl_orders', orders);
@@ -9579,7 +10201,97 @@
             }
         }
 
-        // ==================== NOTIFICATIONS ====================
+        // ===== TIERS DE CONFIANCE — ACHETEUR =====
+        function confirmReception(orderId) {
+            const btn = event.target.closest('.confirm-reception-btn');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Confirmation en cours...'; }
+
+            setTimeout(() => {
+                const orders = safeStorage.get('arkyl_orders', []);
+                const order = orders.find(o => o.id == orderId);
+                if (!order) return;
+
+                order.escrow_status    = 'livrée_confirmée';
+                order.escrow_confirmed_at = new Date().toISOString();
+                order.status = 'Livrée';
+
+                // Libération automatique immédiate après confirmation
+                setTimeout(() => {
+                    order.escrow_status   = 'fonds_libérés';
+                    order.escrow_released_at = new Date().toISOString();
+                    safeStorage.set('arkyl_orders', orders);
+                    orderHistory = orders;
+                    renderOrders();
+                    showToast('💰 Fonds libérés — l\'artiste a été payé !');
+                    addNotification('Transaction complète', 'Les fonds ont été transférés à l\'artiste. Merci !');
+                }, 2000);
+
+                safeStorage.set('arkyl_orders', orders);
+                orderHistory = orders;
+                renderOrders();
+                showToast('✅ Réception confirmée ! Libération des fonds en cours...');
+                addNotification('Œuvre reçue', 'Merci d\'avoir confirmé la réception. Les fonds sont en cours de transfert.');
+            }, 1200);
+        }
+
+        // ===== TIERS DE CONFIANCE — ADMIN : marquer expédiée avec preuve =====
+        function markAsShippedWithProof(orderId) {
+            const tracking = document.getElementById(`tracking-${orderId}`)?.value?.trim();
+            const proofInput = document.getElementById(`proof-${orderId}`);
+            const proofFile  = proofInput?.files?.[0];
+
+            if (!tracking && !proofFile) {
+                showToast('⚠️ Ajoutez au moins un numéro de suivi ou une photo de reçu');
+                return;
+            }
+
+            const orders = safeStorage.get('arkyl_orders', []);
+            const order  = orders.find(o => o.id == orderId);
+            if (!order) return;
+
+            order.escrow_status    = 'expédiée';
+            order.escrow_shipped_at = new Date().toISOString();
+            order.status = 'Expédiée';
+            if (tracking) order.tracking_number = tracking;
+
+            // Si photo uploadée, lire en base64 (simulation locale)
+            if (proofFile) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    order.shipping_proof_url = e.target.result;
+                    safeStorage.set('arkyl_orders', orders);
+                    orderHistory = orders;
+                    renderAdminOrders();
+                    showToast('🚚 Commande marquée expédiée avec preuve !');
+                    addNotification('Preuve d\'expédition', `Commande ${order.order_number || '#'+orderId} : preuve d'expédition enregistrée`);
+                };
+                reader.readAsDataURL(proofFile);
+            } else {
+                safeStorage.set('arkyl_orders', orders);
+                orderHistory = orders;
+                renderAdminOrders();
+                showToast('🚚 Commande marquée expédiée !');
+            }
+
+            // Auto-libération après 21 jours (simulé ici via flag)
+            order.escrow_auto_release_date = new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString();
+            safeStorage.set('arkyl_orders', orders);
+
+            // Envoyer notification à l'acheteur
+            sendStatusChangeNotifications(order, 'En préparation', 'Expédiée');
+        }
+
+
+        // ===== BADGES HAMBURGER — commandes en cours =====
+        function updateHamburgerOrderBadges() {
+            const orders = safeStorage.get('arkyl_orders', []);
+            const shippingBadge = document.getElementById('hamburgerShippingBadge');
+            const confirmBtn    = document.getElementById('hamburgerConfirmBtn');
+            const hasShipped    = orders.some(o => o.escrow_status === 'expédiée');
+            if (shippingBadge)  shippingBadge.style.display = hasShipped ? 'inline-block' : 'none';
+            if (confirmBtn)     confirmBtn.style.display     = hasShipped ? 'flex'         : 'none';
+        }
+
         function toggleNotifications() {
             const panel = document.getElementById('notificationsPanel');
             panel.classList.toggle('show');

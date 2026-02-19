@@ -484,6 +484,46 @@
                 font-size: 11px !important;
             }
         }
+
+/* ============ CORRECTIF MOBILE ARKYL ============ */
+@media (max-width: 768px) {
+    /* 1. Empêcher le débordement horizontal général */
+    html, body {
+        overflow-x: hidden;
+        width: 100%;
+    }
+
+    /* 2. Forcer les boutons à s'adapter et à ne pas sortir de l'écran */
+    .btn, button, .button-group {
+        max-width: 100% !important;
+        box-sizing: border-box;
+    }
+
+    /* 3. Si tes boutons sont côte à côte, les mettre l'un sous l'autre sur mobile */
+    .nav-buttons, .action-buttons, .admin-controls {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 10px;
+        justify-content: center;
+    }
+
+    /* 4. Ajuster la taille des textes trop grands qui poussent les murs */
+    h1 { font-size: 1.8rem !important; }
+    h2 { font-size: 1.5rem !important; }
+
+    /* 5. La galerie : passer à 1 seule colonne si l'écran est trop petit */
+    .gallery-grid {
+        grid-template-columns: 1fr !important;
+        padding: 10px !important;
+        gap: 20px !important;
+    }
+
+    /* 6. Les boutons de navigation du header */
+    header nav {
+        flex-direction: column;
+        padding: 10px;
+    }
+}
     </style>
 </head>
 <body>

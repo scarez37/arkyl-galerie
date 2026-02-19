@@ -524,7 +524,22 @@
         padding: 10px;
     }
 }
-    </style>
+    
+        @keyframes btnEntre {
+            0%   { transform: scale(0.5) translate(var(--tx), var(--ty)); opacity: 0; filter: blur(4px); }
+            70%  { transform: scale(1.06) translate(calc(var(--tx)*-0.05), calc(var(--ty)*-0.05)); opacity: 1; filter: blur(0px); }
+            100% { transform: scale(1) translate(0,0); opacity: 1; filter: blur(0px); }
+        }
+        @keyframes btnEclate {
+            0%   { transform: scale(1) translate(0,0); opacity: 1; filter: blur(0px); }
+            30%  { transform: scale(1.08) translate(calc(var(--tx)*0.2), calc(var(--ty)*0.2)); opacity: 1; filter: blur(0px); }
+            100% { transform: scale(0.4) translate(var(--tx), var(--ty)); opacity: 0; filter: blur(6px); }
+        }
+        #categoryBtns .filter-btn {
+            --tx: 0px; --ty: 0px;
+            will-change: transform, opacity, filter;
+        }
+</style>
 </head>
 <body>
     <style>
@@ -753,82 +768,61 @@
         .hamburger-btn.active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
         /* ===== MENU ORBITAL ===== */
-        /* Le dropdown devient un conteneur de positionnement */
+        /* Conteneur fixe côté gauche */
         .hamburger-dropdown {
             position: fixed;
-            top: 20px;
-            right: calc(5% + 5px);
-            width: 50px;
-            height: 50px;
+            top: 0; left: 0;
+            width: 0; height: 0;
             z-index: 1001;
             pointer-events: none;
             display: block !important;
         }
         .hamburger-dropdown.open { pointer-events: auto; }
 
-        /* Chaque item est un satellite orbitant */
+        /* Items verticaux côté gauche */
         .hamburger-menu-item {
-            position: absolute;
-            top: 0; left: 0;
+            position: fixed;
+            left: 12px;
             display: flex;
+            flex-direction: row;
             align-items: center;
-            gap: 10px;
-            padding: 10px 16px;
-            background: rgba(20, 20, 20, 0.92);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(212, 175, 55, 0.3);
-            border-radius: 50px;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid #000;
+            border-radius: 10px;
             color: rgba(255, 255, 255, 0.9);
-            font-size: 13px;
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            font-size: 11px;
             font-weight: 600;
             cursor: pointer;
             white-space: nowrap;
             font-family: inherit;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3), 0 0 0 1px rgba(212,175,55,0.1);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
             opacity: 0;
-            transform: translate(0px, 0px) scale(0.4);
+            transform: translateX(-120%) scale(0.9);
             transition:
-                opacity 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-                transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-                background 0.2s ease,
-                box-shadow 0.2s ease;
+                opacity 0.3s ease,
+                transform 0.3s ease,
+                background 0.2s ease;
             pointer-events: none;
         }
-
-        .hamburger-dropdown.open .hamburger-menu-item:nth-child(1) {
-            opacity: 1;
-            transform: translate(-105px, 75px) scale(1);
-            transition-delay: 0s;
-            pointer-events: auto;
-            --tx: -105px; --ty: 75px;
-        }
-        .hamburger-dropdown.open .hamburger-menu-item:nth-child(2) {
-            opacity: 1;
-            transform: translate(-210px, 120px) scale(1);
-            transition-delay: 0.07s;
-            pointer-events: auto;
-            --tx: -210px; --ty: 120px;
-        }
-        .hamburger-dropdown.open .hamburger-menu-item:nth-child(3) {
-            opacity: 1;
-            transform: translate(-330px, 148px) scale(1);
-            transition-delay: 0.14s;
-            pointer-events: auto;
-            --tx: -330px; --ty: 148px;
-        }
-
-        /* Fermeture : retour vers le centre */
-        .hamburger-dropdown:not(.open) .hamburger-menu-item:nth-child(1) { transition-delay: 0.1s; }
-        .hamburger-dropdown:not(.open) .hamburger-menu-item:nth-child(2) { transition-delay: 0.05s; }
-        .hamburger-dropdown:not(.open) .hamburger-menu-item:nth-child(3) { transition-delay: 0s; }
-
         .hamburger-menu-item:hover {
             background: rgba(212, 175, 55, 0.2);
             border-color: rgba(212, 175, 55, 0.7);
-            box-shadow: 0 6px 24px rgba(212,175,55,0.25), 0 0 0 1px rgba(212,175,55,0.3);
+            box-shadow: 0 6px 24px rgba(212,175,55,0.25);
             color: #d4af37;
-            transform: translate(var(--tx), var(--ty)) scale(1.06) !important;
+            transform: translateX(0) scale(1.04) !important;
         }
+
+        /* Positions gérées dynamiquement par JS orbital */
+        .hamburger-dropdown.open .hamburger-menu-item {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+
 
         .hamburger-menu-item svg {
             filter: drop-shadow(0 0 4px rgba(212,175,55,0.4));
@@ -5392,31 +5386,61 @@
 
     <!-- Hamburger Menu Dropdown -->
     <div class="hamburger-dropdown" id="hamburgerDropdown">
-        <div class="hamburger-menu-item" id="authContainer">
-            <!-- Google Sign-In button will be rendered here by Google Identity Services -->
-            <div class="google-login-btn" id="googleLoginBtn" style="display:none;">
-                <!-- Le bouton Google Sign-In sera inséré automatiquement ici -->
-            </div>
-            <div class="user-profile-btn" id="userProfileBtn" onclick="toggleUserMenu()" style="display:none;">
-                <img id="userAvatar" class="user-avatar" src="" alt="Avatar">
-                <span class="user-name" id="userName"></span>
-                <span class="admin-indicator" id="adminBadge" style="display:none;">ADMIN</span>
-            </div>
-        </div>
-        <button class="hamburger-menu-item" onclick="handleArtistSpace(); toggleHamburgerMenu()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <button class="hamburger-menu-item" onclick="">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <defs>
-                    <linearGradient id="g-palette" x1="0" y1="0" x2="1" y2="1">
+                    <linearGradient id="g-aide" x1="0" y1="0" x2="1" y2="1">
                         <stop offset="0%" stop-color="#d4af37"/>
                         <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
                     </linearGradient>
                 </defs>
-                <path d="M12 2C6.48 2 2 6.48 2 12c0 5.52 4.48 10 10 10 .83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" fill="url(#g-palette)"/>
+                <circle cx="12" cy="12" r="10" stroke="url(#g-aide)" stroke-width="2" fill="none"/>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke="url(#g-aide)" stroke-width="2" stroke-linecap="round" fill="none"/>
+                <circle cx="12" cy="17" r="1" fill="url(#g-aide)"/>
             </svg>
-            Espace Artiste
+            Aide
+        </button>
+        <button class="hamburger-menu-item" onclick="">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <defs>
+                    <linearGradient id="g-service" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#d4af37"/>
+                        <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
+                    </linearGradient>
+                </defs>
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="url(#g-service)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>
+            Service client
+        </button>
+        <button class="hamburger-menu-item" onclick="">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <defs>
+                    <linearGradient id="g-retour" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#d4af37"/>
+                        <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
+                    </linearGradient>
+                </defs>
+                <path d="M3 10h13a5 5 0 0 1 0 10H8" stroke="url(#g-retour)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                <path d="M6 6L2 10l4 4" stroke="url(#g-retour)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>
+            Politique de retour
+        </button>
+        <button class="hamburger-menu-item" onclick="">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <defs>
+                    <linearGradient id="g-commande" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#d4af37"/>
+                        <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
+                    </linearGradient>
+                </defs>
+                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" stroke="url(#g-commande)" stroke-width="2" stroke-linecap="round" fill="none"/>
+                <rect x="9" y="3" width="6" height="4" rx="1" stroke="url(#g-commande)" stroke-width="2" fill="none"/>
+                <path d="M9 12h6M9 16h4" stroke="url(#g-commande)" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Commande
         </button>
         <button class="hamburger-menu-item" onclick="navigateTo('myArtists'); toggleHamburgerMenu()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <defs>
                     <linearGradient id="g-users" x1="0" y1="0" x2="1" y2="1">
                         <stop offset="0%" stop-color="#d4af37"/>
@@ -5430,6 +5454,29 @@
             </svg>
             Mes Artistes
         </button>
+        <button class="hamburger-menu-item" onclick="handleArtistSpace(); toggleHamburgerMenu()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <defs>
+                    <linearGradient id="g-palette" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#d4af37"/>
+                        <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
+                    </linearGradient>
+                </defs>
+                <path d="M12 2C6.48 2 2 6.48 2 12c0 5.52 4.48 10 10 10 .83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" fill="url(#g-palette)"/>
+            </svg>
+            Espace Artiste
+        </button>
+        <div class="hamburger-menu-item" id="authContainer">
+            <!-- Google Sign-In button will be rendered here by Google Identity Services -->
+            <div class="google-login-btn" id="googleLoginBtn" style="display:none;">
+                <!-- Le bouton Google Sign-In sera inséré automatiquement ici -->
+            </div>
+            <div class="user-profile-btn" id="userProfileBtn" onclick="toggleUserMenu()" style="display:none;">
+                <img id="userAvatar" class="user-avatar" src="" alt="Avatar">
+                <span class="user-name" id="userName"></span>
+                <span class="admin-indicator" id="adminBadge" style="display:none;">ADMIN</span>
+            </div>
+        </div>
     </div>
 
     <!-- User Menu Dropdown -->
@@ -5705,16 +5752,28 @@
             </div>
         </div>
         
-        <div class="filter-container">
-            <button class="filter-btn active" onclick="filterProducts('all', event)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px"><defs><linearGradient id="g-all" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="12" cy="12" r="9" fill="url(#g-all)"/></svg>Toutes</button>
-            <button class="filter-btn" onclick="filterProducts('Peinture', event)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px"><defs><linearGradient id="g-paint" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="3" y="3" width="18" height="14" rx="2" fill="url(#g-paint)"/><path d="M3 19h18" stroke="#a0a0b0" stroke-width="2" stroke-linecap="round"/></svg>Peintures</button>
-            <button class="filter-btn" onclick="filterProducts('Sculpture', event)">🗿 Sculptures</button>
-            <button class="filter-btn" onclick="filterProducts('Abstrait', event)">✨ Abstrait</button>
-            <button class="filter-btn" onclick="filterProducts('Plastique', event)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px"><defs><linearGradient id="g-sculpt" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M12 2l3.5 6.5H20l-4.5 4 1.5 6.5L12 15.5 7 19l1.5-6.5L4 8.5h4.5z" fill="url(#g-sculpt)"/></svg>Art Plastique</button>
-            <button class="filter-btn" onclick="rafraichirGalerie(event)" style="margin-left: auto; background: rgba(76, 175, 80, 0.2); border: 1px solid rgba(76, 175, 80, 0.4);" title="Recharger la galerie depuis le serveur">Rafraîchir</button>
+        <div class="filter-container" id="filterContainer" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+            <button class="filter-btn active" id="mainFilterBtn" onclick="toggleCategoryBtns(event)" style="display:flex;align-items:center;gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M7 12h10M11 18h2" stroke="#d4af37" stroke-width="2" stroke-linecap="round"/></svg>
+                Filtre
+            </button>
+            <button class="filter-btn" id="rafraichirBtn" onclick="rafraichirGalerie(event)" style="display:flex;align-items:center;gap:8px;background:rgba(76,175,80,0.2);border:1px solid rgba(76,175,80,0.4);">
+                <canvas id="crossCanvas" width="24" height="24" style="display:block;"></canvas>
+                Rafraîchir
+            </button>
+            <div id="categoryBtns" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:36px;">
+                <button class="filter-btn" data-cat="all" onclick="selectCategory(this)">Toutes</button>
+                <button class="filter-btn" data-cat="Peinture" onclick="selectCategory(this)">🖼️ Peintures</button>
+                <button class="filter-btn" data-cat="Sculpture" onclick="selectCategory(this)">🗿 Sculptures</button>
+                <button class="filter-btn" data-cat="Abstrait" onclick="selectCategory(this)">✨ Abstrait</button>
+                <button class="filter-btn" data-cat="Plastique" onclick="selectCategory(this)">🎭 Art Plastique</button>
+                <button class="filter-btn" data-cat="Photographie" onclick="selectCategory(this)">📷 Photographie</button>
+                <button class="filter-btn" data-cat="Dessin" onclick="selectCategory(this)">✏️ Dessin</button>
+                <button class="filter-btn" data-cat="Textile" onclick="selectCategory(this)">🧵 Textile</button>
+                <button class="filter-btn" data-cat="Céramique" onclick="selectCategory(this)">🏺 Céramique</button>
+                <button class="filter-btn" data-cat="Numérique" onclick="selectCategory(this)">💻 Numérique</button>
+
+            </div>
         </div>
 
         <!-- GALERIE DYNAMIQUE DEPUIS LA BASE DE DONNÉES -->
@@ -6945,6 +7004,7 @@
         };
 
         // ==================== DATA ====================
+        window.currentCategory = 'all';
         let currentCategory = 'all';
         let favorites = safeStorage.get('arkyl_favorites', []);
         let cartItems = safeStorage.get('arkyl_cart', []);
@@ -7387,11 +7447,52 @@
             }
         }
 
+        // === SYSTÈME ORBITAL HAMBURGER ===
+        let orbitalOpen = false;
+
+        function positionOrbitalItems() {
+            const items = document.querySelectorAll('#hamburgerDropdown .hamburger-menu-item');
+            const n = items.length;
+            const navbarHeight = 80; // hauteur approx navbar + marge
+            const availableHeight = window.innerHeight - navbarHeight - 20;
+            const itemSpacing = Math.min(availableHeight / n, 70);
+            const totalHeight = itemSpacing * (n - 1);
+            const startY = navbarHeight + (availableHeight - totalHeight) / 2;
+
+            items.forEach((item, i) => {
+                const ri = n - 1 - i;
+                const y = startY + ri * itemSpacing;
+                item.style.top = y + 'px';
+                if (orbitalOpen) {
+                    item.style.transform = 'translateX(0) scale(1)';
+                    item.style.opacity = '1';
+                    item.style.pointerEvents = 'auto';
+                    item.style.transitionDelay = (i * 0.05) + 's';
+                } else {
+                    item.style.transform = 'translateX(-120%) scale(0.9)';
+                    item.style.opacity = '0';
+                    item.style.pointerEvents = 'none';
+                    item.style.transitionDelay = ((n - i - 1) * 0.03) + 's';
+                }
+            });
+        }
+
         function toggleHamburgerMenu() {
             const btn = document.getElementById('hamburgerBtn');
             const dropdown = document.getElementById('hamburgerDropdown');
-            btn.classList.toggle('active');
-            dropdown.classList.toggle('open');
+            orbitalOpen = !orbitalOpen;
+            btn.classList.toggle('active', orbitalOpen);
+            dropdown.classList.toggle('open', orbitalOpen);
+            positionOrbitalItems();
+        }
+
+        function closeHamburgerMenu() {
+            const btn = document.getElementById('hamburgerBtn');
+            const dropdown = document.getElementById('hamburgerDropdown');
+            orbitalOpen = false;
+            btn.classList.remove('active');
+            dropdown.classList.remove('open');
+            positionOrbitalItems();
         }
 
         // Fermer le menu hamburger en cliquant ailleurs
@@ -7399,9 +7500,13 @@
             const btn = document.getElementById('hamburgerBtn');
             const dropdown = document.getElementById('hamburgerDropdown');
             if (btn && dropdown && !btn.contains(e.target) && !dropdown.contains(e.target)) {
-                btn.classList.remove('active');
-                dropdown.classList.remove('open');
+                closeHamburgerMenu();
             }
+        });
+
+        // Repositionner si fenêtre redimensionnée
+        window.addEventListener('resize', function() {
+            positionOrbitalItems();
         });
 
         function toggleUserMenu() {
@@ -8362,45 +8467,373 @@
             }
         }
 
-        function filterProducts(category, event) {
-            currentCategory = category;
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            if (event && event.target) {
-                event.target.classList.add('active');
+        // Multi-sélection catégories
+
+        // Init opacity boutons catégorie
+        document.addEventListener('DOMContentLoaded', function() {
+            const cats = document.getElementById('categoryBtns');
+            if (cats) {
+                cats.querySelectorAll('.filter-btn').forEach(b => b.style.opacity = '0');
+                cats.dataset.open = '0';
             }
-            renderProducts();
+        });
+        function selectCategory(btn) {
+            const cats = document.getElementById('categoryBtns');
+            const allBtns = cats ? cats.querySelectorAll('.filter-btn[data-cat]') : [];
+            const cat = btn.dataset.cat;
+            // Sélection unique : désactiver tous puis activer celui-ci
+            // Si déjà actif et pas "all" => désélectionner (= tout afficher)
+            if (btn.classList.contains('active') && cat !== 'all') {
+                btn.classList.remove('active');
+                window.currentCategory = 'all';
+                currentCategory = 'all';
+            } else {
+                allBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                window.currentCategory = cat;
+                currentCategory = cat;
+            }
+            if (typeof window.afficherOeuvresFiltrees === 'function') {
+                window.afficherOeuvresFiltrees();
+            } else {
+                renderProducts();
+            }
+        }
+
+        function toggleCategoryBtns(e) {
+            if (e) e.stopPropagation();
+            const cats = document.getElementById('categoryBtns');
+            const btns = Array.from(cats.querySelectorAll('.filter-btn'));
+            const isOpen = cats.dataset.open === '1';
+            const n = btns.length;
+            // Directions douces en arc horizontal
+            const directions = [
+                { tx: '-80px', ty: '-8px'  },
+                { tx: '-60px', ty: '-25px' },
+                { tx: '-35px', ty: '-38px' },
+                { tx: '0px',   ty: '-45px' },
+                { tx: '35px',  ty: '-38px' },
+                { tx: '60px',  ty: '-25px' },
+                { tx: '80px',  ty: '-8px'  },
+                { tx: '80px',  ty: '18px'  },
+                { tx: '55px',  ty: '35px'  },
+                { tx: '20px',  ty: '45px'  },
+                { tx: '-20px', ty: '45px'  },
+            ];
+            if (isOpen) {
+                // Fermeture : blur + scale + glissement
+                cats.dataset.open = '0';
+                btns.forEach((btn, i) => {
+                    const ri = n - 1 - i; // ordre inverse
+                    const d = directions[ri % directions.length];
+                    btn.style.setProperty('--tx', d.tx);
+                    btn.style.setProperty('--ty', d.ty);
+                    btn.style.pointerEvents = 'none';
+                    btn.style.animationDelay = (i * 0.025) + 's';
+                    btn.style.animation = 'none';
+                    requestAnimationFrame(() => {
+                        btn.style.animation = `btnEclate 0.4s cubic-bezier(0.4,0,0.6,1) forwards`;
+                        btn.style.animationDelay = (i * 0.025) + 's';
+                    });
+                });
+                setTimeout(() => {
+                    btns.forEach(btn => {
+                        btn.style.animation = '';
+                        btn.style.opacity = '0';
+                        btn.style.pointerEvents = '';
+                    });
+                }, 500);
+            } else {
+                // Ouverture : depuis la direction avec spring
+                cats.dataset.open = '1';
+                btns.forEach((btn, i) => {
+                    const d = directions[i % directions.length];
+                    btn.style.setProperty('--tx', d.tx);
+                    btn.style.setProperty('--ty', d.ty);
+                    btn.style.opacity = '0';
+                    btn.style.animation = 'none';
+                    btn.style.pointerEvents = 'auto';
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            btn.style.animation = `btnEntre 0.5s cubic-bezier(0.34,1.4,0.64,1) forwards`;
+                            btn.style.animationDelay = (i * 0.04) + 's';
+                        });
+                    });
+                });
+            }
+        }
+        function closeFilterPanel() {
+            const cats = document.getElementById('categoryBtns');
+            if (cats && cats.dataset.open === '1') toggleCategoryBtns(null);
+        }
+
+        function filterProducts(category, btn) {
+            const cats = document.getElementById('categoryBtns');
+            const allBtns = cats ? cats.querySelectorAll('.filter-btn') : [];
+            if (category === 'all') {
+                allBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                window.currentCategory = 'all';
+            } else if (btn.classList.contains('active')) {
+                btn.classList.remove('active');
+                window.currentCategory = 'all';
+            } else {
+                allBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                window.currentCategory = category;
+            }
+            currentCategory = window.currentCategory;
+            if (typeof window.afficherOeuvresFiltrees === 'function') {
+                window.afficherOeuvresFiltrees();
+            } else {
+                renderProducts();
+            }
         }
 
         // ==================== FONCTION RAFRAÎCHIR LA GALERIE ====================
-        async function rafraichirGalerie(event) {
-            const btn = event?.target;
-            
-            if (btn) {
-                btn.textContent = '⏳ Chargement...';
-                btn.disabled = true;
+
+        // ===== ANIMATION CANVAS CROIX =====
+        (function() {
+            const SHAPES = ['cross', 'square', 'triangle', 'circle', 'x', 'star', 'diamond', 'cross'];
+            const SHAPE_LABELS = ['✝', '■', '▲', '●', '✕', '★', '◆', '✝'];
+            const DURATION = 400; // ms par forme
+            let animFrame = null;
+            let animStartTime = null;
+            let isAnimating = false;
+            let shapeIndex = 0;
+            let morphProgress = 0; // 0→1 entre deux formes
+
+            function getGold(alpha) {
+                return `rgba(212,175,55,${alpha})`;
             }
-            
+
+            // Retourne les points d'une forme en coordonnées [-1,1]
+            function getShapePoints(shape, t) {
+                const pts = [];
+                switch(shape) {
+                    case 'cross': {
+                        // Croix latine : 12 points
+                        const w=0.28, h=0.85, arm=0.28, armY=-0.12;
+                        return [
+                            [-w, -h],[w,-h],[w,armY-arm],[1-0.1,armY-arm],
+                            [1-0.1,armY+arm],[w,armY+arm],[w,h],[-w,h],
+                            [-w,armY+arm],[-1+0.1,armY+arm],[-1+0.1,armY-arm],[-w,armY-arm]
+                        ];
+                    }
+                    case 'square': {
+                        return [[-0.8,-0.8],[0.8,-0.8],[0.8,0.8],[-0.8,0.8]];
+                    }
+                    case 'triangle': {
+                        return [[0,-0.9],[0.85,0.75],[-0.85,0.75]];
+                    }
+                    case 'circle': {
+                        const n=12;
+                        for(let i=0;i<n;i++){
+                            const a=Math.PI*2*i/n - Math.PI/2;
+                            pts.push([Math.cos(a)*0.82, Math.sin(a)*0.82]);
+                        }
+                        return pts;
+                    }
+                    case 'x': {
+                        const s=0.28;
+                        return [
+                            [0,-s],[0.7-s,-0.85],[0.85,-0.7],[s,0],
+                            [0.85,0.7],[0.7-s,0.85],[0,s],[-(0.7-s),0.85],
+                            [-0.85,0.7],[-s,0],[-0.85,-0.7],[-(0.7-s),-0.85]
+                        ];
+                    }
+                    case 'star': {
+                        const n=5, r1=0.85, r2=0.38;
+                        for(let i=0;i<n*2;i++){
+                            const a=Math.PI*i/n - Math.PI/2;
+                            const r=i%2===0?r1:r2;
+                            pts.push([Math.cos(a)*r, Math.sin(a)*r]);
+                        }
+                        return pts;
+                    }
+                    case 'diamond': {
+                        return [[0,-0.9],[0.65,0],[0,0.9],[-0.65,0]];
+                    }
+                }
+                return [[0,0]];
+            }
+
+            function normalizePoints(pts, n) {
+                // Interpoler pour avoir exactement n points
+                if(pts.length === n) return pts;
+                const result = [];
+                for(let i=0;i<n;i++){
+                    const t = i/n * pts.length;
+                    const i0 = Math.floor(t) % pts.length;
+                    const i1 = (i0+1) % pts.length;
+                    const f = t - Math.floor(t);
+                    result.push([
+                        pts[i0][0]*(1-f) + pts[i1][0]*f,
+                        pts[i0][1]*(1-f) + pts[i1][1]*f
+                    ]);
+                }
+                return result;
+            }
+
+            function lerpPts(a, b, t) {
+                const n = Math.max(a.length, b.length);
+                const an = normalizePoints(a, n);
+                const bn = normalizePoints(b, n);
+                // easeInOutCubic
+                const e = t < 0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
+                return an.map((p,i) => [
+                    p[0]*(1-e)+bn[i][0]*e,
+                    p[1]*(1-e)+bn[i][1]*e
+                ]);
+            }
+
+            function drawJesusCross(ctx, size, glow) {
+                ctx.clearRect(0,0,size,size);
+                const s = size;
+                const grad = ctx.createLinearGradient(0,0,s,s);
+                grad.addColorStop(0, '#f5e6c8');
+                grad.addColorStop(0.4, '#d4af37');
+                grad.addColorStop(1, '#8B6914');
+                if(glow>0){ ctx.shadowColor='#ffe066'; ctx.shadowBlur=8*glow; }
+                // Montant vertical (légèrement arrondi)
+                const vx=s*0.38, vw=s*0.24;
+                const vy=s*0.04, vh=s*0.76;
+                // Bras horizontal
+                const hx=s*0.12, hw=s*0.76;
+                const hy=s*0.24, hh=s*0.22;
+                // Pied effilé
+                // Dessin
+                ctx.beginPath();
+                // montant haut
+                ctx.moveTo(vx, vy);
+                ctx.lineTo(vx+vw, vy);
+                // bras droit haut
+                ctx.lineTo(vx+vw, hy);
+                ctx.lineTo(hx+hw, hy);
+                ctx.lineTo(hx+hw, hy+hh);
+                // retour montant droit bas
+                ctx.lineTo(vx+vw, hy+hh);
+                // bas montant → pied effilé
+                ctx.lineTo(vx+vw, vy+vh);
+                // pointe du pied
+                ctx.lineTo(s/2, s*0.97);
+                ctx.lineTo(vx, vy+vh);
+                // bras gauche bas
+                ctx.lineTo(vx, hy+hh);
+                ctx.lineTo(hx, hy+hh);
+                ctx.lineTo(hx, hy);
+                ctx.lineTo(vx, hy);
+                ctx.closePath();
+                ctx.fillStyle = grad;
+                ctx.fill();
+                // Reflet lumineux
+                ctx.fillStyle = 'rgba(255,255,255,0.28)';
+                ctx.fillRect(s/2+s*0.02, vy+2, s*0.06, s*0.18);
+                if(glow>0) ctx.shadowBlur=0;
+            }
+
+            function drawShape(ctx, pts, size, glow, isJesusCross) {
+                if(isJesusCross) { drawJesusCross(ctx, size, glow); return; }
+                const cx=size/2, cy=size/2, r=size/2*0.82;
+                ctx.clearRect(0,0,size,size);
+                if(glow>0) {
+                    ctx.save();
+                    ctx.shadowColor = '#ffe066';
+                    ctx.shadowBlur = 8*glow;
+                }
+                const grad = ctx.createLinearGradient(0,0,size,size);
+                grad.addColorStop(0, '#f5e6c8');
+                grad.addColorStop(0.4, '#d4af37');
+                grad.addColorStop(1, '#8B6914');
+                ctx.beginPath();
+                pts.forEach(([x,y],i)=>{
+                    const px=cx+x*r, py=cy+y*r;
+                    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+                });
+                ctx.closePath();
+                ctx.fillStyle=grad;
+                ctx.fill();
+                ctx.strokeStyle='rgba(255,240,180,0.5)';
+                ctx.lineWidth=0.8;
+                ctx.stroke();
+                if(glow>0) ctx.restore();
+            }
+
+            function animate(now) {
+                const canvas = document.getElementById('crossCanvas');
+                if(!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const size = canvas.width;
+
+                if(!animStartTime) animStartTime = now;
+                const elapsed = now - animStartTime;
+                const totalShapes = SHAPES.length;
+                const totalDuration = DURATION * (totalShapes - 1);
+
+                if(elapsed >= totalDuration) {
+                    // Dessiner la croix finale
+                    drawJesusCross(ctx, size, 0);
+                    isAnimating = false;
+                    return;
+                }
+
+                const progress = elapsed / DURATION;
+                const si = Math.min(Math.floor(progress), totalShapes - 2);
+                const t = progress - si;
+
+                const shapeA = SHAPES[si];
+                const shapeB = SHAPES[si+1];
+                const ptsA = getShapePoints(shapeA);
+                const ptsB = getShapePoints(shapeB);
+                const morphed = lerpPts(ptsA, ptsB, t);
+                const glow = Math.sin(t * Math.PI) * 0.8;
+                // Si on repart/arrive sur cross → dessiner Jésus cross en fin
+                const isJesusCross = (shapeA === 'cross' && t < 0.15) || (shapeB === 'cross' && t > 0.85);
+                drawShape(ctx, morphed, size, glow, isJesusCross);
+
+                animFrame = requestAnimationFrame(animate);
+            }
+
+            window.startCrossAnimation = function() {
+                if(isAnimating) return;
+                isAnimating = true;
+                animStartTime = null;
+                if(animFrame) cancelAnimationFrame(animFrame);
+                animFrame = requestAnimationFrame(animate);
+            };
+
+            // Dessiner la croix par défaut au chargement
+            document.addEventListener('DOMContentLoaded', function() {
+                const canvas = document.getElementById('crossCanvas');
+                if(!canvas) return;
+                const ctx = canvas.getContext('2d');
+                drawJesusCross(ctx, canvas.width, 0);
+            });
+        })();
+        // ===== FIN ANIMATION CANVAS =====
+
+        async function rafraichirGalerie(event) {
+            const btn = document.getElementById('rafraichirBtn');
+            if (btn) btn.disabled = true;
+
+            // Lancer l'animation canvas
+            if (typeof window.startCrossAnimation === 'function') {
+                window.startCrossAnimation();
+            }
+
             try {
                 console.log('🔄 Rafraîchissement de la galerie...');
-                
-                // Recharger la galerie depuis l'API
                 if (typeof chargerLaVraieGalerie === 'function') {
                     await chargerLaVraieGalerie();
                     showToast('✅ Galerie rafraîchie !');
                 } else {
-                    // Si la fonction n'existe pas, recharger la page complète
                     location.reload();
                 }
-                
             } catch (error) {
                 console.error('❌ Erreur rafraîchissement:', error);
                 showToast('❌ Erreur lors du rafraîchissement');
             } finally {
-                // TOUJOURS débloquer le bouton à la fin
-                if (btn) {
-                    btn.textContent = 'Rafraîchir';
-                    btn.disabled = false;
-                }
+                if (btn) btn.disabled = false;
             }
         }
 
@@ -13434,7 +13867,46 @@
             grille.innerHTML = ''; // On vide le texte de chargement
 
             if (resultat.success && resultat.data.length > 0) {
-                resultat.data.forEach((oeuvre, index) => {
+                window.toutesLesOeuvres = resultat.data;
+                afficherOeuvresFiltrees();
+            } else {
+                grille.innerHTML = '<p style="text-align:center; width:100%;">La galerie est vide pour le moment.</p>';
+            }
+
+        } catch (erreur) {
+            console.error("Erreur de communication :", erreur);
+            grille.innerHTML = '<p style="color:red; text-align:center;">Serveur injoignable pour le moment.</p>';
+        }
+    }
+
+    // Stockage global des œuvres
+    window.toutesLesOeuvres = [];
+
+    window.afficherOeuvresFiltrees = function() {
+        const grille = document.getElementById('productsContainer');
+        if (!grille) return;
+        const cat = window.currentCategory || 'all';
+        const selected = window.selectedCategories;
+        let oeuvres;
+        if (cat === '__multi__' && selected && selected.size > 0) {
+            oeuvres = window.toutesLesOeuvres.filter(o => {
+                const c = (o.category || o.categorie || o.type || '').toLowerCase().trim();
+                return Array.from(selected).some(s => s.toLowerCase().trim() === c);
+            });
+        } else {
+            oeuvres = cat === 'all'
+                ? window.toutesLesOeuvres
+                : window.toutesLesOeuvres.filter(o => {
+                    const c = (o.category || o.categorie || o.type || '').toLowerCase().trim();
+                    return c === cat.toLowerCase().trim();
+                  });
+        }
+        grille.innerHTML = '';
+        if (oeuvres.length === 0) {
+            grille.innerHTML = '<p style="text-align:center;width:100%;opacity:0.7;padding:40px;">Aucune œuvre dans cette catégorie.</p>';
+            return;
+        }
+        oeuvres.forEach((oeuvre, index) => {
                     // Gérer les photos multiples
                     const photos = oeuvre.photos && Array.isArray(oeuvre.photos) && oeuvre.photos.length > 0
                         ? oeuvre.photos
@@ -13519,14 +13991,6 @@
                     `;
                     grille.innerHTML += carte;
                 });
-            } else {
-                grille.innerHTML = '<p style="text-align:center; width:100%;">La galerie est vide pour le moment.</p>';
-            }
-
-        } catch (erreur) {
-            console.error("Erreur de communication :", erreur);
-            grille.innerHTML = '<p style="color:red; text-align:center;">Serveur injoignable pour le moment.</p>';
-        }
     }
 
     // ==================== FONCTIONS DE CARROUSEL POUR LES CARTES ====================

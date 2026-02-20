@@ -2322,9 +2322,17 @@
             border-radius: 20px;
             padding: 25px;
             position: sticky;
-            top: 120px;
-            height: fit-content;
+            top: 90px;
+            max-height: calc(100vh - 110px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(212,175,55,0.3) transparent;
         }
+
+        .summary-card::-webkit-scrollbar { width: 4px; }
+        .summary-card::-webkit-scrollbar-track { background: transparent; }
+        .summary-card::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.4); border-radius: 4px; }
 
         .summary-title {
             font-size: 24px;
@@ -4285,6 +4293,8 @@
 
             .summary-card {
                 position: static;
+                max-height: none;
+                overflow-y: visible;
             }
 
             .chat-window {
@@ -5723,94 +5733,69 @@
     <div class="hamburger-dropdown" id="hamburgerDropdown">
         <button class="hamburger-menu-item" onclick="">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs>
-                    <linearGradient id="g-aide" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stop-color="#d4af37"/>
-                        <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
-                    </linearGradient>
-                </defs>
+                <defs><linearGradient id="g-aide" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
                 <circle cx="12" cy="12" r="10" stroke="url(#g-aide)" stroke-width="2" fill="none"/>
                 <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke="url(#g-aide)" stroke-width="2" stroke-linecap="round" fill="none"/>
                 <circle cx="12" cy="17" r="1" fill="url(#g-aide)"/>
             </svg>
             Aide
         </button>
+
         <button class="hamburger-menu-item" onclick="">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs>
-                    <linearGradient id="g-service" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stop-color="#d4af37"/>
-                        <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
-                    </linearGradient>
-                </defs>
+                <defs><linearGradient id="g-service" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="url(#g-service)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
             </svg>
             Service client
         </button>
+
         <button class="hamburger-menu-item" onclick="">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs>
-                    <linearGradient id="g-retour" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stop-color="#d4af37"/>
-                        <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
-                    </linearGradient>
-                </defs>
+                <defs><linearGradient id="g-retour" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
                 <path d="M3 10h13a5 5 0 0 1 0 10H8" stroke="url(#g-retour)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
                 <path d="M6 6L2 10l4 4" stroke="url(#g-retour)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
             </svg>
             Politique de retour
         </button>
-        <!-- Suivi livraison -->
+
+        <!-- 🚚 Suivi livraison -->
         <button class="hamburger-menu-item" onclick="navigateTo('orders'); toggleHamburgerMenu()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs>
-                    <linearGradient id="g-suivi" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stop-color="#2196f3"/>
-                        <stop offset="100%" stop-color="#90caf9" stop-opacity="0.8"/>
-                    </linearGradient>
-                </defs>
+                <defs><linearGradient id="g-suivi" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2196f3"/><stop offset="100%" stop-color="#90caf9" stop-opacity="0.8"/></linearGradient></defs>
                 <rect x="1" y="3" width="15" height="13" rx="2" stroke="url(#g-suivi)" stroke-width="2" fill="none"/>
                 <path d="M16 8h4l3 5v4h-7V8z" stroke="url(#g-suivi)" stroke-width="2" stroke-linejoin="round" fill="none"/>
                 <circle cx="5.5" cy="18.5" r="2.5" stroke="url(#g-suivi)" stroke-width="2" fill="none"/>
                 <circle cx="18.5" cy="18.5" r="2.5" stroke="url(#g-suivi)" stroke-width="2" fill="none"/>
             </svg>
             Suivi de livraison
+            <span id="hamburgerShippingBadge" style="display:none; margin-left:6px; background:rgba(33,150,243,0.25); color:#90caf9; border:1px solid rgba(33,150,243,0.4); font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px;">En route</span>
         </button>
 
-        <button class="hamburger-menu-item" id="hamburgerConfirmBtn" onclick="navigateTo('orders'); toggleHamburgerMenu()">
+        <!-- ✅ Confirmer réception — caché par défaut, affiché si livraison en attente -->
+        <button class="hamburger-menu-item" id="hamburgerConfirmBtn" onclick="navigateTo('orders'); toggleHamburgerMenu()" style="display:none; border-left:2px solid rgba(76,175,80,0.5);">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs>
-                    <linearGradient id="g-confirm" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stop-color="#4caf50"/>
-                        <stop offset="100%" stop-color="#81c784" stop-opacity="0.8"/>
-                    </linearGradient>
-                </defs>
+                <defs><linearGradient id="g-confirm" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4caf50"/><stop offset="100%" stop-color="#81c784" stop-opacity="0.8"/></linearGradient></defs>
                 <path d="M20 6L9 17l-5-5" stroke="url(#g-confirm)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            Confirmer réception ⚡
+            Confirmer réception
+            <span style="margin-left:6px; background:rgba(76,175,80,0.25); color:#81c784; border:1px solid rgba(76,175,80,0.5); font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px;">⚡ Action</span>
         </button>
+
+        <!-- 🔒 Paiement sécurisé -->
         <button class="hamburger-menu-item" onclick="navigateTo('cart'); toggleHamburgerMenu()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs>
-                    <linearGradient id="g-lock" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stop-color="#d4af37"/>
-                        <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
-                    </linearGradient>
-                </defs>
+                <defs><linearGradient id="g-lock" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
                 <rect x="3" y="11" width="18" height="11" rx="2" stroke="url(#g-lock)" stroke-width="2" fill="none"/>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="url(#g-lock)" stroke-width="2" stroke-linecap="round" fill="none"/>
                 <circle cx="12" cy="16" r="1.5" fill="url(#g-lock)"/>
             </svg>
             Paiement sécurisé
         </button>
+
+        <!-- 👥 Mes Artistes -->
         <button class="hamburger-menu-item" onclick="navigateTo('myArtists'); toggleHamburgerMenu()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs>
-                    <linearGradient id="g-users" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stop-color="#d4af37"/>
-                        <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
-                    </linearGradient>
-                </defs>
+                <defs><linearGradient id="g-users" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
                 <circle cx="9" cy="7" r="4" fill="url(#g-users)"/>
                 <path d="M2 21v-2a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v2" fill="url(#g-users)"/>
                 <circle cx="18" cy="8" r="3" fill="#a0a0b0" opacity="0.7"/>
@@ -5818,23 +5803,19 @@
             </svg>
             Mes Artistes
         </button>
+
+        <!-- 🎨 Espace Artiste / Dashboard -->
         <button class="hamburger-menu-item" onclick="handleArtistSpace(); toggleHamburgerMenu()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs>
-                    <linearGradient id="g-palette" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stop-color="#d4af37"/>
-                        <stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/>
-                    </linearGradient>
-                </defs>
+                <defs><linearGradient id="g-palette" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
                 <path d="M12 2C6.48 2 2 6.48 2 12c0 5.52 4.48 10 10 10 .83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" fill="url(#g-palette)"/>
             </svg>
             Espace Artiste
         </button>
+
+        <!-- 🔐 Connexion Google — séparé, toujours en dernier -->
         <div class="hamburger-menu-item" id="authContainer">
-            <!-- Google Sign-In button will be rendered here by Google Identity Services -->
-            <div class="google-login-btn" id="googleLoginBtn" style="display:none;">
-                <!-- Le bouton Google Sign-In sera inséré automatiquement ici -->
-            </div>
+            <div class="google-login-btn" id="googleLoginBtn" style="display:none;"></div>
             <div class="user-profile-btn" id="userProfileBtn" onclick="toggleUserMenu()" style="display:none;">
                 <img id="userAvatar" class="user-avatar" src="" alt="Avatar">
                 <span class="user-name" id="userName"></span>
@@ -7816,8 +7797,11 @@
 
         function positionOrbitalItems() {
             const allItems = document.querySelectorAll('#hamburgerDropdown .hamburger-menu-item');
-            // Exclure les items avec display:none du calcul d'espacement
-            const items = Array.from(allItems).filter(el => el.style.display !== 'none');
+            // Exclure les items avec display:none (bouton confirm caché par défaut)
+            const items = Array.from(allItems).filter(el => {
+                const computed = window.getComputedStyle(el);
+                return el.style.display !== 'none' && computed.display !== 'none';
+            });
             const n = items.length;
             const navbarHeight = 80;
             const availableHeight = window.innerHeight - navbarHeight - 20;
@@ -9546,67 +9530,75 @@
                     <div class="cart-items">${itemsHtml}</div>
                     <div class="summary-card">
                         <h2 class="summary-title">Récapitulatif</h2>
+
+                        <!-- TOTAUX — toujours visibles -->
                         <div class="summary-row"><span>Sous-total</span><span>${formatPrice(subtotal)}</span></div>
-                        <div class="shipping-section">
+                        <div class="summary-row"><span>Livraison</span><span id="shippingCost">${formatPrice(shipping)}</span></div>
+                        <div class="summary-row total"><span>Total</span><span id="totalCost">${formatPrice(total)}</span></div>
+
+                        <!-- BOUTON — visible immédiatement -->
+                        <button class="checkout-btn" onclick="processCheckout()" style="margin-top:16px;">🛒 Finaliser la commande</button>
+
+                        <!-- GARANTIES — visibles juste après le bouton -->
+                        <div style="margin:16px 0 8px; font-size:11px; font-weight:700; color:rgba(255,255,255,0.45); text-transform:uppercase; letter-spacing:1px;">🛡️ Vos garanties</div>
+                        <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:16px;">
+                            <div style="display:flex;align-items:center;gap:9px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.2);border-radius:9px;padding:8px 11px;">
+                                <span>🔒</span><div><div style="font-size:12px;font-weight:700;color:#d4af37;">Paiement sécurisé</div><div style="font-size:11px;opacity:0.6;">Fonds bloqués jusqu'à réception</div></div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:9px;background:rgba(33,150,243,0.08);border:1px solid rgba(33,150,243,0.2);border-radius:9px;padding:8px 11px;">
+                                <span>🚚</span><div><div style="font-size:12px;font-weight:700;color:#90caf9;">Suivi de livraison</div><div style="font-size:11px;opacity:0.6;">Visible dans "Mes Commandes"</div></div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:9px;background:rgba(76,175,80,0.08);border:1px solid rgba(76,175,80,0.2);border-radius:9px;padding:8px 11px;">
+                                <span>✅</span><div><div style="font-size:12px;font-weight:700;color:#81c784;">Vous confirmez la réception</div><div style="font-size:11px;opacity:0.6;">L'artiste est payé après votre accord</div></div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:9px;background:rgba(156,39,176,0.08);border:1px solid rgba(156,39,176,0.2);border-radius:9px;padding:8px 11px;">
+                                <span>⏱️</span><div><div style="font-size:12px;font-weight:700;color:#ce93d8;">Protection 21 jours</div><div style="font-size:11px;opacity:0.6;">Libération auto si aucun litige</div></div>
+                            </div>
+                        </div>
+
+                        <div style="border-top:1px solid rgba(255,255,255,0.1);margin:4px 0 16px;"></div>
+
+                        <!-- MÉTHODE DE LIVRAISON -->
+                        <div class="shipping-section" style="margin-top:0;">
                             <div class="shipping-title">🚚 Méthode de livraison</div>
                             <div class="shipping-options" id="shippingOptions">
                                 <div class="shipping-option selected" data-cost="3000" data-days="3,5" onclick="selectShipping(this)">
                                     <div class="shipping-left">
                                         <div class="shipping-logo" style="background:rgba(212,175,55,0.15);">📮</div>
                                         <div class="shipping-details">
-                                            <div class="shipping-name-row">
-                                                <span class="shipping-name">La Poste</span>
-                                                <span class="shipping-badge badge-recommended">⭐ Recommandé</span>
-                                            </div>
+                                            <div class="shipping-name-row"><span class="shipping-name">La Poste</span><span class="shipping-badge badge-recommended">⭐ Recommandé</span></div>
                                             <div class="shipping-info">Envoi postal standard • 3-5 jours ouvrés</div>
                                             <div class="shipping-delivery-date">📅 Estimée le ${getDeliveryDate(3,5)}</div>
                                         </div>
                                     </div>
-                                    <div class="shipping-right">
-                                        <span class="shipping-price">3 000 FCFA</span>
-                                        <div class="shipping-check">✓</div>
-                                    </div>
+                                    <div class="shipping-right"><span class="shipping-price">3 000 FCFA</span><div class="shipping-check">✓</div></div>
                                 </div>
-
                                 <div class="shipping-option" data-cost="1500" data-days="4,7" onclick="selectShipping(this)">
                                     <div class="shipping-left">
                                         <div class="shipping-logo" style="background:rgba(76,175,80,0.15);">🚌</div>
                                         <div class="shipping-details">
-                                            <div class="shipping-name-row">
-                                                <span class="shipping-name">Transport en commun</span>
-                                                <span class="shipping-badge badge-fast">💰 Économique</span>
-                                            </div>
+                                            <div class="shipping-name-row"><span class="shipping-name">Transport en commun</span><span class="shipping-badge badge-fast">💰 Économique</span></div>
                                             <div class="shipping-info">Via réseau de bus • 4-7 jours ouvrés</div>
                                             <div class="shipping-delivery-date">📅 Estimée le ${getDeliveryDate(4,7)}</div>
                                         </div>
                                     </div>
-                                    <div class="shipping-right">
-                                        <span class="shipping-price">1 500 FCFA</span>
-                                        <div class="shipping-check"></div>
-                                    </div>
+                                    <div class="shipping-right"><span class="shipping-price">1 500 FCFA</span><div class="shipping-check"></div></div>
                                 </div>
-
                                 <div class="shipping-option" data-cost="0" data-days="0,1" onclick="selectShipping(this)">
                                     <div class="shipping-left">
                                         <div class="shipping-logo" style="background:rgba(100,181,246,0.15);">🤝</div>
                                         <div class="shipping-details">
-                                            <div class="shipping-name-row">
-                                                <span class="shipping-name">Remise en main propre</span>
-                                                <span class="shipping-badge badge-safe">🆓 Gratuit</span>
-                                            </div>
+                                            <div class="shipping-name-row"><span class="shipping-name">Main propre</span><span class="shipping-badge badge-safe">🆓 Gratuit</span></div>
                                             <div class="shipping-info">Retrait chez le vendeur • Sur rendez-vous</div>
                                             <div class="shipping-delivery-date">📅 Dès le ${getDeliveryDate(0,1)}</div>
                                         </div>
                                     </div>
-                                    <div class="shipping-right">
-                                        <span class="shipping-price">Gratuit</span>
-                                        <div class="shipping-check"></div>
-                                    </div>
+                                    <div class="shipping-right"><span class="shipping-price">Gratuit</span><div class="shipping-check"></div></div>
                                 </div>
                             </div>
                         </div>
-                        <div class="summary-row"><span>Livraison</span><span id="shippingCost">${formatPrice(shipping)}</span></div>
-                        <div class="summary-row total"><span>Total</span><span id="totalCost">${formatPrice(total)}</span></div>
+
+                        <!-- MODE DE PAIEMENT -->
                         <div class="payment-section">
                             <div class="section-label">💳 Mode de paiement</div>
                             <div class="payment-methods">
@@ -9616,15 +9608,8 @@
                                 <div class="payment-method"><div class="payment-icon">🟣</div><div class="payment-name">Moov Money</div></div>
                             </div>
                         </div>
-                        <div class="escrow-banner">
-                            <div class="escrow-banner-icon">🔒</div>
-                            <div class="escrow-banner-text">
-                                <strong>Paiement sécurisé — Tiers de Confiance ARKYL</strong><br>
-                                Votre paiement reste bloqué sur notre compte jusqu'à confirmation de réception. L'artiste est payé seulement après votre accord.
-                            </div>
-                        </div>
-                        <button class="checkout-btn" onclick="processCheckout()">Finaliser la commande</button>
-                        <div class="security-badge">🔒 Paiement sécurisé et crypté</div>
+
+                        <div class="security-badge">🔒 Paiement sécurisé — Tiers de Confiance ARKYL</div>
                     </div>
                 </div>
             `;
@@ -10289,7 +10274,11 @@
             const confirmBtn    = document.getElementById('hamburgerConfirmBtn');
             const hasShipped    = orders.some(o => o.escrow_status === 'expédiée');
             if (shippingBadge)  shippingBadge.style.display = hasShipped ? 'inline-block' : 'none';
-            if (confirmBtn)     confirmBtn.style.display     = hasShipped ? 'flex'         : 'none';
+            if (confirmBtn) {
+                confirmBtn.style.display = hasShipped ? 'flex' : 'none';
+                // Recalculer les positions après changement de visibilité
+                setTimeout(() => positionOrbitalItems(), 10);
+            }
         }
 
         function toggleNotifications() {

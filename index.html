@@ -9730,23 +9730,35 @@
             btn.disabled = true;
             btn.innerHTML = '🔒 Connexion sécurisée en cours...';
 
-            // Récupérer l'userId (ne jamais envoyer les prix depuis le JS)
             const userId = (typeof currentUser !== 'undefined' && currentUser)
                 ? currentUser.id
                 : (localStorage.getItem('guest_session_id') || createGuestSession());
 
+            // 🆕 On envoie le panier localStorage en secours
+            // Le PHP vérifiera les prix en BDD — aucun risque de falsification
+            const cartFallback = cartItems.map(item => ({
+                id: item.id,
+                quantity: item.quantity
+            }));
+
             try {
-                // Appel simplifié — le PHP calcule le vrai prix depuis la BDD
                 const response = await fetch('https://arkyl-galerie.onrender.com/api_stripe_checkout.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId })
+                    body: JSON.stringify({
+                        user_id: userId,
+                        cart_items: cartFallback  // 🆕 Fallback si BDD vide (cold start Render)
+                    })
                 });
 
                 const data = await response.json();
 
                 if (data.success && data.url) {
-                    // Stripe a généré le lien → redirection
+                    // 🆕 Sauvegarder l'order_id en attente (sera complété par le webhook)
+                    if (data.order_id) {
+                        localStorage.setItem('arkyl_pending_order', data.order_id);
+                    }
+                    // Redirection vers Stripe
                     window.location.href = data.url;
                 } else {
                     console.error('Erreur Stripe:', data.message);

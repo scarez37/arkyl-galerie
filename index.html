@@ -2165,410 +2165,424 @@
         }
 
         /* ============ CART PAGE ============ */
+        /* ============ PANIER — STYLE JUMIA ARKYL ============ */
+
+        /* Layout principal */
+        .cart-page-wrapper {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 16px;
+        }
+
+        .cart-header-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .cart-header-bar h1 {
+            font-size: 22px;
+            font-weight: 700;
+            flex: 1;
+        }
+
+        .cart-count-tag {
+            background: rgba(212,175,55,0.15);
+            border: 1px solid rgba(212,175,55,0.35);
+            color: #d4af37;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+
         .cart-grid {
             display: grid;
-            grid-template-columns: 1.6fr 1fr;
-            gap: 30px;
+            grid-template-columns: 1fr 360px;
+            gap: 20px;
             align-items: start;
         }
 
-        .cart-items {
+        /* Colonne gauche — articles */
+        .cart-items-col {
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 12px;
         }
 
+        /* Carte article (style Jumia) */
         .cart-item {
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
-            padding: 20px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 16px;
+            padding: 16px;
             display: flex;
-            gap: 20px;
-            align-items: center;
-            transition: all 0.3s ease;
+            gap: 16px;
+            align-items: flex-start;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
 
         .cart-item:hover {
-            transform: translateX(5px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            border-color: rgba(212,175,55,0.3);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
         }
 
-        .item-image {
-            width: 100px;
-            height: 100px;
-            background: linear-gradient(135deg, rgba(212, 165, 116, 0.3), rgba(196, 106, 75, 0.3));
-            border-radius: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 50px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .item-image img {
-            width: 100%;
-            height: 100%;
+        /* Image article */
+        .cart-item-img {
+            width: 110px;
+            height: 110px;
+            border-radius: 12px;
             object-fit: cover;
-            border-radius: 15px;
-        }
-
-        .item-image .emoji-overlay {
-            position: absolute;
-            bottom: 6px;
-            right: 6px;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 50%;
-            width: 32px;
-            height: 32px;
+            background: rgba(255,255,255,0.08);
+            flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.1rem;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            font-size: 48px;
+            overflow: hidden;
+            position: relative;
         }
 
-        .item-details {
+        .cart-item-img img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            border-radius: 12px;
+        }
+
+        /* Infos article */
+        .cart-item-body {
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 6px;
+            min-width: 0;
         }
 
-        .item-title {
-            font-size: 20px;
+        .cart-item-title {
+            font-size: 15px;
             font-weight: 700;
+            line-height: 1.3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .item-artist {
-            font-size: 13px;
-            opacity: 0.8;
+        .cart-item-artist {
+            font-size: 12px;
+            color: rgba(255,255,255,0.55);
         }
 
-        .item-footer {
+        .cart-item-price-row {
             display: flex;
-            gap: 15px;
             align-items: center;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .cart-item-price {
+            font-size: 18px;
+            font-weight: 800;
+            color: #d4af37;
+        }
+
+        .cart-item-unit {
+            font-size: 12px;
+            color: rgba(255,255,255,0.4);
+        }
+
+        /* Ligne basse : quantité + supprimer */
+        .cart-item-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-top: 8px;
             flex-wrap: wrap;
         }
 
-        .item-price {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--ocre);
-        }
-
-        .quantity-control {
+        /* Contrôle quantité style Jumia */
+        .qty-control {
             display: flex;
-            gap: 12px;
             align-items: center;
-            background: rgba(255, 255, 255, 0.15);
-            padding: 8px 15px;
-            border-radius: 25px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            overflow: hidden;
         }
 
-        .qty-btn {
-            background: rgba(255, 255, 255, 0.2);
+        .qty-control button {
+            background: rgba(255,255,255,0.08);
             border: none;
-            color: white;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: bold;
-            transition: all 0.3s ease;
-        }
-
-        .qty-btn:hover {
-            background: rgba(255, 255, 255, 0.35);
-            transform: scale(1.1);
-        }
-
-        .qty-value {
-            font-weight: 700;
-            min-width: 25px;
-            text-align: center;
-        }
-
-        .remove-btn {
-            background: rgba(255, 77, 77, 0.15);
-            border: 1px solid rgba(255, 77, 77, 0.4);
-            color: #ff6b6b;
-            padding: 8px 16px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 13px;
+            color: #fff;
+            width: 34px;
+            height: 34px;
+            font-size: 18px;
             font-weight: 600;
-            transition: all 0.3s ease;
+            cursor: pointer;
+            transition: background 0.2s;
             display: flex;
             align-items: center;
-            gap: 6px;
+            justify-content: center;
         }
 
-        .remove-btn:hover {
-            background: rgba(255, 77, 77, 0.35);
-            border-color: rgba(255, 77, 77, 0.8);
+        .qty-control button:hover { background: rgba(212,175,55,0.25); }
+        .qty-control button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .qty-control .qty-val {
+            min-width: 38px;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 0 6px;
+            border-left: 1px solid rgba(255,255,255,0.15);
+            border-right: 1px solid rgba(255,255,255,0.15);
+        }
+
+        /* Bouton supprimer */
+        .cart-remove-btn {
+            background: none;
+            border: none;
+            color: rgba(255,100,100,0.7);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 10px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .cart-remove-btn:hover {
+            color: #ff6b6b;
+            background: rgba(255,77,77,0.1);
+        }
+
+        .cart-remove-btn.confirming {
             color: #fff;
-            transform: scale(1.05);
-            box-shadow: 0 0 12px rgba(255, 77, 77, 0.4);
+            background: rgba(255,77,77,0.75);
+            animation: pulseRed 0.5s ease infinite alternate;
         }
 
-        .remove-btn.confirming {
-            background: rgba(255, 77, 77, 0.85);
-            border-color: #ff4d4d;
-            color: #fff;
-            animation: pulse-red 0.6s ease infinite alternate;
+        @keyframes pulseRed {
+            from { box-shadow: 0 0 0 0 rgba(255,77,77,0.5); }
+            to   { box-shadow: 0 0 0 6px rgba(255,77,77,0); }
         }
 
-        @keyframes pulse-green {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(76,175,80,0.5); }
-            50%       { box-shadow: 0 0 0 6px rgba(76,175,80,0); }
+        /* Sous-total par article */
+        .cart-item-subtotal {
+            font-size: 13px;
+            color: rgba(255,255,255,0.45);
         }
 
-        /* styles badges hamburger livraison */
-
+        /* Animation retrait */
         .cart-item.removing {
-            animation: slideOut 0.4s ease forwards;
+            animation: slideOut 0.35s ease forwards;
         }
 
         @keyframes slideOut {
-            0%   { opacity: 1; transform: translateX(0); max-height: 200px; }
-            60%  { opacity: 0; transform: translateX(60px); max-height: 200px; }
-            100% { opacity: 0; transform: translateX(60px); max-height: 0; padding: 0; margin: 0; overflow: hidden; }
+            0%   { opacity: 1; transform: translateX(0); max-height: 140px; }
+            100% { opacity: 0; transform: translateX(50px); max-height: 0; padding: 0; margin: 0; overflow: hidden; }
         }
 
-        /* Summary Card */
+        /* ============ RÉCAPITULATIF (colonne droite) ============ */
+
         .summary-card {
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
-            padding: 25px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 16px;
+            padding: 20px;
             position: sticky;
             top: 90px;
         }
 
-        .summary-card::-webkit-scrollbar { width: 4px; }
-        .summary-card::-webkit-scrollbar-track { background: transparent; }
-        .summary-card::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.4); border-radius: 4px; }
-
         .summary-title {
-            font-size: 24px;
+            font-size: 16px;
             font-weight: 700;
-            margin-bottom: 20px;
-            text-align: center;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.7);
         }
 
         .summary-row {
             display: flex;
             justify-content: space-between;
-            padding: 12px 0;
-            font-size: 15px;
+            align-items: center;
+            padding: 9px 0;
+            font-size: 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
         }
+
+        .summary-row:last-of-type { border-bottom: none; }
 
         .summary-row.total {
-            border-top: 2px solid rgba(255, 255, 255, 0.3);
-            margin-top: 15px;
-            padding-top: 20px;
-            font-size: 24px;
-            font-weight: 700;
-        }
-
-        .shipping-section,
-        .payment-section {
-            margin: 25px 0;
-        }
-
-        .shipping-title,
-        .section-label {
-            font-weight: 700;
-            margin-bottom: 15px;
-            font-size: 16px;
-        }
-
-        .shipping-options {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .shipping-option {
-            background: rgba(255, 255, 255, 0.07);
-            border: 2px solid rgba(255, 255, 255, 0.15);
-            border-radius: 14px;
-            padding: 14px 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .shipping-option:hover {
-            background: rgba(255, 255, 255, 0.13);
-            border-color: rgba(255,255,255,0.35);
-            transform: translateY(-1px);
-        }
-
-        .shipping-option.selected {
-            background: rgba(212, 175, 55, 0.12);
-            border-color: #d4af37;
-            box-shadow: 0 0 16px rgba(212,175,55,0.25);
-        }
-
-        .shipping-option.selected::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(135deg, rgba(212,175,55,0.08) 0%, transparent 60%);
-            pointer-events: none;
-        }
-
-        .shipping-left {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .shipping-logo {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            padding: 14px 0 4px;
             font-size: 20px;
-            flex-shrink: 0;
+            font-weight: 800;
+            border-top: 2px solid rgba(255,255,255,0.15);
+            border-bottom: none;
+            margin-top: 4px;
         }
 
-        .shipping-details { display: flex; flex-direction: column; gap: 2px; }
+        .summary-row.total span:last-child { color: #d4af37; }
 
-        .shipping-name-row {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .shipping-name {
-            font-weight: 700;
-            font-size: 14px;
-        }
-
-        .shipping-badge {
-            font-size: 10px;
-            font-weight: 700;
-            padding: 2px 7px;
-            border-radius: 20px;
+        /* Bouton commander (style Jumia — orange vif) */
+        .checkout-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #c46a4b, #a04030);
+            border: none;
+            color: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+            margin: 16px 0 12px;
+            transition: all 0.25s;
             letter-spacing: 0.5px;
             text-transform: uppercase;
         }
-        .badge-recommended { background: rgba(212,175,55,0.25); color: #d4af37; border: 1px solid rgba(212,175,55,0.4); }
-        .badge-fast        { background: rgba(76,175,80,0.2);   color: #81c784; border: 1px solid rgba(76,175,80,0.4); }
-        .badge-safe        { background: rgba(100,181,246,0.2); color: #90caf9; border: 1px solid rgba(100,181,246,0.4); }
 
-        .shipping-info {
+        .checkout-btn:hover {
+            background: linear-gradient(135deg, #d4774f, #b54535);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(196,106,75,0.45);
+        }
+
+        .checkout-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Livraison dans le récap */
+        .shipping-section { margin: 16px 0 0; }
+
+        .shipping-label {
             font-size: 12px;
-            opacity: 0.7;
-            margin-top: 0;
+            font-weight: 700;
+            color: rgba(255,255,255,0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 10px;
         }
 
-        .shipping-delivery-date {
-            font-size: 11px;
-            color: #a8d5a2;
-            margin-top: 2px;
-            font-weight: 500;
-        }
+        .shipping-options { display: flex; flex-direction: column; gap: 8px; }
 
-        .shipping-right {
+        .shipping-option {
             display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 4px;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1.5px solid rgba(255,255,255,0.12);
+            cursor: pointer;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.03);
         }
 
-        .shipping-price {
-            font-weight: 800;
-            font-size: 15px;
-            color: #fff;
+        .shipping-option:hover { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.07); }
+
+        .shipping-option.selected {
+            border-color: #d4af37;
+            background: rgba(212,175,55,0.08);
         }
 
-        .shipping-check {
-            width: 20px; height: 20px;
+        .shipping-radio {
+            width: 16px; height: 16px;
             border-radius: 50%;
             border: 2px solid rgba(255,255,255,0.3);
+            flex-shrink: 0;
             display: flex; align-items: center; justify-content: center;
-            transition: all 0.3s ease;
-            font-size: 11px;
+            transition: all 0.2s;
         }
-        .shipping-option.selected .shipping-check {
-            background: #d4af37;
+
+        .shipping-option.selected .shipping-radio {
             border-color: #d4af37;
-            color: #1a1a1a;
-            font-weight: 900;
+            background: #d4af37;
         }
+
+        .shipping-option.selected .shipping-radio::after {
+            content: '';
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #1a1a1a;
+        }
+
+        .shipping-info-col { flex: 1; }
+        .shipping-name { font-size: 13px; font-weight: 700; }
+        .shipping-detail { font-size: 11px; color: rgba(255,255,255,0.45); margin-top: 1px; }
+        .shipping-price-tag { font-size: 13px; font-weight: 800; color: #fff; }
+        .shipping-free { color: #81c784; }
+
+        /* Paiement */
+        .payment-section { margin: 16px 0 0; }
 
         .payment-methods {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
         }
 
         .payment-method {
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 12px;
-            padding: 15px;
-            cursor: pointer;
-            transition: all 0.3s ease;
+            border: 1.5px solid rgba(255,255,255,0.12);
+            border-radius: 10px;
+            padding: 10px 8px;
             text-align: center;
-        }
-
-        .payment-method:hover,
-        .payment-method.selected {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: white;
-        }
-
-        .payment-icon {
-            font-size: 30px;
-            margin-bottom: 8px;
-        }
-
-        .payment-name {
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .checkout-btn {
-            width: 100%;
-            background: linear-gradient(135deg, var(--terre-cuite), var(--terre-sombre));
-            border: none;
-            color: white;
-            padding: 16px;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 700;
             cursor: pointer;
-            margin-top: 20px;
-            transition: all 0.3s ease;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.03);
         }
 
-        .checkout-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        .payment-method:hover { border-color: rgba(255,255,255,0.3); }
+
+        .payment-method.selected {
+            border-color: #d4af37;
+            background: rgba(212,175,55,0.08);
         }
 
+        .payment-icon { font-size: 22px; }
+        .payment-name { font-size: 11px; font-weight: 700; margin-top: 4px; color: rgba(255,255,255,0.8); }
+
+        /* Badge sécurité */
         .security-badge {
             text-align: center;
-            margin-top: 15px;
-            font-size: 13px;
-            opacity: 0.8;
+            font-size: 11px;
+            color: rgba(255,255,255,0.4);
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255,255,255,0.08);
         }
+
+        /* Garanties */
+        .cart-guarantees {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin: 12px 0;
+        }
+
+        .guarantee-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.6);
+        }
+
+        .guarantee-item span:first-child { font-size: 14px; }
+
+        /* Responsive mobile */
+        @media (max-width: 768px) {
+            .cart-grid { grid-template-columns: 1fr; }
+            .summary-card { position: static; }
+            .cart-item-img { width: 80px; height: 80px; font-size: 36px; }
+        }
+
 
         /* ============ TIERS DE CONFIANCE ============ */
         .escrow-banner {
@@ -7348,7 +7362,7 @@
         window.currentCategory = 'all';
         let currentCategory = 'all';
         let favorites = safeStorage.get('arkyl_favorites', []);
-        let cartItems = safeStorage.get('arkyl_cart', []);
+        let cartItems = [];
         let orderHistory = safeStorage.get('arkyl_orders', []);
         let notifications = safeStorage.get('arkyl_notifications', [
             { id: 1, title: 'Bienvenue!', text: 'Découvrez nos nouvelles œuvres d\'art', time: 'Il y a 2h', unread: true },
@@ -7612,7 +7626,7 @@
             }
         }
 
-        // Charge le panier depuis la BDD uniquement
+        // Charge le panier depuis la BDD et enrichit avec les données produits
         async function chargerPanierUtilisateur(userId) {
             if (!userId) return;
             try {
@@ -7622,8 +7636,22 @@
                 const data = await response.json();
                 if (!data.success) return;
 
-                cartItems = data.items || [];
+                const allProducts = getProducts();
+
+                // Enrichir chaque item BDD avec les données complètes du produit (emoji, price, etc.)
+                cartItems = (data.items || []).map(item => {
+                    const product = allProducts.find(p => String(p.id) === String(item.artwork_id || item.id));
+                    return product
+                        ? { ...product, quantity: item.quantity || 1 }
+                        : { ...item, quantity: item.quantity || 1 };
+                }).filter(item => item.id); // enlever les items sans id valide
+
                 updateBadges();
+
+                // Si la page panier est déjà ouverte, la rafraîchir
+                const cartPage = document.getElementById('cartPage');
+                if (cartPage && cartPage.classList.contains('active')) renderCart();
+
                 console.log(`🛒 Panier chargé : ${cartItems.length} article(s)`);
             } catch (e) {
                 console.warn('Panier BDD inaccessible :', e.message);
@@ -9230,62 +9258,57 @@
         async function addToCart(event, productId) {
             event.stopPropagation();
 
-            // Toujours cibler le bouton lui-même, pas un enfant (SVG, span...)
+            // Utilisateur non connecté → impossible de sauvegarder le panier
+            if (!currentUser?.id) {
+                showToast('🔒 Connectez-vous pour ajouter au panier');
+                setTimeout(() => navigateTo('login'), 800);
+                return;
+            }
+
             const btn = event.currentTarget || event.target.closest('button') || event.target;
-            const originalText = btn.innerHTML;
+            const originalHTML = btn.innerHTML;
             btn.innerHTML = '⏳';
             btn.disabled = true;
 
             try {
-                const userId = currentUser?.id || createGuestSession();
-
                 const response = await fetch('https://arkyl-galerie.onrender.com/api_ajouter_panier.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ artwork_id: productId, user_id: userId, quantity: 1 })
+                    body: JSON.stringify({ artwork_id: productId, user_id: currentUser.id, quantity: 1 })
                 });
 
-                const responseText = await response.text();
-                let result;
-                try { result = JSON.parse(responseText); }
-                catch(e) { throw new Error('Réponse serveur invalide'); }
+                const result = await response.json();
 
                 if (result.success) {
                     const allProducts = getProducts();
                     const product = allProducts.find(p => p.id === productId);
-                    const existing = cartItems.find(item => item.id === productId);
+                    const existing = cartItems.find(i => String(i.id) === String(productId));
                     if (existing) {
-                        if (existing.quantity >= 10) { showToast('⚠️ Maximum 10 articles par œuvre atteint'); return; }
+                        if (existing.quantity >= 10) { showToast('⚠️ Maximum 10 articles par œuvre'); return; }
                         existing.quantity++;
-                    } else {
+                    } else if (product) {
                         cartItems.push({ ...product, quantity: 1 });
                     }
-                    safeStorage.set('arkyl_cart', cartItems);
                     updateBadges();
 
                     btn.innerHTML = '✓';
                     btn.classList.add('cart-added');
                     spawnCartParticles(btn);
                     setTimeout(() => btn.classList.remove('cart-added'), 700);
-
                     showToast(result.message || `✅ "${product?.title || 'Œuvre'}" ajouté au panier`);
                     if (product) addNotification('Panier mis à jour', `"${product.title}" ajouté au panier`);
-
                 } else {
-                    // API répond mais erreur → fallback local
-                    _addToCartLocal(productId, btn);
+                    showToast('❌ ' + (result.message || "Impossible d'ajouter au panier"));
                 }
 
             } catch (error) {
-                console.warn('API indisponible, ajout local :', error.message);
-                _addToCartLocal(productId, btn);
+                console.warn('Erreur addToCart :', error.message);
+                showToast('❌ Erreur de connexion. Réessayez.');
             } finally {
-                setTimeout(() => {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                }, 700);
+                setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; }, 700);
             }
         }
+
 
         // Fonction pour créer une session guest si pas connecté
         function createGuestSession() {
@@ -9293,29 +9316,6 @@
             _memStore['guest_session_id'] = guestId;
             console.log('🆔 Session guest créée:', guestId);
             return guestId;
-        }
-
-        // Fallback local si le serveur est indisponible
-        function _addToCartLocal(productId, btn) {
-            const allProducts = getProducts();
-            const product = allProducts.find(p => p.id === productId);
-            if (!product) { showToast('❌ Produit introuvable'); return; }
-            const existing = cartItems.find(item => item.id === productId);
-            if (existing) {
-                if (existing.quantity >= 10) { showToast('⚠️ Maximum 10 articles'); return; }
-                existing.quantity++;
-            } else {
-                cartItems.push({ ...product, quantity: 1 });
-            }
-            safeStorage.set('arkyl_cart', cartItems);
-            updateBadges();
-            if (btn) {
-                btn.innerHTML = '✓';
-                btn.classList.add('cart-added');
-                spawnCartParticles(btn);
-                setTimeout(() => btn.classList.remove('cart-added'), 700);
-            }
-            showToast(`✅ "${product.title}" ajouté au panier`);
         }
 
         // ==================== FAVORITES ====================
@@ -9411,15 +9411,17 @@
         }
 
         // ==================== PANIER - CART ====================
+        // ==================== PANIER ====================
+
         function renderCart() {
             const container = document.getElementById('cartContainer');
-            
+
             if (cartItems.length === 0) {
                 container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🛒</div>
-                        <h3>Votre panier est vide</h3>
-                        <p>Découvrez nos magnifiques œuvres d'art!</p>
+                    <div style="text-align:center;padding:80px 20px;">
+                        <div style="font-size:70px;margin-bottom:16px;">🛒</div>
+                        <h3 style="font-size:20px;margin-bottom:8px;">Votre panier est vide</h3>
+                        <p style="opacity:0.6;margin-bottom:24px;">Découvrez nos magnifiques œuvres d'art</p>
                         <button class="modal-btn" onclick="navigateTo('home')">Parcourir les œuvres</button>
                     </div>
                 `;
@@ -9427,148 +9429,124 @@
             }
 
             let subtotal = 0;
-            const itemsHtml = cartItems.map((item, index) => {
+            const itemsHtml = cartItems.map(item => {
                 const itemTotal = item.price * item.quantity;
                 subtotal += itemTotal;
+                const imgHtml = item.image
+                    ? `<img src="${item.image}" alt="${item.title}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                    : '';
+                const emojiHtml = `<span style="${item.image ? 'display:none;' : ''}align-items:center;justify-content:center;width:100%;height:100%;font-size:48px;display:flex;">${item.emoji || '🎨'}</span>`;
                 return `
-                    <div class="cart-item">
-                        ${getItemImageHtml(item)}
-                        <div class="item-details">
-                            <div>
-                                <div class="item-title">${item.title}</div>
-                                <div class="item-artist">par ${item.artist}</div>
+                    <div class="cart-item" id="cart-item-${item.id}">
+                        <div class="cart-item-img">${imgHtml}${emojiHtml}</div>
+                        <div class="cart-item-body">
+                            <div class="cart-item-title">${item.title}</div>
+                            <div class="cart-item-artist">par ${item.artist || 'Artiste ARKYL'}</div>
+                            <div class="cart-item-price-row">
+                                <span class="cart-item-price">${formatPrice(item.price)}</span>
+                                <span class="cart-item-unit">/ unité</span>
                             </div>
-                            <div class="item-footer">
-                                <div class="item-price">
-                                    ${formatPrice(item.price)} ${item.quantity > 1 ? `<span style="color: #c46a4b; font-size: 0.9em;">× ${item.quantity} = ${formatPrice(itemTotal)}</span>` : ''}
+                            <div class="cart-item-actions">
+                                <div class="qty-control">
+                                    <button onclick="changeQuantity('${item.id}', -1)" ${item.quantity <= 1 ? 'disabled' : ''}>−</button>
+                                    <span class="qty-val">${item.quantity}</span>
+                                    <button onclick="changeQuantity('${item.id}', 1)" ${item.quantity >= 10 ? 'disabled' : ''}>+</button>
                                 </div>
-                                <div class="quantity-control">
-                                    <button class="qty-btn" onclick="changeQuantity('${item.id}', -1)">−</button>
-                                    <span class="qty-value">${item.quantity}</span>
-                                    <button class="qty-btn" onclick="changeQuantity('${item.id}', 1)">+</button>
-                                </div>
-                                <button class="remove-btn" id="remove-btn-${item.id}" onclick="confirmRemoveFromCart('${item.id}')">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                                    Retirer
+                                <button class="cart-remove-btn" id="remove-btn-${item.id}" onclick="confirmRemoveFromCart('${item.id}', this)">
+                                    🗑️ Supprimer
                                 </button>
+                                ${item.quantity > 1 ? `<span class="cart-item-subtotal">= ${formatPrice(itemTotal)}</span>` : ''}
                             </div>
                         </div>
                     </div>
                 `;
             }).join('');
 
+            const datePoste       = getDeliveryDate(5);
+            const dateBus         = getDeliveryDate(7);
+            const dateMainPropre  = getDeliveryDate(1);
             const shipping = 3000;
             const total = subtotal + shipping;
-
-            // Pré-calculer les dates de livraison (évite les problèmes de scope dans le template)
-            const datePoste     = getDeliveryDate(3, 5);
-            const dateBus       = getDeliveryDate(4, 7);
-            const dateMainPropre = getDeliveryDate(0, 1);
+            const totalArticles = cartItems.reduce((s,i) => s + i.quantity, 0);
 
             container.innerHTML = `
-                <div class="cart-grid">
-                    <div class="cart-items">${itemsHtml}</div>
-                    <div class="summary-card">
-                        <h2 class="summary-title">Récapitulatif</h2>
-
-                        <!-- MÉTHODE DE LIVRAISON — en premier pour être visible -->
-                        <div class="shipping-section" style="margin-top:0;">
-                            <div class="shipping-title">🚚 Méthode de livraison</div>
-                            <div class="shipping-options" id="shippingOptions">
-                                <div class="shipping-option selected" data-cost="3000" data-days="3,5" onclick="selectShipping(this)">
-                                    <div class="shipping-left">
-                                        <div class="shipping-logo" style="background:rgba(212,175,55,0.15);">📮</div>
-                                        <div class="shipping-details">
-                                            <div class="shipping-name-row"><span class="shipping-name">La Poste</span><span class="shipping-badge badge-recommended">⭐ Recommandé</span></div>
-                                            <div class="shipping-info">Envoi postal standard • 3-5 jours ouvrés</div>
-                                            <div class="shipping-delivery-date">📅 Estimée le ${datePoste}</div>
+                <div class="cart-page-wrapper">
+                    <div class="cart-header-bar">
+                        <h1>🛒 Mon Panier</h1>
+                        <span class="cart-count-tag">${totalArticles} article${totalArticles > 1 ? 's' : ''}</span>
+                    </div>
+                    <div class="cart-grid">
+                        <div class="cart-items-col">${itemsHtml}</div>
+                        <div class="summary-card">
+                            <div class="summary-title">Récapitulatif</div>
+                            <div class="summary-row"><span>Sous-total</span><span>${formatPrice(subtotal)}</span></div>
+                            <div class="summary-row"><span>Livraison</span><span id="shippingCost">${formatPrice(shipping)}</span></div>
+                            <div class="summary-row total"><span>Total</span><span id="totalCost">${formatPrice(total)}</span></div>
+                            <button id="checkout-btn" class="checkout-btn" onclick="validerPaiementStripe()">COMMANDER — ${formatPrice(total)}</button>
+                            <div class="cart-guarantees">
+                                <div class="guarantee-item"><span>🔒</span><span>Paiement 100% sécurisé</span></div>
+                                <div class="guarantee-item"><span>✅</span><span>Fonds libérés après réception</span></div>
+                                <div class="guarantee-item"><span>⏱️</span><span>Protection acheteur 21 jours</span></div>
+                            </div>
+                            <div class="shipping-section">
+                                <div class="shipping-label">🚚 Livraison</div>
+                                <div class="shipping-options">
+                                    <div class="shipping-option selected" data-cost="3000" onclick="selectShipping(this)">
+                                        <div class="shipping-radio"></div>
+                                        <div class="shipping-info-col">
+                                            <div class="shipping-name">📮 La Poste</div>
+                                            <div class="shipping-detail">3-5 jours · estimée le ${datePoste}</div>
                                         </div>
+                                        <span class="shipping-price-tag">3 000 FCFA</span>
                                     </div>
-                                    <div class="shipping-right"><span class="shipping-price">3 000 FCFA</span><div class="shipping-check">✓</div></div>
-                                </div>
-                                <div class="shipping-option" data-cost="1500" data-days="4,7" onclick="selectShipping(this)">
-                                    <div class="shipping-left">
-                                        <div class="shipping-logo" style="background:rgba(76,175,80,0.15);">🚌</div>
-                                        <div class="shipping-details">
-                                            <div class="shipping-name-row"><span class="shipping-name">Transport en commun</span><span class="shipping-badge badge-fast">💰 Économique</span></div>
-                                            <div class="shipping-info">Via réseau de bus • 4-7 jours ouvrés</div>
-                                            <div class="shipping-delivery-date">📅 Estimée le ${dateBus}</div>
+                                    <div class="shipping-option" data-cost="1500" onclick="selectShipping(this)">
+                                        <div class="shipping-radio"></div>
+                                        <div class="shipping-info-col">
+                                            <div class="shipping-name">🚌 Transport en commun</div>
+                                            <div class="shipping-detail">4-7 jours · estimée le ${dateBus}</div>
                                         </div>
+                                        <span class="shipping-price-tag">1 500 FCFA</span>
                                     </div>
-                                    <div class="shipping-right"><span class="shipping-price">1 500 FCFA</span><div class="shipping-check"></div></div>
-                                </div>
-                                <div class="shipping-option" data-cost="0" data-days="0,1" onclick="selectShipping(this)">
-                                    <div class="shipping-left">
-                                        <div class="shipping-logo" style="background:rgba(100,181,246,0.15);">🤝</div>
-                                        <div class="shipping-details">
-                                            <div class="shipping-name-row"><span class="shipping-name">Main propre</span><span class="shipping-badge badge-safe">🆓 Gratuit</span></div>
-                                            <div class="shipping-info">Retrait chez le vendeur • Sur rendez-vous</div>
-                                            <div class="shipping-delivery-date">📅 Dès le ${dateMainPropre}</div>
+                                    <div class="shipping-option" data-cost="0" onclick="selectShipping(this)">
+                                        <div class="shipping-radio"></div>
+                                        <div class="shipping-info-col">
+                                            <div class="shipping-name">🤝 Main propre</div>
+                                            <div class="shipping-detail">Sur rendez-vous · dès le ${dateMainPropre}</div>
                                         </div>
+                                        <span class="shipping-price-tag shipping-free">Gratuit</span>
                                     </div>
-                                    <div class="shipping-right"><span class="shipping-price">Gratuit</span><div class="shipping-check"></div></div>
                                 </div>
                             </div>
+                            <div class="payment-section">
+                                <div class="shipping-label">💳 Paiement</div>
+                                <div class="payment-methods">
+                                    <div class="payment-method selected"><div class="payment-icon">📱</div><div class="payment-name">MTN Money</div></div>
+                                    <div class="payment-method"><div class="payment-icon">🌊</div><div class="payment-name">Wave</div></div>
+                                    <div class="payment-method"><div class="payment-icon">🟠</div><div class="payment-name">Orange Money</div></div>
+                                    <div class="payment-method"><div class="payment-icon">🟣</div><div class="payment-name">Moov Money</div></div>
+                                </div>
+                            </div>
+                            <div class="security-badge">🔒 Paiement sécurisé — Tiers de Confiance ARKYL</div>
                         </div>
-
-                        <!-- MODE DE PAIEMENT -->
-                        <div class="payment-section">
-                            <div class="section-label">💳 Mode de paiement</div>
-                            <div class="payment-methods">
-                                <div class="payment-method selected"><div class="payment-icon">📱</div><div class="payment-name">MTN Money</div></div>
-                                <div class="payment-method"><div class="payment-icon">🌊</div><div class="payment-name">Wave</div></div>
-                                <div class="payment-method"><div class="payment-icon">🟠</div><div class="payment-name">Orange Money</div></div>
-                                <div class="payment-method"><div class="payment-icon">🟣</div><div class="payment-name">Moov Money</div></div>
-                            </div>
-                        </div>
-
-                        <div style="border-top:1px solid rgba(255,255,255,0.1);margin:8px 0 16px;"></div>
-
-                        <!-- TOTAUX -->
-                        <div class="summary-row"><span>Sous-total</span><span>${formatPrice(subtotal)}</span></div>
-                        <div class="summary-row"><span>Livraison</span><span id="shippingCost">${formatPrice(shipping)}</span></div>
-                        <div class="summary-row total"><span>Total</span><span id="totalCost">${formatPrice(total)}</span></div>
-
-                        <!-- BOUTON -->
-                        <button id="checkout-btn" class="checkout-btn" onclick="validerPaiementStripe()" style="margin-top:16px;">🛒 Finaliser la commande</button>
-
-                        <!-- GARANTIES -->
-                        <div style="margin:16px 0 8px; font-size:11px; font-weight:700; color:rgba(255,255,255,0.45); text-transform:uppercase; letter-spacing:1px;">🛡️ Vos garanties</div>
-                        <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
-                            <div style="display:flex;align-items:center;gap:9px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.2);border-radius:9px;padding:8px 11px;">
-                                <span>🔒</span><div><div style="font-size:12px;font-weight:700;color:#d4af37;">Paiement sécurisé</div><div style="font-size:11px;opacity:0.6;">Fonds bloqués jusqu'à réception</div></div>
-                            </div>
-                            <div style="display:flex;align-items:center;gap:9px;background:rgba(33,150,243,0.08);border:1px solid rgba(33,150,243,0.2);border-radius:9px;padding:8px 11px;">
-                                <span>✅</span><div><div style="font-size:12px;font-weight:700;color:#81c784;">Vous confirmez la réception</div><div style="font-size:11px;opacity:0.6;">L'artiste est payé après votre accord</div></div>
-                            </div>
-                            <div style="display:flex;align-items:center;gap:9px;background:rgba(156,39,176,0.08);border:1px solid rgba(156,39,176,0.2);border-radius:9px;padding:8px 11px;">
-                                <span>⏱️</span><div><div style="font-size:12px;font-weight:700;color:#ce93d8;">Protection 21 jours</div><div style="font-size:11px;opacity:0.6;">Libération auto si aucun litige</div></div>
-                            </div>
-                        </div>
-
-                        <div class="security-badge">🔒 Paiement sécurisé — Tiers de Confiance ARKYL</div>
                     </div>
                 </div>
             `;
 
-            document.querySelectorAll('.payment-method').forEach(method => {
-                method.addEventListener('click', function() {
-                    document.querySelectorAll('.payment-method').forEach(m => m.classList.remove('selected'));
+            document.querySelectorAll('.payment-method').forEach(m => {
+                m.addEventListener('click', function() {
+                    document.querySelectorAll('.payment-method').forEach(x => x.classList.remove('selected'));
                     this.classList.add('selected');
                 });
             });
         }
 
-        function getDeliveryDate(minDays, maxDays) {
+        function getDeliveryDate(maxWorkDays) {
             const jours = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
             const mois  = ['jan','fév','mars','avr','mai','juin','juil','août','sep','oct','nov','déc'];
             const d = new Date();
-            // Si maxDays = 0 (main propre), on affiche aujourd'hui
-            if (maxDays === 0) {
-                return `${jours[d.getDay()]} ${d.getDate()} ${mois[d.getMonth()]}`;
-            }
+            if (!maxWorkDays) return `${jours[d.getDay()]} ${d.getDate()} ${mois[d.getMonth()]}`;
             let added = 0;
-            while (added < maxDays) {
+            while (added < maxWorkDays) {
                 d.setDate(d.getDate() + 1);
                 if (d.getDay() !== 0 && d.getDay() !== 6) added++;
             }
@@ -9576,90 +9554,60 @@
         }
 
         function selectShipping(el) {
-            document.querySelectorAll('.shipping-option').forEach(o => {
-                o.classList.remove('selected');
-                const check = o.querySelector('.shipping-check');
-                if (check) check.textContent = '';
-            });
+            document.querySelectorAll('.shipping-option').forEach(o => o.classList.remove('selected'));
             el.classList.add('selected');
-            const check = el.querySelector('.shipping-check');
-            if (check) check.textContent = '✓';
             updateCartTotal();
         }
 
         function updateCartTotal() {
             const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const selectedShipping = document.querySelector('.shipping-option.selected');
-            const shipping = selectedShipping ? parseInt(selectedShipping.dataset.cost) : 3000;
+            const sel = document.querySelector('.shipping-option.selected');
+            const shipping = sel ? parseInt(sel.dataset.cost) : 3000;
             const total = subtotal + shipping;
-
-            document.getElementById('shippingCost').textContent = formatPrice(shipping);
-            document.getElementById('totalCost').textContent = formatPrice(total);
+            const elS = document.getElementById('shippingCost');
+            const elT = document.getElementById('totalCost');
+            const btn = document.getElementById('checkout-btn');
+            if (elS) elS.textContent = shipping === 0 ? 'Gratuit' : formatPrice(shipping);
+            if (elT) elT.textContent = formatPrice(total);
+            if (btn) btn.textContent = `COMMANDER — ${formatPrice(total)}`;
         }
 
-        // Basé sur itemId (stable) plutôt que l'index (qui change après suppression)
         function changeQuantity(itemId, change) {
             const idx = cartItems.findIndex(i => String(i.id) === String(itemId));
             if (idx === -1) return;
             const newQty = cartItems[idx].quantity + change;
-            if (newQty < 1) { showToast('⚠️ Quantité minimale atteinte'); return; }
-            if (newQty > 10) { showToast('⚠️ Maximum 10 articles par œuvre'); return; }
-
-            // Mise à jour locale immédiate
+            if (newQty < 1 || newQty > 10) return;
             cartItems[idx].quantity = newQty;
             updateBadges();
             renderCart();
 
-            // Sync BDD en arrière-plan
+            // Sync BDD en arrière-plan (si connecté)
             if (currentUser?.id) {
-                fetch('https://arkyl-galerie.onrender.com/api_supprimer_panier.php', {
+                fetch('https://arkyl-galerie.onrender.com/api_ajouter_panier.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'quantite', user_id: currentUser.id, artwork_id: itemId, quantity: newQty })
+                    body: JSON.stringify({ artwork_id: itemId, user_id: currentUser.id, quantity: newQty, action: 'set' })
                 }).catch(e => console.warn('Sync quantité BDD échouée :', e.message));
             }
         }
 
         const _removeTimers = {};
-        const _confirmingIds = new Set();
 
-        function confirmRemoveFromCart(itemId) {
-            const btn = document.getElementById(`remove-btn-${itemId}`);
-            if (!btn) return;
-
-            // 2e clic → confirmer
-            if (_confirmingIds.has(itemId)) {
+        function confirmRemoveFromCart(itemId, btn) {
+            if (btn.classList.contains('confirming')) {
                 clearTimeout(_removeTimers[itemId]);
                 delete _removeTimers[itemId];
-                _confirmingIds.delete(itemId);
-                const cartItem = btn.closest('.cart-item');
-                if (cartItem) {
-                    cartItem.classList.add('removing');
-                    setTimeout(() => removeFromCart(itemId), 380);
-                } else {
-                    removeFromCart(itemId);
-                }
+                const cartItem = document.getElementById(`cart-item-${itemId}`);
+                if (cartItem) { cartItem.classList.add('removing'); setTimeout(() => removeFromCart(itemId), 350); }
+                else removeFromCart(itemId);
                 return;
             }
-
-            // 1er clic → demander confirmation
-            _confirmingIds.add(itemId);
             btn.classList.add('confirming');
-            btn.innerHTML = `
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                Confirmer ?
-            `;
-
-            // Auto-annulation après 3 secondes
+            btn.textContent = '⚠️ Confirmer ?';
             _removeTimers[itemId] = setTimeout(() => {
-                _confirmingIds.delete(itemId);
-                const b = document.getElementById(`remove-btn-${itemId}`);
-                if (b) {
-                    b.classList.remove('confirming');
-                    b.innerHTML = `
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                        Retirer
-                    `;
+                if (btn && btn.classList.contains('confirming')) {
+                    btn.classList.remove('confirming');
+                    btn.textContent = '🗑️ Supprimer';
                 }
                 delete _removeTimers[itemId];
             }, 3000);
@@ -9667,24 +9615,21 @@
 
         function removeFromCart(itemId) {
             const idx = cartItems.findIndex(i => String(i.id) === String(itemId));
-            if (idx === -1) { showToast('⚠️ Article déjà retiré'); return; }
+            if (idx === -1) return;
             const item = cartItems[idx];
-
-            // Suppression locale immédiate
             cartItems.splice(idx, 1);
             updateBadges();
             renderCart();
             showToast(`✅ "${item.title}" retiré du panier`);
-
-            // Sync BDD en arrière-plan
             if (currentUser?.id) {
                 fetch('https://arkyl-galerie.onrender.com/api_supprimer_panier.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'supprimer', user_id: currentUser.id, artwork_id: itemId })
-                }).catch(e => console.warn('Sync suppression BDD échouée :', e.message));
+                }).catch(e => console.warn('Sync BDD échouée :', e.message));
             }
         }
+
 
         // ==================== STRIPE CHECKOUT ====================
         async function validerPaiementStripe() {
@@ -9701,7 +9646,14 @@
             btn.disabled = true;
             btn.innerHTML = '🔒 Connexion sécurisée en cours...';
 
-            const userId = currentUser?.id || createGuestSession();
+            const userId = currentUser?.id;
+            if (!userId) {
+                showToast('🔒 Connectez-vous pour finaliser la commande');
+                btn.disabled = false;
+                btn.innerHTML = '🛒 Finaliser la commande';
+                setTimeout(() => navigateTo('login'), 800);
+                return;
+            }
 
             try {
                 const response = await fetch('api_stripe_checkout.php', {
@@ -12208,7 +12160,7 @@
             document.getElementById('favBadge').textContent = favorites.length;
             document.getElementById('favBadge').style.display = favorites.length > 0 ? 'block' : 'none';
 
-            const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+            const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0);
             const cartBadge = document.getElementById('cartBadge');
             if (cartBadge) {
                 cartBadge.textContent = cartCount;

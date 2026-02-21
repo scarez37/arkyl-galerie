@@ -7,6 +7,10 @@ echo "<!DOCTYPE html><html lang='fr'><body style='font-family: Arial; padding: 4
 try {
     $db = getDatabase();
     
+    // 🧹 ON NETTOIE L'ANCIENNE TABLE BROUILLON D'ABORD
+    $db->exec("DROP TABLE IF EXISTS order_items CASCADE;");
+    $db->exec("DROP TABLE IF EXISTS orders CASCADE;");
+    
     // On va lire le fichier SQL que tu as créé
     $chemin_fichier_sql = __DIR__ . '/migration_orders.sql';
     
@@ -16,12 +20,11 @@ try {
 
     $sql = file_get_contents($chemin_fichier_sql);
     
-    // On exécute toutes les commandes SQL d'un coup
+    // On exécute toutes les commandes SQL du nouveau fichier
     $db->exec($sql);
     
     echo "<h2 style='color: #0f0;'>✅ Succès total !</h2>";
-    echo "<p>Les tables 'orders', 'order_items' et 'cart' sont prêtes.</p>";
-    echo "<p>Tu peux maintenant supprimer ce fichier (executer_migration.php) et le fichier SQL.</p>";
+    echo "<p>L'ancienne table a été effacée. Les NOUVELLES tables 'orders', 'order_items' et 'cart' sont prêtes et parfaites.</p>";
     
 } catch (Exception $e) {
     echo "<h2 style='color: #f00;'>❌ Erreur SQL</h2>";

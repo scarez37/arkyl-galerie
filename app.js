@@ -2870,21 +2870,35 @@ function enterGallery() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         user_id:    userId,
-                        cart_items: cartFallback   // fallback si la BDD est vide
+                        cart_items: cartFallback
                     })
                 });
 
-                const data = await response.json();
+                // 🔍 DEBUG — lit la réponse brute pour voir l'erreur PHP exacte
+                const texteBrut = await response.text();
+                console.log('🔍 RÉPONSE BRUTE DU SERVEUR PHP :', texteBrut);
+
+                let data;
+                try {
+                    data = JSON.parse(texteBrut);
+                } catch (parseError) {
+                    console.error('❌ Le PHP a renvoyé du texte au lieu de JSON :', texteBrut);
+                    alert('❌ Erreur PHP — ouvre la console (F12) et copie la ligne "RÉPONSE BRUTE" pour diagnostiquer.');
+                    btn.disabled = false;
+                    btn.innerHTML = '🛒 Finaliser la commande';
+                    return;
+                }
 
                 if (data.success && data.url) {
                     window.location.href = data.url;
                 } else {
-                    alert('❌ Erreur renvoyée par le serveur : ' + data.message);
+                    alert('❌ ' + (data.message || 'Erreur inconnue du serveur'));
                     btn.disabled = false;
                     btn.innerHTML = '🛒 Finaliser la commande';
                 }
             } catch (error) {
-                alert('❌ Impossible de contacter le serveur PHP.');
+                console.error('❌ Erreur réseau / fetch :', error);
+                alert('❌ Impossible de joindre le serveur. Vérifie ta connexion ou que le fichier PHP est bien déployé.');
                 btn.disabled = false;
                 btn.innerHTML = '🛒 Finaliser la commande';
             }

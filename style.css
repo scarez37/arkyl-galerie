@@ -1,5 +1,4 @@
-
-        /* ============ PAGE D'INTRODUCTION ============ */
+/* ============ PAGE D'INTRODUCTION ============ */
         #intro-page {
             position: fixed;
             top: 0;
@@ -2710,32 +2709,51 @@
         /* Paiement */
         .payment-section { margin: 16px 0 0; }
 
-        .payment-methods {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
+        /* ── Bloc Stripe ── */
+        .stripe-payment-info {
             margin-top: 10px;
+            border: 1.5px solid rgba(99, 91, 255, 0.4);
+            border-radius: 12px;
+            padding: 14px 16px;
+            background: rgba(99, 91, 255, 0.07);
         }
 
-        .payment-method {
-            border: 1.5px solid rgba(255,255,255,0.12);
-            border-radius: 10px;
-            padding: 10px 8px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s;
-            background: rgba(255,255,255,0.03);
+        .stripe-logo-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.9);
+            margin-bottom: 10px;
         }
 
-        .payment-method:hover { border-color: rgba(255,255,255,0.3); }
+        .stripe-lock-icon { font-size: 16px; }
 
-        .payment-method.selected {
-            border-color: #d4af37;
-            background: rgba(212,175,55,0.08);
+        .stripe-cards-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
         }
 
-        .payment-icon { font-size: 22px; }
-        .payment-name { font-size: 11px; font-weight: 700; margin-top: 4px; color: rgba(255,255,255,0.8); }
+        .stripe-card-chip {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            padding: 3px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.75);
+            letter-spacing: 0.5px;
+        }
+
+        .stripe-info-text {
+            font-size: 11px;
+            color: rgba(255,255,255,0.45);
+            margin: 0;
+            line-height: 1.5;
+        }
 
         /* Badge sécurité */
         .security-badge {
@@ -6020,4 +6038,3 @@
                 opacity: 0;
             }
         }
-    

@@ -11,7 +11,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 // 🔐 Secret webhook — à copier depuis ton tableau de bord Stripe
 // Tableau de bord Stripe → Développeurs → Webhooks → Révéler le secret
-$endpoint_secret = 'whsec_TON_SECRET_WEBHOOK_ICI';
+$endpoint_secret = 'whsec_yjPEMxUgwPmuDWvS48z4fFQz7PpqcLaP';
 
 // ─────────────────────────────────────────────────────────────────
 // ÉTAPE 1 — Lire et vérifier la signature cryptographique de Stripe

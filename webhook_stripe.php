@@ -183,7 +183,13 @@ try {
         ]);
     }
 
-    // 6c. Vider le panier de l'utilisateur
+    // 6c. Marquer les œuvres comme vendues
+    $markSold = $db->prepare("UPDATE artworks SET is_sold = TRUE WHERE id = :artwork_id");
+    foreach ($cartItems as $item) {
+        $markSold->execute([':artwork_id' => $item['artwork_id']]);
+    }
+
+    // 6d. Vider le panier de l'utilisateur
     $deleteCart = $db->prepare("DELETE FROM cart WHERE user_id = :user_id");
     $deleteCart->execute([':user_id' => $user_id]);
 

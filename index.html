@@ -7187,7 +7187,7 @@
                 const now = Date.now();
                 const lastRender = lastRenderTime[pageId] || 0;
                 if (now - lastRender > 30000) {
-                    if (pageId === 'homePage' && typeof renderProducts === 'function') renderProducts();
+                    if (pageId === 'homePage' && typeof renderProducts === 'function') (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
                     else if (pageId === 'favoritesPage' && typeof renderFavorites === 'function') renderFavorites();
                     else if (pageId === 'cartPage' && typeof renderCart === 'function') renderCart();
                     lastRenderTime[pageId] = now;
@@ -7214,7 +7214,7 @@
             const currentPage = document.querySelector('.page.active');
             if (!currentPage) return;
             const pageId = currentPage.id;
-            if (pageId === 'homePage' && typeof renderProducts === 'function') renderProducts();
+            if (pageId === 'homePage' && typeof renderProducts === 'function') (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
             else if (pageId === 'favoritesPage' && typeof renderFavorites === 'function') renderFavorites();
             else if (pageId === 'cartPage' && typeof renderCart === 'function') renderCart();
             if (typeof updateBadges === 'function') updateBadges();
@@ -7479,6 +7479,7 @@
                 
                 // Créer les données utilisateur à partir du profil Google
                 const userData = {
+                    id: payload.sub,
                     email: payload.email,
                     name: payload.name || payload.email.split('@')[0],
                     picture: payload.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.name)}&background=random`,
@@ -8472,7 +8473,7 @@
             
             // Update the main gallery if it's visible
             if (document.getElementById('homePage').classList.contains('active')) {
-                renderProducts();
+                (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
             }
         }
 
@@ -8492,7 +8493,7 @@
             
             // Update the main gallery if it's visible
             if (document.getElementById('homePage').classList.contains('active')) {
-                renderProducts();
+                (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
             }
         }
 
@@ -8699,7 +8700,14 @@
             else if (page === 'cart') renderCart();
             else if (page === 'orders') renderOrders();
             else if (page === 'adminOrders') renderAdminOrders();
-            else if (page === 'home') renderProducts();
+            else if (page === 'home') {
+                // renderProducts() est désactivée — on utilise chargerLaVraieGalerie()
+                if (window.toutesLesOeuvres && window.toutesLesOeuvres.length > 0) {
+                    if (typeof afficherOeuvresFiltrees === 'function') afficherOeuvresFiltrees();
+                } else if (typeof chargerLaVraieGalerie === 'function') {
+                    chargerLaVraieGalerie();
+                }
+            }
             else if (page === 'myArtists') renderMyArtistsPage(); // Appel async géré automatiquement
             // productDetail and artistDetail don't need special handling
             
@@ -8812,7 +8820,7 @@
             if (typeof window.afficherOeuvresFiltrees === 'function') {
                 window.afficherOeuvresFiltrees();
             } else {
-                renderProducts();
+                (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
             }
         }
 
@@ -8902,7 +8910,7 @@
             if (typeof window.afficherOeuvresFiltrees === 'function') {
                 window.afficherOeuvresFiltrees();
             } else {
-                renderProducts();
+                (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
             }
         }
 
@@ -9215,7 +9223,13 @@
             }
 
             // Refresh UI APRÈS l'animation (délai 400ms pour qu'on la voie)
-            setTimeout(() => renderProducts(), 400);
+            setTimeout(() => {
+                if (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) {
+                    afficherOeuvresFiltrees();
+                } else if (typeof chargerLaVraieGalerie === 'function') {
+                    chargerLaVraieGalerie();
+                }
+            }, 400);
         }
 
         // ===== UTILITAIRES D'ANIMATION =====
@@ -9630,8 +9644,6 @@
 
         // ==================== STRIPE CHECKOUT ====================
         async function validerPaiementStripe() {
-            alert("🚀 LE NOUVEAU CODE EST BIEN LÀ !"); // Ce message DOIT s'afficher
-
             const btn = document.getElementById('checkout-btn');
             if (!btn) return;
 
@@ -9643,7 +9655,7 @@
             btn.disabled = true;
             btn.innerHTML = '🔒 Connexion sécurisée en cours...';
 
-            const userId = currentUser?.id;
+            const userId = currentUser?.id || currentUser?.googleId || currentUser?.email;
             if (!userId) {
                 showToast('🔒 Connectez-vous pour finaliser la commande');
                 btn.disabled = false;
@@ -12132,7 +12144,7 @@
                     window.open(`https://www.google.com/search?q=${encodeURIComponent('art africain ' + query)}`, '_blank');
                 } else {
                     showToast(`❌ Aucun résultat pour "${query}"`);
-                    renderProducts(); // Show all products again
+                    (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null); // Show all products again
                 }
             }
         }
@@ -13006,7 +13018,7 @@
                 
                 // Rafraîchir la galerie publique
                 if (typeof renderProducts === 'function') {
-                    renderProducts();
+                    (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
                 }
                 
             } catch (error) {
@@ -13330,7 +13342,7 @@
                 // Refresh current page content
                 const currentPage = document.querySelector('.page.active');
                 if (currentPage && currentPage.id === 'homePage') {
-                    renderProducts();
+                    (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
                 } else if (currentPage && currentPage.id === 'favoritesPage') {
                     renderFavorites();
                 } else if (currentPage && currentPage.id === 'cartPage') {
@@ -13373,7 +13385,7 @@
                 // Refresh current page content
                 const currentPage = document.querySelector('.page.active');
                 if (currentPage && currentPage.id === 'homePage') {
-                    renderProducts();
+                    (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
                 } else if (currentPage && currentPage.id === 'favoritesPage') {
                     renderFavorites();
                 } else if (currentPage && currentPage.id === 'cartPage') {
@@ -13426,7 +13438,7 @@
                 pageElement.classList.add('active');
                 
                 // Refresh content based on page
-                if (page === 'home') renderProducts();
+                if (page === 'home') (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
                 else if (page === 'favorites') renderFavorites();
                 else if (page === 'cart') renderCart();
                 
@@ -14078,7 +14090,7 @@
 
         // ==================== INIT ====================
         function init() {
-            renderProducts();
+            (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
             updateBadges();
             renderNotifications();
             updateAuthUI(); // Initialize authentication UI

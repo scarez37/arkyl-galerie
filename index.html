@@ -2141,7 +2141,7 @@
         /* ============ CART PAGE ============ */
         .cart-grid {
             display: grid;
-            grid-template-columns: 1fr 1.6fr;
+            grid-template-columns: 1.6fr 1fr;
             gap: 30px;
             align-items: start;
         }
@@ -2323,11 +2323,6 @@
             padding: 25px;
             position: sticky;
             top: 90px;
-            max-height: calc(100vh - 110px);
-            overflow-y: auto;
-            overflow-x: hidden;
-            scrollbar-width: thin;
-            scrollbar-color: rgba(212,175,55,0.3) transparent;
         }
 
         .summary-card::-webkit-scrollbar { width: 4px; }
@@ -9400,7 +9395,7 @@
                                     <span class="qty-value">${item.quantity}</span>
                                     <button class="qty-btn" onclick="changeQuantity('${item.id}', 1)">+</button>
                                 </div>
-                                <button class="remove-btn" id="remove-btn-${item.id}" onclick="confirmRemoveFromCart('${item.id}', this)">
+                                <button class="remove-btn" id="remove-btn-${item.id}" onclick="confirmRemoveFromCart('${item.id}')">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                                     Retirer
                                 </button>
@@ -9420,6 +9415,7 @@
 
             container.innerHTML = `
                 <div class="cart-grid">
+                    <div class="cart-items">${itemsHtml}</div>
                     <div class="summary-card">
                         <h2 class="summary-title">Récapitulatif</h2>
 
@@ -9500,7 +9496,6 @@
 
                         <div class="security-badge">🔒 Paiement sécurisé — Tiers de Confiance ARKYL</div>
                     </div>
-                    <div class="cart-items">${itemsHtml}</div>
                 </div>
             `;
 
@@ -9574,12 +9569,17 @@
         }
 
         const _removeTimers = {};
+        const _confirmingIds = new Set();
 
-        function confirmRemoveFromCart(itemId, btn) {
-            // 2e clic → confirmer la suppression
-            if (btn.classList.contains('confirming')) {
+        function confirmRemoveFromCart(itemId) {
+            const btn = document.getElementById(`remove-btn-${itemId}`);
+            if (!btn) return;
+
+            // 2e clic → confirmer
+            if (_confirmingIds.has(itemId)) {
                 clearTimeout(_removeTimers[itemId]);
                 delete _removeTimers[itemId];
+                _confirmingIds.delete(itemId);
                 const cartItem = btn.closest('.cart-item');
                 if (cartItem) {
                     cartItem.classList.add('removing');
@@ -9590,18 +9590,21 @@
                 return;
             }
 
-            // 1er clic → passer en mode confirmation
+            // 1er clic → demander confirmation
+            _confirmingIds.add(itemId);
             btn.classList.add('confirming');
             btn.innerHTML = `
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                 Confirmer ?
             `;
 
-            // Annuler automatiquement après 3 secondes
+            // Auto-annulation après 3 secondes
             _removeTimers[itemId] = setTimeout(() => {
-                if (btn && btn.classList.contains('confirming')) {
-                    btn.classList.remove('confirming');
-                    btn.innerHTML = `
+                _confirmingIds.delete(itemId);
+                const b = document.getElementById(`remove-btn-${itemId}`);
+                if (b) {
+                    b.classList.remove('confirming');
+                    b.innerHTML = `
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                         Retirer
                     `;

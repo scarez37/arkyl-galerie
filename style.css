@@ -1504,6 +1504,7 @@
             height: 420px;
         }
 
+        /* Sur desktop : animation CSS auto */
         .news-ticker-content {
             display: inline-flex;
             gap: 20px;
@@ -1515,6 +1516,31 @@
         }
         .news-ticker-content.paused {
             animation-play-state: paused;
+        }
+
+        /* Sur mobile : scroll natif horizontal — pas d'animation CSS */
+        @media (max-width: 768px) {
+            .news-ticker-scroll {
+                overflow-x: auto;
+                overflow-y: hidden;
+                -webkit-overflow-scrolling: touch;
+                scroll-snap-type: x mandatory;
+                scrollbar-width: none;
+                cursor: grab;
+            }
+            .news-ticker-scroll::-webkit-scrollbar { display: none; }
+            .news-ticker-scroll:active { cursor: grabbing; }
+
+            .news-ticker-content {
+                animation: none !important;
+                transform: none !important;
+                transition: none !important;
+                width: max-content;
+                padding: 0 40px;
+            }
+            .news-ticker-content.paused {
+                animation: none !important;
+            }
         }
         .ticker-nav-btn {
             position: absolute;

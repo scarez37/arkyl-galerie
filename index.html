@@ -823,7 +823,6 @@
         }
 
 
-
         .hamburger-menu-item svg {
             filter: drop-shadow(0 0 4px rgba(212,175,55,0.4));
             flex-shrink: 0;
@@ -7138,7 +7137,6 @@
         // Variables pour optimisation (déclarées une seule fois)
         let productsCache = null;
         let favoritesCache = null;
-        let cartCache = null;
         let lastRenderTime = {};
         let autoRefreshInterval = null;
 
@@ -7201,12 +7199,11 @@
         }
 
         window.addEventListener('storage', (e) => {
-            if (e.key === 'favorites' || e.key === 'cart') {
+            if (e.key === 'favorites') {
                 const currentPage = document.querySelector('.page.active');
                 if (currentPage) {
                     const pageId = currentPage.id;
-                    if (pageId === 'favoritesPage' && e.key === 'favorites' && typeof renderFavorites === 'function') renderFavorites();
-                    else if (pageId === 'cartPage' && e.key === 'cart' && typeof renderCart === 'function') renderCart();
+                    if (pageId === 'favoritesPage' && typeof renderFavorites === 'function') renderFavorites();
                 }
                 if (typeof updateBadges === 'function') updateBadges();
             }
@@ -7234,11 +7231,11 @@
         })();
 
         document.addEventListener('DOMContentLoaded', () => {
-            // ✅ DÉTECTION AUTOMATIQUE DU MODE ARTISTE
+           
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('mode') === 'artist') {
                 // Vérifier que l'artiste a bien un compte
-                const hasArtistAccount = localStorage.getItem('arkyl_artist_account');
+                const hasArtistAccount = _memStore['arkyl_artist_account'] || null;
                 if (hasArtistAccount) {
                     console.log('🎨 Mode artiste détecté via URL - Activation automatique...');
                     setTimeout(() => {
@@ -7318,34 +7315,19 @@
 
 
         // ==================== SAFE STORAGE HELPERS ====================
+        // Store en mémoire — aucune persistence localStorage
+        const _memStore = {};
         const safeStorage = {
             get: (key, defaultValue = null) => {
-                try {
-                    const item = localStorage.getItem(key);
-                    return item ? JSON.parse(item) : defaultValue;
-                } catch (error) {
-                    console.error(`Error reading from localStorage (${key}):`, error);
-                    return defaultValue;
-                }
+                return (key in _memStore) ? _memStore[key] : defaultValue;
             },
             set: (key, value) => {
-                try {
-                    localStorage.setItem(key, JSON.stringify(value));
-                    return true;
-                } catch (error) {
-                    console.error(`Error writing to localStorage (${key}):`, error);
-                    showToast('⚠️ Erreur de sauvegarde des données');
-                    return false;
-                }
+                _memStore[key] = value;
+                return true;
             },
             remove: (key) => {
-                try {
-                    localStorage.removeItem(key);
-                    return true;
-                } catch (error) {
-                    console.error(`Error removing from localStorage (${key}):`, error);
-                    return false;
-                }
+                delete _memStore[key];
+                return true;
             }
         };
 
@@ -7353,8 +7335,8 @@
         window.currentCategory = 'all';
         let currentCategory = 'all';
         let favorites = safeStorage.get('arkyl_favorites', []);
-        let cartItems = safeStorage.get('arkyl_cart', []);
-        let orderHistory = safeStorage.get('arkyl_orders', []); // ✨ NOUVEAU: Historique des commandes
+        let cartItems = [];
+        let orderHistory = safeStorage.get('arkyl_orders', []);
         let notifications = safeStorage.get('arkyl_notifications', [
             { id: 1, title: 'Bienvenue!', text: 'Découvrez nos nouvelles œuvres d\'art', time: 'Il y a 2h', unread: true },
             { id: 2, title: 'Promotion', text: '-20% sur toutes les sculptures cette semaine', time: 'Il y a 5h', unread: true },
@@ -7381,45 +7363,22 @@
         // ==================== ARTISTS DATA ====================
         let artistsData = {};
         
-        // Charger les données des artistes depuis localStorage au démarrage
-        (function loadArtistsData() {
-            try {
-                const storedArtistsData = safeStorage.get('arkyl_artists_data', {});
-                if (storedArtistsData && Object.keys(storedArtistsData).length > 0) {
-                    artistsData = storedArtistsData;
-                    console.log('✅ Données artistes chargées:', Object.keys(artistsData).length, 'artistes');
-                }
-            } catch(e) {
-                console.log('⚠️ Impossible de charger les données artistes:', e);
-            }
-        })();
+        // Données artistes initialisées en mémoire uniquement
 
         // ==================== FONCTIONS DE GESTION DES DONNÉES ====================
 
-        // Sauvegarder les données dans localStorage
+        // saveAppData — données en mémoire uniquement, pas de persistence
         async function saveAppData() {
-            try {
-                safeStorage.set('arkyl_app_data', appData);
-                safeStorage.set('arkyl_artists_data', appData.artists);
-                return true;
-            } catch (error) {
-                console.error('❌ Erreur de sauvegarde:', error);
-                return false;
-            }
+            return true;
         }
         
-        // Save artists data function (compatibility)
-        function saveArtistsData() {
-            appData.artists = artistsData;
-            saveAppData();
-        }
         
-        let currentUser = safeStorage.get('arkyl_current_user', null);
+        let currentUser = null; // Session en mémoire uniquement
 
         // ============ SYSTÈME DE CONNEXION GOOGLE AUTHENTIQUE ============
         
         // Configuration Google Sign-In
-        // ✅ Client ID configuré pour l'authentification Google
+       
         const GOOGLE_CLIENT_ID = '814095132615-nug0r3e9cgdc5kv4uj2du10e7dkas88b.apps.googleusercontent.com';
         
         // Initialiser Google Sign-In
@@ -7560,18 +7519,12 @@
             }
         }
         
-        // Connexion Collectionneur (méthode de secours - à supprimer en production)
-        function handleCollectorLogin() {
-            // Cette fonction n'est plus utilisée car remplacée par Google Sign-In
-            // Elle est conservée pour compatibilité mais devrait être supprimée
-            alert('⚠️ Veuillez utiliser la connexion Google ci-dessus');
-        }
 
         // Gestion de l'Espace Artiste (bouton 🎨)
         function handleArtistSpace() {
-            // ✅ VERSION FINALE : Active le mode artiste intégré
+           
             // Vérifier d'abord si l'artiste a un compte enregistré
-            const hasArtistAccount = localStorage.getItem('arkyl_artist_account');
+            const hasArtistAccount = _memStore['arkyl_artist_account'] || null;
             
             if (hasArtistAccount) {
                 // Compte trouvé → Activer le mode artiste directement
@@ -7631,21 +7584,36 @@
         }
 
         function loginUser(userData, successMessage) {
-            // Sauvegarder les données utilisateur
             currentUser = userData;
             safeStorage.set('arkyl_current_user', userData);
-
-            // Mettre à jour l'interface
             updateAuthUI();
 
-            // Afficher le message approprié et rediriger si nécessaire
+           
+            chargerPanierUtilisateur(userData.id);
+
             if (userData.isAdmin) {
                 showToast(`🎉 Bienvenue Admin ${userData.name}!`);
-                setTimeout(() => {
-                    goToAdmin();
-                }, 1500);
+                setTimeout(() => { goToAdmin(); }, 1500);
             } else {
                 showToast(successMessage);
+            }
+        }
+
+        // Charge le panier depuis la BDD uniquement
+        async function chargerPanierUtilisateur(userId) {
+            if (!userId) return;
+            try {
+                const response = await fetch(
+                    `https://arkyl-galerie.onrender.com/api_get_panier.php?user_id=${encodeURIComponent(userId)}`
+                );
+                const data = await response.json();
+                if (!data.success) return;
+
+                cartItems = data.items || [];
+                updateBadges();
+                console.log(`🛒 Panier chargé : ${cartItems.length} article(s)`);
+            } catch (e) {
+                console.warn('Panier BDD inaccessible :', e.message);
             }
         }
 
@@ -7654,7 +7622,7 @@
             const userType = currentUser && currentUser.isArtist ? 'Artiste' : currentUser && currentUser.isAdmin ? 'Admin' : 'Utilisateur';
             
             // Vérifier s'il y a aussi un compte artiste
-            const hasArtistAccount = localStorage.getItem('arkyl_artist_account');
+            const hasArtistAccount = _memStore['arkyl_artist_account'] || null;
             const confirmMessage = hasArtistAccount 
                 ? `🚪 Se déconnecter?\n\nVous êtes actuellement connecté comme ${userType}: ${userName}\n\n⚠️ Votre compte artiste sera également déconnecté.\n\nCliquez OK pour vous déconnecter.`
                 : `🚪 Se déconnecter?\n\nVous êtes actuellement connecté comme ${userType}: ${userName}\n\nCliquez OK pour vous déconnecter.`;
@@ -7670,10 +7638,14 @@
             // Déconnecter le compte utilisateur
             currentUser = null;
             safeStorage.remove('arkyl_current_user');
+
+            // Vider le panier en mémoire au logout
+            cartItems = [];
+            updateBadges();
             
             // Déconnecter le compte artiste (si existant)
             if (hasArtistAccount) {
-                localStorage.removeItem('arkyl_artist_account');
+                delete _memStore['arkyl_artist_account'];
                 console.log('✅ Compte artiste déconnecté');
             }
             
@@ -7892,12 +7864,12 @@
 
         // ==================== ADMIN MANAGEMENT FUNCTIONS ====================
         
-        // Get products from localStorage or use default
+        // Get products from memory cache or use default
         function getProducts() {
             return safeStorage.get('arkyl_products', sampleProducts);
         }
 
-        // Save products to localStorage
+        // Save products to memory cache
         function saveProducts(products) {
             safeStorage.set('arkyl_products', products);
         }
@@ -8693,8 +8665,6 @@
             return;
         }
 
-        // Fonction de rendu local (fallback)
-        // SUPPRIMÉ: renderProductsLocal - Plus de fallback localStorage
         // Tout vient de l'API uniquement
 
         // ============ GESTION DES LIKES AVEC DONNÉES CENTRALISÉES ============
@@ -8736,8 +8706,6 @@
                 
             } catch (error) {
                 console.error('❌ Erreur lors du like:', error);
-                // Fallback vers système local
-                toggleFavorite(event, artworkId);
             }
         }
 
@@ -8763,7 +8731,7 @@
             }
         }
 
-        // addToCartDB supprimée — remplacée par addToCart (sync API + fallback localStorage)
+        
 
         // Multi-sélection catégories
 
@@ -9141,7 +9109,7 @@
             // Cibler le bouton parent correct (pas un enfant SVG/span)
             const btn = event.currentTarget || event.target.closest('button') || event.target;
 
-            // ✅ Animation IMMÉDIATE avant l'appel API (feedback instantané)
+           
             const wasAlreadyFav = favorites.includes(productId);
             const adding = !wasAlreadyFav;
 
@@ -9164,7 +9132,7 @@
 
             // Appel API en arrière-plan (sans bloquer l'UI)
             try {
-                const userId = currentUser?.id || localStorage.getItem('guest_session_id') || createGuestSession();
+                const userId = currentUser?.id || createGuestSession();
                 const response = await fetch('https://arkyl-galerie.onrender.com/api_ajouter_favoris.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -9246,7 +9214,7 @@
             btn.disabled = true;
 
             try {
-                const userId = currentUser?.id || localStorage.getItem('guest_session_id') || createGuestSession();
+                const userId = currentUser?.id || createGuestSession();
 
                 const response = await fetch('https://arkyl-galerie.onrender.com/api_ajouter_panier.php', {
                     method: 'POST',
@@ -9269,10 +9237,9 @@
                     } else {
                         cartItems.push({ ...product, quantity: 1 });
                     }
-                    safeStorage.set('arkyl_cart', cartItems);
                     updateBadges();
 
-                    // ✅ Animation sur le bon élément bouton
+                   
                     btn.innerHTML = '✓';
                     btn.classList.add('cart-added');
                     spawnCartParticles(btn);
@@ -9282,13 +9249,12 @@
                     if (product) addNotification('Panier mis à jour', `"${product.title}" ajouté au panier`);
 
                 } else {
-                    // Fallback local si API pas prête
-                    _addToCartLocal(productId, btn);
+                    showToast('❌ Impossible d\'ajouter au panier : ' + (result.message || 'Erreur'));
                 }
 
             } catch (error) {
-                console.warn('API indisponible, ajout local :', error.message);
-                _addToCartLocal(productId, btn);
+                console.warn('API indisponible :', error.message);
+                showToast('❌ Impossible d\'ajouter au panier. Vérifiez votre connexion.');
             } finally {
                 setTimeout(() => {
                     btn.innerHTML = originalText;
@@ -9297,33 +9263,10 @@
             }
         }
 
-        // Fallback local si serveur indisponible
-        function _addToCartLocal(productId, btn) {
-            const allProducts = getProducts();
-            const product = allProducts.find(p => p.id === productId);
-            if (!product) { showToast('❌ Produit introuvable'); return; }
-            const existing = cartItems.find(item => item.id === productId);
-            if (existing) {
-                if (existing.quantity >= 10) { showToast('⚠️ Maximum 10 articles'); return; }
-                existing.quantity++;
-            } else {
-                cartItems.push({ ...product, quantity: 1 });
-            }
-            safeStorage.set('arkyl_cart', cartItems);
-            updateBadges();
-            if (btn) {
-                btn.innerHTML = '✓';
-                btn.classList.add('cart-added');
-                spawnCartParticles(btn);
-                setTimeout(() => btn.classList.remove('cart-added'), 700);
-            }
-            showToast(`✅ "${product.title}" ajouté au panier`);
-        }
-
         // Fonction pour créer une session guest si pas connecté
         function createGuestSession() {
             const guestId = 'guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            localStorage.setItem('guest_session_id', guestId);
+            _memStore['guest_session_id'] = guestId;
             console.log('🆔 Session guest créée:', guestId);
             return guestId;
         }
@@ -9617,20 +9560,16 @@
 
             // Mise à jour locale immédiate
             cartItems[idx].quantity = newQty;
-            safeStorage.set('arkyl_cart', cartItems);
             updateBadges();
             renderCart();
 
-            // Sync BDD en arrière-plan (silencieux)
-            const userId = (typeof currentUser !== 'undefined' && currentUser)
-                ? currentUser.id
-                : (localStorage.getItem('guest_session_id') || '');
-            if (userId) {
+            // Sync BDD en arrière-plan
+            if (currentUser?.id) {
                 fetch('https://arkyl-galerie.onrender.com/api_supprimer_panier.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'quantite', user_id: userId, artwork_id: itemId, quantity: newQty })
-                }).catch(e => console.warn('Sync quantité BDD échouée (mode local) :', e.message));
+                    body: JSON.stringify({ action: 'quantite', user_id: currentUser.id, artwork_id: itemId, quantity: newQty })
+                }).catch(e => console.warn('Sync quantité BDD échouée :', e.message));
             }
         }
 
@@ -9678,21 +9617,17 @@
 
             // Suppression locale immédiate
             cartItems.splice(idx, 1);
-            safeStorage.set('arkyl_cart', cartItems);
             updateBadges();
             renderCart();
             showToast(`✅ "${item.title}" retiré du panier`);
 
-            // Sync BDD en arrière-plan (silencieux)
-            const userId = (typeof currentUser !== 'undefined' && currentUser)
-                ? currentUser.id
-                : (localStorage.getItem('guest_session_id') || '');
-            if (userId) {
+            // Sync BDD en arrière-plan
+            if (currentUser?.id) {
                 fetch('https://arkyl-galerie.onrender.com/api_supprimer_panier.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'supprimer', user_id: userId, artwork_id: itemId })
-                }).catch(e => console.warn('Sync suppression BDD échouée (mode local) :', e.message));
+                    body: JSON.stringify({ action: 'supprimer', user_id: currentUser.id, artwork_id: itemId })
+                }).catch(e => console.warn('Sync suppression BDD échouée :', e.message));
             }
         }
 
@@ -9710,13 +9645,10 @@
             btn.disabled = true;
             btn.innerHTML = '🔒 Connexion sécurisée en cours...';
 
-            const userId = (typeof currentUser !== 'undefined' && currentUser)
-                ? currentUser.id
-                : (localStorage.getItem('guest_session_id') || createGuestSession());
+            const userId = currentUser?.id || createGuestSession();
 
-            // 🆕 On envoie le panier localStorage en secours
-            // Le PHP vérifiera les prix en BDD — aucun risque de falsification
-            const cartFallback = cartItems.map(item => ({
+            // On envoie le panier en mémoire — le PHP vérifiera les prix en BDD
+            const cartPayload = cartItems.map(item => ({
                 id: item.id,
                 quantity: item.quantity
             }));
@@ -9727,16 +9659,16 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         user_id: userId,
-                        cart_items: cartFallback  // 🆕 Fallback si BDD vide (cold start Render)
+                        cart_items: cartPayload
                     })
                 });
 
                 const data = await response.json();
 
                 if (data.success && data.url) {
-                    // 🆕 Sauvegarder l'order_id en attente (sera complété par le webhook)
+                   
                     if (data.order_id) {
-                        localStorage.setItem('arkyl_pending_order', data.order_id);
+                        _memStore['arkyl_pending_order'] = data.order_id;
                     }
                     // Redirection vers Stripe
                     window.location.href = data.url;
@@ -9755,19 +9687,16 @@
             }
         }
 
-        // Alias pour compatibilité
-        function processCheckout() { validerPaiementStripe(); }
 
         // ==================== NETTOYAGE CACHE APP ====================
         function clearAppCache() {
-            // Clés à NE PAS supprimer (session utilisateur et commandes)
             const keysToKeep = ['arkyl_current_user', 'arkyl_orders', 'guest_session_id', 'arkyl_pending_order'];
-            const allKeys = Object.keys(localStorage).filter(k => k.startsWith('arkyl_') || k.startsWith('guest_'));
+            const allKeys = Object.keys(_memStore).filter(k => k.startsWith('arkyl_') || k.startsWith('guest_'));
             const removed = [];
 
             allKeys.forEach(key => {
                 if (!keysToKeep.includes(key)) {
-                    localStorage.removeItem(key);
+                    delete _memStore[key];
                     removed.push(key);
                 }
             });
@@ -9787,44 +9716,6 @@
             }
         }
 
-        // Nettoyage auto au démarrage — supprimer les clés obsolètes/orphelines
-        (function autoCleanLegacyCache() {
-            const legacyKeys = [
-                'arkyl_app_data',       // remplacé par API serveur
-                'arkyl_last_page',      // navigation state obsolète
-                'arkyl_admin_activity', // remplacé par logs serveur
-            ];
-            legacyKeys.forEach(k => {
-                if (localStorage.getItem(k) !== null) {
-                    localStorage.removeItem(k);
-                    console.log('🗑️ Clé obsolète supprimée :', k);
-                }
-            });
-
-            // 🧹 Dédupliquer le panier localStorage au démarrage
-            // (évite les articles fantômes causés par l'ancienne addToCartDB)
-            try {
-                const rawCart = safeStorage.get('arkyl_cart', []);
-                const seen = {};
-                const deduplicated = [];
-                for (const item of rawCart) {
-                    const key = String(item.id);
-                    if (!seen[key]) {
-                        seen[key] = true;
-                        deduplicated.push(item);
-                    } else {
-                        console.log('🗑️ Article fantôme supprimé du panier :', item.title || item.id);
-                    }
-                }
-                if (deduplicated.length !== rawCart.length) {
-                    safeStorage.set('arkyl_cart', deduplicated);
-                    cartItems = deduplicated;
-                    console.log(`✅ Panier nettoyé : ${rawCart.length - deduplicated.length} doublon(s) supprimé(s)`);
-                }
-            } catch(e) {
-                console.warn('Impossible de nettoyer le panier :', e);
-            }
-        })();
 
         // ==================== ORDERS PAGE ====================
         function renderOrders() {
@@ -11269,26 +11160,9 @@
         }
 
         function addToCartFromDetail(productId) {
-            const allProducts = getProducts();
-            const product = allProducts.find(p => p.id === productId);
-            const existing = cartItems.find(item => item.id === productId);
-            
-            if (existing) {
-                // Vérifier la limite avant d'incrémenter
-                if (existing.quantity >= 10) {
-                    showToast('⚠️ Maximum 10 articles par œuvre atteint');
-                    return;
-                }
-                existing.quantity++;
-                showToast(`Quantité mise à jour: ${existing.quantity}× "${product.title}" 🛒`);
-            } else {
-                cartItems.push({ ...product, quantity: 1 });
-                showToast(`"${product.title}" ajouté au panier 🛒`);
-            }
-            
-            safeStorage.set('arkyl_cart', cartItems);
-            updateBadges();
-            addNotification('Panier mis à jour', `"${product.title}" (×${existing ? existing.quantity : 1})`);
+            const btn = document.getElementById('detail-cart-btn') || document.querySelector('.detail-add-cart-btn');
+            const fakeEvent = { stopPropagation: () => {}, currentTarget: btn, target: btn };
+            addToCart(fakeEvent, productId);
         }
 
         // ==================== CARROUSEL DE PHOTOS ====================
@@ -11588,7 +11462,7 @@
                 console.log('⚠️ Erreur API, utilisation des données locales');
             }
             
-            // Fallback sur les produits locaux
+            // Données locales si API indisponible
             if (allProducts.length === 0) {
                 allProducts = getProducts();
             }
@@ -11746,7 +11620,7 @@
                 console.log('⚠️ Utilisation des données locales:', error);
             }
             
-            // Fallback sur les produits locaux si l'API échoue
+            // Données locales si API indisponible si l'API échoue
             if (allProducts.length === 0) {
                 allProducts = getProducts();
                 console.log('📦 Œuvres chargées depuis local:', allProducts.length);
@@ -12191,34 +12065,6 @@
             }
         }
 
-        // Ancienne fonction toggleFavoriteWithAnimation (pour compatibilité)
-        function toggleFavoriteWithAnimation(event, productId, button) {
-            event.stopPropagation();
-            
-            // Toggle favorite
-            toggleFavorite(event, productId);
-            
-            // Animation du bouton
-            button.classList.add('liked');
-            setTimeout(() => {
-                button.classList.remove('liked');
-            }, 400);
-            
-            // Mise à jour du compteur
-            const countElement = button.querySelector('.action-count');
-            if (countElement) {
-                const currentCount = parseInt(countElement.textContent);
-                const isLiked = favorites.includes(productId);
-                countElement.textContent = isLiked ? currentCount + 1 : Math.max(0, currentCount - 1);
-            }
-            
-            // Mise à jour de l'icône
-            const isLiked = favorites.includes(productId);
-            const icon = button.childNodes[0];
-            if (icon && icon.nodeType === Node.TEXT_NODE) {
-                button.childNodes[0].textContent = isLiked ? '❤️' : '🤍';
-            }
-        }
 
         // Fonction pour focus sur le champ de commentaire
         function focusComment(productId) {
@@ -12245,7 +12091,7 @@
             // Feedback visuel
             showToast('💬 Commentaire publié avec succès !');
             
-            // TODO: Envoyer le commentaire au serveur
+            // TODO: sync commentaire API
             console.log('Nouveau commentaire sur l\'œuvre', productId, ':', comment);
         }
 
@@ -12499,7 +12345,7 @@
 
             setTimeout(() => {
                 // Persist the artist account flag
-                localStorage.setItem('arkyl_artist_account', JSON.stringify(accountData));
+                _memStore['arkyl_artist_account'] = accountData;
 
                 // Si l'utilisateur est connecté avec Google et que l'email correspond, lier les comptes
                 if (currentUser && currentUser.email === accountData.email) {
@@ -12539,7 +12385,7 @@
             
             _load(k) { 
                 try { 
-                    const d = localStorage.getItem('arkyl_'+k); 
+                    const d = _memStore['arkyl_'+k] || null; 
                     return d ? JSON.parse(d) : null; 
                 } catch(e){ 
                     console.error('Erreur de chargement:', k, e); 
@@ -12549,7 +12395,7 @@
             
             _save(k,v) { 
                 try { 
-                    localStorage.setItem('arkyl_'+k, JSON.stringify(v)); 
+                    _memStore['arkyl_'+k] = v; 
                     return true;
                 } catch(e){
                     console.error('Erreur de sauvegarde:', k, e);
@@ -12608,9 +12454,9 @@
             
             // Helper method to clear all data
             clearAll() {
-                localStorage.removeItem('arkyl_artist_artworks');
-                localStorage.removeItem('arkyl_artist_sales');
-                localStorage.removeItem('arkyl_next_artwork_id');
+                delete _memStore['arkyl_artist_artworks'];
+                delete _memStore['arkyl_artist_sales'];
+                delete _memStore['arkyl_next_artwork_id'];
                 this.artworks = [];
                 this.sales = [];
                 this.nextId = 1;
@@ -12648,7 +12494,7 @@
 
         // ==================== HYDRATION ====================
         function hydrateProfile(skipToast = false) {
-            const acc = (function(){ try{ const r=localStorage.getItem('arkyl_artist_account'); return r?JSON.parse(r):null; }catch(e){return null;} })();
+            const acc = _memStore['arkyl_artist_account'] || null;
             if (!acc) return;
 
             // Update nav avatar
@@ -12691,8 +12537,8 @@
             // Toast contextualisé - uniquement si pas de skipToast
             if (!skipToast) {
                 const fk = 'arkyl_artist_first_visit_done';
-                if (!localStorage.getItem(fk)) {
-                    localStorage.setItem(fk,'1');
+                if (!_memStore[fk]) {
+                    _memStore[fk] = '1';
                     showToast('🎉 Bienvenue, ' + acc.name + ' ! Votre espace artiste est prêt.');
                 } else {
                     showToast('Bienvenue, ' + acc.name + ' ! 🎨');
@@ -12722,7 +12568,7 @@
 
         // ==================== DASHBOARD ====================
         function updateDashboard() {
-            // Ensure db.sales is an array (in case of corrupted localStorage)
+            // Ensure db.sales is an array
             if (!Array.isArray(db.sales)) {
                 db.sales = [];
                 db._save('artist_sales', db.sales);
@@ -12771,7 +12617,6 @@
                 renderArtworks();
                 renderSales();
                 showToast('✅ Données réinitialisées avec succès !');
-                console.log('✅ Toutes les données artiste ont été réinitialisées');
             }
         }
         
@@ -12782,10 +12627,6 @@
         let currentImageMode = 'photo'; // Mode photo uniquement
         let currentPhotosData = []; // Store multiple base64 photo data (max 5)
 
-        // Mode photo uniquement - fonction conservée pour compatibilité
-        function switchImageMode(mode) {
-            // Ne fait rien, mode photo uniquement
-        }
 
         // Nouvelle fonction pour gérer plusieurs photos
         function handleMultiplePhotosUpload(event) {
@@ -12875,10 +12716,6 @@
             showToast('✅ Photo principale mise à jour');
         }
 
-        // Ancienne fonction handlePhotoUpload pour compatibilité (redirige vers la nouvelle)
-        function handlePhotoUpload(event) {
-            handleMultiplePhotosUpload(event);
-        }
 
         function changePhoto(event) {
             event.stopPropagation();
@@ -12959,7 +12796,6 @@
                 };
                 
                 saveProducts(products);
-                console.log('✅ Œuvre mise à jour dans la galerie publique');
             }
         }
 
@@ -12980,8 +12816,6 @@
                         console.log('⚠️ Erreur suppression storage:', err);
                     });
                 }
-                
-                console.log('✅ Œuvre supprimée de la galerie publique');
             }
         }
 
@@ -13088,7 +12922,7 @@
                 description: document.getElementById('artwork-description').value.trim(),
                 imageMode: 'photo',
                 photos: currentPhotosData, // Array de photos
-                photo: currentPhotosData[0], // Photo principale pour compatibilité
+                photo: currentPhotosData[0], // Photo principale
                 dimensions: (width || height) ? { width, height } : null,
                 technique: technique || null,
                 techniqueCustom: (technique === 'Autre' || techniqueCustom) ? techniqueCustom : null,
@@ -13128,7 +12962,7 @@
                             photos: addedArtwork.photos || [],
                             technique: addedArtwork.technique || '',
                             dimensions: addedArtwork.dimensions || null,
-                            status: 'publiée' // ✅ CORRECTION : forcer le statut publié
+                            status: 'publiée'
                         };
                         
                         // Debug : afficher les données envoyées
@@ -13301,7 +13135,6 @@
                 };
                 
                 saveProducts(products);
-                console.log('✅ Œuvre mise à jour dans la galerie publique');
             }
         }
 
@@ -13322,8 +13155,6 @@
                         console.log('⚠️ Erreur suppression storage:', err);
                     });
                 }
-                
-                console.log('✅ Œuvre supprimée de la galerie publique');
             }
         }
 
@@ -13633,8 +13464,8 @@
         // ==================== ARTIST PROFILE MANAGEMENT ====================
         
         function openArtistEditModal() {
-            // Get artist account data from localStorage
-            const acc = (function(){ try{ const r=localStorage.getItem('arkyl_artist_account'); return r?JSON.parse(r):null; }catch(e){return null;} })();
+            // Get artist account data from memory
+            const acc = _memStore['arkyl_artist_account'] || null;
             
             if (!acc) {
                 showToast('⚠️ Aucun compte artiste trouvé');
@@ -13718,10 +13549,9 @@
         }
 
         function saveArtistProfile() {
-            console.log('🔍 DEBUG: Début de saveArtistProfile()');
             
             // Get current artist account
-            const acc = (function(){ try{ const r=localStorage.getItem('arkyl_artist_account'); return r?JSON.parse(r):null; }catch(e){return null;} })();
+            const acc = _memStore['arkyl_artist_account'] || null;
             
             console.log('🔍 DEBUG: Compte artiste récupéré:', acc);
             
@@ -13775,8 +13605,6 @@
                 return;
             }
 
-            console.log('✅ DEBUG: Validation OK');
-
             // Update all artist account data
             acc.name = name;
             acc.email = email;
@@ -13790,41 +13618,33 @@
             
             // Update profile image if a new one was uploaded
             if (window.tempProfileImage) {
-                console.log('🔍 DEBUG: Image de profil mise à jour');
                 acc.avatar = window.tempProfileImage;
                 window.tempProfileImage = null;
             }
 
             console.log('🔍 DEBUG: Objet compte avant sauvegarde:', acc);
 
-            // Save to localStorage
+            // Save to memory
             try {
-                localStorage.setItem('arkyl_artist_account', JSON.stringify(acc));
-                console.log('✅ DEBUG: Sauvegarde localStorage réussie');
+                _memStore['arkyl_artist_account'] = acc;
                 
                 // Vérifier immédiatement après sauvegarde
-                const verification = JSON.parse(localStorage.getItem('arkyl_artist_account'));
+                const verification = _memStore['arkyl_artist_account'];
                 console.log('🔍 DEBUG: Vérification après sauvegarde:', verification);
                 
                 // Refresh the profile display (skip welcome toast)
-                console.log('🔍 DEBUG: Appel de hydrateProfile()');
                 hydrateProfile(true);
                 
                 // Close modal
-                console.log('🔍 DEBUG: Fermeture du modal');
                 closeArtistEditModal();
                 
                 // Show success message
-                console.log('🔍 DEBUG: Affichage du toast de succès');
                 showToast('✅ Profil mis à jour avec succès!');
                 
                 // Add notification
-                console.log('🔍 DEBUG: Ajout de notification');
                 if (typeof addNotification === 'function') {
                     addNotification('Profil modifié', 'Vos informations ont été mises à jour avec succès.');
                 }
-                
-                console.log('✅ DEBUG: saveArtistProfile() terminé avec succès');
             } catch (error) {
                 console.error('❌ DEBUG: Erreur lors de la sauvegarde:', error);
                 showToast('❌ Erreur lors de la sauvegarde du profil');
@@ -14795,7 +14615,8 @@
 </script>
 
 <!-- Module Favoris & Panier Base de Données -->
-<script src="arkyl-favoris-panier-db.js">
+<script src="arkyl-favoris-panier-db.js"></script>
+<script>
         // ==================== TICKER NAVIGATION ====================
         (function() {
             let tickerPaused = false;

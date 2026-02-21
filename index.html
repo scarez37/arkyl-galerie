@@ -728,6 +728,32 @@
         }
 
         /* Hamburger Menu Button */
+
+        /* Bouton auth — apparaît à droite quand le hamburger s'ouvre */
+        #authContainer {
+            position: fixed !important;
+            top: 100px !important;
+            right: 16px !important;
+            left: auto !important;
+            z-index: 1003;
+            display: flex !important;
+            align-items: center;
+            opacity: 0;
+            transform: translateX(120%) scale(0.9);
+            pointer-events: none;
+            transition: opacity 0.35s ease, transform 0.35s ease;
+            background: rgba(0,0,0,0.85) !important;
+            backdrop-filter: blur(12px);
+            border: 1px solid #000 !important;
+            border-radius: 10px !important;
+            padding: 8px 12px !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+        }
+        #authContainer.orbital-visible {
+            opacity: 1;
+            transform: translateX(0) scale(1);
+            pointer-events: auto;
+        }
         .hamburger-btn {
             display: flex;
             flex-direction: column;
@@ -5726,31 +5752,46 @@
 
     <!-- Hamburger Menu Dropdown -->
     <div class="hamburger-dropdown" id="hamburgerDropdown">
-        <button class="hamburger-menu-item" onclick="">
+        <!-- 🎨 Espace Artiste / Dashboard -->
+        <button class="hamburger-menu-item" onclick="handleArtistSpace(); toggleHamburgerMenu()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs><linearGradient id="g-aide" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
-                <circle cx="12" cy="12" r="10" stroke="url(#g-aide)" stroke-width="2" fill="none"/>
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke="url(#g-aide)" stroke-width="2" stroke-linecap="round" fill="none"/>
-                <circle cx="12" cy="17" r="1" fill="url(#g-aide)"/>
+                <defs><linearGradient id="g-palette" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
+                <path d="M12 2C6.48 2 2 6.48 2 12c0 5.52 4.48 10 10 10 .83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" fill="url(#g-palette)"/>
             </svg>
-            Aide
+            Espace Artiste
         </button>
 
-        <button class="hamburger-menu-item" onclick="">
+        <!-- 👥 Mes Artistes -->
+        <button class="hamburger-menu-item" onclick="navigateTo('myArtists'); toggleHamburgerMenu()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs><linearGradient id="g-service" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="url(#g-service)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                <defs><linearGradient id="g-users" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
+                <circle cx="9" cy="7" r="4" fill="url(#g-users)"/>
+                <path d="M2 21v-2a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v2" fill="url(#g-users)"/>
+                <circle cx="18" cy="8" r="3" fill="#a0a0b0" opacity="0.7"/>
+                <path d="M22 21v-1.5a4.5 4.5 0 0 0-3-4.24" stroke="#a0a0b0" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.7"/>
             </svg>
-            Service client
+            Mes Artistes
         </button>
 
-        <button class="hamburger-menu-item" onclick="">
+        <!-- 🔒 Paiement sécurisé -->
+        <button class="hamburger-menu-item" onclick="navigateTo('cart'); toggleHamburgerMenu()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs><linearGradient id="g-retour" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
-                <path d="M3 10h13a5 5 0 0 1 0 10H8" stroke="url(#g-retour)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-                <path d="M6 6L2 10l4 4" stroke="url(#g-retour)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                <defs><linearGradient id="g-lock" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
+                <rect x="3" y="11" width="18" height="11" rx="2" stroke="url(#g-lock)" stroke-width="2" fill="none"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="url(#g-lock)" stroke-width="2" stroke-linecap="round" fill="none"/>
+                <circle cx="12" cy="16" r="1.5" fill="url(#g-lock)"/>
             </svg>
-            Politique de retour
+            Paiement sécurisé
+        </button>
+
+        <!-- ✅ Confirmer réception — caché par défaut, affiché si livraison en attente -->
+        <button class="hamburger-menu-item" id="hamburgerConfirmBtn" onclick="navigateTo('orders'); toggleHamburgerMenu()" style="display:none; border-left:2px solid rgba(76,175,80,0.5);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <defs><linearGradient id="g-confirm" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4caf50"/><stop offset="100%" stop-color="#81c784" stop-opacity="0.8"/></linearGradient></defs>
+                <path d="M20 6L9 17l-5-5" stroke="url(#g-confirm)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Confirmer réception
+            <span style="margin-left:6px; background:rgba(76,175,80,0.25); color:#81c784; border:1px solid rgba(76,175,80,0.5); font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px;">⚡ Action</span>
         </button>
 
         <!-- 🚚 Suivi livraison -->
@@ -5766,59 +5807,36 @@
             <span id="hamburgerShippingBadge" style="display:none; margin-left:6px; background:rgba(33,150,243,0.25); color:#90caf9; border:1px solid rgba(33,150,243,0.4); font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px;">En route</span>
         </button>
 
-        <!-- ✅ Confirmer réception — caché par défaut, affiché si livraison en attente -->
-        <button class="hamburger-menu-item" id="hamburgerConfirmBtn" onclick="navigateTo('orders'); toggleHamburgerMenu()" style="display:none; border-left:2px solid rgba(76,175,80,0.5);">
+        <button class="hamburger-menu-item" onclick="">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs><linearGradient id="g-confirm" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4caf50"/><stop offset="100%" stop-color="#81c784" stop-opacity="0.8"/></linearGradient></defs>
-                <path d="M20 6L9 17l-5-5" stroke="url(#g-confirm)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <defs><linearGradient id="g-retour" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
+                <path d="M3 10h13a5 5 0 0 1 0 10H8" stroke="url(#g-retour)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                <path d="M6 6L2 10l4 4" stroke="url(#g-retour)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
             </svg>
-            Confirmer réception
-            <span style="margin-left:6px; background:rgba(76,175,80,0.25); color:#81c784; border:1px solid rgba(76,175,80,0.5); font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px;">⚡ Action</span>
+            Politique de retour
         </button>
 
-        <!-- 🔒 Paiement sécurisé -->
-        <button class="hamburger-menu-item" onclick="navigateTo('cart'); toggleHamburgerMenu()">
+        <button class="hamburger-menu-item" onclick="">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs><linearGradient id="g-lock" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
-                <rect x="3" y="11" width="18" height="11" rx="2" stroke="url(#g-lock)" stroke-width="2" fill="none"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="url(#g-lock)" stroke-width="2" stroke-linecap="round" fill="none"/>
-                <circle cx="12" cy="16" r="1.5" fill="url(#g-lock)"/>
+                <defs><linearGradient id="g-service" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="url(#g-service)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
             </svg>
-            Paiement sécurisé
+            Service client
         </button>
 
-        <!-- 👥 Mes Artistes -->
-        <button class="hamburger-menu-item" onclick="navigateTo('myArtists'); toggleHamburgerMenu()">
+        <button class="hamburger-menu-item" onclick="">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs><linearGradient id="g-users" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
-                <circle cx="9" cy="7" r="4" fill="url(#g-users)"/>
-                <path d="M2 21v-2a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v2" fill="url(#g-users)"/>
-                <circle cx="18" cy="8" r="3" fill="#a0a0b0" opacity="0.7"/>
-                <path d="M22 21v-1.5a4.5 4.5 0 0 0-3-4.24" stroke="#a0a0b0" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.7"/>
+                <defs><linearGradient id="g-aide" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
+                <circle cx="12" cy="12" r="10" stroke="url(#g-aide)" stroke-width="2" fill="none"/>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke="url(#g-aide)" stroke-width="2" stroke-linecap="round" fill="none"/>
+                <circle cx="12" cy="17" r="1" fill="url(#g-aide)"/>
             </svg>
-            Mes Artistes
+            Aide
         </button>
 
-        <!-- 🎨 Espace Artiste / Dashboard -->
-        <button class="hamburger-menu-item" onclick="handleArtistSpace(); toggleHamburgerMenu()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs><linearGradient id="g-palette" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
-                <path d="M12 2C6.48 2 2 6.48 2 12c0 5.52 4.48 10 10 10 .83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" fill="url(#g-palette)"/>
-            </svg>
-            Espace Artiste
-        </button>
-
-        <!-- 🧹 Vider le cache — données fantômes -->
-        <button class="hamburger-menu-item" onclick="clearAppCache(); toggleHamburgerMenu();" style="border-top:1px solid rgba(255,255,255,0.08); margin-top:4px; color:rgba(255,100,100,0.8);">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="rgba(255,100,100,0.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M10 11v6M14 11v6" stroke="rgba(255,100,100,0.8)" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            Vider le cache local
-        </button>
 
         <!-- 🔐 Connexion Google — séparé, toujours en dernier -->
-        <div class="hamburger-menu-item" id="authContainer">
+        <div id="authContainer">
             <div class="google-login-btn" id="googleLoginBtn" style="display:none;"></div>
             <div class="user-profile-btn" id="userProfileBtn" onclick="toggleUserMenu()" style="display:none;">
                 <img id="userAvatar" class="user-avatar" src="" alt="Avatar">
@@ -7765,22 +7783,20 @@
 
         function positionOrbitalItems() {
             const allItems = document.querySelectorAll('#hamburgerDropdown .hamburger-menu-item');
-            // Exclure les items avec display:none (bouton confirm caché par défaut)
             const items = Array.from(allItems).filter(el => {
                 const computed = window.getComputedStyle(el);
                 return el.style.display !== 'none' && computed.display !== 'none';
             });
-            const n = items.length;
-            const navbarHeight = 80;
-            const availableHeight = window.innerHeight - navbarHeight - 20;
-            const itemSpacing = Math.min(availableHeight / n, 44);
-            const totalHeight = itemSpacing * (n - 1);
-            const startY = navbarHeight + (availableHeight - totalHeight) / 2;
 
-            items.forEach((item, i) => {
-                const ri = n - 1 - i;
-                const y = startY + ri * itemSpacing;
-                item.style.top = y + 'px';
+            // Items principaux à gauche (excl. authContainer)
+            const mainItems = items.filter(el => el.id !== 'authContainer');
+            const n = mainItems.length;
+            const navbarHeight = 80;
+            const itemSpacing = 44;
+            const startY = navbarHeight + 20;
+
+            mainItems.forEach((item, i) => {
+                item.style.top = (startY + i * itemSpacing) + 'px';
                 if (orbitalOpen) {
                     item.style.transform = 'translateX(0) scale(1)';
                     item.style.opacity = '1';
@@ -7793,6 +7809,18 @@
                     item.style.transitionDelay = ((n - i - 1) * 0.03) + 's';
                 }
             });
+
+            // authContainer à droite — séparé, indépendant
+            const authItem = document.getElementById('authContainer');
+            if (authItem) {
+                if (orbitalOpen) {
+                    authItem.classList.add('orbital-visible');
+                    authItem.style.transitionDelay = '0.1s';
+                } else {
+                    authItem.classList.remove('orbital-visible');
+                    authItem.style.transitionDelay = '0s';
+                }
+            }
         }
 
         function toggleHamburgerMenu() {
@@ -9636,6 +9664,8 @@
 
         // ==================== STRIPE CHECKOUT ====================
         async function validerPaiementStripe() {
+            alert("🚀 LE NOUVEAU CODE EST BIEN LÀ !"); // Ce message DOIT s'afficher
+
             const btn = document.getElementById('checkout-btn');
             if (!btn) return;
 
@@ -9644,53 +9674,33 @@
                 return;
             }
 
-            // UI — bouton en attente
             btn.disabled = true;
             btn.innerHTML = '🔒 Connexion sécurisée en cours...';
 
             const userId = currentUser?.id || createGuestSession();
 
-            // On envoie le panier en mémoire — le PHP vérifiera les prix en BDD
-            const cartPayload = cartItems.map(item => ({
-                id: item.id,
-                quantity: item.quantity
-            }));
-
             try {
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_stripe_checkout.php', {
+                const response = await fetch('api_stripe_checkout.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: userId,
-                        cart_items: cartPayload
-                    })
+                    body: JSON.stringify({ user_id: userId })
                 });
 
                 const data = await response.json();
 
                 if (data.success && data.url) {
-                   
-                    if (data.order_id) {
-                        _memStore['arkyl_pending_order'] = data.order_id;
-                    }
-                    // Redirection vers Stripe
                     window.location.href = data.url;
                 } else {
-                    console.error('Erreur Stripe:', data.message);
-                    showToast('❌ Erreur de paiement : ' + (data.message || 'Inconnue'));
+                    alert('❌ Erreur renvoyée par le serveur : ' + data.message);
                     btn.disabled = false;
                     btn.innerHTML = '🛒 Finaliser la commande';
                 }
-
             } catch (error) {
-                console.error('Erreur fatale lors du paiement:', error);
-                showToast('❌ Impossible de contacter le serveur de paiement.');
+                alert('❌ Impossible de contacter le serveur PHP.');
                 btn.disabled = false;
                 btn.innerHTML = '🛒 Finaliser la commande';
             }
         }
-
-
         // ==================== NETTOYAGE CACHE APP ====================
         function clearAppCache() {
             const keysToKeep = ['arkyl_current_user', 'arkyl_orders', 'guest_session_id', 'arkyl_pending_order'];

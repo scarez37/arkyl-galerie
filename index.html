@@ -2164,7 +2164,6 @@
             100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.3) rotate(var(--rot)); }
         }
 
-        /* ============ CART PAGE ============ */
         /* ============ PANIER — STYLE JUMIA ARKYL ============ */
 
         /* Layout principal */
@@ -9353,8 +9352,7 @@
             `).join('');
         }
 
-        // ==================== CART ====================
-        // ==================== GET ITEM IMAGE HTML ====================
+        // ==================== UTILITAIRES IMAGE ====================
         function getDefaultEmoji(item) {
             // Retourner l'emoji du produit ou un emoji par défaut selon la catégorie
             if (item.emoji) return item.emoji;
@@ -9410,8 +9408,7 @@
             }
         }
 
-        // ==================== PANIER - CART ====================
-        // ==================== PANIER ====================
+        // ==================== PANIER — STYLE JUMIA ARKYL ====================
 
         function renderCart() {
             const container = document.getElementById('cartContainer');
@@ -14607,7 +14604,7 @@
 </script>
 
 <!-- Module Favoris & Panier Base de Données -->
-<script src="arkyl-favoris-panier-db.js"></script>
+<!-- arkyl-favoris-panier-db.js supprimé : logique panier intégrée dans ce fichier -->
 <script>
         // ==================== TICKER NAVIGATION ====================
         (function() {

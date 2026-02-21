@@ -1,5 +1,4 @@
-
-        function enterGallery() {
+function enterGallery() {
             const introPage = document.getElementById('intro-page');
             const mainContent = document.getElementById('main-content');
             introPage.classList.add('fade-out');
@@ -2579,11 +2578,17 @@
 
                             <div class="payment-section">
                                 <div class="shipping-label">💳 Paiement</div>
-                                <div class="payment-methods">
-                                    <div class="payment-method selected"><div class="payment-icon">📱</div><div class="payment-name">MTN Money</div></div>
-                                    <div class="payment-method"><div class="payment-icon">🌊</div><div class="payment-name">Wave</div></div>
-                                    <div class="payment-method"><div class="payment-icon">🟠</div><div class="payment-name">Orange Money</div></div>
-                                    <div class="payment-method"><div class="payment-icon">🟣</div><div class="payment-name">Moov Money</div></div>
+                                <div class="stripe-payment-info">
+                                    <div class="stripe-logo-row">
+                                        <span class="stripe-lock-icon">🔒</span>
+                                        <span class="stripe-label">Paiement sécurisé par <strong>Stripe</strong></span>
+                                    </div>
+                                    <div class="stripe-cards-row">
+                                        <span class="stripe-card-chip">Visa</span>
+                                        <span class="stripe-card-chip">Mastercard</span>
+                                        <span class="stripe-card-chip">American Express</span>
+                                    </div>
+                                    <p class="stripe-info-text">Vous serez redirigé vers la page de paiement sécurisée Stripe. Vos données bancaires ne transitent jamais par nos serveurs.</p>
                                 </div>
                             </div>
                             <div class="security-badge">🔒 Paiement sécurisé — Tiers de Confiance ARKYL</div>
@@ -2592,12 +2597,7 @@
                 </div>
             `;
 
-            document.querySelectorAll('.payment-method').forEach(m => {
-                m.addEventListener('click', function() {
-                    document.querySelectorAll('.payment-method').forEach(x => x.classList.remove('selected'));
-                    this.classList.add('selected');
-                });
-            });
+
         }
 
         function getDeliveryDate(maxWorkDays) {
@@ -2859,10 +2859,19 @@
             }
 
             try {
+                // Préparer le fallback panier (au cas où la BDD serait désynchronisée)
+                const cartFallback = cartItems.map(item => ({
+                    id:       item.id       || item.artwork_id,
+                    quantity: item.quantity || 1
+                }));
+
                 const response = await fetch('api_stripe_checkout.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId })
+                    body: JSON.stringify({
+                        user_id:    userId,
+                        cart_items: cartFallback   // fallback si la BDD est vide
+                    })
                 });
 
                 const data = await response.json();
@@ -4194,7 +4203,7 @@
             message = message.toLowerCase();
             if (message.includes('prix')) return "Nos œuvres varient de 67 000 à 150 000 FCFA. Parcourez notre catalogue! 💰";
             if (message.includes('livraison')) return "Livraison via SBTA, AT Transport, TSR, Ocean Delivery. Délais: 1-5 jours. 📦";
-            if (message.includes('paiement')) return "Nous acceptons MTN Money, Wave, Orange Money et Moov Money. 100% sécurisé! 💳";
+            if (message.includes('paiement')) return "Nous acceptons le paiement par carte bancaire (Visa, Mastercard, American Express) via Stripe. 100% sécurisé ! 🔒";
             return "Merci! Contactez-nous à arkyl.app@gmail.com pour plus d'infos. 😊";
         }
 

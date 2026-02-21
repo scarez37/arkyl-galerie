@@ -7897,46 +7897,28 @@ function enterGallery() {
                     applyOffset(-e.deltaY * 0.8);
                 }, { passive: false });
 
-                // Swipe tactile — stoppe la propagation pour éviter
-                // que le swipe global de l'app n'intercepte le geste
-                let touchStartX = 0;
-                let touchStartY = 0;
-                let isSwiping = false;
-
-                scroll.addEventListener('touchstart', (e) => {
-                    touchStartX = e.touches[0].clientX;
-                    touchStartY = e.touches[0].clientY;
-                    isSwiping = false;
-                    // Pause le ticker dès le toucher
+                // Sur mobile : scroll natif (CSS overflow-x auto)
+                // Pas besoin de touchmove manuel — le navigateur gère nativement
+                // On pause juste l'animation CSS au toucher
+                scroll.addEventListener('touchstart', () => {
                     const c = getContent();
                     if (c) c.classList.add('paused');
                 }, { passive: true });
 
-                scroll.addEventListener('touchmove', (e) => {
-                    const dx = e.touches[0].clientX - touchStartX;
-                    const dy = e.touches[0].clientY - touchStartY;
-
-                    // Si le geste est plus horizontal que vertical → on gère
-                    if (Math.abs(dx) > Math.abs(dy)) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        isSwiping = true;
-                        const delta = e.touches[0].clientX - touchStartX;
-                        touchStartX = e.touches[0].clientX;
-                        applyOffset(delta);
-                    }
-                }, { passive: false });
-
-                scroll.addEventListener('touchend', (e) => {
-                    if (isSwiping) {
-                        e.stopPropagation();
-                    }
-                    isSwiping = false;
+                scroll.addEventListener('touchend', () => {
+                    // Ne reprend pas auto sur mobile — l'utilisateur scrolle librement
                 }, { passive: true });
             });
 
             window.tickerNav = function(dir) {
-                applyOffset(dir * STEP);
+                const scroll = document.querySelector('.news-ticker-scroll');
+                const isMobile = window.innerWidth <= 768;
+                if (isMobile && scroll) {
+                    // Sur mobile : scroll natif
+                    scroll.scrollBy({ left: dir * STEP, behavior: 'smooth' });
+                } else {
+                    applyOffset(dir * STEP);
+                }
             };
         })();
 

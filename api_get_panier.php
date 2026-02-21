@@ -67,6 +67,7 @@ try {
         $quantity = intval($item['quantity']);
         $totalPrice += $price * $quantity;
         
+        $firstPhoto = !empty($photos) ? $photos[0] : null;
         $formatted[] = [
             'id' => intval($item['id']),
             'title' => $item['title'] ?? 'Sans titre',
@@ -80,7 +81,8 @@ try {
             'artist_name' => $item['artist_name'] ?? $item['artist'] ?? null,
             'artist_country' => $item['artist_country'] ?? null,
             'badge' => $item['badge'] ?? 'Disponible',
-            'image_url' => !empty($photos) ? $photos[0] : null,
+            'image_url' => $firstPhoto,
+            'image' => $firstPhoto,   // alias pour compatibilité JS
             'photos' => $photos,
             'cart_id' => $item['cart_id'],
             'quantity' => $quantity,
@@ -91,6 +93,7 @@ try {
     echo json_encode([
         'success' => true,
         'data' => $formatted,
+        'items' => $formatted,   // alias pour compatibilité JS
         'count' => count($formatted),
         'total_items' => array_sum(array_column($formatted, 'quantity')),
         'total_price' => $totalPrice

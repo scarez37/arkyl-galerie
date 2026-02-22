@@ -4208,36 +4208,61 @@ function enterGallery() {
             document.getElementById('chatWindow').classList.toggle('show');
         }
 
-        function sendChatMessage() {
+        async function sendChatMessage() {
             const input = document.getElementById('chatInput');
             const message = input.value.trim();
             if (!message) return;
 
             const messagesDiv = document.getElementById('chatMessages');
-            
+
+            // Afficher le message de l'utilisateur
             const userMsg = document.createElement('div');
             userMsg.className = 'chat-message user';
             userMsg.textContent = message;
             messagesDiv.appendChild(userMsg);
-            
             input.value = '';
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
-            setTimeout(() => {
+            // Indicateur d'envoi
+            const sending = document.createElement('div');
+            sending.className = 'chat-message bot';
+            sending.innerHTML = '<em style="opacity:0.6">📤 Envoi en cours...</em>';
+            messagesDiv.appendChild(sending);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            // Infos expéditeur
+            const senderName  = currentUser?.name  || currentUser?.displayName || 'Visiteur';
+            const senderEmail = currentUser?.email  || 'inconnu@arkyl.app';
+
+            try {
+                // Envoi via EmailJS (service gratuit, pas de serveur mail requis)
+                // emailjs.send(serviceId, templateId, params)
+                await emailjs.send('service_arkyl', 'template_arkyl_contact', {
+                    from_name:  senderName,
+                    from_email: senderEmail,
+                    message:    message,
+                    reply_to:   senderEmail,
+                    sent_at:    new Date().toLocaleString('fr-FR')
+                });
+
+                sending.remove();
+
                 const botMsg = document.createElement('div');
                 botMsg.className = 'chat-message bot';
-                botMsg.textContent = getBotResponse(message);
+                botMsg.innerHTML = '✅ Message envoyé ! Nous vous répondrons à <strong>' + senderEmail + '</strong> dans les plus brefs délais.';
                 messagesDiv.appendChild(botMsg);
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            }, 1000);
-        }
 
-        function getBotResponse(message) {
-            message = message.toLowerCase();
-            if (message.includes('prix')) return "Nos œuvres varient de 67 000 à 150 000 FCFA. Parcourez notre catalogue! 💰";
-            if (message.includes('livraison')) return "Livraison via SBTA, AT Transport, TSR, Ocean Delivery. Délais: 1-5 jours. 📦";
-            if (message.includes('paiement')) return "Nous acceptons le paiement par carte bancaire (Visa, Mastercard, American Express) via Stripe. 100% sécurisé ! 🔒";
-            return "Merci! Contactez-nous à arkyl.app@gmail.com pour plus d'infos. 😊";
+            } catch(e) {
+                // Fallback : ouvrir le client mail avec le message pré-rempli
+                sending.remove();
+                const botMsg = document.createElement('div');
+                botMsg.className = 'chat-message bot';
+                const mailtoLink = `mailto:arkyl.app@gmail.com?subject=${encodeURIComponent('[ARKYL] Message de ' + senderName)}&body=${encodeURIComponent(message)}`;
+                botMsg.innerHTML = `⚠️ Envoi direct indisponible. <a href="${mailtoLink}" style="color:#d4af37;font-weight:700;" target="_blank">Cliquez ici pour envoyer l'email</a> à arkyl.app@gmail.com`;
+                messagesDiv.appendChild(botMsg);
+            }
+
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
         // ==================== PRODUCT DETAIL ====================
@@ -4706,7 +4731,7 @@ function enterGallery() {
             // Charger les œuvres depuis l'API et/ou local
             let allProducts = [];
             try {
-                const response = await fetch('api_galerie_publique.php');
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now());
                 const contentType = response.headers.get('content-type');
                 
                 if (response.ok && contentType && contentType.includes('application/json')) {
@@ -4719,6 +4744,7 @@ function enterGallery() {
                             category: art.category,
                             price: art.price,
                             image_url: art.image_url,
+                            photos: art.photos || [art.image_url],
                             artistAvatar: art.artist_avatar || '👨🏿‍🎨'
                         }));
                     }
@@ -4738,19 +4764,7 @@ function enterGallery() {
                 p.artist.trim().toLowerCase() === artistName.trim().toLowerCase()
             );
             
-            if (artistProducts.length === 0) {
-                showToast(`⚠️ Impossible de trouver des œuvres de ${artistName}`);
-                console.log('Artiste recherché:', artistName);
-                console.log('Artistes disponibles:', [...new Set(allProducts.map(p => p.artist))]);
-                
-                // Réinitialiser le bouton
-                if (btn) {
-                    btn.disabled = false;
-                    btn.style.transform = 'scale(1)';
-                    btn.innerHTML = '+ Suivre';
-                }
-                return;
-            }
+            // Pas de blocage si 0 œuvres — l'artiste peut ne pas encore avoir publié
 
             // Récupérer les données de l'artiste depuis artistsData si disponible
             const artistData = artistsData[artistName] || {};
@@ -4843,7 +4857,6 @@ function enterGallery() {
             const carousel = document.getElementById('followedArtistsCarousel');
             const loopsFeed = document.getElementById('artistsLoopsFeed');
 
-            console.log('📊 Artistes suivis:', followed);
 
             // Show/hide empty state
             if (followed.length === 0) {
@@ -4860,13 +4873,12 @@ function enterGallery() {
             // Charger les œuvres depuis le serveur
             let allProducts = [];
             try {
-                const response = await fetch('api_galerie_publique.php');
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now());
                 const contentType = response.headers.get('content-type');
                 
                 if (response.ok && contentType && contentType.includes('application/json')) {
                     const result = await response.json();
                     if (result.success && result.data && result.data.length > 0) {
-                        // Convertir le format API vers le format attendu
                         allProducts = result.data.map(art => ({
                             id: art.id,
                             title: art.title,
@@ -4874,11 +4886,11 @@ function enterGallery() {
                             category: art.category,
                             price: art.price,
                             image_url: art.image_url,
+                            photos: art.photos || [art.image_url],
                             emoji: '🎨',
-                            description: art.description || ''
+                            description: art.description || '',
+                            created_at: art.created_at || ''
                         }));
-                        console.log('✅ Œuvres chargées depuis API:', allProducts.length);
-                        console.log('📋 Artistes dans API:', [...new Set(allProducts.map(p => p.artist))]);
                     }
                 }
             } catch (error) {
@@ -4918,16 +4930,17 @@ function enterGallery() {
 
             // Render feed de loops (posts des artistes)
             loopsFeed.innerHTML = followed.map(artist => {
-                // Comparaison robuste : ignorer la casse et les espaces
                 const artistWorks = allProducts.filter(p => 
                     p.artist && artist.name && 
                     p.artist.trim().toLowerCase() === artist.name.trim().toLowerCase()
                 );
                 
-                // Si aucune œuvre trouvée, afficher un message de debug
                 if (artistWorks.length === 0) {
-                    console.log(`⚠️ Aucune œuvre trouvée pour ${artist.name}`);
-                    console.log('Produits disponibles:', allProducts.map(p => p.artist));
+                    return `<div style="text-align:center;padding:30px 20px;background:rgba(255,255,255,0.1);border-radius:16px;margin-bottom:16px;">
+                        <div style="font-size:40px;margin-bottom:10px;">🎨</div>
+                        <div style="color:rgba(255,255,255,0.9);font-weight:700;">${artist.name}</div>
+                        <div style="color:rgba(255,255,255,0.6);font-size:13px;margin-top:6px;">Aucune œuvre publiée pour le moment</div>
+                    </div>`;
                 }
                 
                 return artistWorks.map((work, index) => {
@@ -4960,7 +4973,7 @@ function enterGallery() {
                         </div>
 
                         <!-- Image de l'œuvre -->
-                        <div class="loop-image" onclick="viewProductDetail(${work.id})" style="position: relative; background: linear-gradient(135deg, #f8f9fa 0%, #e8eaed 100%);">
+                        <div class="loop-image" onclick="viewProductDetailFromAPI(${work.id})" style="position: relative; background: linear-gradient(135deg, #f8f9fa 0%, #e8eaed 100%);">
                             ${work.image_url && work.image_url !== 'undefined' 
                                 ? `<img loading="lazy" src="${work.image_url}" 
                                        alt="${work.title}" 
@@ -5070,7 +5083,7 @@ function enterGallery() {
             // Charger les œuvres depuis le serveur
             let allProducts = [];
             try {
-                const response = await fetch('api_galerie_publique.php');
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now());
                 const contentType = response.headers.get('content-type');
                 
                 if (response.ok && contentType && contentType.includes('application/json')) {
@@ -5083,6 +5096,7 @@ function enterGallery() {
                             category: art.category,
                             price: art.price,
                             image_url: art.image_url,
+                            photos: art.photos || [art.image_url],
                             emoji: '🎨'
                         }));
                     }
@@ -5743,14 +5757,50 @@ function enterGallery() {
         function switchToArtistMode() {
             document.getElementById('clientNav').style.display  = 'none';
             document.getElementById('artistNav').style.display  = 'flex';
-            // hide all client pages
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            // show artist space
             document.getElementById('artistSpace').style.display = 'block';
-            // hydrate + dashboard
             hydrateProfile();
             showArtistSection('dashboard');
             window.scrollTo(0,0);
+            // Charger les œuvres depuis le serveur pour la modification
+            loadArtistArtworksFromServer();
+        }
+
+        async function loadArtistArtworksFromServer() {
+            if (!currentUser || !currentUser.id) return;
+            try {
+                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(currentUser.id)}&t=${Date.now()}`);
+                const result = await resp.json();
+                if (result.success && result.data && result.data.length > 0) {
+                    // Synchroniser db.artworks avec les données serveur
+                    result.data.forEach(art => {
+                        const exists = db.artworks.find(a => a.id === art.id);
+                        if (!exists) {
+                            db.artworks.push({
+                                id: art.id,
+                                title: art.title,
+                                category: art.category,
+                                price: art.price,
+                                description: art.description || '',
+                                photo: art.image_url,
+                                photos: art.photos || [art.image_url],
+                                technique: art.technique || '',
+                                dimensions: art.dimensions || null,
+                                status: 'published',
+                                createdAt: art.created_at || new Date().toISOString()
+                            });
+                        }
+                    });
+                    db._save('artist_artworks', db.artworks);
+                    // Rafraîchir si déjà sur la section œuvres
+                    const artSection = document.getElementById('artworksSection');
+                    if (artSection && artSection.classList.contains('active')) renderArtworks();
+                    const dashSection = document.getElementById('dashboardSection');
+                    if (dashSection && dashSection.classList.contains('active')) updateDashboard();
+                }
+            } catch(e) {
+                // Silencieux — données locales suffisent
+            }
         }
 
         function switchToClientMode() {
@@ -6207,8 +6257,36 @@ function enterGallery() {
                 // Sauvegarder dans la base locale de l'artiste (pour son portfolio)
                 if (editingArtworkId) {
                     db.updateArtwork(editingArtworkId, artwork);
-                    // Mettre à jour aussi dans la galerie publique
                     updatePublicProduct(editingArtworkId, artwork);
+
+                    // ⭐ ENVOI AU SERVEUR
+                    try {
+                        const updateData = {
+                            artwork_id: editingArtworkId,
+                            artist_id: currentUser.id,
+                            title: artwork.title,
+                            category: artwork.category,
+                            price: artwork.price,
+                            description: artwork.description || '',
+                            image_url: artwork.photo || null,
+                            photos: artwork.photos || [],
+                            technique: artwork.technique || '',
+                            dimensions: artwork.dimensions || null
+                        };
+                        const resp = await fetch('https://arkyl-galerie.onrender.com/api_modifier_oeuvre.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(updateData)
+                        });
+                        const res = await resp.json();
+                        if (res.success) {
+                            showToast('✅ Œuvre modifiée avec succès !');
+                        } else {
+                            showToast('⚠️ Sauvegarde locale OK, serveur : ' + res.message);
+                        }
+                    } catch (e) {
+                        showToast('⚠️ Modification enregistrée localement (hors ligne)');
+                    }
                 } else {
                     // Ajouter d'abord à la base de données pour obtenir l'ID
                     db.addArtwork(artwork);
@@ -6816,7 +6894,7 @@ function enterGallery() {
             reader.readAsDataURL(file);
         }
 
-        function saveArtistProfile() {
+        async function saveArtistProfile() {
             
             // Get current artist account
             const acc = safeStorage.get('arkyl_artist_account', null) || _memStore['arkyl_artist_account'] || null;
@@ -6892,29 +6970,47 @@ function enterGallery() {
 
             console.log('🔍 DEBUG: Objet compte avant sauvegarde:', acc);
 
-            // Save to memory
+            // Sauvegarder en mémoire ET localStorage
             try {
                 _memStore['arkyl_artist_account'] = acc;
-                
-                // Vérifier immédiatement après sauvegarde
-                const verification = _memStore['arkyl_artist_account'];
-                console.log('🔍 DEBUG: Vérification après sauvegarde:', verification);
-                
-                // Refresh the profile display (skip welcome toast)
+                safeStorage.set('arkyl_artist_account', acc);
+
                 hydrateProfile(true);
-                
-                // Close modal
                 closeArtistEditModal();
-                
-                // Show success message
-                showToast('✅ Profil mis à jour avec succès!');
-                
-                // Add notification
+
+                // ⭐ ENVOI AU SERVEUR
+                try {
+                    const profileData = {
+                        artist_id: currentUser.id,
+                        name: acc.name,
+                        email: acc.email,
+                        phone: acc.phone || '',
+                        country: acc.country || '',
+                        specialty: acc.specialty || [],
+                        bio: acc.bio || '',
+                        website: acc.website || '',
+                        social: acc.social || '',
+                        avatar: acc.avatar || null
+                    };
+                    const resp = await fetch('https://arkyl-galerie.onrender.com/api_modifier_profil.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(profileData)
+                    });
+                    const res = await resp.json();
+                    if (res.success) {
+                        showToast('✅ Profil mis à jour avec succès !');
+                    } else {
+                        showToast('✅ Profil sauvegardé localement');
+                    }
+                } catch (e) {
+                    showToast('✅ Profil sauvegardé (hors ligne)');
+                }
+
                 if (typeof addNotification === 'function') {
                     addNotification('Profil modifié', 'Vos informations ont été mises à jour avec succès.');
                 }
             } catch (error) {
-                console.error('❌ DEBUG: Erreur lors de la sauvegarde:', error);
                 showToast('❌ Erreur lors de la sauvegarde du profil');
             }
         }
@@ -7702,42 +7798,14 @@ function enterGallery() {
                             <div class="product-image" style="position: relative;">
                                 <span class="product-badge">${oeuvre.badge || 'Disponible'}</span>
                                 <button class="like-button" onclick="toggleFavorite(event, ${oeuvre.id})">🤍</button>
-                                
-                                <!-- Conteneur du carrousel -->
-                                <div style="position: relative; width: 100%; height: 100%; overflow: hidden;">
-                                    ${photos.map((photo, photoIndex) => `
-                                        <img 
-                                            id="card-img-${oeuvre.id}-${photoIndex}"
-                                            src="${photo}" 
-                                            alt="${oeuvre.title}" 
-                                            style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;position:absolute;top:0;left:0;transition:opacity 0.3s ease;opacity:${photoIndex === 0 ? '1' : '0'};" 
-                                            loading="lazy" 
-                                            onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
-                                    `).join('')}
+                                <img src="${photos[0]}" alt="${oeuvre.title}"
+                                     style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;"
+                                     loading="lazy"
+                                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
+                                <!-- Petits points indicateurs (discrets, pas de flèches) -->
+                                <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:2;">
+                                    ${photos.map((_, i) => `<div style="width:6px;height:6px;border-radius:50%;background:${i===0?'rgba(255,255,255,0.95)':'rgba(255,255,255,0.4)'};"></div>`).join('')}
                                 </div>
-                                
-                                <!-- Indicateur de photos -->
-                                <div id="card-indicator-${oeuvre.id}" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; z-index: 2;">
-                                    1/${photos.length}
-                                </div>
-                                
-                                <!-- Boutons de navigation (apparaissent au survol) -->
-                                <button 
-                                    onclick="event.stopPropagation(); previousCardPhoto(${oeuvre.id}, ${photos.length})"
-                                    style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.6); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px; display: none; align-items: center; justify-content: center; z-index: 3; transition: all 0.2s;"
-                                    class="card-nav-btn card-nav-prev-${oeuvre.id}"
-                                    onmouseover="this.style.background='rgba(0,0,0,0.8)'; this.style.transform='translateY(-50%) scale(1.1)'"
-                                    onmouseout="this.style.background='rgba(0,0,0,0.6)'; this.style.transform='translateY(-50%) scale(1)'">
-                                    ‹
-                                </button>
-                                <button 
-                                    onclick="event.stopPropagation(); nextCardPhoto(${oeuvre.id}, ${photos.length})"
-                                    style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.6); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px; display: none; align-items: center; justify-content: center; z-index: 3; transition: all 0.2s;"
-                                    class="card-nav-btn card-nav-next-${oeuvre.id}"
-                                    onmouseover="this.style.background='rgba(0,0,0,0.8)'; this.style.transform='translateY(-50%) scale(1.1)'"
-                                    onmouseout="this.style.background='rgba(0,0,0,0.6)'; this.style.transform='translateY(-50%) scale(1)'">
-                                    ›
-                                </button>
                             </div>
                         `;
                     } else {
@@ -7758,9 +7826,7 @@ function enterGallery() {
                     
                     const carte = `
                         <div class="product-card" 
-                             onclick="viewProductDetailFromAPI(${oeuvre.id})"
-                             onmouseenter="showCardNavButtons(${oeuvre.id})"
-                             onmouseleave="hideCardNavButtons(${oeuvre.id})">
+                             onclick="viewProductDetailFromAPI(${oeuvre.id})">
                             ${imageHTML}
                             <div class="product-info">
                                 <div class="product-title">${title}</div>
@@ -7879,6 +7945,7 @@ function enterGallery() {
 
             // Pause/reprise au survol (déjà géré en CSS hover, mais on renforce)
             document.addEventListener('DOMContentLoaded', function() {
+                const scrollWrap = document.querySelector('.news-ticker-scroll-wrap') || document.querySelector('.news-ticker-scroll');
                 const scroll = document.querySelector('.news-ticker-scroll');
                 if (!scroll) return;
 
@@ -7911,11 +7978,10 @@ function enterGallery() {
             });
 
             window.tickerNav = function(dir) {
-                const scroll = document.querySelector('.news-ticker-scroll');
                 const isMobile = window.innerWidth <= 768;
-                if (isMobile && scroll) {
-                    // Sur mobile : scroll natif
-                    scroll.scrollBy({ left: dir * STEP, behavior: 'smooth' });
+                if (isMobile) {
+                    const scrollEl = document.querySelector('.news-ticker-scroll');
+                    if (scrollEl) scrollEl.scrollBy({ left: dir * STEP, behavior: 'smooth' });
                 } else {
                     applyOffset(dir * STEP);
                 }

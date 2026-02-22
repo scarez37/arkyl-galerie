@@ -10,6 +10,17 @@
     <!-- Google Sign-In -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link rel="stylesheet" href="style.css">
+    <!-- EmailJS SDK pour envoi d'emails depuis le navigateur -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script>
+        // Initialiser EmailJS avec la clé publique
+        // ⚠️ À remplacer après création du compte sur emailjs.com
+        (function() {
+            if (typeof emailjs !== 'undefined') {
+                emailjs.init({ publicKey: 'VOTRE_PUBLIC_KEY_ICI' });
+            }
+        })();
+    </script>
 </head>
 <body>
 </head>
@@ -166,16 +177,7 @@
             Mes Artistes
         </button>
 
-        <!-- 🔒 Paiement sécurisé -->
-        <button class="hamburger-menu-item" onclick="navigateTo('cart'); toggleHamburgerMenu()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs><linearGradient id="g-lock" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
-                <rect x="3" y="11" width="18" height="11" rx="2" stroke="url(#g-lock)" stroke-width="2" fill="none"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="url(#g-lock)" stroke-width="2" stroke-linecap="round" fill="none"/>
-                <circle cx="12" cy="16" r="1.5" fill="url(#g-lock)"/>
-            </svg>
-            Paiement sécurisé
-        </button>
+
 
         <!-- ✅ Confirmer réception — caché par défaut, affiché si livraison en attente -->
         <button class="hamburger-menu-item" id="hamburgerConfirmBtn" onclick="navigateTo('orders'); toggleHamburgerMenu()" style="display:none; border-left:2px solid rgba(76,175,80,0.5);">
@@ -438,9 +440,10 @@
 
         <div class="news-ticker-container">
             <div class="news-ticker-wrapper">
-                <div class="news-ticker-scroll">
+                <div class="news-ticker-scroll-wrap" style="position:relative;">
                     <button class="ticker-nav-btn ticker-nav-prev" onclick="tickerNav(-1)" title="Précédent">‹</button>
                     <button class="ticker-nav-btn ticker-nav-next" onclick="tickerNav(1)" title="Suivant">›</button>
+                    <div class="news-ticker-scroll">
                     <div class="news-ticker-content" id="newsTickerContent">
                         <!-- Item 1 -->
                         <div class="news-ticker-item" onclick="openNewsLightbox(0)" title="Nouvelle collection de Kofi Mensah disponible!">
@@ -508,6 +511,7 @@
                             </div>
                         </div>
                     </div>
+                </div>
                 </div>
             </div>
         </div>

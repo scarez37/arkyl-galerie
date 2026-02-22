@@ -1497,11 +1497,19 @@
             50%, 100% { left: 200%; }
         }
 
-        .news-ticker-scroll {
+        /* Wrapper qui garde les boutons fixes */
+        .news-ticker-scroll-wrap {
             flex: 1;
-            overflow: hidden;
             position: relative;
             height: 420px;
+        }
+
+        /* Le scroll réel (desktop: overflow hidden + animation CSS) */
+        .news-ticker-scroll {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
         }
 
         /* Sur desktop : animation CSS auto */
@@ -1518,30 +1526,6 @@
             animation-play-state: paused;
         }
 
-        /* Sur mobile : scroll natif horizontal — pas d'animation CSS */
-        @media (max-width: 768px) {
-            .news-ticker-scroll {
-                overflow-x: auto;
-                overflow-y: hidden;
-                -webkit-overflow-scrolling: touch;
-                scroll-snap-type: x mandatory;
-                scrollbar-width: none;
-                cursor: grab;
-            }
-            .news-ticker-scroll::-webkit-scrollbar { display: none; }
-            .news-ticker-scroll:active { cursor: grabbing; }
-
-            .news-ticker-content {
-                animation: none !important;
-                transform: none !important;
-                transition: none !important;
-                width: max-content;
-                padding: 0 40px;
-            }
-            .news-ticker-content.paused {
-                animation: none !important;
-            }
-        }
         .ticker-nav-btn {
             position: absolute;
             top: 50%;
@@ -1905,8 +1889,28 @@
                 font-size: 10px;
                 border-radius: 10px;
             }
-            .news-ticker-scroll {
+            .news-ticker-scroll-wrap {
                 height: 200px;
+            }
+            .news-ticker-scroll {
+                width: 100%;
+                height: 100%;
+                overflow-x: auto;
+                overflow-y: hidden;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+            .news-ticker-scroll::-webkit-scrollbar { display: none; }
+
+            .news-ticker-content {
+                animation: none !important;
+                transform: none !important;
+                transition: none !important;
+                width: max-content;
+                height: 100%;
+            }
+            .news-ticker-content.paused {
+                animation: none !important;
             }
             .news-ticker-icon {
                 width: 280px;
@@ -1922,16 +1926,22 @@
             .news-ticker-item:hover {
                 transform: none; /* désactiver hover élévation sur mobile */
             }
-            /* Boutons nav ticker : bien visibles sur mobile */
+            /* Boutons nav ticker sur mobile — positionnés sur le wrapper, pas sur le scroll */
             .ticker-nav-btn {
-                width: 36px;
-                height: 36px;
-                font-size: 18px;
-                background: rgba(255,255,255,0.15) !important;
-                border-color: rgba(255,255,255,0.4) !important;
+                width: 38px;
+                height: 38px;
+                font-size: 20px;
+                background: rgba(0,0,0,0.45) !important;
+                border: none !important;
                 color: white !important;
                 box-shadow: none !important;
+                position: absolute;
+                top: 50%;
+                transform: translateY(-50%);
+                z-index: 10;
             }
+            .ticker-nav-prev { left: 4px; }
+            .ticker-nav-next { right: 4px; }
 
             /* Filtres catégories : scroll horizontal au lieu de wrap */
             .filter-container {
@@ -2417,41 +2427,44 @@
         /* ============ RÉCAPITULATIF (colonne droite) ============ */
 
         .summary-card {
-            background: rgba(255,255,255,0.06);
-            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(20, 16, 10, 0.85);
+            border: 1px solid rgba(212,175,55,0.25);
             border-radius: 16px;
-            padding: 20px;
+            padding: 22px;
             position: sticky;
             top: 90px;
+            backdrop-filter: blur(16px);
         }
 
         .summary-title {
-            font-size: 16px;
-            font-weight: 700;
+            font-size: 13px;
+            font-weight: 800;
             margin-bottom: 16px;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            color: rgba(255,255,255,0.7);
+            letter-spacing: 1.5px;
+            color: #d4af37;
         }
 
         .summary-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 9px 0;
+            padding: 10px 0;
             font-size: 14px;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.85);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
 
         .summary-row:last-of-type { border-bottom: none; }
 
         .summary-row.total {
             padding: 14px 0 4px;
-            font-size: 20px;
-            font-weight: 800;
-            border-top: 2px solid rgba(255,255,255,0.15);
+            font-size: 21px;
+            font-weight: 900;
+            border-top: 2px solid rgba(212,175,55,0.4);
             border-bottom: none;
             margin-top: 4px;
+            color: #fff;
         }
 
         .summary-row.total span:last-child { color: #d4af37; }
@@ -2490,10 +2503,10 @@
 
         .shipping-label {
             font-size: 12px;
-            font-weight: 700;
-            color: rgba(255,255,255,0.5);
+            font-weight: 800;
+            color: #d4af37;
             text-transform: uppercase;
-            letter-spacing: 0.8px;
+            letter-spacing: 1px;
             margin-bottom: 10px;
         }
 
@@ -2503,19 +2516,19 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 10px 12px;
+            padding: 12px 14px;
             border-radius: 10px;
-            border: 1.5px solid rgba(255,255,255,0.12);
+            border: 1.5px solid rgba(255,255,255,0.2);
             cursor: pointer;
             transition: all 0.2s;
-            background: rgba(255,255,255,0.03);
+            background: rgba(255,255,255,0.06);
         }
 
-        .shipping-option:hover { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.07); }
+        .shipping-option:hover { border-color: rgba(255,255,255,0.45); background: rgba(255,255,255,0.1); }
 
         .shipping-option.selected {
             border-color: #d4af37;
-            background: rgba(212,175,55,0.08);
+            background: rgba(212,175,55,0.12);
         }
 
         .shipping-radio {
@@ -2540,9 +2553,9 @@
         }
 
         .shipping-info-col { flex: 1; }
-        .shipping-name { font-size: 13px; font-weight: 700; }
-        .shipping-detail { font-size: 11px; color: rgba(255,255,255,0.45); margin-top: 1px; }
-        .shipping-price-tag { font-size: 13px; font-weight: 800; color: #fff; }
+        .shipping-name { font-size: 14px; font-weight: 700; color: #fff; }
+        .shipping-detail { font-size: 12px; color: rgba(255,255,255,0.65); margin-top: 2px; }
+        .shipping-price-tag { font-size: 14px; font-weight: 800; color: #fff; }
         .shipping-free { color: #81c784; }
 
         /* ── Panneau compagnie Transport en commun ── */
@@ -2750,23 +2763,23 @@
         /* ── Bloc Stripe ── */
         .stripe-payment-info {
             margin-top: 10px;
-            border: 1.5px solid rgba(99, 91, 255, 0.4);
+            border: 1.5px solid rgba(99, 91, 255, 0.6);
             border-radius: 12px;
             padding: 14px 16px;
-            background: rgba(99, 91, 255, 0.07);
+            background: rgba(99, 91, 255, 0.15);
         }
 
         .stripe-logo-row {
             display: flex;
             align-items: center;
             gap: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            color: rgba(255,255,255,0.9);
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
             margin-bottom: 10px;
         }
 
-        .stripe-lock-icon { font-size: 16px; }
+        .stripe-lock-icon { font-size: 17px; }
 
         .stripe-cards-row {
             display: flex;
@@ -2776,31 +2789,31 @@
         }
 
         .stripe-card-chip {
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.18);
+            border: 1px solid rgba(255,255,255,0.35);
             border-radius: 6px;
-            padding: 3px 10px;
-            font-size: 11px;
+            padding: 4px 12px;
+            font-size: 12px;
             font-weight: 700;
-            color: rgba(255,255,255,0.75);
+            color: #fff;
             letter-spacing: 0.5px;
         }
 
         .stripe-info-text {
-            font-size: 11px;
-            color: rgba(255,255,255,0.45);
+            font-size: 12px;
+            color: rgba(255,255,255,0.75);
             margin: 0;
-            line-height: 1.5;
+            line-height: 1.6;
         }
 
         /* Badge sécurité */
         .security-badge {
             text-align: center;
-            font-size: 11px;
-            color: rgba(255,255,255,0.4);
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
             margin-top: 14px;
             padding-top: 12px;
-            border-top: 1px solid rgba(255,255,255,0.08);
+            border-top: 1px solid rgba(255,255,255,0.15);
         }
 
         /* ── Section Adresse de livraison ── */
@@ -2809,21 +2822,23 @@
         }
 
         .address-card {
-            background: rgba(255,255,255,0.04);
-            border: 1.5px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.08);
+            border: 1.5px solid rgba(255,255,255,0.2);
             border-radius: 12px;
             padding: 14px 16px;
             margin-top: 10px;
             transition: border-color 0.2s;
+            color: rgba(255,255,255,0.9);
         }
 
         .address-card.missing {
-            border-color: rgba(196,106,75,0.7);
-            background: rgba(196,106,75,0.07);
+            border-color: rgba(220,80,60,0.8);
+            background: rgba(220,80,60,0.1);
         }
 
         .address-card.filled {
-            border-color: rgba(212,175,55,0.4);
+            border-color: rgba(212,175,55,0.6);
+            background: rgba(212,175,55,0.06);
         }
 
         .address-display {
@@ -2960,11 +2975,11 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            font-size: 11px;
-            color: rgba(255,255,255,0.6);
+            font-size: 12px;
+            color: rgba(255,255,255,0.85);
         }
 
-        .guarantee-item span:first-child { font-size: 14px; }
+        .guarantee-item span:first-child { font-size: 15px; }
 
         /* Responsive mobile */
         @media (max-width: 768px) {

@@ -3130,7 +3130,7 @@ function enterGallery() {
                 orderHistory = safeStorage.get('arkyl_orders', []);
                 orderHistory.unshift(minOrder);
                 safeStorage.set('arkyl_orders', orderHistory);
-                cartItems = []; safeStorage.set('arkyl_cart', []); updateCartCount();
+                cartItems = []; safeStorage.set('arkyl_cart', []); updateBadges();
                 syncOrderToServer(minOrder).catch(() => {});
                 setTimeout(() => {
                     showToast('🎉 Paiement confirmé ! Commande ' + minOrder.order_number + ' créée.');
@@ -3176,7 +3176,7 @@ function enterGallery() {
                 // Vider le panier
                 cartItems = [];
                 safeStorage.set('arkyl_cart', []);
-                updateCartCount();
+                updateBadges();
 
                 // Sync avec le serveur en arrière-plan
                 syncOrderToServer(order).then(() => {
@@ -8877,3 +8877,25 @@ function enterGallery() {
                 showToast('❌ Erreur réseau');
             }
         }
+
+        // ==========================================
+        // DÉTECTION DU RETOUR DE PAIEMENT STRIPE (MÉTHODE DIRECTE)
+        // ==========================================
+        setTimeout(() => {
+            // On lit l'adresse URL dès que le fichier est chargé
+            const urlParams = new URLSearchParams(window.location.search);
+            const orderId = urlParams.get('order_id');
+
+            if (orderId) {
+                console.log("✅ Retour de Stripe détecté pour la commande :", orderId);
+                
+                showToast('✅ Paiement réussi ! Votre commande est validée.');
+                
+                if (typeof addNotification === 'function') {
+                    addNotification('🎉 Commande confirmée', `Merci pour votre achat ! Réf: ${orderId}. L'artiste prépare votre colis.`);
+                }
+                
+                // On nettoie l'URL pour faire disparaître les paramètres
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        }, 1000); // On attend 1 seconde pour être sûr que le HTML est bien affiché

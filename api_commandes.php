@@ -87,6 +87,17 @@ function ensureTables($db) {
             image_url TEXT
         )
     ");
+    // Migration : ajouter artist_id si la colonne n'existe pas encore
+    $db->exec("
+        DO \$\$ BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='order_items' AND column_name='artist_id'
+            ) THEN
+                ALTER TABLE order_items ADD COLUMN artist_id VARCHAR(255);
+            END IF;
+        END \$\$;
+    ");
 
     // Table order_timeline (historique des changements de statut)
     $db->exec("

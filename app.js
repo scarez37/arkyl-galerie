@@ -121,6 +121,7 @@ function enterGallery() {
             const _isStripeReturn = !!(_stripeSession || _stripeOrderId);
             if (_isStripeReturn) {
                 // Stocker en mémoire pour traitement après chargement complet
+                window._isStripeReturn = true;
                 window._pendingStripeSession = _stripeSession;
                 window._pendingStripeOrderId = _stripeOrderId;
                 // Nettoyer l'URL immédiatement pour éviter re-trigger au refresh

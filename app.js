@@ -5549,10 +5549,10 @@ function enterGallery() {
             // Reset specialty chips
             document.querySelectorAll('.specialty-chip').forEach(c => c.classList.remove('selected'));
 
-            // Reset avatar to first
-            document.querySelectorAll('.avatar-option').forEach((a, i) => {
-                a.classList.toggle('selected', i === 0);
-            });
+            // Reset avatar preview
+            const regPreview = document.getElementById('regAvatarImg');
+            if (regPreview) { regPreview.innerHTML = '👤'; regPreview.removeAttribute('src'); }
+            window.tempRegAvatar = null;
 
             // Reset stepper
             goToRegStepVisual(1);
@@ -5650,12 +5650,13 @@ function enterGallery() {
             const email   = document.getElementById('reg-email').value.trim();
             const phone   = document.getElementById('reg-phone').value.trim();
             const country = document.getElementById('reg-country').value;
-            const avatarSrc = document.getElementById('regAvatarImg').src;
+            const regAvatarEl = document.getElementById('regAvatarImg');
+            const avatarSrc = window.tempRegAvatar || (regAvatarEl && regAvatarEl.tagName === 'IMG' ? regAvatarEl.src : null);
             const specs   = [...document.querySelectorAll('.specialty-chip.selected')].map(c => c.textContent.trim());
             const bio     = document.getElementById('reg-bio').value.trim();
 
             document.getElementById('regReviewCard').innerHTML = `
-                <div class="reg-review-row"><span>Avatar</span><span style="font-size:22px;"><img loading="lazy" src="${avatarSrc}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;border:2px solid var(--or);" /></span></div>
+                ${avatarSrc ? `<div class="reg-review-row"><span>Avatar</span><span><img loading="lazy" src="${avatarSrc}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;border:2px solid var(--or);" /></span></div>` : ''}
                 <div class="reg-review-row"><span>Nom</span><span>${name}</span></div>
                 <div class="reg-review-row"><span>Email</span><span>${email}</span></div>
                 <div class="reg-review-row"><span>Téléphone</span><span>${phone}</span></div>
@@ -5673,7 +5674,7 @@ function enterGallery() {
                 email:    document.getElementById('reg-email').value.trim(),
                 phone:    document.getElementById('reg-phone').value.trim(),
                 country:  document.getElementById('reg-country').value,
-                avatar:   document.getElementById('regAvatarImg').src,
+                avatar:   window.tempRegAvatar || null,
                 specialty:[...document.querySelectorAll('.specialty-chip.selected')].map(c => c.textContent.trim()),
                 bio:      document.getElementById('reg-bio').value.trim(),
                 createdAt: new Date().toISOString()
@@ -7470,32 +7471,27 @@ function enterGallery() {
             // Read and display the image
             const reader = new FileReader();
             reader.onload = function(e) {
-                const imgId = context === 'reg' ? 'regAvatarImg' : 'editAvatarImg';
-                const imgElement = document.getElementById(imgId);
-                if (imgElement) {
-                    imgElement.src = e.target.result;
-                    showToast('✅ Photo importée avec succès!');
+                const base64 = e.target.result;
+                if (context === 'reg') {
+                    // Registration: update the avatar preview div
+                    const previewEl = document.getElementById('regAvatarImg');
+                    if (previewEl) {
+                        previewEl.innerHTML = `<img src="${base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                    }
+                    window.tempRegAvatar = base64;
+                } else {
+                    // Edit modal: use renderProfilePreview
+                    const previewContainer = document.getElementById('profilePreviewContainer');
+                    const currentStyle = window.tempAvatarStyle || 'slices';
+                    renderProfilePreview(previewContainer, base64, currentStyle);
+                    window.tempProfileImage = base64;
                 }
+                showToast('✅ Photo importée avec succès!');
             };
             reader.readAsDataURL(file);
         }
 
-        function selectPresetAvatar(src, context) {
-            const imgId = context === 'reg' ? 'regAvatarImg' : 'editAvatarImg';
-            const imgElement = document.getElementById(imgId);
-            if (imgElement) {
-                imgElement.src = src;
-            }
-            
-            // Visual feedback on preset avatars
-            const container = event.target.closest('.preset-avatars');
-            if (container) {
-                container.querySelectorAll('.preset-avatar').forEach(img => {
-                    img.classList.remove('selected');
-                });
-                event.target.classList.add('selected');
-            }
-        }
+        // selectPresetAvatar removed (no more preset avatars)
 
         function selectPresetAvatarEdit(src) {
             const previewContainer = document.getElementById('profilePreviewContainer');
@@ -7506,28 +7502,56 @@ function enterGallery() {
         }
 
 
+        // Données de découpe partagées entre édition et affichage public
+        const SLICE_CONFIG = {
+            slices: [
+                { xPos: 10, hPct: 75, vAlign: 'flex-start' },
+                { xPos: 30, hPct: 100, vAlign: 'stretch' },
+                { xPos: 50, hPct: 90,  vAlign: 'center' },
+                { xPos: 70, hPct: 100, vAlign: 'stretch' },
+                { xPos: 90, hPct: 70,  vAlign: 'flex-end' },
+            ],
+            hslices: [
+                { yPos: 10, wPct: 80, hAlign: 'flex-start' },
+                { yPos: 40, wPct: 100, hAlign: 'stretch' },
+                { yPos: 65, wPct: 90,  hAlign: 'flex-end' },
+                { yPos: 90, wPct: 100, hAlign: 'stretch' },
+            ]
+        };
+
+        function buildSlicesHTML(imageUrl, config, direction) {
+            if (direction === 'v') {
+                return config.map(s => {
+                    const h = s.hPct + '%';
+                    const alignSelf = s.hPct === 100 ? 'stretch' : s.vAlign;
+                    return `<div style="flex:1;border-radius:5px;background-image:url('${imageUrl}');background-position:${s.xPos}% center;background-size:${config.length * 110}% auto;height:${h};align-self:${alignSelf};transition:transform 0.3s ease;"></div>`;
+                }).join('');
+            } else {
+                return config.map(s => {
+                    const w = s.wPct + '%';
+                    const alignSelf = s.wPct === 100 ? 'stretch' : s.hAlign;
+                    return `<div style="border-radius:5px;background-image:url('${imageUrl}');background-position:center ${s.yPos}%;background-size:auto ${config.length * 110}%;width:${w};align-self:${alignSelf};flex:1;transition:transform 0.3s ease;"></div>`;
+                }).join('');
+            }
+        }
+
         function buildAvatarDisplay(imageUrl, style, name) {
-            const fallback = name || '👤';
+            const W = 140, H = 160;
             if (style === 'slices') {
-                const slices = [0,20,40,60,80].map(pos => 
-                    `<div style="flex:1;border-radius:4px;background-image:url('${imageUrl}');background-position:${pos}% center;background-size:500% auto;transition:transform 0.3s;"></div>`
-                ).join('');
-                return `<div style="display:flex;flex-direction:row;gap:3px;align-items:stretch;width:130px;height:150px;margin-bottom:15px;">${slices}</div>`;
+                const slices = buildSlicesHTML(imageUrl, SLICE_CONFIG.slices, 'v');
+                return `<div style="display:flex;flex-direction:row;gap:3px;align-items:stretch;width:${W}px;height:${H}px;margin-bottom:15px;">${slices}</div>`;
             } else if (style === 'hslices') {
-                const slices = [0,33,66,100].map(pos => 
-                    `<div style="border-radius:4px;background-image:url('${imageUrl}');background-position:center ${pos}%;background-size:auto 400%;flex:1;"></div>`
-                ).join('');
-                return `<div style="display:flex;flex-direction:column;gap:3px;width:130px;height:150px;margin-bottom:15px;">${slices}</div>`;
+                const slices = buildSlicesHTML(imageUrl, SLICE_CONFIG.hslices, 'h');
+                return `<div style="display:flex;flex-direction:column;gap:3px;align-items:stretch;width:${W}px;height:${H}px;margin-bottom:15px;">${slices}</div>`;
             } else if (style === 'diamond') {
                 return `<div style="width:110px;height:110px;transform:rotate(45deg);border-radius:12px;overflow:hidden;border:4px solid var(--terre-cuite);margin:20px 0 30px;box-shadow:0 8px 24px rgba(0,0,0,0.4);">
-                    <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;transform:rotate(-45deg) scale(1.45);" onerror="this.parentElement.innerHTML='<div>${fallback}</div>'">
+                    <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;transform:rotate(-45deg) scale(1.45);">
                 </div>`;
             } else if (style === 'square') {
                 return `<div style="width:120px;height:120px;border-radius:18px;overflow:hidden;border:4px solid var(--terre-cuite);margin-bottom:15px;box-shadow:0 8px 24px rgba(0,0,0,0.4);">
-                    <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='<div>${fallback}</div>'">
+                    <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;">
                 </div>`;
             } else {
-                // circle (default fallback)
                 return `<img loading="lazy" src="${imageUrl}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid var(--terre-cuite);margin-bottom:20px;" alt="${name}" onerror="this.style.display='none'">`;
             }
         }
@@ -7540,16 +7564,12 @@ function enterGallery() {
             });
 
             if (style === 'slices') {
-                const slices = [0,20,40,60,80].map(pos => 
-                    `<div class="slice" style="background-image:url('${imageUrl}'); background-position: ${pos}% center; background-size: 500% auto;"></div>`
-                ).join('');
+                const slices = buildSlicesHTML(imageUrl, SLICE_CONFIG.slices, 'v');
                 container.innerHTML = `
                     <div class="profile-display-wrapper style-slices">${slices}</div>
                     ${styleSelectorHTML(style)}`;
             } else if (style === 'hslices') {
-                const slices = [0,33,66,100].map(pos => 
-                    `<div class="slice" style="background-image:url('${imageUrl}'); background-position: center ${pos}%; background-size: auto 400%;"></div>`
-                ).join('');
+                const slices = buildSlicesHTML(imageUrl, SLICE_CONFIG.hslices, 'h');
                 container.innerHTML = `
                     <div class="profile-display-wrapper style-hslices">${slices}</div>
                     ${styleSelectorHTML(style)}`;

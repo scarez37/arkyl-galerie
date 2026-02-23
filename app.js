@@ -113,6 +113,21 @@ function enterGallery() {
 
         document.addEventListener('DOMContentLoaded', () => {
 
+            // ── DÉTECTION RETOUR STRIPE — EN PREMIER AVANT TOUT ─────────
+            // Capturer les params avant que navigateTo() ne nettoie l'URL
+            const _rawParams = new URLSearchParams(window.location.search);
+            const _stripeSession = _rawParams.get('session_id');
+            const _stripeOrderId = _rawParams.get('order_id');
+            const _isStripeReturn = !!(_stripeSession || _stripeOrderId);
+            if (_isStripeReturn) {
+                // Stocker en mémoire pour traitement après chargement complet
+                window._pendingStripeSession = _stripeSession;
+                window._pendingStripeOrderId = _stripeOrderId;
+                // Nettoyer l'URL immédiatement pour éviter re-trigger au refresh
+                window.history.replaceState({}, document.title, window.location.pathname);
+                console.log('💳 Retour Stripe détecté — session:', _stripeSession, 'order:', _stripeOrderId);
+            }
+
             // ── RESTAURATION DE SESSION (auto-login) ────────────────────
             (function restoreSession() {
                 try {
@@ -144,16 +159,6 @@ function enterGallery() {
             })();
 
             const urlParams = new URLSearchParams(window.location.search);
-
-            // ── Retour depuis Stripe ──────────────────────────────────────────
-            const stripeSession = urlParams.get('session_id');
-            const stripeOrderId  = urlParams.get('order_id');   // ARKYL-XXXXXXXX
-            const stripePayment  = urlParams.get('payment');
-            const isStripeReturn = stripeSession || stripeOrderId || stripePayment === 'success';
-
-            if (isStripeReturn) {
-                setTimeout(() => processStripeReturn(stripeSession, stripeOrderId), 800);
-            }
 
             if (urlParams.get('mode') === 'artist') {
                 // Vérifier que l'artiste a bien un compte
@@ -3097,9 +3102,41 @@ function enterGallery() {
 
         // ===== RETOUR STRIPE : traiter commande en attente =====
         async function processStripeReturn(sessionId, arkylOrderId) {
+            console.log('🔄 processStripeReturn appelé — session:', sessionId, 'order:', arkylOrderId);
             const pending = safeStorage.get('arkyl_pending_order', null);
+
             if (!pending) {
-                console.log('ℹ️ Pas de commande en attente trouvée');
+                // Pas de commande locale — mais paiement confirmé par Stripe
+                // Créer une commande minimale à partir des infos disponibles
+                console.log('⚠️ Pas de commande en attente — création minimale');
+                const minOrder = {
+                    id: Date.now(),
+                    order_number: arkylOrderId || ('ARK-' + Date.now().toString(36).toUpperCase()),
+                    stripe_session_id: sessionId,
+                    user_id: currentUser?.id || currentUser?.googleId || currentUser?.email || '',
+                    user_name: currentUser?.name || '',
+                    user_email: currentUser?.email || '',
+                    items: cartItems.length > 0 ? cartItems.map(i => ({...i, artwork_id: i.id})) : [],
+                    subtotal: cartItems.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
+                    tax: 0,
+                    shippingCost: 0,
+                    total: cartItems.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
+                    shippingName: 'À confirmer',
+                    paymentMethod: 'Stripe',
+                    status: 'En préparation',
+                    escrow_status: 'payée_en_attente',
+                    date: new Date().toLocaleDateString('fr-FR', {day:'2-digit',month:'long',year:'numeric'}),
+                };
+                orderHistory = safeStorage.get('arkyl_orders', []);
+                orderHistory.unshift(minOrder);
+                safeStorage.set('arkyl_orders', orderHistory);
+                cartItems = []; safeStorage.set('arkyl_cart', []); updateCartCount();
+                syncOrderToServer(minOrder).catch(() => {});
+                setTimeout(() => {
+                    showToast('🎉 Paiement confirmé ! Commande ' + minOrder.order_number + ' créée.');
+                    navigateTo('orders');
+                    showOrderSuccessModal(minOrder);
+                }, 300);
                 return;
             }
 
@@ -7920,15 +7957,17 @@ function enterGallery() {
                 renderNewsList();
             });
             
-            // Restaurer la dernière page active si elle existe
+            // Restaurer la dernière page OU traiter retour Stripe
             const lastPage = safeStorage.get('arkyl_last_page', null);
             let startPage = 'home';
-            
-            // Vérifier si la sauvegarde est récente (moins de 5 secondes = rechargement)
-            if (lastPage && (Date.now() - lastPage.timestamp) < 5000) {
-                startPage = lastPage.pageId.replace('Page', ''); // artistDetailPage → artistDetail
-                
-                // Restaurer le contexte de la page
+
+            if (window._isStripeReturn || window._pendingStripeSession || window._pendingStripeOrderId) {
+                // Retour Stripe → ignorer la dernière page, traiter le paiement
+                safeStorage.remove('arkyl_last_page');
+                updateNavigationHistory('home');
+                setTimeout(() => processStripeReturn(window._pendingStripeSession, window._pendingStripeOrderId), 1200);
+            } else if (lastPage && (Date.now() - lastPage.timestamp) < 5000) {
+                startPage = lastPage.pageId.replace('Page', '');
                 setTimeout(() => {
                     if (lastPage.artistName && startPage === 'artistDetail') {
                         viewArtistDetail(lastPage.artistName);
@@ -7938,11 +7977,8 @@ function enterGallery() {
                         navigateTo(startPage);
                     }
                 }, 100);
-                
-                // Effacer la sauvegarde pour ne pas la restaurer indéfiniment
                 safeStorage.remove('arkyl_last_page');
             } else {
-                // Initialize navigation history normalement
                 updateNavigationHistory(startPage);
             }
             

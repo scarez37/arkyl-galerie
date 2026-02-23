@@ -4995,10 +4995,11 @@
             transition: transform 0.3s;
         }
 
+        /* Heights match SLICE_CONFIG in app.js */
         .profile-display-wrapper.style-slices .slice:nth-child(1) { height: 75%; align-self: flex-start; }
-        .profile-display-wrapper.style-slices .slice:nth-child(2) { height: 100%; }
+        .profile-display-wrapper.style-slices .slice:nth-child(2) { height: 100%; align-self: stretch; }
         .profile-display-wrapper.style-slices .slice:nth-child(3) { height: 90%; align-self: center; }
-        .profile-display-wrapper.style-slices .slice:nth-child(4) { height: 100%; }
+        .profile-display-wrapper.style-slices .slice:nth-child(4) { height: 100%; align-self: stretch; }
         .profile-display-wrapper.style-slices .slice:nth-child(5) { height: 70%; align-self: flex-end; }
 
         .profile-display-wrapper.style-slices:hover .slice { transform: scaleY(1.03); }
@@ -5072,10 +5073,11 @@
             flex: 1;
         }
 
+        /* Widths match SLICE_CONFIG.hslices in app.js */
         .profile-display-wrapper.style-hslices .slice:nth-child(1) { width: 80%; align-self: flex-start; }
-        .profile-display-wrapper.style-hslices .slice:nth-child(2) { width: 100%; }
+        .profile-display-wrapper.style-hslices .slice:nth-child(2) { width: 100%; align-self: stretch; }
         .profile-display-wrapper.style-hslices .slice:nth-child(3) { width: 90%; align-self: flex-end; }
-        .profile-display-wrapper.style-hslices .slice:nth-child(4) { width: 100%; }
+        .profile-display-wrapper.style-hslices .slice:nth-child(4) { width: 100%; align-self: stretch; }
 
         /* Image fallback */
         .current-profile-preview {

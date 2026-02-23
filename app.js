@@ -8879,13 +8879,11 @@ function enterGallery() {
         }
 
         // ==========================================
-        // DÉTECTION DU RETOUR DE PAIEMENT STRIPE (MÉTHODE DIRECTE)
+        // DÉTECTION DU RETOUR DE PAIEMENT STRIPE (CORRIGÉ)
         // ==========================================
         setTimeout(() => {
-            // On lit l'adresse URL dès que le fichier est chargé
-            const urlParams = new URLSearchParams(window.location.search);
-            const orderId = urlParams.get('order_id');
-
+            // On regarde si le code du haut a sauvegardé l'ID, SINON on regarde l'URL
+            const orderId = window._pendingStripeOrderId || new URLSearchParams(window.location.search).get('order_id');
             if (orderId) {
                 console.log("✅ Retour de Stripe détecté pour la commande :", orderId);
                 
@@ -8895,7 +8893,8 @@ function enterGallery() {
                     addNotification('🎉 Commande confirmée', `Merci pour votre achat ! Réf: ${orderId}. L'artiste prépare votre colis.`);
                 }
                 
-                // On nettoie l'URL pour faire disparaître les paramètres
+                // On nettoie la mémoire et l'URL pour éviter que le message revienne
+                window._pendingStripeOrderId = null;
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
-        }, 1000); // On attend 1 seconde pour être sûr que le HTML est bien affiché
+        }, 1000);

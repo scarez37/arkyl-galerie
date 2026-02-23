@@ -28,35 +28,19 @@ try {
         throw new Exception("Champs obligatoires manquants (artist_id, name, email).");
     }
 
-    // Vérifier que l'artiste existe
-    $check = $db->prepare("SELECT id FROM artists WHERE id = :id");
+    // Créer la colonne artist_profile si elle n'existe pas dans users
+    // et mettre à jour les infos dans la table users (source de vérité)
+    $check = $db->prepare("SELECT id FROM users WHERE id = :id");
     $check->execute([':id' => $artist_id]);
     if (!$check->fetch()) {
-        // Insérer si premier profil
-        $insert = $db->prepare("INSERT INTO artists (id, name, email, phone, country, specialty, bio, website, social, avatar, created_at)
-                                VALUES (:id, :name, :email, :phone, :country, :specialty, :bio, :website, :social, :avatar, NOW())");
-        $insert->execute([
-            ':id'       => $artist_id,
-            ':name'     => $name,
-            ':email'    => $email,
-            ':phone'    => $phone,
-            ':country'  => $country,
-            ':specialty'=> json_encode(is_array($specialty) ? $specialty : [$specialty]),
-            ':bio'      => $bio,
-            ':website'  => $website,
-            ':social'   => $social,
-            ':avatar'   => $avatar,
-        ]);
-        echo json_encode(['success' => true, 'message' => 'Profil créé avec succès.']);
-        exit;
+        throw new Exception("Compte utilisateur introuvable.");
     }
 
-    // UPDATE profil existant
-    $setClause = "name = :name, email = :email, phone = :phone, country = :country,
-                  specialty = :specialty, bio = :bio, website = :website, social = :social, updated_at = NOW()";
+    // Construire le UPDATE sur la table users
+    $setClause = "name = :name, phone = :phone, country = :country,
+                  specialty = :specialty, bio = :bio, website = :website, social = :social";
     $params = [
         ':name'     => $name,
-        ':email'    => $email,
         ':phone'    => $phone,
         ':country'  => $country,
         ':specialty'=> json_encode(is_array($specialty) ? $specialty : [$specialty]),
@@ -71,10 +55,10 @@ try {
         $params[':avatar'] = $avatar;
     }
 
-    $stmt = $db->prepare("UPDATE artists SET $setClause WHERE id = :id");
+    $stmt = $db->prepare("UPDATE users SET $setClause WHERE id = :id");
     $stmt->execute($params);
 
-    // Mettre à jour aussi le nom sur les œuvres de cet artiste
+    // Mettre à jour aussi le nom affiché sur les œuvres de cet artiste
     if ($name) {
         $db->prepare("UPDATE artworks SET artist_name = :name WHERE artist_id = :id")
            ->execute([':name' => $name, ':id' => $artist_id]);

@@ -4928,17 +4928,160 @@
 
         .profile-image-upload-area {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 25px;
+            gap: 20px;
         }
 
-        .current-profile-preview {
-            width: 120px;
-            height: 120px;
+        /* ── Conteneur de prévisualisation ── */
+        #profilePreviewContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            width: 100%;
+        }
+
+        /* ── Sélecteur de style ── */
+        .style-selector {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .style-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            border: 2px solid rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.07);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+
+        .style-btn:hover { border-color: var(--terre-cuite); transform: scale(1.05); }
+        .style-btn.active { border-color: var(--terre-cuite); background: rgba(210,105,30,0.2); box-shadow: 0 0 12px rgba(210,105,30,0.4); }
+
+        /* ── Wrapper de l'image stylisée ── */
+        .profile-display-wrapper {
+            width: 140px;
+            height: 160px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* STYLE 1 : Bandes verticales */
+        .profile-display-wrapper.style-slices {
+            gap: 3px;
+            display: flex;
+            flex-direction: row;
+            align-items: stretch;
+            width: 150px;
+            height: 170px;
+        }
+
+        .profile-display-wrapper.style-slices .slice {
+            flex: 1;
+            border-radius: 4px;
+            background-size: cover;
+            background-position: center;
+            transition: transform 0.3s;
+        }
+
+        .profile-display-wrapper.style-slices .slice:nth-child(1) { height: 75%; align-self: flex-start; }
+        .profile-display-wrapper.style-slices .slice:nth-child(2) { height: 100%; }
+        .profile-display-wrapper.style-slices .slice:nth-child(3) { height: 90%; align-self: center; }
+        .profile-display-wrapper.style-slices .slice:nth-child(4) { height: 100%; }
+        .profile-display-wrapper.style-slices .slice:nth-child(5) { height: 70%; align-self: flex-end; }
+
+        .profile-display-wrapper.style-slices:hover .slice { transform: scaleY(1.03); }
+
+        /* STYLE 2 : Cercle classique */
+        .profile-display-wrapper.style-circle {
+            width: 130px;
+            height: 130px;
             border-radius: 50%;
-            object-fit: cover;
+            overflow: hidden;
             border: 4px solid var(--terre-cuite);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+
+        .profile-display-wrapper.style-circle img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        /* STYLE 3 : Carré arrondi */
+        .profile-display-wrapper.style-square {
+            width: 130px;
+            height: 130px;
+            border-radius: 18px;
+            overflow: hidden;
+            border: 4px solid var(--terre-cuite);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+
+        .profile-display-wrapper.style-square img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* STYLE 4 : Diamant */
+        .profile-display-wrapper.style-diamond {
+            width: 110px;
+            height: 110px;
+            transform: rotate(45deg);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 4px solid var(--terre-cuite);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            margin: 20px;
+        }
+
+        .profile-display-wrapper.style-diamond img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: rotate(-45deg) scale(1.45);
+        }
+
+        /* STYLE 5 : Bandes horizontales */
+        .profile-display-wrapper.style-hslices {
+            gap: 3px;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            width: 150px;
+            height: 160px;
+        }
+
+        .profile-display-wrapper.style-hslices .slice {
+            border-radius: 4px;
+            background-size: cover;
+            background-position: center;
+            flex: 1;
+        }
+
+        .profile-display-wrapper.style-hslices .slice:nth-child(1) { width: 80%; align-self: flex-start; }
+        .profile-display-wrapper.style-hslices .slice:nth-child(2) { width: 100%; }
+        .profile-display-wrapper.style-hslices .slice:nth-child(3) { width: 90%; align-self: flex-end; }
+        .profile-display-wrapper.style-hslices .slice:nth-child(4) { width: 100%; }
+
+        /* Image fallback */
+        .current-profile-preview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .profile-emoji-preview {
@@ -6298,433 +6441,3 @@
             .jm-price { font-size: 28px; }
             .jm-btn-cart { font-size: 15px; padding: 14px; }
         }
-
-
-/* =====================================================
-   MES ARTISTES — STYLES COMPLETS & AMÉLIORÉS
-   ===================================================== */
-
-/* ── Tabs ── */
-.artist-tab {
-    flex: 1;
-    background: none;
-    border: none;
-    padding: 14px 0;
-    font-size: 15px;
-    font-weight: 700;
-    color: rgba(255, 255, 255, 0.6);
-    border-bottom: 3px solid transparent;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    letter-spacing: 0.3px;
-}
-
-.artist-tab.active {
-    color: #ffffff;
-    border-bottom-color: #ffffff;
-    text-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
-}
-
-.artist-tab:hover:not(.active) {
-    color: rgba(255, 255, 255, 0.85);
-}
-
-/* ── Avatar Carousel ── */
-.artist-avatar-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: transform 0.25s ease;
-}
-
-.artist-avatar-item:hover {
-    transform: translateY(-4px);
-}
-
-.artist-avatar-ring {
-    width: 70px;
-    height: 70px;
-    border-radius: 50%;
-    padding: 3px;
-    background: linear-gradient(135deg, #ffffff, rgba(255,255,255,0.4), #d4af37);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-}
-
-.artist-avatar-inner {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    border: 2px solid rgba(15, 15, 30, 0.6);
-}
-
-/* ── Loop Card (carte d'œuvre) ── */
-.artist-loop-card {
-    background: rgba(255, 255, 255, 0.12);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    margin-bottom: 20px;
-    overflow: hidden;
-    box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.18),
-        inset 0 1px 0 rgba(255, 255, 255, 0.25);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.artist-loop-card:hover {
-    transform: translateY(-3px);
-    box-shadow:
-        0 16px 48px rgba(0, 0, 0, 0.25),
-        inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-
-/* ── Loop Header ── */
-.loop-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px 16px 12px;
-}
-
-.loop-avatar {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.4);
-    flex-shrink: 0;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-    transition: transform 0.2s ease;
-}
-
-.loop-avatar:hover {
-    transform: scale(1.08);
-}
-
-.loop-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.loop-artist-name {
-    font-size: 15px;
-    font-weight: 700;
-    color: #ffffff;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.loop-metadata {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.65);
-    margin-top: 2px;
-    font-weight: 500;
-}
-
-.loop-menu-btn {
-    background: none;
-    border: none;
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 22px;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-    line-height: 1;
-}
-
-.loop-menu-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #ffffff;
-}
-
-/* ── Image de l'œuvre ── */
-.loop-image {
-    width: 100%;
-    aspect-ratio: 4/3;
-    overflow: hidden;
-    cursor: pointer;
-    position: relative;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-}
-
-.loop-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.5s ease;
-    display: block;
-}
-
-.loop-image:hover img {
-    transform: scale(1.04);
-}
-
-.loop-image-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.1));
-}
-
-.loop-image-overlay {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(0.6);
-    font-size: 40px;
-    opacity: 0;
-    transition: all 0.3s ease;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(8px);
-    border-radius: 50%;
-    width: 64px;
-    height: 64px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-}
-
-.loop-image:hover .loop-image-overlay {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-}
-
-/* ── Badge prix sur image ── */
-.loop-price-badge {
-    position: absolute;
-    bottom: 12px;
-    right: 12px;
-    background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(10px);
-    color: #D4A574;
-    font-size: 13px;
-    font-weight: 700;
-    padding: 6px 12px;
-    border-radius: 20px;
-    border: 1px solid rgba(212, 165, 116, 0.3);
-    pointer-events: none;
-    letter-spacing: 0.3px;
-}
-
-/* ── Boutons d'action ── */
-.loop-actions {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 12px 14px 8px;
-}
-
-.loop-action-btn {
-    background: none;
-    border: none;
-    font-size: 22px;
-    cursor: pointer;
-    padding: 8px 10px;
-    border-radius: 12px;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    color: rgba(255, 255, 255, 0.85);
-    position: relative;
-}
-
-.loop-action-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    transform: scale(1.1);
-}
-
-.loop-action-btn.liked {
-    animation: heartBeat 0.4s ease;
-}
-
-.loop-action-btn.favorited {
-    color: #ffd700;
-}
-
-.action-count {
-    font-size: 13px;
-    font-weight: 700;
-    color: rgba(255, 255, 255, 0.9);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-
-@keyframes heartBeat {
-    0% { transform: scale(1); }
-    40% { transform: scale(1.35); }
-    70% { transform: scale(0.9); }
-    100% { transform: scale(1); }
-}
-
-/* ── Détails texte ── */
-.loop-details {
-    padding: 4px 16px 16px;
-}
-
-.loop-likes {
-    font-size: 13px;
-    font-weight: 700;
-    color: rgba(255, 255, 255, 0.95);
-    margin-bottom: 6px;
-}
-
-.loop-title {
-    font-size: 15px;
-    color: rgba(255, 255, 255, 0.95);
-    line-height: 1.5;
-    font-weight: 500;
-}
-
-.artist-tag {
-    font-weight: 700;
-    color: #ffffff;
-    cursor: pointer;
-    transition: color 0.2s;
-}
-
-.artist-tag:hover {
-    color: #D4A574;
-    text-decoration: underline;
-}
-
-.loop-description {
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.65);
-    margin-top: 5px;
-    line-height: 1.55;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.loop-price {
-    font-size: 17px;
-    font-weight: 700;
-    color: #D4A574;
-    margin-top: 10px;
-    letter-spacing: 0.3px;
-    text-shadow: 0 2px 8px rgba(212, 165, 116, 0.35);
-}
-
-/* ── Séparateur artiste ── */
-.artist-section-divider {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin: 28px 0 18px;
-}
-
-.artist-section-divider-line {
-    flex: 1;
-    height: 1px;
-    background: rgba(255, 255, 255, 0.2);
-}
-
-.artist-section-divider-name {
-    font-size: 13px;
-    font-weight: 700;
-    color: rgba(255, 255, 255, 0.85);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    white-space: nowrap;
-}
-
-/* ── Carte Profil Artiste (tab Abonnements) ── */
-.artist-profile-card {
-    background: rgba(255, 255, 255, 0.12);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    overflow: hidden;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
-}
-
-.artist-profile-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
-}
-
-.artist-profile-header {
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 10px;
-}
-
-.artist-profile-avatar {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    border: 3px solid rgba(255, 255, 255, 0.5);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    overflow: hidden;
-    flex-shrink: 0;
-}
-
-/* ── Champ commentaire ── */
-.loop-comment-input {
-    flex: 1;
-    background: rgba(255, 255, 255, 0.12) !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    border-radius: 20px !important;
-    padding: 9px 16px !important;
-    color: white !important;
-    font-size: 13px !important;
-    outline: none !important;
-    transition: background 0.2s, border-color 0.2s !important;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-}
-
-.loop-comment-input::placeholder {
-    color: rgba(255, 255, 255, 0.45) !important;
-}
-
-.loop-comment-input:focus {
-    background: rgba(255, 255, 255, 0.2) !important;
-    border-color: rgba(255, 255, 255, 0.4) !important;
-}
-
-/* ── Responsive ── */
-@media (max-width: 480px) {
-    .artist-loop-card {
-        border-radius: 16px;
-        margin-bottom: 14px;
-    }
-
-    .loop-image {
-        aspect-ratio: 1/1;
-    }
-
-    .loop-header {
-        padding: 12px 12px 8px;
-    }
-
-    .loop-details {
-        padding: 4px 12px 14px;
-    }
-
-    .loop-actions {
-        padding: 8px 10px 6px;
-    }
-
-    .artist-avatar-ring {
-        width: 60px;
-        height: 60px;
-    }
-}

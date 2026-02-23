@@ -1,5 +1,5 @@
 <?php
-// Script temporaire pour ajouter les colonnes manquantes
+// Script pour créer la table users et ajouter les colonnes manquantes
 require_once __DIR__ . '/db_config.php';
 
 echo "<!DOCTYPE html><html lang='fr'><body style='font-family: Arial; padding: 40px; background: #1a1a1a; color: #fff;'>";
@@ -7,7 +7,18 @@ echo "<!DOCTYPE html><html lang='fr'><body style='font-family: Arial; padding: 4
 try {
     $db = getDatabase();
     
-    // 1. Ajouter les colonnes pour les utilisateurs (artistes)
+    // 1. CRÉER LA TABLE USERS (Si elle n'existe pas encore)
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS users (
+            id VARCHAR(255) PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            role VARCHAR(50) DEFAULT 'user',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    ");
+
+    // 2. AJOUTER LES NOUVELLES COLONNES DU PROFIL ARTISTE
     $db->exec("
         ALTER TABLE users 
         ADD COLUMN IF NOT EXISTS phone VARCHAR(50),
@@ -19,8 +30,21 @@ try {
         ADD COLUMN IF NOT EXISTS avatar TEXT;
     ");
 
-    // 2. Ajouter les colonnes pour les œuvres
+    // 3. AJOUTER LES COLONNES POUR LES ŒUVRES
+    // (On ajoute aussi IF NOT EXISTS sur la table au cas où)
     $db->exec("
+        CREATE TABLE IF NOT EXISTS artworks (
+            id SERIAL PRIMARY KEY,
+            artist_id VARCHAR(255),
+            title VARCHAR(255),
+            category VARCHAR(100),
+            price DECIMAL(10,2),
+            description TEXT,
+            image_url TEXT,
+            artist_name VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
         ALTER TABLE artworks 
         ADD COLUMN IF NOT EXISTS technique VARCHAR(255),
         ADD COLUMN IF NOT EXISTS dimensions TEXT,
@@ -28,8 +52,7 @@ try {
     ");
     
     echo "<h2 style='color: #0f0;'>✅ Succès total !</h2>";
-    echo "<p>Les nouvelles colonnes ont été ajoutées à tes tables 'users' et 'artworks'.</p>";
-    echo "<p>Tes modifications depuis l'application devraient maintenant s'enregistrer !</p>";
+    echo "<p>La table 'users' a été créée et toutes les nouvelles colonnes sont prêtes.</p>";
     
 } catch (Exception $e) {
     echo "<h2 style='color: #f00;'>❌ Erreur SQL</h2>";

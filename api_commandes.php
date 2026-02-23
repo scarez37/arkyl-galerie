@@ -134,7 +134,7 @@ try {
         if ($isAdmin) {
             $stmt = $db->query("
                 SELECT o.*, 
-                    json_agg(json_build_object(
+                    json_agg(jsonb_build_object(
                         'id', oi.id, 'artwork_id', oi.artwork_id, 'title', oi.title,
                         'artist', oi.artist_name, 'artist_id', oi.artist_id,
                         'price', oi.price, 'quantity', oi.quantity, 'image', oi.image_url
@@ -147,7 +147,7 @@ try {
         } elseif ($artistId) {
             $stmt = $db->prepare("
                 SELECT DISTINCT o.*,
-                    json_agg(json_build_object(
+                    json_agg(jsonb_build_object(
                         'id', oi.id, 'artwork_id', oi.artwork_id, 'title', oi.title,
                         'artist', oi.artist_name, 'artist_id', oi.artist_id,
                         'price', oi.price, 'quantity', oi.quantity, 'image', oi.image_url
@@ -161,7 +161,7 @@ try {
         } else {
             $stmt = $db->prepare("
                 SELECT o.*,
-                    json_agg(json_build_object(
+                    json_agg(jsonb_build_object(
                         'id', oi.id, 'artwork_id', oi.artwork_id, 'title', oi.title,
                         'artist', oi.artist_name, 'artist_id', oi.artist_id,
                         'price', oi.price, 'quantity', oi.quantity, 'image', oi.image_url

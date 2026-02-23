@@ -3742,6 +3742,13 @@ function enterGallery() {
                                 style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
                             <input id="art-note-${orderId}" type="text" placeholder="Note pour l'acheteur"
                                 style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+                            <div class="proof-upload-zone" onclick="document.getElementById('art-proof-${orderId}').click()" id="art-proof-zone-${orderId}" style="margin-bottom:10px;">
+                                <input type="file" id="art-proof-${orderId}" accept="image/*,.pdf" style="display:none"
+                                    onchange="document.getElementById('art-proof-zone-${orderId}').innerHTML='✅ ' + this.files[0].name">
+                                <div style="font-size:20px;margin-bottom:4px;">📎</div>
+                                <div style="font-size:13px;font-weight:600;">Joindre preuve d'expédition (optionnel)</div>
+                                <div style="font-size:11px;opacity:0.5;margin-top:3px;">JPG, PNG ou PDF</div>
+                            </div>
                             <button onclick="artistUpdateOrderStatus('${orderId}')"
                                 style="width:100%;padding:12px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));color:white;">
                                 💾 Enregistrer
@@ -3755,12 +3762,14 @@ function enterGallery() {
         }
 
         async function artistUpdateOrderStatus(orderId) {
-            const status   = document.getElementById(`art-status-${orderId}`)?.value;
-            const tracking = document.getElementById(`art-tracking-${orderId}`)?.value?.trim();
-            const carrier  = document.getElementById(`art-carrier-${orderId}`)?.value;
-            const note     = document.getElementById(`art-note-${orderId}`)?.value?.trim();
+            const status    = document.getElementById(`art-status-${orderId}`)?.value;
+            const tracking  = document.getElementById(`art-tracking-${orderId}`)?.value?.trim();
+            const carrier   = document.getElementById(`art-carrier-${orderId}`)?.value;
+            const note      = document.getElementById(`art-note-${orderId}`)?.value?.trim();
+            const proofInput = document.getElementById(`art-proof-${orderId}`);
+            const proofFile  = proofInput?.files?.[0];
 
-            await sendStatusUpdate({
+            const payload = {
                 action: 'update_status',
                 order_id: orderId,
                 status,
@@ -3769,8 +3778,20 @@ function enterGallery() {
                 note: note || null,
                 updated_by: currentUser?.name || currentUser?.artistName || 'artiste',
                 updated_by_role: 'artist',
-            });
-            await renderArtistOrders();
+            };
+
+            if (proofFile) {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    payload.shipping_proof_url = e.target.result;
+                    await sendStatusUpdate(payload);
+                    await renderArtistOrders();
+                };
+                reader.readAsDataURL(proofFile);
+            } else {
+                await sendStatusUpdate(payload);
+                await renderArtistOrders();
+            }
         }
 
         // ===== BADGES HAMBURGER — commandes en cours =====

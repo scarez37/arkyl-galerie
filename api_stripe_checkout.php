@@ -24,9 +24,13 @@ try {
     $input = file_get_contents('php://input');
     $data  = json_decode($input, true);
 
-    $user_id       = $data['user_id']       ?? '';
+    $user_id        = $data['user_id']        ?? '';
     // 🆕 Le front peut envoyer le panier localStorage en secours
-    $cart_fallback = $data['cart_items']    ?? [];
+    $cart_fallback  = $data['cart_items']     ?? [];
+    // Frais de livraison envoyés depuis le panier JS
+    $shipping_cost  = intval($data['shipping_cost']  ?? 3000);  // FCFA
+    $shipping_mode  = $data['shipping_mode']          ?? 'poste';
+    $shipping_label = $data['shipping_label']         ?? 'Frais de livraison';
 
     if (empty($user_id)) {
         throw new Exception("Identifiant utilisateur manquant.");
@@ -127,6 +131,26 @@ try {
     }
 
     // ─────────────────────────────────────────────────────────────────
+    // ÉTAPE 3b — Ajouter les frais de livraison comme ligne Stripe
+    // ─────────────────────────────────────────────────────────────────
+    if ($shipping_cost > 0) {
+        $shipping_eur_cents = intval(round(($shipping_cost / FCFA_TO_EUR) * 100));
+        if ($shipping_eur_cents < 1) $shipping_eur_cents = 1;
+
+        $line_items[] = [
+            'price_data' => [
+                'currency'     => 'eur',
+                'product_data' => [
+                    'name'        => $shipping_label,
+                    'description' => 'Frais de livraison — ' . number_format($shipping_cost, 0, ',', ' ') . ' FCFA',
+                ],
+                'unit_amount'  => $shipping_eur_cents,
+            ],
+            'quantity' => 1,
+        ];
+    }
+
+    // ─────────────────────────────────────────────────────────────────
     // ÉTAPE 4 — Générer un order_id unique et le passer à Stripe
     //           pour pouvoir retrouver la commande dans le webhook
     // ─────────────────────────────────────────────────────────────────
@@ -138,8 +162,10 @@ try {
         'mode'                 => 'payment',
         'client_reference_id'  => $user_id,  // 🆕 Stripe garde la trace du client
         'metadata'             => [           // 🆕 Données custom récupérables dans le webhook
-            'order_id'    => $order_id,
-            'user_id'     => $user_id,
+            'order_id'      => $order_id,
+            'user_id'       => $user_id,
+            'shipping_cost' => $shipping_cost,
+            'shipping_mode' => $shipping_mode,
         ],
         // ✅ On passe l'order_id dans l'URL de succès pour afficher la confirmation
         'success_url' => 'https://arkyl-galerie.onrender.com/succes.html?order_id=' . $order_id . '&session_id={CHECKOUT_SESSION_ID}',

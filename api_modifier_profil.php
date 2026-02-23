@@ -9,10 +9,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
 
 require_once __DIR__ . '/db_config.php';
 
+function ensureColumns($db) {
+    // Ajouter les colonnes manquantes sans planter si elles existent déjà
+    $cols = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_style VARCHAR(20) DEFAULT 'slices'"
+    ];
+    foreach ($cols as $sql) {
+        try { $db->exec($sql); } catch (Exception $e) { /* ignore */ }
+    }
+}
+
 // ── GET : lecture publique du profil artiste ─────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
         $db = getDatabase();
+        ensureColumns($db);
+
         $artistName = trim($_GET['artist_name'] ?? '');
         $artistId   = trim($_GET['artist_id']   ?? '');
 
@@ -63,22 +75,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     exit;
 }
 
-// ── POST : mise a jour du profil ─────────────────────────────────────────────
+// ── POST : mise à jour du profil ─────────────────────────────────────────────
 try {
     $db = getDatabase();
+    ensureColumns($db);
+
     $data = json_decode(file_get_contents('php://input'), true);
 
-    $artist_id = trim($data['artist_id'] ?? '');
-    $name      = trim($data['name']      ?? '');
-    $email     = trim($data['email']     ?? '');
-    $phone     = trim($data['phone']     ?? '');
-    $country   = trim($data['country']   ?? '');
-    $specialty = $data['specialty']      ?? [];
-    $bio       = trim($data['bio']       ?? '');
-    $website   = trim($data['website']   ?? '');
-    $social    = trim($data['social']    ?? '');
-    $avatar       = $data['avatar']       ?? null;
-    $avatar_style = $data['avatar_style'] ?? null;
+    $artist_id    = trim($data['artist_id']    ?? '');
+    $name         = trim($data['name']         ?? '');
+    $email        = trim($data['email']        ?? '');
+    $phone        = trim($data['phone']        ?? '');
+    $country      = trim($data['country']      ?? '');
+    $specialty    = $data['specialty']         ?? [];
+    $bio          = trim($data['bio']          ?? '');
+    $website      = trim($data['website']      ?? '');
+    $social       = trim($data['social']       ?? '');
+    $avatar       = $data['avatar']            ?? null;
+    $avatar_style = $data['avatar_style']      ?? null;
 
     if (!$artist_id || !$name || !$email) {
         throw new Exception("Champs obligatoires manquants (artist_id, name, email).");
@@ -88,11 +102,7 @@ try {
     $check->execute([':id' => $artist_id]);
     if (!$check->fetch()) {
         $insert = $db->prepare("INSERT INTO users (id, name, email) VALUES (:id, :name, :email)");
-        $insert->execute([
-            ':id' => $artist_id,
-            ':name' => $name,
-            ':email' => $email
-        ]);
+        $insert->execute([':id' => $artist_id, ':name' => $name, ':email' => $email]);
     }
 
     $setClause = "name = :name, phone = :phone, country = :country,
@@ -125,7 +135,7 @@ try {
            ->execute([':name' => $name, ':id' => $artist_id]);
     }
 
-    echo json_encode(['success' => true, 'message' => 'Profil mis a jour avec succes.']);
+    echo json_encode(['success' => true, 'message' => 'Profil mis à jour avec succès.']);
 
 } catch (Exception $e) {
     http_response_code(400);

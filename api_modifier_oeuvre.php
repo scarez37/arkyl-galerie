@@ -66,5 +66,12 @@ try {
 
 } catch (Exception $e) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    echo json_encode([
+        'success' => false,
+        'message' => $e->getMessage(),
+        'debug'   => [
+            'artwork_id' => $artwork_id ?? null,
+            'artist_id'  => $artist_id ?? null,
+        ]
+    ]);
 }

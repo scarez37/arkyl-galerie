@@ -6270,7 +6270,6 @@ function enterGallery() {
 
             if (section === 'dashboard') updateDashboard();
             if (section === 'artworks') renderArtworks();
-            if (section === 'sales')    renderSales();
             if (section === 'gallery')  renderArtistGallery();
             window.scrollTo(0,0);
         }

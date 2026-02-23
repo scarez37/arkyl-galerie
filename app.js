@@ -4562,7 +4562,7 @@ function enterGallery() {
             // Récupérer les œuvres : depuis l'API et depuis getProducts()
             let artistWorks = [];
             try {
-                const response = await fetch(`api_galerie_publique.php?t=${Date.now()}`);
+                const response = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=${Date.now()}`);
                 const result = await response.json();
                 if (result.success && result.data) {
                     artistWorks = result.data.filter(a =>
@@ -4581,10 +4581,26 @@ function enterGallery() {
 
             // Récupérer les données artiste depuis artistsData local
             let artist = artistsData[artistName] || null;
+
+            // Chercher l'avatar dans les œuvres API (champ artist_avatar)
+            let avatarFromAPI = artistWorks.length > 0 ? (artistWorks[0].artist_avatar || null) : null;
+
+            // Si pas d'avatar trouvé dans les œuvres, tenter l'API profil artiste
+            if (!avatarFromAPI) {
+                try {
+                    const artistId = artistWorks.length > 0 ? artistWorks[0].artist_id : null;
+                    if (artistId) {
+                        const profResp = await fetch(`https://arkyl-galerie.onrender.com/api_modifier_profil.php?artist_id=${encodeURIComponent(artistId)}&t=${Date.now()}`);
+                        if (profResp.ok) {
+                            const profData = await profResp.json();
+                            if (profData.success && profData.avatar) avatarFromAPI = profData.avatar;
+                        }
+                    }
+                } catch(e) {}
+            }
             
             // Si pas de données artiste, créer un profil basique à partir des œuvres
             if (!artist && artistWorks.length > 0) {
-                const avatarFromWork = artistWorks[0].artist_avatar || artistWorks[0].artistAvatar || null;
                 artist = {
                     avatar: '👨🏿‍🎨',
                     specialty: artistWorks[0].category || 'Artiste',
@@ -4592,14 +4608,13 @@ function enterGallery() {
                     followers: 0,
                     works: artistWorks.length,
                     rating: 0,
-                    profileImage: avatarFromWork
+                    profileImage: avatarFromAPI
                 };
             }
 
-            // Si artiste connu mais sans photo, essayer de la récupérer depuis les œuvres
-            if (artist && !artist.profileImage && artistWorks.length > 0) {
-                const avatarFromWork = artistWorks[0].artist_avatar || artistWorks[0].artistAvatar || null;
-                if (avatarFromWork) artist.profileImage = avatarFromWork;
+            // Si artiste connu mais sans photo, essayer depuis les œuvres
+            if (artist && !artist.profileImage && avatarFromAPI) {
+                artist.profileImage = avatarFromAPI;
             }
 
             // Construire l'avatar

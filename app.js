@@ -4579,10 +4579,10 @@ function enterGallery() {
                 }
             });
 
-            // ⭐ Récupérer le profil artiste depuis l'API dédiée (avatar, bio, spécialité)
+            // ⭐ Récupérer le profil artiste depuis l'API (avatar, bio, spécialité)
             let serverArtistProfile = null;
             try {
-                const profileResp = await fetch(`https://arkyl-galerie.onrender.com/api_artiste_profil.php?artist_name=${encodeURIComponent(artistName)}&t=${Date.now()}`);
+                const profileResp = await fetch(`https://arkyl-galerie.onrender.com/api_modifier_profil.php?artist_name=${encodeURIComponent(artistName)}&t=${Date.now()}`);
                 if (profileResp.ok) {
                     const profileResult = await profileResp.json();
                     if (profileResult.success && profileResult.artist) {

@@ -4584,6 +4584,7 @@ function enterGallery() {
             
             // Si pas de données artiste, créer un profil basique à partir des œuvres
             if (!artist && artistWorks.length > 0) {
+                const avatarFromWork = artistWorks[0].artist_avatar || artistWorks[0].artistAvatar || null;
                 artist = {
                     avatar: '👨🏿‍🎨',
                     specialty: artistWorks[0].category || 'Artiste',
@@ -4591,14 +4592,20 @@ function enterGallery() {
                     followers: 0,
                     works: artistWorks.length,
                     rating: 0,
-                    profileImage: null // Sera peut-être rempli plus tard
+                    profileImage: avatarFromWork
                 };
+            }
+
+            // Si artiste connu mais sans photo, essayer de la récupérer depuis les œuvres
+            if (artist && !artist.profileImage && artistWorks.length > 0) {
+                const avatarFromWork = artistWorks[0].artist_avatar || artistWorks[0].artistAvatar || null;
+                if (avatarFromWork) artist.profileImage = avatarFromWork;
             }
 
             // Construire l'avatar
             const isOwnProfile = currentUser && currentUser.isArtist && currentUser.artistName === artistName;
             const avatarDisplay = (artist && artist.profileImage)
-                ? `<img loading="lazy" src="${artist.profileImage}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid var(--terre-cuite);margin-bottom:20px;" alt="${artistName}" onerror="this.style.display='none'">`
+                ? `<img loading="lazy" src="${artist.profileImage}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid var(--terre-cuite);margin-bottom:20px;" alt="${artistName}" onerror="this.outerHTML='<div class=\'artist-detail-avatar\'>👤</div>'">`
                 : `<div class="artist-detail-avatar">${artist ? (artist.avatar || '👤') : '👤'}</div>`;
 
             // Construire les cartes d'œuvres
@@ -4974,19 +4981,6 @@ function enterGallery() {
                     </div>`;
                 }
                 
-                const isSingleArtist = followed.length === 1;
-                const artistHeader = !isSingleArtist ? `
-                    <div class="artist-section-divider">
-                        <div class="artist-section-divider-line"></div>
-                        <div class="artist-section-divider-name">
-                            ${artist.profile_image && artist.profile_image !== 'undefined'
-                                ? `<img src="${artist.profile_image}" style="width:18px;height:18px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;" onerror="this.style.display='none'">`
-                                : `<span style="margin-right:4px;">${artist.avatar || '🎨'}</span>`}
-                            ${artist.name}
-                        </div>
-                        <div class="artist-section-divider-line"></div>
-                    </div>` : '';
-
                 return artistWorks.map((work, index) => {
                     // Utiliser uniquement les vraies données
                     const isSocialLiked = isSociallyLiked(work.id);
@@ -4997,21 +4991,19 @@ function enterGallery() {
                     
                     // Utiliser la date de création si disponible, sinon rien
                     const timeAgo = work.created_at || work.date || '';
-                    const categoryLabel = work.category ? `<span style="background:rgba(255,255,255,0.15);padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:0.4px;">${work.category}</span>` : '';
                     
                     return `
-                    ${index === 0 ? artistHeader : ''}
                     <div class="artist-loop-card" id="loop-${artist.name}-${index}" data-artist="${artist.name}">
                         <!-- Header -->
                         <div class="loop-header">
-                            <div class="loop-avatar" onclick="viewArtistDetail(event, '${artist.name}')" style="cursor: pointer; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(255,255,255,0.25), rgba(255,255,255,0.1));">
+                            <div class="loop-avatar" onclick="viewArtistDetail(event, '${artist.name}')" style="cursor: pointer; overflow: hidden; background: linear-gradient(135deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1)); display: flex; align-items: center; justify-content: center;">
                                 ${artist.profile_image && artist.profile_image !== 'undefined'
                                     ? `<img loading="lazy" src="${artist.profile_image}" alt="${artist.name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size: 20px;\\'>${artist.avatar || '🎨'}</div>'">` 
                                     : `<div style="font-size: 20px;">${artist.avatar || '🎨'}</div>`}
                             </div>
                             <div class="loop-info" onclick="viewArtistDetail(event, '${artist.name}')" style="cursor: pointer;">
                                 <div class="loop-artist-name">${artist.name}</div>
-                                <div class="loop-metadata">${timeAgo ? timeAgo + ' • ' : ''}${categoryLabel}</div>
+                                <div class="loop-metadata">${timeAgo} • ${work.category}</div>
                             </div>
                             <button class="loop-menu-btn" onclick="toggleArtistMenu(event, '${artist.name}')" title="Plus d'options">
                                 ⋯
@@ -5019,21 +5011,21 @@ function enterGallery() {
                         </div>
 
                         <!-- Image de l'œuvre -->
-                        <div class="loop-image" onclick="viewProductDetailFromAPI(${work.id})">
+                        <div class="loop-image" onclick="viewProductDetailFromAPI(${work.id})" style="position: relative; background: linear-gradient(135deg, #f8f9fa 0%, #e8eaed 100%);">
                             ${work.image_url && work.image_url !== 'undefined' 
                                 ? `<img loading="lazy" src="${work.image_url}" 
                                        alt="${work.title}" 
+                                       style="width: 100%; height: 100%; object-fit: cover;"
                                        onerror="this.style.display='none'; this.parentElement.querySelector('.loop-image-placeholder').style.display='flex';">
-                                   <div class="loop-image-placeholder" style="display: none; font-size: 96px;">
+                                   <div class="loop-image-placeholder" style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; flex-direction: column; font-size: 96px;">
                                        ${work.emoji || '🎨'}
                                    </div>`
-                                : `<div class="loop-image-placeholder">
-                                       <div style="font-size: 80px; margin-bottom: 12px;">${work.emoji || '🎨'}</div>
-                                       <div style="font-size: 13px; color: rgba(255,255,255,0.45); font-weight: 600;">Image à venir</div>
+                                : `<div class="loop-image-placeholder" style="display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; flex-direction: column;">
+                                       <div style="font-size: 96px; margin-bottom: 16px;">${work.emoji || '🎨'}</div>
+                                       <div style="font-size: 14px; color: rgba(0,0,0,0.4); font-weight: 600;">Image à venir</div>
                                    </div>`
                             }
                             <div class="loop-image-overlay">👁️</div>
-                            <div class="loop-price-badge">${formatPrice(work.price)}</div>
                         </div>
 
                         <!-- Actions -->
@@ -5059,22 +5051,29 @@ function enterGallery() {
 
                         <!-- Détails -->
                         <div class="loop-details">
-                            ${realLikesCount > 0 ? `<div class="loop-likes">❤️ ${realLikesCount} j'aime</div>` : ''}
+                            ${realLikesCount > 0 ? `<div class="loop-likes">${realLikesCount} j'aime</div>` : ''}
                             <div class="loop-title">
                                 <span class="artist-tag" onclick="viewArtistDetail(event, '${artist.name}')">${artist.name}</span> 
                                 ${work.title}
                             </div>
-                            ${work.description ? `<div class="loop-description">${work.description}</div>` : ''}
+                            <div class="loop-description">
+                                ${work.description || ''}
+                            </div>
+                            <div class="loop-price" style="color: #D4A574; text-shadow: 0 2px 5px rgba(212, 165, 116, 0.3); margin-top: 8px;">
+                                ${formatPrice(work.price)}
+                            </div>
                             
                             <!-- Section commentaires -->
-                            <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.12);">
+                            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.15);">
                                 <div style="display: flex; gap: 10px; align-items: center;">
                                     <input type="text" 
                                            id="comment-${work.id}"
-                                           class="loop-comment-input"
-                                           placeholder="Ajouter un commentaire..."
+                                           placeholder="Ajouter un commentaire..." 
+                                           style="flex: 1; background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 8px 16px; color: white; font-size: 13px; outline: none;"
+                                           onfocus="this.style.background='rgba(255, 255, 255, 0.2)'"
+                                           onblur="this.style.background='rgba(255, 255, 255, 0.15)'"
                                     />
-                                    <button onclick="postComment(${work.id})" style="background: none; border: none; color: rgba(212, 165, 116, 0.85); font-weight: 700; font-size: 13px; cursor: pointer; transition: color 0.2s; white-space: nowrap;" onmouseover="this.style.color='rgb(212, 165, 116)'" onmouseout="this.style.color='rgba(212, 165, 116, 0.85)'">
+                                    <button onclick="postComment(${work.id})" style="background: none; border: none; color: rgba(212, 165, 116, 0.8); font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.color='rgb(212, 165, 116)'" onmouseout="this.style.color='rgba(212, 165, 116, 0.8)'">
                                         Publier
                                     </button>
                                 </div>

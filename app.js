@@ -8878,23 +8878,5 @@ function enterGallery() {
             }
         }
 
-        // ==========================================
-        // DÉTECTION DU RETOUR DE PAIEMENT STRIPE (CORRIGÉ)
-        // ==========================================
-        setTimeout(() => {
-            // On regarde si le code du haut a sauvegardé l'ID, SINON on regarde l'URL
-            const orderId = window._pendingStripeOrderId || new URLSearchParams(window.location.search).get('order_id');
-            if (orderId) {
-                console.log("✅ Retour de Stripe détecté pour la commande :", orderId);
-                
-                showToast('✅ Paiement réussi ! Votre commande est validée.');
-                
-                if (typeof addNotification === 'function') {
-                    addNotification('🎉 Commande confirmée', `Merci pour votre achat ! Réf: ${orderId}. L'artiste prépare votre colis.`);
-                }
-                
-                // On nettoie la mémoire et l'URL pour éviter que le message revienne
-                window._pendingStripeOrderId = null;
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
-        }, 1000);
+        // Note : la détection du retour Stripe est gérée en haut du fichier
+        // via window._pendingStripeOrderId → processStripeReturn()

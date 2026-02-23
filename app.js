@@ -3171,7 +3171,7 @@ function enterGallery() {
             if (!alreadyExists) {
                 orderHistory.unshift(order);
                 safeStorage.set('arkyl_orders', orderHistory);
-                console.log('💾 Commande ajoutée à l'historique local');
+                console.log('💾 Commande ajoutée à l\'historique local');
 
                 // Vider le panier
                 cartItems = [];
@@ -8877,34 +8877,3 @@ function enterGallery() {
                 showToast('❌ Erreur réseau');
             }
         }
-
-        // ==========================================
-        // DÉTECTION DU RETOUR DE PAIEMENT STRIPE
-        // ==========================================
-        window.addEventListener('DOMContentLoaded', () => {
-            // 1. On lit l'adresse URL de la page
-            const urlParams = new URLSearchParams(window.location.search);
-            const orderId = urlParams.get('order_id');
-            const sessionId = urlParams.get('session_id');
-
-            // 2. Si on trouve "order_id", c'est qu'on revient d'un paiement réussi !
-            if (orderId && sessionId) {
-                // Afficher un beau message de succès
-                setTimeout(() => {
-                    showToast('✅ Paiement réussi ! Votre commande est validée.');
-                    
-                    if (typeof addNotification === 'function') {
-                        addNotification('🎉 Commande confirmée', `Merci pour votre achat ! Réf: ${orderId}. L'artiste prépare votre colis.`);
-                    }
-                    
-                    // Optionnel : Basculer directement sur l'onglet des notifications ou des commandes
-                    // showPage('notifications-page'); 
-
-                }, 1500); // Petit délai pour laisser la page s'afficher d'abord
-
-                // 3. EFFACER l'URL (Très important !)
-                // On enlève le "?order_id=..." de la barre d'adresse pour éviter 
-                // que le message revienne si l'utilisateur actualise la page.
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
-        });

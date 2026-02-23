@@ -10,17 +10,6 @@
     <!-- Google Sign-In -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link rel="stylesheet" href="style.css">
-    <!-- EmailJS SDK pour envoi d'emails depuis le navigateur -->
-    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-    <script>
-        // Initialiser EmailJS avec la clé publique
-        // ⚠️ À remplacer après création du compte sur emailjs.com
-        (function() {
-            if (typeof emailjs !== 'undefined') {
-                emailjs.init({ publicKey: 'VOTRE_PUBLIC_KEY_ICI' });
-            }
-        })();
-    </script>
 </head>
 <body>
 </head>
@@ -445,71 +434,7 @@
                     <button class="ticker-nav-btn ticker-nav-next" onclick="tickerNav(1)" title="Suivant">›</button>
                     <div class="news-ticker-scroll">
                     <div class="news-ticker-content" id="newsTickerContent">
-                        <!-- Item 1 -->
-                        <div class="news-ticker-item" onclick="openNewsLightbox(0)" title="Nouvelle collection de Kofi Mensah disponible!">
-                            <div class="news-ticker-icon gradient-1">
-                                <img loading="lazy" src="https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=100&h=100&fit=crop" alt="Art" onerror="this.style.display='none'; this.parentElement.innerHTML='🎨';">
-                            </div>
-                        </div>
-                        
-                        <!-- Item 2 -->
-                        <div class="news-ticker-item" onclick="openNewsLightbox(1)" title="Promotion -20% sur toutes les sculptures">
-                            <div class="news-ticker-icon gradient-2">
-                                <img loading="lazy" src="https://images.unsplash.com/photo-1582555172866-f73bb12a2ab3?w=100&h=100&fit=crop" alt="Promo" onerror="this.style.display='none'; this.parentElement.innerHTML='🔥';">
-                            </div>
-                        </div>
-                        
-                        <!-- Item 3 -->
-                        <div class="news-ticker-item" onclick="openNewsLightbox(2)" title="Aya Diarra - Artiste du mois">
-                            <div class="news-ticker-icon gradient-3">
-                                <img loading="lazy" src="https://images.unsplash.com/photo-1561214115-f2f134cc4912?w=100&h=100&fit=crop" alt="Artiste" onerror="this.style.display='none'; this.parentElement.innerHTML='⭐';">
-                            </div>
-                        </div>
-                        
-                        <!-- Item 4 -->
-                        <div class="news-ticker-item" onclick="openNewsLightbox(3)" title="Plus de 500 œuvres dans notre galerie">
-                            <div class="news-ticker-icon gradient-4">
-                                🌟
-                            </div>
-                        </div>
-                        
-                        <!-- Item 5 -->
-                        <div class="news-ticker-item" onclick="openNewsLightbox(4)" title="Livraison gratuite dès 200 000 FCFA">
-                            <div class="news-ticker-icon gradient-5">
-                                <img loading="lazy" src="https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=100&h=100&fit=crop" alt="Cadeau" onerror="this.style.display='none'; this.parentElement.innerHTML='🎁';">
-                            </div>
-                        </div>
-                        
-                        <!-- Duplicates for seamless loop -->
-                        <div class="news-ticker-item" onclick="openNewsLightbox(0)" title="Nouvelle collection de Kofi Mensah disponible!">
-                            <div class="news-ticker-icon gradient-1">
-                                <img loading="lazy" src="https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=100&h=100&fit=crop" alt="Art" onerror="this.style.display='none'; this.parentElement.innerHTML='🎨';">
-                            </div>
-                        </div>
-                        
-                        <div class="news-ticker-item" onclick="openNewsLightbox(1)" title="Promotion -20% sur toutes les sculptures">
-                            <div class="news-ticker-icon gradient-2">
-                                <img loading="lazy" src="https://images.unsplash.com/photo-1582555172866-f73bb12a2ab3?w=100&h=100&fit=crop" alt="Promo" onerror="this.style.display='none'; this.parentElement.innerHTML='🔥';">
-                            </div>
-                        </div>
-                        
-                        <div class="news-ticker-item" onclick="openNewsLightbox(2)" title="Aya Diarra - Artiste du mois">
-                            <div class="news-ticker-icon gradient-3">
-                                <img loading="lazy" src="https://images.unsplash.com/photo-1561214115-f2f134cc4912?w=100&h=100&fit=crop" alt="Artiste" onerror="this.style.display='none'; this.parentElement.innerHTML='⭐';">
-                            </div>
-                        </div>
-                        
-                        <div class="news-ticker-item" onclick="openNewsLightbox(3)" title="Plus de 500 œuvres dans notre galerie">
-                            <div class="news-ticker-icon gradient-4">
-                                🌟
-                            </div>
-                        </div>
-                        
-                        <div class="news-ticker-item" onclick="openNewsLightbox(4)" title="Livraison gratuite dès 200 000 FCFA">
-                            <div class="news-ticker-icon gradient-5">
-                                <img loading="lazy" src="https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=100&h=100&fit=crop" alt="Cadeau" onerror="this.style.display='none'; this.parentElement.innerHTML='🎁';">
-                            </div>
-                        </div>
+                        <!-- Contenu chargé dynamiquement depuis le serveur -->
                     </div>
                 </div>
                 </div>
@@ -679,8 +604,11 @@
         <p class="page-subtitle">Gérez le contenu de la barre d'actualités</p>
         
         <div style="max-width: 900px; margin: 0 auto;">
-            <!-- Bouton Ajouter -->
-            <div style="margin-bottom: 30px; text-align: right;">
+            <!-- Boutons actions -->
+            <div style="margin-bottom: 30px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                <button onclick="deleteAllNews()" style="background: rgba(220,50,50,0.15); border: 1px solid rgba(220,50,50,0.4); color: #ff6b6b; padding: 12px 22px; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer;">
+                    🗑️ Supprimer tout
+                </button>
                 <button class="btn" onclick="openAddNewsModal()" style="background: linear-gradient(135deg, var(--terre-cuite), var(--terre-sombre)); border: none; color: white; padding: 14px 28px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="9" fill="#d4af37"/><path d="M12 8v8M8 12h8" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round"/></svg> Ajouter une actualité
                 </button>
@@ -1287,21 +1215,7 @@
         </div>
     </div>
 
-    <!-- Success Modal -->
-    <!-- Chat Widget -->
-    <div id="chatWindow" class="chat-window">
-        <div class="chat-header">
-            <h3>Assistant ARKYL</h3>
-            <p>Nous sommes là pour vous aider 😊</p>
-        </div>
-        <div id="chatMessages" class="chat-messages"></div>
-        <div class="chat-input-container">
-            <input type="text" id="chatInput" placeholder="Posez votre question..." onkeypress="if(event.key==='Enter') sendChatMessage()">
-            <button onclick="sendChatMessage()">Envoyer</button>
-        </div>
-    </div>
-
-    <button class="chat-fab" onclick="toggleChat()">💬</button>
+    <!-- Chat supprimé -->
 
 
     <!-- ===== ESPACE ARTISTE ===== -->

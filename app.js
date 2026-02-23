@@ -144,6 +144,16 @@ function enterGallery() {
             })();
 
             const urlParams = new URLSearchParams(window.location.search);
+
+            // ── Retour depuis Stripe ──────────────────────────────────────────
+            const stripeStatus = urlParams.get('payment') || urlParams.get('status');
+            const stripeSession = urlParams.get('session_id');
+            const isStripeSuccess = stripeStatus === 'success' || urlParams.get('success') === 'true' || stripeSession;
+
+            if (isStripeSuccess) {
+                setTimeout(() => processStripeReturn(stripeSession), 800);
+            }
+
             if (urlParams.get('mode') === 'artist') {
                 // Vérifier que l'artiste a bien un compte
                 const hasArtistAccount = safeStorage.get('arkyl_artist_account', null) || _memStore['arkyl_artist_account'] || null;
@@ -3002,6 +3012,44 @@ function enterGallery() {
                 }
 
                 if (data.success && data.url) {
+                    // Sauvegarder la commande AVANT la redirection (Stripe peut échouer)
+                    const selShippingEl = document.querySelector('.shipping-option.selected');
+                    const shippingCostVal = selShippingEl ? parseInt(selShippingEl.dataset.cost) : 3000;
+                    const subtotal = cartItems.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
+                    const tax = Math.round(subtotal * 0.18);
+                    const total = subtotal + tax + shippingCostVal;
+
+                    const pendingOrder = {
+                        stripe_session_id: data.session_id || null,
+                        user_id:    userId,
+                        user_name:  currentUser?.name || '',
+                        user_email: currentUser?.email || '',
+                        items: cartItems.map(i => ({
+                            id: i.id || i.artwork_id,
+                            artwork_id: i.id || i.artwork_id,
+                            title: i.title,
+                            artist: i.artist,
+                            artist_id: i.artistId || '',
+                            price: i.price,
+                            quantity: i.quantity || 1,
+                            image: i.image_url || i.image || ''
+                        })),
+                        subtotal,
+                        tax,
+                        shippingCost: shippingCostVal,
+                        shippingMode,
+                        shippingName: shippingLabel,
+                        shippingAddress: clientAddress ? `${clientAddress.nom}, ${clientAddress.tel}, ${clientAddress.ville}${clientAddress.quartier ? ', ' + clientAddress.quartier : ''}` : '',
+                        paymentMethod: 'Stripe',
+                        total,
+                        status: 'En préparation',
+                        escrow_status: 'payée_en_attente',
+                        date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }),
+                        id: Date.now(),
+                        savedAt: Date.now()
+                    };
+                    safeStorage.set('arkyl_pending_order', pendingOrder);
+                    console.log('💾 Commande sauvegardée en attente de retour Stripe');
                     window.location.href = data.url;
                 } else {
                     alert('❌ ' + (data.message || 'Erreur inconnue du serveur'));
@@ -3045,6 +3093,119 @@ function enterGallery() {
 
 
         // ==================== ORDERS PAGE ====================
+
+        // ===== RETOUR STRIPE : traiter commande en attente =====
+        async function processStripeReturn(sessionId) {
+            const pending = safeStorage.get('arkyl_pending_order', null);
+            if (!pending) {
+                console.log('ℹ️ Pas de commande en attente trouvée');
+                return;
+            }
+
+            // Éviter le double traitement (si page rechargée)
+            if (pending.processed) {
+                console.log('ℹ️ Commande déjà traitée');
+                safeStorage.remove('arkyl_pending_order');
+                return;
+            }
+
+            console.log('✅ Traitement du retour Stripe — commande:', pending.id);
+
+            // Marquer comme traitée immédiatement
+            pending.processed = true;
+            safeStorage.set('arkyl_pending_order', pending);
+
+            // Construire l'objet commande final
+            const order = {
+                ...pending,
+                order_number: 'ARK-' + Date.now().toString(36).toUpperCase(),
+                stripe_session_id: sessionId || pending.stripe_session_id,
+            };
+
+            // Ajouter à l'historique local
+            orderHistory = safeStorage.get('arkyl_orders', []);
+            // Éviter les doublons
+            const alreadyExists = orderHistory.some(o =>
+                o.id === order.id ||
+                (o.stripe_session_id && o.stripe_session_id === sessionId)
+            );
+
+            if (!alreadyExists) {
+                orderHistory.unshift(order);
+                safeStorage.set('arkyl_orders', orderHistory);
+                console.log('💾 Commande ajoutée à l'historique local');
+
+                // Vider le panier
+                cartItems = [];
+                safeStorage.set('arkyl_cart', []);
+                updateCartCount();
+
+                // Sync avec le serveur en arrière-plan
+                syncOrderToServer(order).then(() => {
+                    console.log('🌐 Commande synchronisée avec le serveur');
+                }).catch(() => {
+                    console.log('⚠️ Sync serveur échouée — commande conservée localement');
+                });
+
+                // Envoyer les notifications
+                sendOrderNotifications(order);
+
+                // Nettoyer l'URL sans recharger la page
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+
+                // Afficher la page commandes avec confirmation
+                setTimeout(() => {
+                    showToast('🎉 Paiement confirmé ! Commande ' + order.order_number + ' créée.');
+                    navigateTo('orders');
+                    // Afficher modal de succès
+                    showOrderSuccessModal(order);
+                }, 400);
+
+            } else {
+                console.log('ℹ️ Commande déjà dans l'historique');
+            }
+
+            // Nettoyer la commande en attente
+            safeStorage.remove('arkyl_pending_order');
+        }
+
+        function showOrderSuccessModal(order) {
+            const existing = document.getElementById('orderSuccessModal');
+            if (existing) existing.remove();
+
+            const total = order.total || 0;
+            const itemsCount = (order.items || []).reduce((s, i) => s + (i.quantity || 1), 0);
+
+            const modal = document.createElement('div');
+            modal.id = 'orderSuccessModal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+            modal.innerHTML = `
+                <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid rgba(212,175,55,0.4);border-radius:24px;padding:40px;max-width:460px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+                    <div style="font-size:70px;margin-bottom:16px;">🎉</div>
+                    <h2 style="font-size:26px;font-weight:900;color:var(--or);margin-bottom:8px;">Paiement confirmé !</h2>
+                    <p style="opacity:0.8;margin-bottom:6px;">Commande <strong style="color:var(--ocre);">${order.order_number}</strong></p>
+                    <p style="opacity:0.6;font-size:14px;margin-bottom:24px;">${itemsCount} œuvre${itemsCount > 1 ? 's' : ''} · ${formatPrice(total)}</p>
+
+                    <div style="background:rgba(76,175,80,0.15);border:1px solid rgba(76,175,80,0.4);border-radius:14px;padding:16px;margin-bottom:24px;font-size:14px;text-align:left;">
+                        <div style="font-weight:700;margin-bottom:8px;color:#a5d6a7;">🔒 Fonds sécurisés</div>
+                        <div style="opacity:0.8;line-height:1.6;">Votre paiement est bloqué sur le compte ARKYL. Il sera libéré à l'artiste uniquement après que vous ayez confirmé la réception de votre œuvre.</div>
+                    </div>
+
+                    <div style="display:flex;flex-direction:column;gap:12px;">
+                        <button onclick="document.getElementById('orderSuccessModal').remove(); navigateTo('orders');"
+                            style="padding:14px;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));color:white;">
+                            📦 Suivre ma commande
+                        </button>
+                        <button onclick="document.getElementById('orderSuccessModal').remove(); navigateTo('home');"
+                            style="padding:14px;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;background:rgba(255,255,255,0.08);color:white;">
+                            Retour à la galerie
+                        </button>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+        }
+
         const ORDERS_API = 'https://arkyl-galerie.onrender.com/api_commandes.php';
 
         const DELIVERY_STATUSES = [

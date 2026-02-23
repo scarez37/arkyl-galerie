@@ -1405,25 +1405,19 @@ function enterGallery() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: id })
                 });
-
                 const data = await response.json();
-
                 if (data.success) {
                     try { removeFromPublicProducts(id); } catch(e) {}
                     try { db.deleteArtwork(id); } catch(e) {}
-
                     showToast('✅ Œuvre supprimée définitivement');
                     logAdminActivity('🗑️', `Œuvre supprimée (id: ${id})`);
                     if (typeof renderAdminArtworks === 'function') renderAdminArtworks();
-
                     if (document.getElementById('homePage').classList.contains('active')) {
                         (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
                     }
                 } else {
                     showToast('❌ Erreur serveur : ' + data.message);
-                    console.error('Erreur du serveur:', data);
                 }
-
             } catch (error) {
                 showToast('❌ Erreur de connexion au serveur');
                 console.error('Erreur réseau:', error);
@@ -4573,10 +4567,10 @@ function enterGallery() {
             `;
             navigateTo('artistDetail');
 
-            // Récupérer les œuvres : depuis l'API et depuis getProducts()
+            // Récupérer les œuvres depuis l'API
             let artistWorks = [];
             try {
-                const response = await fetch(`api_galerie_publique.php?t=${Date.now()}`);
+                const response = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=${Date.now()}`);
                 const result = await response.json();
                 if (result.success && result.data) {
                     artistWorks = result.data.filter(a =>
@@ -4593,10 +4587,13 @@ function enterGallery() {
                 }
             });
 
+            // Récupérer l'avatar depuis les données API (champ artist_avatar renvoyé par le serveur)
+            const avatarFromAPI = artistWorks.find(a => a.artist_avatar)?.artist_avatar || null;
+
             // Récupérer les données artiste depuis artistsData local
             let artist = artistsData[artistName] || null;
-            
-            // Si pas de données artiste, créer un profil basique à partir des œuvres
+
+            // Si pas de données artiste, créer un profil basique
             if (!artist && artistWorks.length > 0) {
                 artist = {
                     avatar: '👨🏿‍🎨',
@@ -4605,14 +4602,19 @@ function enterGallery() {
                     followers: 0,
                     works: artistWorks.length,
                     rating: 0,
-                    profileImage: null // Sera peut-être rempli plus tard
+                    profileImage: avatarFromAPI
                 };
+            }
+
+            // Si artiste connu mais sans photo, utiliser l'avatar de l'API
+            if (artist && !artist.profileImage && avatarFromAPI) {
+                artist.profileImage = avatarFromAPI;
             }
 
             // Construire l'avatar
             const isOwnProfile = currentUser && currentUser.isArtist && currentUser.artistName === artistName;
             const avatarDisplay = (artist && artist.profileImage)
-                ? `<img loading="lazy" src="${artist.profileImage}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid var(--terre-cuite);margin-bottom:20px;" alt="${artistName}" onerror="this.style.display='none'">`
+                ? `<img loading="lazy" src="${artist.profileImage}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid var(--terre-cuite);margin-bottom:20px;" alt="${artistName}" onerror="this.outerHTML='<div class=\'artist-detail-avatar\'>👤</div>'">`
                 : `<div class="artist-detail-avatar">${artist ? (artist.avatar || '👤') : '👤'}</div>`;
 
             // Construire les cartes d'œuvres
@@ -6454,22 +6456,16 @@ function enterGallery() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: id })
                 });
-
                 const data = await response.json();
-
                 if (data.success) {
                     try { removeFromPublicProducts(id); } catch(e) {}
                     try { db.deleteArtwork(id); } catch(e) {}
-
                     showToast('✅ Œuvre supprimée définitivement');
-
                     if (typeof renderArtworks === 'function') renderArtworks();
                     if (typeof updateDashboard === 'function') updateDashboard();
                 } else {
                     showToast('❌ Erreur serveur : ' + data.message);
-                    console.error('Erreur du serveur:', data);
                 }
-
             } catch (error) {
                 showToast('❌ Erreur de connexion au serveur');
                 console.error('Erreur réseau:', error);

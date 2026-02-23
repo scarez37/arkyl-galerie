@@ -146,12 +146,13 @@ function enterGallery() {
             const urlParams = new URLSearchParams(window.location.search);
 
             // ── Retour depuis Stripe ──────────────────────────────────────────
-            const stripeStatus = urlParams.get('payment') || urlParams.get('status');
             const stripeSession = urlParams.get('session_id');
-            const isStripeSuccess = stripeStatus === 'success' || urlParams.get('success') === 'true' || stripeSession;
+            const stripeOrderId  = urlParams.get('order_id');   // ARKYL-XXXXXXXX
+            const stripePayment  = urlParams.get('payment');
+            const isStripeReturn = stripeSession || stripeOrderId || stripePayment === 'success';
 
-            if (isStripeSuccess) {
-                setTimeout(() => processStripeReturn(stripeSession), 800);
+            if (isStripeReturn) {
+                setTimeout(() => processStripeReturn(stripeSession, stripeOrderId), 800);
             }
 
             if (urlParams.get('mode') === 'artist') {
@@ -3095,7 +3096,7 @@ function enterGallery() {
         // ==================== ORDERS PAGE ====================
 
         // ===== RETOUR STRIPE : traiter commande en attente =====
-        async function processStripeReturn(sessionId) {
+        async function processStripeReturn(sessionId, arkylOrderId) {
             const pending = safeStorage.get('arkyl_pending_order', null);
             if (!pending) {
                 console.log('ℹ️ Pas de commande en attente trouvée');

@@ -1194,10 +1194,12 @@ function enterGallery() {
                 return `
                     <div class="top-artist-item">
                         <div class="top-artist-rank">${medal}</div>
-                        ${artistData.avatar ? 
-                            `<img loading="lazy" src="${artistData.avatar}" alt="${name}" class="top-artist-avatar">` :
-                            `<div class="top-artist-avatar" style="display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.1); font-size: 24px;">👤</div>`
-                        }
+                        <div class="top-artist-avatar" style="overflow:hidden;">
+                            ${artistData.avatar && (artistData.avatar.startsWith('http') || artistData.avatar.startsWith('data:'))
+                                ? buildMiniAvatar({ profile_image: artistData.avatar, avatar: '🎨', avatar_style: artistData.avatarStyle || 'slices', name }, 60, null)
+                                : '<div style="font-size:24px;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">👤</div>'
+                            }
+                        </div>
                         <div class="top-artist-info">
                             <div class="top-artist-name">${name}</div>
                             <div class="top-artist-count">${count} œuvre${count > 1 ? 's' : ''}</div>
@@ -3043,325 +3045,260 @@ function enterGallery() {
 
 
         // ==================== ORDERS PAGE ====================
-        function renderOrders() {
+        const ORDERS_API = 'https://arkyl-galerie.onrender.com/api_commandes.php';
+
+        const DELIVERY_STATUSES = [
+            { key: 'En préparation', icon: '📦', label: 'En préparation', color: '#ff9800' },
+            { key: 'Préparée',       icon: '✅', label: 'Préparée',       color: '#ff9800' },
+            { key: 'Expédiée',       icon: '🚚', label: 'Expédiée',       color: '#2196f3' },
+            { key: 'En transit',     icon: '🛵', label: 'En transit',     color: '#2196f3' },
+            { key: 'Livrée',         icon: '📬', label: 'Livrée',         color: '#4caf50' },
+        ];
+
+        const CARRIERS = [
+            { id: 'laposte_ci',  name: '🇨🇮 La Poste CI',     url: 'https://www.laposte.ci/suivi-de-colis?num=' },
+            { id: 'dhl',         name: 'DHL',                  url: 'https://www.dhl.com/fr-fr/home/tracking.html?tracking-id=' },
+            { id: 'chronopost',  name: 'Chronopost',           url: 'https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT=' },
+            { id: 'colissimo',   name: 'Colissimo',            url: 'https://www.laposte.fr/outils/suivre-vos-envois?code=' },
+            { id: 'fedex',       name: 'FedEx',                url: 'https://www.fedex.com/fr-fr/tracking.html?tracknumbers=' },
+            { id: 'ups',         name: 'UPS',                  url: 'https://www.ups.com/track?tracknum=' },
+            { id: 'gls',         name: 'GLS',                  url: 'https://gls-group.com/track/' },
+            { id: 'bolloré',     name: 'Bolloré Logistics',    url: '' },
+            { id: 'nsia',        name: 'NSIA Transport',        url: '' },
+            { id: 'other',       name: 'Autre transporteur',   url: '' },
+        ];
+
+        function getTrackingUrl(carrier, trackingNumber) {
+            if (!trackingNumber) return null;
+            const c = CARRIERS.find(x => x.id === carrier);
+            if (!c || !c.url) return null;
+            return c.url + encodeURIComponent(trackingNumber);
+        }
+
+        function statusColor(status) {
+            const s = DELIVERY_STATUSES.find(x => x.key === status);
+            return s ? s.color : '#aaa';
+        }
+
+        function statusIcon(status) {
+            const s = DELIVERY_STATUSES.find(x => x.key === status);
+            return s ? s.icon : '📦';
+        }
+
+        async function syncOrderToServer(order) {
+            try {
+                const items = order.items.map(i => ({
+                    artwork_id: i.id || i.artwork_id,
+                    title: i.title,
+                    artist: i.artist,
+                    artist_id: i.artistId || i.artist_id || '',
+                    price: i.price,
+                    quantity: i.quantity || 1,
+                    image: i.image || i.image_url || ''
+                }));
+                const resp = await fetch(ORDERS_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'create',
+                        user_id: currentUser?.id || currentUser?.googleId || currentUser?.email || '',
+                        user_name: order.user || currentUser?.name || '',
+                        user_email: order.userEmail || currentUser?.email || '',
+                        subtotal: order.subtotal,
+                        tax: order.tax,
+                        shipping_cost: order.shippingCost || 0,
+                        total: order.total,
+                        shipping_name: order.shippingName || '',
+                        shipping_mode: order.shippingMode || '',
+                        shipping_address: order.shippingAddress || '',
+                        payment_method: order.paymentMethod || '',
+                        items
+                    })
+                });
+                const r = await resp.json();
+                if (r.success) {
+                    // Sauvegarder le server_id localement
+                    order.server_id = r.order_id;
+                    order.order_number = r.order_number;
+                    safeStorage.set('arkyl_orders', orderHistory);
+                }
+            } catch(e) { /* silencieux */ }
+        }
+
+        async function loadOrdersFromServer() {
+            const userId = currentUser?.id || currentUser?.googleId || currentUser?.email;
+            if (!userId) return false;
+            try {
+                const resp = await fetch(`${ORDERS_API}?action=list&user_id=${encodeURIComponent(userId)}&t=${Date.now()}`);
+                const data = await resp.json();
+                if (data.success && data.orders.length > 0) {
+                    // Fusionner avec localStorage — server prioritaire
+                    const serverIds = data.orders.map(o => String(o.id));
+                    const localOnly = orderHistory.filter(o => !o.server_id || !serverIds.includes(String(o.server_id)));
+                    orderHistory = [...data.orders.map(o => ({
+                        ...o,
+                        server_id: o.id,
+                        items: o.items || [],
+                        date: o.created_at ? new Date(o.created_at).toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' }) : o.date,
+                        shippedDate: o.shipped_at ? new Date(o.shipped_at).toLocaleDateString('fr-FR') : null,
+                        deliveredDate: o.delivered_at ? new Date(o.delivered_at).toLocaleDateString('fr-FR') : null,
+                        tracking_number: o.tracking_number,
+                        tracking_url: o.tracking_url,
+                        carrier: o.carrier,
+                        escrow_status: o.escrow_status || 'payée_en_attente',
+                        escrow_auto_release_date: o.escrow_auto_release_date,
+                    })), ...localOnly];
+                    safeStorage.set('arkyl_orders', orderHistory);
+                    return true;
+                }
+            } catch(e) {}
+            return false;
+        }
+
+        function buildOrderTimeline(order) {
+            const es = order.escrow_status || 'payée_en_attente';
+            const steps = [
+                { key: 'payée_en_attente', icon: '💳', label: 'Commande validée' },
+                { key: 'expédiée',         icon: '🚚', label: 'Expédiée' },
+                { key: 'livrée_confirmée', icon: '📬', label: 'Réception confirmée' },
+                { key: 'fonds_libérés',    icon: '✅', label: 'Transaction complète' },
+            ];
+            const escrowOrder = ['payée_en_attente','expédiée','livrée_confirmée','fonds_libérés'];
+            const stepIdx = escrowOrder.indexOf(es);
+
+            // Timeline détaillée depuis le serveur
+            const serverTimeline = (order.timeline || []).map(t => `
+                <div style="display:flex; gap:12px; align-items:flex-start; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">
+                        ${statusIcon(t.status)}
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-weight:600;font-size:13px;color:${statusColor(t.status)};">${t.status}</div>
+                        <div style="font-size:12px;opacity:0.7;margin-top:2px;">${t.note || ''}</div>
+                        <div style="font-size:11px;opacity:0.5;margin-top:2px;">${t.created_at ? new Date(t.created_at).toLocaleString('fr-FR') : ''} ${t.updated_by_role === 'artist' ? '· Artiste' : t.updated_by_role === 'admin' ? '· Admin' : ''}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            const escrowSteps = steps.map((s, i) => `
+                ${i > 0 ? `<div class="escrow-connector ${i <= stepIdx ? 'done' : ''}"></div>` : ''}
+                <div class="escrow-step ${i < stepIdx ? 'done' : i === stepIdx ? 'active' : ''}">
+                    <div class="escrow-step-dot">${i < stepIdx ? '✓' : s.icon}</div>
+                    <div class="escrow-step-label">${s.label}</div>
+                </div>
+            `).join('');
+
+            return { escrowSteps, serverTimeline };
+        }
+
+        async function renderOrders() {
             const container = document.getElementById('ordersContainer');
-            
+            container.innerHTML = '<div style="text-align:center;padding:60px;opacity:0.6;">⏳ Chargement de vos commandes...</div>';
+
+            await loadOrdersFromServer();
+
             if (orderHistory.length === 0) {
                 container.innerHTML = `
                     <div class="empty-orders">
                         <div class="empty-orders-icon">📦</div>
                         <div class="empty-orders-text">Aucune commande pour le moment</div>
                         <div class="empty-orders-subtext">Vos commandes apparaîtront ici une fois validées</div>
-                        <button class="btn" onclick="navigateTo('home')" style="background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));border:none;color:white;padding:14px 28px;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;transition:all 0.3s;">
+                        <button class="btn" onclick="navigateTo('home')" style="background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));border:none;color:white;padding:14px 28px;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;">
                             🛍️ Découvrir la galerie
                         </button>
-                    </div>
-                `;
+                    </div>`;
                 return;
             }
 
-            // Calculate statistics
             const totalOrders = orderHistory.length;
-            const totalSpent = orderHistory.reduce((sum, order) => sum + order.total, 0);
-            const totalItems = orderHistory.reduce((sum, order) => sum + order.items.reduce((s, item) => s + item.quantity, 0), 0);
+            const totalSpent  = orderHistory.reduce((s, o) => s + (parseFloat(o.total) || 0), 0);
+            const totalItems  = orderHistory.reduce((s, o) => s + (o.items || []).reduce((ss, i) => ss + (i.quantity || 1), 0), 0);
 
             const statsHtml = `
                 <div class="orders-stats">
-                    <div class="orders-stat-card">
-                        <div class="orders-stat-icon">📦</div>
-                        <div class="orders-stat-value">${totalOrders}</div>
-                        <div class="orders-stat-label">Commandes</div>
-                    </div>
-                    <div class="orders-stat-card">
-                        <div class="orders-stat-icon">💰</div>
-                        <div class="orders-stat-value">${formatPrice(totalSpent)}</div>
-                        <div class="orders-stat-label">Total dépensé</div>
-                    </div>
-                    <div class="orders-stat-card">
-                        <div class="orders-stat-icon">🎨</div>
-                        <div class="orders-stat-value">${totalItems}</div>
-                        <div class="orders-stat-label">Œuvres achetées</div>
-                    </div>
-                </div>
-            `;
+                    <div class="orders-stat-card"><div class="orders-stat-icon">📦</div><div class="orders-stat-value">${totalOrders}</div><div class="orders-stat-label">Commandes</div></div>
+                    <div class="orders-stat-card"><div class="orders-stat-icon">💰</div><div class="orders-stat-value">${formatPrice(totalSpent)}</div><div class="orders-stat-label">Total dépensé</div></div>
+                    <div class="orders-stat-card"><div class="orders-stat-icon">🎨</div><div class="orders-stat-value">${totalItems}</div><div class="orders-stat-label">Œuvres achetées</div></div>
+                </div>`;
 
             const ordersHtml = orderHistory.map(order => {
                 const es = order.escrow_status || 'payée_en_attente';
-                const steps = [
-                    { key: 'payée_en_attente', icon: '💳', label: 'Payée' },
-                    { key: 'expédiée',         icon: '🚚', label: 'Expédiée' },
-                    { key: 'livrée_confirmée', icon: '📬', label: 'Reçue' },
-                    { key: 'fonds_libérés',    icon: '💰', label: 'Payé' },
-                ];
-                const stepIndex = steps.findIndex(s => s.key === es);
+                const { escrowSteps, serverTimeline } = buildOrderTimeline(order);
+                const trackUrl = order.tracking_url || getTrackingUrl(order.carrier, order.tracking_number);
 
-                const escrowProgressHtml = `
-                    <div class="escrow-progress">
-                        ${steps.map((s, i) => `
-                            ${i > 0 ? `<div class="escrow-connector ${i <= stepIndex ? 'done' : ''}"></div>` : ''}
-                            <div class="escrow-step ${i < stepIndex ? 'done' : i === stepIndex ? 'active' : ''}">
-                                <div class="escrow-step-dot">${i < stepIndex ? '✓' : s.icon}</div>
-                                <div class="escrow-step-label">${s.label}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
+                const trackingBlock = order.tracking_number ? `
+                    <div style="background:rgba(33,150,243,0.12);border:1px solid rgba(33,150,243,0.35);border-radius:12px;padding:14px 18px;margin:12px 0;">
+                        <div style="font-weight:700;font-size:13px;margin-bottom:6px;color:#90caf9;">📦 Suivi de livraison</div>
+                        <div style="font-size:14px;">
+                            ${order.carrier ? `<span style="opacity:0.7;">${order.carrier.toUpperCase()} · </span>` : ''}
+                            <strong>${order.tracking_number}</strong>
+                        </div>
+                        ${trackUrl ? `<a href="${trackUrl}" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;padding:8px 18px;background:linear-gradient(135deg,#2196f3,#1976d2);color:white;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;">🔍 Suivre mon colis</a>` : ''}
+                        ${order.shipping_proof_url ? `<a href="${order.shipping_proof_url}" target="_blank" style="display:inline-block;margin:10px 0 0 10px;padding:8px 18px;background:rgba(255,255,255,0.1);color:white;border-radius:8px;font-size:13px;text-decoration:none;">📎 Voir preuve d'expédition</a>` : ''}
+                    </div>` : '';
 
-                const escrowDescMap = {
-                    'payée_en_attente': { cls: 'pending',   icon: '🔒', title: 'Fonds sécurisés — en attente d\'expédition', desc: 'Votre paiement est bloqué sur le compte ARKYL. Il sera libéré à l\'artiste uniquement après confirmation de votre réception.' },
-                    'expédiée':         { cls: 'shipped',   icon: '🚚', title: 'Colis en route — en attente de réception',    desc: 'L\'artiste a expédié votre œuvre. Confirmez la réception dès qu\'elle arrive pour libérer les fonds.' },
-                    'livrée_confirmée': { cls: 'confirmed', icon: '📬', title: 'Réception confirmée — libération en cours',   desc: 'Vous avez confirmé la réception. Les fonds sont en cours de transfert vers l\'artiste.' },
-                    'fonds_libérés':    { cls: 'released',  icon: '✅', title: 'Transaction complète — artiste payé',         desc: 'Les fonds ont été transférés à l\'artiste. Merci pour votre confiance !' },
-                };
-                const ed = escrowDescMap[es] || escrowDescMap['payée_en_attente'];
-
-                // Countdown déblocage auto (21 jours)
-                let countdownHtml = '';
-                if (es === 'expédiée' && order.escrow_auto_release_date) {
-                    const daysLeft = Math.max(0, Math.ceil((new Date(order.escrow_auto_release_date) - Date.now()) / (1000 * 60 * 60 * 24)));
-                    countdownHtml = `<div class="escrow-countdown">⏱ Libération automatique dans ${daysLeft} jour${daysLeft > 1 ? 's' : ''} si aucun litige</div>`;
-                }
-
-                // Bouton confirmation réception
-                const confirmBtnHtml = es === 'expédiée' ? `
-                    <button class="confirm-reception-btn" onclick="confirmReception('${order.id}')">
+                const confirmBtn = es === 'expédiée' ? `
+                    <button class="confirm-reception-btn" onclick="confirmReception('${order.server_id || order.id}')">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
                         J'ai bien reçu mon œuvre — Libérer les fonds
-                    </button>
-                ` : '';
+                    </button>` : '';
 
-                // Infos tracking
-                const trackingHtml = order.tracking_number ? `
-                    <div style="background:rgba(33,150,243,0.1); border:1px solid rgba(33,150,243,0.3); border-radius:10px; padding:10px 14px; margin-top:10px; font-size:13px;">
-                        📦 N° de suivi : <strong>${order.tracking_number}</strong>
-                        ${order.shipping_proof_url ? ` · <a href="${order.shipping_proof_url}" target="_blank" style="color:#90caf9;">Voir preuve d'expédition</a>` : ''}
-                    </div>
-                ` : '';
+                const countdownHtml = es === 'expédiée' && order.escrow_auto_release_date ? (() => {
+                    const daysLeft = Math.max(0, Math.ceil((new Date(order.escrow_auto_release_date) - Date.now()) / 86400000));
+                    return `<div class="escrow-countdown">⏱ Libération automatique dans ${daysLeft} jour${daysLeft > 1 ? 's' : ''} si aucun litige</div>`;
+                })() : '';
+
+                const timelineBlock = serverTimeline ? `
+                    <details style="margin-top:12px;">
+                        <summary style="cursor:pointer;font-size:13px;font-weight:600;opacity:0.8;padding:8px 0;">🕐 Historique détaillé</summary>
+                        <div style="margin-top:10px;padding:10px;background:rgba(0,0,0,0.2);border-radius:10px;">${serverTimeline}</div>
+                    </details>` : '';
 
                 return `
                 <div class="order-card">
                     <div class="order-header">
                         <div>
-                            <div class="order-id">Commande ${order.order_number || '#' + order.id}</div>
-                            <div class="order-date">📅 ${order.date}</div>
+                            <div class="order-id">Commande ${order.order_number || '#' + (order.server_id || order.id)}</div>
+                            <div class="order-date">📅 ${order.date || new Date(order.created_at).toLocaleDateString('fr-FR')}</div>
                         </div>
-                        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
-                            <span class="order-status">${order.status}</span>
+                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+                            <span class="order-status" style="background:${statusColor(order.status)}22;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}44;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;">
+                                ${statusIcon(order.status)} ${order.status}
+                            </span>
                             <span class="${es === 'fonds_libérés' ? 'funds-released-badge' : 'funds-locked-badge'}">
                                 ${es === 'fonds_libérés' ? '✅ Fonds libérés' : '🔒 Fonds sécurisés'}
                             </span>
                         </div>
                     </div>
 
-                    <!-- Progression Tiers de Confiance -->
-                    ${escrowProgressHtml}
+                    <div class="escrow-progress">${escrowSteps}</div>
 
-                    <div class="escrow-status-bar ${ed.cls}">
-                        <div class="escrow-status-title">${ed.icon} ${ed.title}</div>
-                        <div class="escrow-status-desc">${ed.desc}</div>
-                        ${countdownHtml}
+                    ${trackingBlock}
+                    ${countdownHtml}
+                    ${confirmBtn}
+
+                    <div style="background:rgba(0,0,0,0.2);border-radius:12px;padding:15px;margin:12px 0;">
+                        ${(order.items || []).map(item => `
+                            <div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+                                ${item.image || item.image_url ? `<img src="${item.image || item.image_url}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;">` : '<div style="width:48px;height:48px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">🎨</div>'}
+                                <div style="flex:1;">
+                                    <div style="font-weight:600;font-size:14px;">${item.title}</div>
+                                    <div style="font-size:12px;opacity:0.6;">par ${item.artist || item.artist_name}</div>
+                                </div>
+                                <div style="font-weight:700;color:var(--ocre);">${formatPrice((item.price || 0) * (item.quantity || 1))}</div>
+                            </div>`).join('')}
+                        <div style="display:flex;justify-content:space-between;padding-top:12px;font-size:15px;font-weight:700;">
+                            <span>Total</span><span style="color:var(--ocre);">${formatPrice(parseFloat(order.total) || 0)}</span>
+                        </div>
                     </div>
 
-                    ${trackingHtml}
-                    ${confirmBtnHtml}
-                    
-                    <div class="order-items-list">
-                        ${order.items.map(item => `
-                            <div class="order-item-row">
-                                ${getOrderItemImageHtml(item)}
-                                <div class="order-item-name">${item.title}</div>
-                                <div class="order-item-qty">x${item.quantity}</div>
-                                <div class="order-item-price">${formatPrice(item.price * item.quantity)}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-
-                    <div class="order-summary">
-                        <div class="order-summary-row">
-                            <span>Sous-total</span>
-                            <span>${formatPrice(order.subtotal)}</span>
-                        </div>
-                        <div class="order-summary-row">
-                            <span>TVA (18%)</span>
-                            <span>${formatPrice(order.tax)}</span>
-                        </div>
-                        <div class="order-summary-row">
-                            <span>Livraison (${order.shippingName})</span>
-                            <span>${formatPrice(order.shipping)}</span>
-                        </div>
-                        <div class="order-summary-row">
-                            <span>Paiement</span>
-                            <span>${order.paymentMethod}</span>
-                        </div>
-                        <div class="order-summary-row total">
-                            <span>Total</span>
-                            <span>${formatPrice(order.total)}</span>
-                        </div>
-                    </div>
-                </div>
-            `}).join('');
-
-            container.innerHTML = `
-                <div class="orders-container">
-                    ${statsHtml}
-                    ${ordersHtml}
-                </div>
-            `;
-        }
-
-        // ==================== ADMIN ORDERS ====================
-        let currentAdminFilter = 'all';
-
-        function renderAdminOrders() {
-            const container = document.getElementById('adminOrdersContainer');
-            const allOrders = safeStorage.get('arkyl_orders', []);
-            
-            if (allOrders.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align:center; padding:60px 20px;">
-                        <div style="font-size:80px; margin-bottom:20px;">🛒</div>
-                        <div style="font-size:22px; font-weight:700; margin-bottom:10px;">Aucune commande reçue</div>
-                        <div style="font-size:14px; opacity:0.6;">Les commandes clients apparaîtront ici</div>
-                    </div>
-                `;
-                updateAdminOrderCounts(allOrders);
-                return;
-            }
-
-            // Filter orders
-            const filteredOrders = currentAdminFilter === 'all' 
-                ? allOrders 
-                : allOrders.filter(order => order.status === currentAdminFilter);
-
-            // Update counts
-            updateAdminOrderCounts(allOrders);
-
-            // Render orders
-            const ordersHtml = filteredOrders.map(order => {
-                const statusClass = order.status === 'En préparation' ? 'pending' : 
-                                   order.status === 'Expédiée' ? 'shipped' : 'delivered';
-                
-                return `
-                    <div class="admin-order-card">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:15px;">
-                            <div>
-                                <div style="font-size:18px; font-weight:700; color:var(--ocre); margin-bottom:5px;">📦 Commande #${order.id}</div>
-                                <div style="font-size:14px; opacity:0.8; margin-bottom:3px;">👤 ${order.user}${order.userEmail ? ` (${order.userEmail})` : ''}</div>
-                                <div style="font-size:13px; opacity:0.6;">📅 ${order.date}</div>
-                            </div>
-                            <div style="text-align:right;">
-                                <div style="font-size:22px; font-weight:800; color:var(--ocre); margin-bottom:10px;">${formatPrice(order.total)}</div>
-                                <span style="display:inline-block; padding:6px 16px; border-radius:20px; font-size:12px; font-weight:600; text-transform:uppercase; background:${order.status === 'Livrée' ? 'linear-gradient(135deg, #4caf50, #388e3c)' : order.status === 'Expédiée' ? 'linear-gradient(135deg, #2196f3, #1976d2)' : 'linear-gradient(135deg, #ff9800, #f57c00)'}; color:white;">${order.status}</span>
-                            </div>
-                        </div>
-
-                        <!-- Timeline de progression -->
-                        <div class="order-timeline">
-                            <div class="timeline-step completed">
-                                <div class="timeline-icon">📝</div>
-                                <div class="timeline-label">Commandée</div>
-                                <div class="timeline-date">${order.date.split(',')[0]}</div>
-                            </div>
-                            <div class="timeline-connector ${order.status === 'Expédiée' || order.status === 'Livrée' ? 'active' : ''}"></div>
-                            <div class="timeline-step ${order.status === 'Expédiée' || order.status === 'Livrée' ? 'completed' : order.status === 'En préparation' ? 'current' : ''}">
-                                <div class="timeline-icon">🚚</div>
-                                <div class="timeline-label">Expédiée</div>
-                                <div class="timeline-date">${order.shippedDate ? order.shippedDate.split(',')[0] : '-'}</div>
-                            </div>
-                            <div class="timeline-connector ${order.status === 'Livrée' ? 'active' : ''}"></div>
-                            <div class="timeline-step ${order.status === 'Livrée' ? 'completed' : order.status === 'Expédiée' ? 'current' : ''}">
-                                <div class="timeline-icon">✅</div>
-                                <div class="timeline-label">Livrée</div>
-                                <div class="timeline-date">${order.deliveredDate ? order.deliveredDate.split(',')[0] : '-'}</div>
-                            </div>
-                        </div>
-                        
-                        <div style="background:rgba(0,0,0,0.2); border-radius:12px; padding:15px; margin-bottom:15px;">
-                            ${order.items.map(item => `
-                                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.1);">
-                                    <div style="font-weight:600;">${item.title}</div>
-                                    <div style="color:var(--ocre); margin:0 15px;">x${item.quantity}</div>
-                                    <div style="font-weight:700; min-width:100px; text-align:right;">${formatPrice(item.price * item.quantity)}</div>
-                                </div>
-                            `).join('')}
-                        </div>
-
-                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:15px;">
-                            <div class="admin-detail-box">
-                                <div class="admin-detail-label">Livraison</div>
-                                <div class="admin-detail-value">${order.shippingName}</div>
-                            </div>
-                            <div class="admin-detail-box">
-                                <div class="admin-detail-label">Paiement</div>
-                                <div class="admin-detail-value">${order.paymentMethod}</div>
-                            </div>
-                            <div class="admin-detail-box">
-                                <div class="admin-detail-label">Sous-total</div>
-                                <div class="admin-detail-value">${formatPrice(order.subtotal)}</div>
-                            </div>
-                            <div class="admin-detail-box">
-                                <div class="admin-detail-label">TVA (18%)</div>
-                                <div class="admin-detail-value">${formatPrice(order.tax)}</div>
-                            </div>
-                            ${order.shippedDate ? `
-                                <div class="admin-detail-box" style="grid-column: span 2; background: rgba(33, 150, 243, 0.2); border: 1px solid rgba(33, 150, 243, 0.4);">
-                                    <div class="admin-detail-label">🚚 Date d'expédition</div>
-                                    <div class="admin-detail-value">${order.shippedDate}</div>
-                                </div>
-                            ` : ''}
-                            ${order.deliveredDate ? `
-                                <div class="admin-detail-box" style="grid-column: span 2; background: rgba(76, 175, 80, 0.2); border: 1px solid rgba(76, 175, 80, 0.4);">
-                                    <div class="admin-detail-label">✅ Date de livraison</div>
-                                    <div class="admin-detail-value">${order.deliveredDate}</div>
-                                </div>
-                            ` : ''}
-                        </div>
-
-                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                            ${order.status === 'En préparation' ? `
-                                <!-- Zone expédition avec preuve -->
-                                <div style="width:100%; background:rgba(33,150,243,0.08); border:1px solid rgba(33,150,243,0.25); border-radius:14px; padding:16px; margin-bottom:10px;">
-                                    <div style="font-weight:700; margin-bottom:12px; font-size:14px;">🚚 Marquer comme expédiée</div>
-                                    <input id="tracking-${order.id}" type="text" placeholder="N° de suivi (optionnel)" style="width:100%; padding:10px 14px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:10px; color:white; font-size:13px; margin-bottom:10px; box-sizing:border-box;">
-                                    <div class="proof-upload-zone" onclick="document.getElementById('proof-${order.id}').click()" id="proof-zone-${order.id}">
-                                        <input type="file" id="proof-${order.id}" accept="image/*,.pdf" style="display:none" onchange="document.getElementById('proof-zone-${order.id}').classList.add('has-file'); document.getElementById('proof-zone-${order.id}').innerHTML='✅ Fichier sélectionné : ' + this.files[0].name">
-                                        <div style="font-size:24px; margin-bottom:6px;">📎</div>
-                                        <div style="font-size:13px; font-weight:600;">Cliquer pour ajouter la photo du reçu d'expédition</div>
-                                        <div style="font-size:11px; opacity:0.6; margin-top:4px;">JPG, PNG ou PDF · Fortement recommandé</div>
-                                    </div>
-                                    <button onclick="markAsShippedWithProof('${order.id}')" style="width:100%; margin-top:10px; padding:12px; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; background:linear-gradient(135deg, #2196f3, #1976d2); color:white; transition:all 0.3s;">
-                                        🚚 Confirmer l'expédition & libérer l'attente
-                                    </button>
-                                </div>
-                            ` : ''}
-                            ${order.status === 'Expédiée' ? `
-                                <div style="width:100%; background:rgba(76,175,80,0.08); border:1px solid rgba(76,175,80,0.25); border-radius:12px; padding:14px; margin-bottom:10px; font-size:13px;">
-                                    🔒 <strong>Fonds sécurisés</strong> — En attente de confirmation de réception par l'acheteur.<br>
-                                    <span style="opacity:0.7;">Libération automatique dans 21 jours si aucun litige.</span>
-                                    ${order.tracking_number ? `<br>📦 Suivi : <strong>${order.tracking_number}</strong>` : ''}
-                                </div>
-                                <button onclick="changeOrderStatus('${order.id}', 'Livrée')" style="flex:1; min-width:150px; padding:12px 20px; border:none; border-radius:12px; font-size:14px; font-weight:600; cursor:pointer; background:linear-gradient(135deg, #4caf50, #388e3c); color:white; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
-                                    ✅ Forcer confirmation livraison (admin)
-                                </button>
-                            ` : ''}
-                            ${order.status === 'Livrée' ? `
-                                <div style="width:100%; background:rgba(156,39,176,0.1); border:1px solid rgba(156,39,176,0.3); border-radius:12px; padding:14px; font-size:13px;">
-                                    💰 <strong>Fonds libérés</strong> — L'artiste a été payé le ${order.escrow_released_at ? new Date(order.escrow_released_at).toLocaleDateString('fr-FR') : 'N/A'}.
-                                </div>
-                            ` : ''}
-                        </div>
-                    </div>
-                `;
+                    ${timelineBlock}
+                </div>`;
             }).join('');
 
-            container.innerHTML = ordersHtml || `
-                <div style="text-align:center; padding:60px 20px;">
-                    <div style="font-size:80px; margin-bottom:20px;">🔍</div>
-                    <div style="font-size:22px; font-weight:700; margin-bottom:10px;">Aucune commande avec ce statut</div>
-                    <div style="font-size:14px; opacity:0.6;">Essayez un autre filtre</div>
-                </div>
-            `;
+            container.innerHTML = statsHtml + ordersHtml;
         }
+
 
         function updateAdminOrderCounts(orders) {
             document.getElementById('countAll').textContent = orders.length;
@@ -3434,36 +3371,38 @@ function enterGallery() {
         }
 
         // ===== TIERS DE CONFIANCE — ACHETEUR =====
-        function confirmReception(orderId) {
-            const btn = event.target.closest('.confirm-reception-btn');
+        async function confirmReception(orderId) {
+            const btn = event?.target?.closest('.confirm-reception-btn');
             if (btn) { btn.disabled = true; btn.textContent = '⏳ Confirmation en cours...'; }
 
-            setTimeout(() => {
+            try {
+                const resp = await fetch(ORDERS_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'confirm_reception', order_id: orderId })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('✅ Réception confirmée ! Fonds en cours de libération...');
+                    addNotification('Œuvre reçue', 'Merci d\'avoir confirmé la réception. Les fonds sont transférés à l\'artiste.');
+                    setTimeout(async () => {
+                        showToast('💰 Fonds libérés — l\'artiste a été payé !');
+                        await renderOrders();
+                    }, 2000);
+                }
+            } catch(e) {
+                // Fallback local
                 const orders = safeStorage.get('arkyl_orders', []);
-                const order = orders.find(o => o.id == orderId);
-                if (!order) return;
-
-                order.escrow_status    = 'livrée_confirmée';
-                order.escrow_confirmed_at = new Date().toISOString();
-                order.status = 'Livrée';
-
-                // Libération automatique immédiate après confirmation
-                setTimeout(() => {
-                    order.escrow_status   = 'fonds_libérés';
-                    order.escrow_released_at = new Date().toISOString();
+                const order  = orders.find(o => o.id == orderId || o.server_id == orderId);
+                if (order) {
+                    order.escrow_status = 'fonds_libérés';
+                    order.status = 'Livrée';
                     safeStorage.set('arkyl_orders', orders);
                     orderHistory = orders;
-                    renderOrders();
-                    showToast('💰 Fonds libérés — l\'artiste a été payé !');
-                    addNotification('Transaction complète', 'Les fonds ont été transférés à l\'artiste. Merci !');
-                }, 2000);
-
-                safeStorage.set('arkyl_orders', orders);
-                orderHistory = orders;
-                renderOrders();
-                showToast('✅ Réception confirmée ! Libération des fonds en cours...');
-                addNotification('Œuvre reçue', 'Merci d\'avoir confirmé la réception. Les fonds sont en cours de transfert.');
-            }, 1200);
+                }
+                showToast('✅ Réception confirmée (hors ligne)');
+                await renderOrders();
+            }
         }
 
         // ===== TIERS DE CONFIANCE — ADMIN : marquer expédiée avec preuve =====
@@ -3513,6 +3452,126 @@ function enterGallery() {
             sendStatusChangeNotifications(order, 'En préparation', 'Expédiée');
         }
 
+
+
+        // ===== VUE ARTISTE : ses ventes + mise à jour statut =====
+        async function renderArtistOrders() {
+            const container = document.getElementById('artistOrdersContainer');
+            if (!container) return;
+            const artistId = currentUser?.id || currentUser?.googleId || currentUser?.email;
+            if (!artistId) return;
+
+            container.innerHTML = '<div style="text-align:center;padding:40px;opacity:0.6;">⏳ Chargement de vos ventes...</div>';
+
+            let orders = [];
+            try {
+                const resp = await fetch(`${ORDERS_API}?action=list&artist_id=${encodeURIComponent(artistId)}&t=${Date.now()}`);
+                const data = await resp.json();
+                if (data.success) orders = data.orders;
+            } catch(e) { /* local fallback */ }
+
+            if (orders.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align:center;padding:60px;opacity:0.7;">
+                        <div style="font-size:60px;margin-bottom:16px;">🎨</div>
+                        <div style="font-size:18px;font-weight:600;">Aucune vente pour le moment</div>
+                        <div style="font-size:14px;opacity:0.6;margin-top:8px;">Vos ventes apparaîtront ici dès qu'une commande inclut vos œuvres.</div>
+                    </div>`;
+                return;
+            }
+
+            const totalRevenue = orders.reduce((s, o) => {
+                const myItems = (o.items||[]).filter(i => i.artist_id === artistId || i.artist === currentUser?.artistName);
+                return s + myItems.reduce((ss, i) => ss + (parseFloat(i.price)||0) * (i.quantity||1), 0);
+            }, 0);
+
+            container.innerHTML = `
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:28px;">
+                    <div class="orders-stat-card"><div class="orders-stat-icon">🛒</div><div class="orders-stat-value">${orders.length}</div><div class="orders-stat-label">Ventes</div></div>
+                    <div class="orders-stat-card"><div class="orders-stat-icon">💰</div><div class="orders-stat-value">${formatPrice(totalRevenue)}</div><div class="orders-stat-label">Revenus</div></div>
+                </div>
+                ${orders.map(order => {
+                    const orderId = order.id || order.server_id;
+                    const myItems = (order.items||[]).filter(i => !i.artist_id || i.artist_id === artistId || (i.artist||i.artist_name) === currentUser?.artistName);
+                    const myRevenue = myItems.reduce((s,i) => s + (parseFloat(i.price)||0)*(i.quantity||1), 0);
+                    const carrierOptions = CARRIERS.map(c => `<option value="${c.id}" ${order.carrier===c.id?'selected':''}>${c.name}</option>`).join('');
+                    const statusOptions = DELIVERY_STATUSES.filter(s => !['Livrée'].includes(s.key) || order.status === 'Livrée').map(s =>
+                        `<option value="${s.key}" ${order.status===s.key?'selected':''}>${s.icon} ${s.label}</option>`
+                    ).join('');
+
+                    return `
+                    <div class="admin-order-card">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+                            <div>
+                                <div style="font-size:16px;font-weight:700;color:var(--ocre);">📦 ${order.order_number || '#'+orderId}</div>
+                                <div style="font-size:13px;opacity:0.7;margin-top:3px;">👤 ${order.user_name || 'Acheteur'}</div>
+                                <div style="font-size:12px;opacity:0.5;">📅 ${order.created_at ? new Date(order.created_at).toLocaleDateString('fr-FR') : ''}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:18px;font-weight:800;color:var(--ocre);">${formatPrice(myRevenue)}</div>
+                                <span style="padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;background:${statusColor(order.status)}33;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}55;">
+                                    ${statusIcon(order.status)} ${order.status}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Mes œuvres dans cette commande -->
+                        <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:12px;margin-bottom:14px;">
+                            ${myItems.map(item => `
+                                <div style="display:flex;gap:10px;align-items:center;padding:6px 0;">
+                                    ${item.image_url||item.image ? `<img src="${item.image_url||item.image}" style="width:40px;height:40px;border-radius:6px;object-fit:cover;">` : '<div style="width:40px;height:40px;border-radius:6px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">🎨</div>'}
+                                    <div style="flex:1;font-size:13px;font-weight:600;">${item.title}</div>
+                                    <div style="font-weight:700;color:var(--ocre);font-size:13px;">${formatPrice((item.price||0)*(item.quantity||1))}</div>
+                                </div>`).join('')}
+                        </div>
+
+                        <!-- Mise à jour statut (artiste) -->
+                        ${order.status !== 'Livrée' && order.status !== 'fonds_libérés' ? `
+                        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px;">
+                            <div style="font-weight:700;font-size:13px;margin-bottom:12px;">📤 Mettre à jour l'expédition</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                                <select id="art-status-${orderId}" style="padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;">
+                                    ${statusOptions}
+                                </select>
+                                <select id="art-carrier-${orderId}" style="padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;">
+                                    <option value="">Transporteur...</option>
+                                    ${carrierOptions}
+                                </select>
+                            </div>
+                            <input id="art-tracking-${orderId}" type="text" placeholder="N° de suivi" value="${order.tracking_number||''}"
+                                style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+                            <input id="art-note-${orderId}" type="text" placeholder="Note pour l'acheteur"
+                                style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+                            <button onclick="artistUpdateOrderStatus('${orderId}')"
+                                style="width:100%;padding:12px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));color:white;">
+                                💾 Enregistrer
+                            </button>
+                        </div>` : `
+                        <div style="background:rgba(76,175,80,0.1);border:1px solid rgba(76,175,80,0.3);border-radius:10px;padding:12px;font-size:13px;">
+                            ✅ Commande livrée — fonds en cours de libération
+                        </div>`}
+                    </div>`;
+                }).join('')}`;
+        }
+
+        async function artistUpdateOrderStatus(orderId) {
+            const status   = document.getElementById(`art-status-${orderId}`)?.value;
+            const tracking = document.getElementById(`art-tracking-${orderId}`)?.value?.trim();
+            const carrier  = document.getElementById(`art-carrier-${orderId}`)?.value;
+            const note     = document.getElementById(`art-note-${orderId}`)?.value?.trim();
+
+            await sendStatusUpdate({
+                action: 'update_status',
+                order_id: orderId,
+                status,
+                tracking_number: tracking || null,
+                carrier: carrier || null,
+                note: note || null,
+                updated_by: currentUser?.name || currentUser?.artistName || 'artiste',
+                updated_by_role: 'artist',
+            });
+            await renderArtistOrders();
+        }
 
         // ===== BADGES HAMBURGER — commandes en cours =====
         function updateHamburgerOrderBadges() {
@@ -4838,15 +4897,20 @@ function enterGallery() {
                 }
             }
 
+            // Récupérer le style depuis serverArtistProfile si dispo (défini plus haut dans viewArtistDetail)
+            const savedAvatarStyle = (typeof serverArtistProfile !== 'undefined' && serverArtistProfile && serverArtistProfile.avatar_style)
+                ? serverArtistProfile.avatar_style : 'slices';
+
             // Create artist profile
             const artistProfile = {
                 name: artistName,
-                avatar: artistData.avatar || artistProducts[0].artistAvatar || '👨🏿‍🎨',
-                specialty: artistData.specialty || artistProducts[0].category || 'Artiste',
+                avatar: artistData.avatar || (artistProducts[0] && artistProducts[0].artistAvatar) || '👨🏿‍🎨',
+                specialty: artistData.specialty || (artistProducts[0] && artistProducts[0].category) || 'Artiste',
                 artworksCount: artistProducts.length,
                 followedAt: new Date().toISOString(),
-                bio: artistData.bio || `Artiste talentueux spécialisé en ${artistProducts[0].category}`,
-                profile_image: profileImageUrl
+                bio: artistData.bio || (artistProducts[0] ? `Artiste talentueux spécialisé en ${artistProducts[0].category}` : ''),
+                profile_image: profileImageUrl,
+                avatar_style: savedAvatarStyle
             };
 
             followed.push(artistProfile);
@@ -4910,6 +4974,47 @@ function enterGallery() {
             });
         }
 
+
+        function buildMiniAvatar(artist, size, shape) {
+            // shape: 'circle' pour les petits formats, sinon utilise le style de l'artiste
+            const img = artist.profile_image;
+            const style = artist.avatar_style || 'slices';
+            const fallback = `<div style="font-size:${Math.round(size*0.45)}px;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">${artist.avatar || '🎨'}</div>`;
+
+            if (!img || img === 'undefined') return fallback;
+
+            if (shape === 'circle' || style === 'circle') {
+                return `<img loading="lazy" src="${img}" alt="${artist.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentElement.innerHTML='${artist.avatar || '🎨'}'">`;
+            }
+
+            if (style === 'slices') {
+                const cfg = SLICE_CONFIG.slices;
+                const slices = cfg.map((s, i) => {
+                    const h = s.hPct + '%';
+                    const alignSelf = s.hPct === 100 ? 'stretch' : s.vAlign;
+                    return `<div style="flex:1;border-radius:2px;background-image:url('${img}');background-position:${s.xPos}% center;background-size:${cfg.length * 110}% auto;height:${h};align-self:${alignSelf};"></div>`;
+                }).join('');
+                return `<div style="display:flex;flex-direction:row;gap:2px;align-items:stretch;width:100%;height:100%;">${slices}</div>`;
+            }
+            if (style === 'hslices') {
+                const cfg = SLICE_CONFIG.hslices;
+                const slices = cfg.map(s => {
+                    const alignSelf = s.wPct === 100 ? 'stretch' : s.hAlign;
+                    return `<div style="border-radius:2px;background-image:url('${img}');background-position:center ${s.yPos}%;background-size:auto ${cfg.length * 110}%;width:${s.wPct}%;align-self:${alignSelf};flex:1;"></div>`;
+                }).join('');
+                return `<div style="display:flex;flex-direction:column;gap:2px;align-items:stretch;width:100%;height:100%;">${slices}</div>`;
+            }
+            if (style === 'diamond') {
+                const s2 = Math.round(size * 0.55);
+                return `<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;">
+                    <div style="width:${s2}px;height:${s2}px;transform:rotate(45deg);border-radius:4px;overflow:hidden;">
+                        <img src="${img}" style="width:100%;height:100%;object-fit:cover;transform:rotate(-45deg) scale(1.45);">
+                    </div>
+                </div>`;
+            }
+            // square / fallback
+            return `<img loading="lazy" src="${img}" alt="${artist.name}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='${artist.avatar || '🎨'}'">`;
+        }
         async function renderMyArtistsPage() {
             const followed = getFollowedArtists();
             const emptyState = document.getElementById('emptyArtistsState');
@@ -4968,9 +5073,7 @@ function enterGallery() {
                 <div class="artist-avatar-item" onclick="scrollToArtistLoops('${artist.name}')">
                     <div class="artist-avatar-ring">
                         <div class="artist-avatar-inner" style="overflow: hidden; background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1)); display: flex; align-items: center; justify-content: center;">
-                            ${artist.profile_image && artist.profile_image !== 'undefined'
-                                ? `<img loading="lazy" src="${artist.profile_image}" alt="${artist.name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size: 34px;\\'>${artist.avatar || '🎨'}</div>'">` 
-                                : `<div style="font-size: 34px;">${artist.avatar || '🎨'}</div>`}
+                            ${buildMiniAvatar(artist, 70, null)}
                         </div>
                     </div>
                     <div style="font-size: 12px; font-weight: 600; color: #ffffff; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
@@ -5018,9 +5121,7 @@ function enterGallery() {
                         <!-- Header -->
                         <div class="loop-header">
                             <div class="loop-avatar" onclick="viewArtistDetail(event, '${artist.name}')" style="cursor: pointer; overflow: hidden; background: linear-gradient(135deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1)); display: flex; align-items: center; justify-content: center;">
-                                ${artist.profile_image && artist.profile_image !== 'undefined'
-                                    ? `<img loading="lazy" src="${artist.profile_image}" alt="${artist.name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size: 20px;\\'>${artist.avatar || '🎨'}</div>'">` 
-                                    : `<div style="font-size: 20px;">${artist.avatar || '🎨'}</div>`}
+                                ${buildMiniAvatar(artist, 50, null)}
                             </div>
                             <div class="loop-info" onclick="viewArtistDetail(event, '${artist.name}')" style="cursor: pointer;">
                                 <div class="loop-artist-name">${artist.name}</div>
@@ -5184,9 +5285,7 @@ function enterGallery() {
                             <div class="artist-profile-card" onclick="viewArtistDetail(event, '${artist.name}')" style="cursor: pointer;">
                                 <div class="artist-profile-header">
                                     <div class="artist-profile-avatar" style="overflow: hidden; background: rgba(255,255,255,0.95); display: flex; align-items: center; justify-content: center;">
-                                        ${artist.profile_image && artist.profile_image !== 'undefined'
-                                            ? `<img loading="lazy" src="${artist.profile_image}" alt="${artist.name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size: 48px;\\'>${artist.avatar || '🎨'}</div>'">` 
-                                            : `<div style="font-size: 48px;">${artist.avatar || '🎨'}</div>`}
+                                        ${buildMiniAvatar(artist, 90, null)}
                                     </div>
                                     <div class="artist-profile-badge">✓</div>
                                 </div>
@@ -5922,11 +6021,24 @@ function enterGallery() {
         }
 
         // ==================== ARTISTE NAVIGATION ====================
+        function filterArtistOrders(status, btn) {
+            document.querySelectorAll('#salesSection .filter-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            const cards = document.querySelectorAll('#artistOrdersContainer .admin-order-card');
+            cards.forEach(card => {
+                const statusEl = card.querySelector('[data-status]');
+                if (status === 'all') { card.style.display = ''; return; }
+                const cardStatus = statusEl?.dataset?.status || card.innerHTML;
+                card.style.display = cardStatus.includes(status) ? '' : 'none';
+            });
+        }
+
         function showArtistSection(section) {
             document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
             document.querySelectorAll('#artistNav .nav-link').forEach(l => l.classList.remove('active'));
 
             const map = { dashboard:'dashboardSection', artworks:'artworksSection', sales:'salesSection', gallery:'artistGallerySection' };
+            if (section === 'sales') setTimeout(() => renderArtistOrders(), 100);
             const navMap = { dashboard:'artNavDashboard', artworks:'artNavArtworks', sales:'artNavSales', gallery:'artNavGallery' };
 
             if (map[section]) {
@@ -7536,23 +7648,31 @@ function enterGallery() {
         }
 
         function buildAvatarDisplay(imageUrl, style, name) {
-            const W = 140, H = 160;
+            const W = 220, H = 250;
+            const wrap = `display:flex;justify-content:center;margin-bottom:24px;`;
             if (style === 'slices') {
                 const slices = buildSlicesHTML(imageUrl, SLICE_CONFIG.slices, 'v');
-                return `<div style="display:flex;flex-direction:row;gap:3px;align-items:stretch;width:${W}px;height:${H}px;margin-bottom:15px;">${slices}</div>`;
+                return `<div style="${wrap}"><div style="display:flex;flex-direction:row;gap:4px;align-items:stretch;width:${W}px;height:${H}px;">${slices}</div></div>`;
             } else if (style === 'hslices') {
                 const slices = buildSlicesHTML(imageUrl, SLICE_CONFIG.hslices, 'h');
-                return `<div style="display:flex;flex-direction:column;gap:3px;align-items:stretch;width:${W}px;height:${H}px;margin-bottom:15px;">${slices}</div>`;
+                return `<div style="${wrap}"><div style="display:flex;flex-direction:column;gap:4px;align-items:stretch;width:${W}px;height:${H}px;">${slices}</div></div>`;
             } else if (style === 'diamond') {
-                return `<div style="width:110px;height:110px;transform:rotate(45deg);border-radius:12px;overflow:hidden;border:4px solid var(--terre-cuite);margin:20px 0 30px;box-shadow:0 8px 24px rgba(0,0,0,0.4);">
-                    <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;transform:rotate(-45deg) scale(1.45);">
+                return `<div style="${wrap}padding-top:30px;padding-bottom:30px;">
+                    <div style="width:160px;height:160px;transform:rotate(45deg);border-radius:16px;overflow:hidden;border:4px solid var(--terre-cuite);box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+                        <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;transform:rotate(-45deg) scale(1.45);">
+                    </div>
                 </div>`;
             } else if (style === 'square') {
-                return `<div style="width:120px;height:120px;border-radius:18px;overflow:hidden;border:4px solid var(--terre-cuite);margin-bottom:15px;box-shadow:0 8px 24px rgba(0,0,0,0.4);">
-                    <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;">
+                return `<div style="${wrap}">
+                    <div style="width:200px;height:200px;border-radius:24px;overflow:hidden;border:4px solid var(--terre-cuite);box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+                        <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;">
+                    </div>
                 </div>`;
             } else {
-                return `<img loading="lazy" src="${imageUrl}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid var(--terre-cuite);margin-bottom:20px;" alt="${name}" onerror="this.style.display='none'">`;
+                // circle
+                return `<div style="${wrap}">
+                    <img loading="lazy" src="${imageUrl}" style="width:200px;height:200px;border-radius:50%;object-fit:cover;border:4px solid var(--terre-cuite);box-shadow:0 8px 24px rgba(0,0,0,0.4);" alt="${name}" onerror="this.style.display='none'">
+                </div>`;
             }
         }
         function renderProfilePreview(container, imageUrl, style) {
@@ -8372,4 +8492,190 @@ function enterGallery() {
     window.addEventListener('resize', resize);
     init();
     draw();
-})();
+})();        async function loadAdminOrdersFromServer() {
+            try {
+                const resp = await fetch(`${ORDERS_API}?action=list&admin=1&t=${Date.now()}`);
+                const data = await resp.json();
+                if (data.success && data.orders.length > 0) {
+                    return data.orders.map(o => ({
+                        ...o,
+                        server_id: o.id,
+                        items: o.items || [],
+                        date: o.created_at ? new Date(o.created_at).toLocaleDateString('fr-FR', {day:'2-digit',month:'long',year:'numeric'}) : '',
+                        user: o.user_name,
+                        userEmail: o.user_email,
+                        shippedDate: o.shipped_at ? new Date(o.shipped_at).toLocaleString('fr-FR') : null,
+                        deliveredDate: o.delivered_at ? new Date(o.delivered_at).toLocaleString('fr-FR') : null,
+                    }));
+                }
+            } catch(e) {}
+            return safeStorage.get('arkyl_orders', []);
+        }
+
+        async function renderAdminOrders() {
+            const container = document.getElementById('adminOrdersContainer');
+            container.innerHTML = '<div style="text-align:center;padding:60px;opacity:0.6;">⏳ Chargement des commandes...</div>';
+
+            let orders = await loadAdminOrdersFromServer();
+            updateAdminOrderCounts(orders);
+
+            const filtered = currentAdminFilter === 'all' ? orders : orders.filter(o => o.status === currentAdminFilter);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div style="text-align:center;padding:60px;"><div style="font-size:80px;margin-bottom:20px;">🔍</div><div style="font-size:22px;font-weight:700;">Aucune commande</div></div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(order => {
+                const orderId = order.server_id || order.id;
+                const trackUrl = order.tracking_url || getTrackingUrl(order.carrier, order.tracking_number);
+                const { serverTimeline } = buildOrderTimeline(order);
+
+                const carrierOptions = CARRIERS.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+                const statusOptions = DELIVERY_STATUSES.map(s =>
+                    `<option value="${s.key}" ${order.status === s.key ? 'selected' : ''}>${s.icon} ${s.label}</option>`
+                ).join('');
+
+                return `
+                <div class="admin-order-card" id="order-card-${orderId}">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:15px;">
+                        <div>
+                            <div style="font-size:18px;font-weight:700;color:var(--ocre);">📦 ${order.order_number || '#' + orderId}</div>
+                            <div style="font-size:14px;opacity:0.8;margin-top:4px;">👤 ${order.user || order.user_name}${order.userEmail ? ` (${order.userEmail})` : ''}</div>
+                            <div style="font-size:13px;opacity:0.6;margin-top:2px;">📅 ${order.date}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:22px;font-weight:800;color:var(--ocre);margin-bottom:8px;">${formatPrice(parseFloat(order.total)||0)}</div>
+                            <span style="padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;background:${statusColor(order.status)}33;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}66;">
+                                ${statusIcon(order.status)} ${order.status}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Articles -->
+                    <div style="background:rgba(0,0,0,0.2);border-radius:12px;padding:15px;margin-bottom:15px;">
+                        ${(order.items||[]).map(item => `
+                            <div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+                                ${item.image || item.image_url ? `<img src="${item.image||item.image_url}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;">` : '<div style="width:48px;height:48px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">🎨</div>'}
+                                <div style="flex:1;">
+                                    <div style="font-weight:600;">${item.title}</div>
+                                    <div style="font-size:12px;opacity:0.6;">par ${item.artist||item.artist_name}</div>
+                                </div>
+                                <div style="font-weight:700;color:var(--ocre);">${formatPrice((item.price||0)*(item.quantity||1))}</div>
+                            </div>`).join('')}
+                    </div>
+
+                    <!-- Adresse livraison -->
+                    ${order.shipping_address ? `
+                        <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 16px;margin-bottom:15px;font-size:13px;">
+                            📍 <strong>Adresse :</strong> ${order.shipping_address}
+                            ${order.shipping_name ? ` · 🚚 ${order.shipping_name}` : ''}
+                        </div>` : ''}
+
+                    <!-- Tracking actuel -->
+                    ${order.tracking_number ? `
+                        <div style="background:rgba(33,150,243,0.1);border:1px solid rgba(33,150,243,0.3);border-radius:10px;padding:12px 16px;margin-bottom:15px;font-size:13px;">
+                            📦 Tracking : <strong>${order.tracking_number}</strong>
+                            ${order.carrier ? ` (${order.carrier.toUpperCase()})` : ''}
+                            ${trackUrl ? ` · <a href="${trackUrl}" target="_blank" style="color:#90caf9;">Suivre</a>` : ''}
+                        </div>` : ''}
+
+                    <!-- Zone mise à jour statut -->
+                    <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:18px;margin-bottom:12px;">
+                        <div style="font-weight:700;margin-bottom:14px;font-size:14px;">🔄 Mettre à jour la commande</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                            <div>
+                                <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:4px;">Statut</label>
+                                <select id="status-${orderId}" style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;">
+                                    ${statusOptions}
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:4px;">Transporteur</label>
+                                <select id="carrier-${orderId}" style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;">
+                                    <option value="">Choisir...</option>
+                                    ${carrierOptions}
+                                </select>
+                            </div>
+                        </div>
+                        <input id="tracking-${orderId}" type="text" placeholder="N° de suivi (ex: 1Z999AA10123456784)" value="${order.tracking_number||''}"
+                            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+                        <input id="note-${orderId}" type="text" placeholder="Note (optionnelle) — ex: Colis déposé à La Poste de Plateau"
+                            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+
+                        <div class="proof-upload-zone" onclick="document.getElementById('proof-${orderId}').click()" id="proof-zone-${orderId}" style="margin-bottom:10px;">
+                            <input type="file" id="proof-${orderId}" accept="image/*,.pdf" style="display:none"
+                                onchange="document.getElementById('proof-zone-${orderId}').innerHTML='✅ ' + this.files[0].name">
+                            <div style="font-size:20px;margin-bottom:4px;">📎</div>
+                            <div style="font-size:13px;font-weight:600;">Joindre preuve d'expédition (optionnel)</div>
+                            <div style="font-size:11px;opacity:0.5;margin-top:3px;">JPG, PNG ou PDF</div>
+                        </div>
+
+                        <button onclick="adminUpdateOrderStatus('${orderId}')"
+                            style="width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));color:white;transition:all 0.3s;">
+                            💾 Enregistrer la mise à jour
+                        </button>
+                    </div>
+
+                    <!-- Historique -->
+                    ${serverTimeline ? `
+                        <details style="margin-top:8px;">
+                            <summary style="cursor:pointer;font-size:13px;font-weight:600;opacity:0.7;padding:8px 0;">🕐 Historique de la commande</summary>
+                            <div style="margin-top:8px;padding:10px;background:rgba(0,0,0,0.2);border-radius:10px;">${serverTimeline}</div>
+                        </details>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        async function adminUpdateOrderStatus(orderId) {
+            const status   = document.getElementById(`status-${orderId}`)?.value;
+            const tracking = document.getElementById(`tracking-${orderId}`)?.value?.trim();
+            const carrier  = document.getElementById(`carrier-${orderId}`)?.value;
+            const note     = document.getElementById(`note-${orderId}`)?.value?.trim();
+            const proofInput = document.getElementById(`proof-${orderId}`);
+            const proofFile  = proofInput?.files?.[0];
+
+            const payload = {
+                action: 'update_status',
+                order_id: orderId,
+                status,
+                tracking_number: tracking || null,
+                carrier: carrier || null,
+                note: note || null,
+                updated_by: currentUser?.name || 'admin',
+                updated_by_role: 'admin',
+            };
+
+            // Uploader preuve si présente
+            if (proofFile) {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    payload.shipping_proof_url = e.target.result;
+                    await sendStatusUpdate(payload);
+                };
+                reader.readAsDataURL(proofFile);
+            } else {
+                await sendStatusUpdate(payload);
+            }
+        }
+
+        async function sendStatusUpdate(payload) {
+            try {
+                const resp = await fetch(ORDERS_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast(`✅ Statut mis à jour : ${payload.status}`);
+                    // Notifier l'acheteur
+                    addNotification('📦 Commande mise à jour', `Commande #${payload.order_id} → ${payload.status}${payload.tracking_number ? ' | Tracking : ' + payload.tracking_number : ''}`);
+                    await renderAdminOrders();
+                } else {
+                    showToast('❌ Erreur : ' + (data.error || 'Inconnue'));
+                }
+            } catch(e) {
+                showToast('❌ Erreur réseau');
+            }
+        }

@@ -31,10 +31,16 @@ try {
     // Créer la colonne artist_profile si elle n'existe pas dans users
     // et mettre à jour les infos dans la table users (source de vérité)
     $check = $db->prepare("SELECT id FROM users WHERE id = :id");
-    $check->execute([':id' => $artist_id]);
-    if (!$check->fetch()) {
-        throw new Exception("Compte utilisateur introuvable.");
-    }
+$check->execute([':id' => $artist_id]);
+if (!$check->fetch()) {
+    // Le compte n'existe pas encore, on le crée automatiquement à la volée !
+    $insert = $db->prepare("INSERT INTO users (id, name, email) VALUES (:id, :name, :email)");
+    $insert->execute([
+        ':id' => $artist_id,
+        ':name' => $name,
+        ':email' => $email
+    ]);
+}
 
     // Construire le UPDATE sur la table users
     $setClause = "name = :name, phone = :phone, country = :country,

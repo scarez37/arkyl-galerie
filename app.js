@@ -3201,7 +3201,7 @@ function enterGallery() {
                 }, 400);
 
             } else {
-                console.log('ℹ️ Commande déjà dans l'historique');
+                console.log('ℹ️ Commande déjà dans l\'historique');
             }
 
             // Nettoyer la commande en attente

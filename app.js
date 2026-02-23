@@ -4624,8 +4624,9 @@ function enterGallery() {
 
             // Construire l'avatar
             const isOwnProfile = currentUser && currentUser.isArtist && currentUser.artistName === artistName;
+            const avatarStyle = (serverArtistProfile && serverArtistProfile.avatar_style) || 'slices';
             const avatarDisplay = (artist && artist.profileImage)
-                ? `<img loading="lazy" src="${artist.profileImage}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid var(--terre-cuite);margin-bottom:20px;" alt="${artistName}" onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'artist-detail-avatar\\'>${(artist && artist.avatar) || '👤'}</div>'">`
+                ? buildAvatarDisplay(artist.profileImage, avatarStyle, artistName)
                 : `<div class="artist-detail-avatar">${artist ? (artist.avatar || '👤') : '👤'}</div>`;
 
             // Construire les cartes d'œuvres
@@ -6876,7 +6877,8 @@ function enterGallery() {
             // Update profile preview
             const previewContainer = document.getElementById('profilePreviewContainer');
             if (acc.avatar && (acc.avatar.startsWith('http') || acc.avatar.startsWith('data:'))) {
-                previewContainer.innerHTML = `<img loading="lazy" src="${acc.avatar}" class="current-profile-preview" alt="Photo de profil">`;
+                const savedStyle = acc.avatarStyle || 'slices';
+                renderProfilePreview(previewContainer, acc.avatar, savedStyle);
             } else {
                 previewContainer.innerHTML = `<div class="profile-emoji-preview">${acc.avatar || '👤'}</div>`;
             }
@@ -6936,7 +6938,8 @@ function enterGallery() {
                 
                 // Update preview
                 const previewContainer = document.getElementById('profilePreviewContainer');
-                previewContainer.innerHTML = `<img loading="lazy" src="${base64Image}" class="current-profile-preview" alt="Photo de profil">`;
+                const currentStyle = window.tempAvatarStyle || 'slices';
+                renderProfilePreview(previewContainer, base64Image, currentStyle);
                 
                 // Store in temporary variable (will be saved on "Enregistrer")
                 window.tempProfileImage = base64Image;
@@ -7010,6 +7013,7 @@ function enterGallery() {
             // Update profile image if a new one was uploaded
             if (window.tempProfileImage) {
                 acc.avatar = window.tempProfileImage;
+                acc.avatarStyle = window.tempAvatarStyle || acc.avatarStyle || 'slices';
                 window.tempProfileImage = null;
             }
 
@@ -7033,7 +7037,8 @@ function enterGallery() {
                         bio: acc.bio || '',
                         website: acc.website || '',
                         social: acc.social || '',
-                        avatar: acc.avatar || null
+                        avatar: acc.avatar || null,
+                        avatar_style: acc.avatarStyle || 'slices'
                     };
                     const resp = await fetch('https://arkyl-galerie.onrender.com/api_modifier_profil.php', {
                         method: 'POST',
@@ -7494,19 +7499,103 @@ function enterGallery() {
 
         function selectPresetAvatarEdit(src) {
             const previewContainer = document.getElementById('profilePreviewContainer');
-            previewContainer.innerHTML = `<img loading="lazy" src="${src}" class="current-profile-preview" alt="Photo de profil">`;
+            const currentStyle = window.tempAvatarStyle || 'slices';
+            renderProfilePreview(previewContainer, src, currentStyle);
             window.tempProfileImage = src;
-            
-            // Visual feedback
-            const container = event.target.closest('.preset-avatars');
-            if (container) {
-                container.querySelectorAll('.preset-avatar').forEach(img => {
-                    img.classList.remove('selected');
-                });
-                event.target.classList.add('selected');
-            }
-            
             showToast('✅ Avatar sélectionné! Cliquez sur "Enregistrer" pour valider.');
+        }
+
+
+        function buildAvatarDisplay(imageUrl, style, name) {
+            const fallback = name || '👤';
+            if (style === 'slices') {
+                const slices = [0,20,40,60,80].map(pos => 
+                    `<div style="flex:1;border-radius:4px;background-image:url('${imageUrl}');background-position:${pos}% center;background-size:500% auto;transition:transform 0.3s;"></div>`
+                ).join('');
+                return `<div style="display:flex;flex-direction:row;gap:3px;align-items:stretch;width:130px;height:150px;margin-bottom:15px;">${slices}</div>`;
+            } else if (style === 'hslices') {
+                const slices = [0,33,66,100].map(pos => 
+                    `<div style="border-radius:4px;background-image:url('${imageUrl}');background-position:center ${pos}%;background-size:auto 400%;flex:1;"></div>`
+                ).join('');
+                return `<div style="display:flex;flex-direction:column;gap:3px;width:130px;height:150px;margin-bottom:15px;">${slices}</div>`;
+            } else if (style === 'diamond') {
+                return `<div style="width:110px;height:110px;transform:rotate(45deg);border-radius:12px;overflow:hidden;border:4px solid var(--terre-cuite);margin:20px 0 30px;box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+                    <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;transform:rotate(-45deg) scale(1.45);" onerror="this.parentElement.innerHTML='<div>${fallback}</div>'">
+                </div>`;
+            } else if (style === 'square') {
+                return `<div style="width:120px;height:120px;border-radius:18px;overflow:hidden;border:4px solid var(--terre-cuite);margin-bottom:15px;box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+                    <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='<div>${fallback}</div>'">
+                </div>`;
+            } else {
+                // circle (default fallback)
+                return `<img loading="lazy" src="${imageUrl}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid var(--terre-cuite);margin-bottom:20px;" alt="${name}" onerror="this.style.display='none'">`;
+            }
+        }
+        function renderProfilePreview(container, imageUrl, style) {
+            window.tempAvatarStyle = style;
+            
+            // Update active button
+            document.querySelectorAll('.style-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.style === style);
+            });
+
+            if (style === 'slices') {
+                const slices = [0,20,40,60,80].map(pos => 
+                    `<div class="slice" style="background-image:url('${imageUrl}'); background-position: ${pos}% center; background-size: 500% auto;"></div>`
+                ).join('');
+                container.innerHTML = `
+                    <div class="profile-display-wrapper style-slices">${slices}</div>
+                    ${styleSelectorHTML(style)}`;
+            } else if (style === 'hslices') {
+                const slices = [0,33,66,100].map(pos => 
+                    `<div class="slice" style="background-image:url('${imageUrl}'); background-position: center ${pos}%; background-size: auto 400%;"></div>`
+                ).join('');
+                container.innerHTML = `
+                    <div class="profile-display-wrapper style-hslices">${slices}</div>
+                    ${styleSelectorHTML(style)}`;
+            } else if (style === 'circle') {
+                container.innerHTML = `
+                    <div class="profile-display-wrapper style-circle">
+                        <img src="${imageUrl}" class="current-profile-preview" alt="Photo de profil">
+                    </div>
+                    ${styleSelectorHTML(style)}`;
+            } else if (style === 'square') {
+                container.innerHTML = `
+                    <div class="profile-display-wrapper style-square">
+                        <img src="${imageUrl}" class="current-profile-preview" alt="Photo de profil">
+                    </div>
+                    ${styleSelectorHTML(style)}`;
+            } else if (style === 'diamond') {
+                container.innerHTML = `
+                    <div class="profile-display-wrapper style-diamond">
+                        <img src="${imageUrl}" class="current-profile-preview" alt="Photo de profil">
+                    </div>
+                    ${styleSelectorHTML(style)}`;
+            }
+        }
+
+        function styleSelectorHTML(activeStyle) {
+            const styles = [
+                { id: 'slices',  icon: '▌▌▌', title: 'Bandes verticales' },
+                { id: 'hslices', icon: '≡',   title: 'Bandes horizontales' },
+                { id: 'circle',  icon: '◯',   title: 'Cercle' },
+                { id: 'square',  icon: '▢',   title: 'Carré arrondi' },
+                { id: 'diamond', icon: '◇',   title: 'Diamant' },
+            ];
+            const buttons = styles.map(s => 
+                `<button class="style-btn ${s.id === activeStyle ? 'active' : ''}" 
+                    data-style="${s.id}" 
+                    title="${s.title}"
+                    onclick="changeAvatarStyle('${s.id}')">${s.icon}</button>`
+            ).join('');
+            return `<div class="style-selector">${buttons}</div>`;
+        }
+
+        function changeAvatarStyle(style) {
+            const imgSrc = window.tempProfileImage;
+            if (!imgSrc) return;
+            const previewContainer = document.getElementById('profilePreviewContainer');
+            renderProfilePreview(previewContainer, imgSrc, style);
         }
 
         // ==================== INIT ====================

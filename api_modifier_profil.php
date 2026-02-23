@@ -22,10 +22,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
 
         if ($artistId) {
-            $stmt = $db->prepare("SELECT id, name, phone, country, specialty, bio, website, social, avatar FROM users WHERE id = :id LIMIT 1");
+            $stmt = $db->prepare("SELECT id, name, phone, country, specialty, bio, website, social, avatar, avatar_style FROM users WHERE id = :id LIMIT 1");
             $stmt->execute([':id' => $artistId]);
         } else {
-            $stmt = $db->prepare("SELECT id, name, phone, country, specialty, bio, website, social, avatar FROM users WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name)) LIMIT 1");
+            $stmt = $db->prepare("SELECT id, name, phone, country, specialty, bio, website, social, avatar, avatar_style FROM users WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name)) LIMIT 1");
             $stmt->execute([':name' => $artistName]);
         }
 
@@ -47,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'id'            => $user['id'],
                 'name'          => $user['name'],
                 'avatar'        => $user['avatar'],
+                'avatar_style'  => $user['avatar_style'] ?? 'slices',
                 'bio'           => $user['bio'],
                 'specialty'     => $user['specialty'],
                 'country'       => $user['country'],
@@ -76,7 +77,8 @@ try {
     $bio       = trim($data['bio']       ?? '');
     $website   = trim($data['website']   ?? '');
     $social    = trim($data['social']    ?? '');
-    $avatar    = $data['avatar']         ?? null;
+    $avatar       = $data['avatar']       ?? null;
+    $avatar_style = $data['avatar_style'] ?? null;
 
     if (!$artist_id || !$name || !$email) {
         throw new Exception("Champs obligatoires manquants (artist_id, name, email).");
@@ -109,6 +111,10 @@ try {
     if ($avatar) {
         $setClause .= ", avatar = :avatar";
         $params[':avatar'] = $avatar;
+    }
+    if ($avatar_style) {
+        $setClause .= ", avatar_style = :avatar_style";
+        $params[':avatar_style'] = $avatar_style;
     }
 
     $stmt = $db->prepare("UPDATE users SET $setClause WHERE id = :id");

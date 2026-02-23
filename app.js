@@ -2271,38 +2271,115 @@ function enterGallery() {
         }
 
         // ==================== FAVORITES ====================
-        function renderFavorites() {
+        async function renderFavorites() {
             const container = document.getElementById('favoritesContainer');
             const emptyState = document.getElementById('emptyFavorites');
-            const allProducts = getProducts();
-            const favoriteProducts = allProducts.filter(p => favorites.includes(p.id));
-            
-            if (favoriteProducts.length === 0) {
-                container.style.display = 'none';
-                emptyState.style.display = 'block';
-                return;
-            }
-            
+
+            // Loader
             container.style.display = 'grid';
             emptyState.style.display = 'none';
-            
-            container.innerHTML = favoriteProducts.map(product => `
-                <div class="product-card">
-                    <div class="product-image">
-                        <span class="product-badge">${product.badge}</span>
+            container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:60px 20px;opacity:0.7;">
+                <div style="font-size:40px;margin-bottom:12px;">⏳</div>
+                <div>Chargement de vos favoris...</div>
+            </div>`;
+
+            const userId = currentUser?.id || createGuestSession();
+
+            try {
+                const resp = await fetch(
+                    `https://arkyl-galerie.onrender.com/api_get_favoris.php?user_id=${encodeURIComponent(userId)}&t=${Date.now()}`
+                );
+                const data = await resp.json();
+
+                if (!data.success || !data.data || data.data.length === 0) {
+                    // Fallback local
+                    const allProducts = getProducts();
+                    const localFavs = allProducts.filter(p => favorites.includes(p.id));
+                    if (localFavs.length === 0) {
+                        container.style.display = 'none';
+                        emptyState.style.display = 'block';
+                        return;
+                    }
+                    _renderFavoritesCards(container, localFavs.map(p => ({
+                        id: p.id,
+                        title: p.title,
+                        price: p.price,
+                        artist_name: p.artist,
+                        badge: p.badge || 'Disponible',
+                        image_url: p.image || p.photo,
+                        photos: p.photos || (p.image ? [p.image] : [])
+                    })));
+                    return;
+                }
+
+                // Sync local favorites list avec le serveur
+                favorites = data.data.map(f => f.id);
+                safeStorage.set('arkyl_favorites', favorites);
+                updateBadges();
+
+                _renderFavoritesCards(container, data.data);
+
+            } catch(e) {
+                // Fallback local si réseau indisponible
+                const allProducts = getProducts();
+                const localFavs = allProducts.filter(p => favorites.includes(p.id));
+                if (localFavs.length === 0) {
+                    container.style.display = 'none';
+                    emptyState.style.display = 'block';
+                    return;
+                }
+                _renderFavoritesCards(container, localFavs.map(p => ({
+                    id: p.id,
+                    title: p.title,
+                    price: p.price,
+                    artist_name: p.artist,
+                    badge: p.badge || 'Disponible',
+                    image_url: p.image || p.photo,
+                    photos: p.photos || (p.image ? [p.image] : [])
+                })));
+            }
+        }
+
+        function _renderFavoritesCards(container, products) {
+            if (!products || products.length === 0) {
+                container.style.display = 'none';
+                document.getElementById('emptyFavorites').style.display = 'block';
+                return;
+            }
+            container.style.display = 'grid';
+            document.getElementById('emptyFavorites').style.display = 'none';
+
+            container.innerHTML = products.map(product => {
+                const photos = product.photos && product.photos.length > 0
+                    ? product.photos
+                    : (product.image_url ? [product.image_url] : []);
+                const mainImg = photos[0] || null;
+                const artistName = product.artist_name || product.artist || 'Artiste inconnu';
+
+                const imageHTML = mainImg
+                    ? `<img src="${mainImg}" alt="${product.title}"
+                            style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;"
+                            loading="lazy"
+                            onerror="this.style.display='none'">`
+                    : `<div style="font-size:60px;display:flex;align-items:center;justify-content:center;height:100%;">🎨</div>`;
+
+                return `
+                <div class="product-card" onclick="viewProductDetailFromAPI(${product.id})">
+                    <div class="product-image" style="position:relative;">
+                        <span class="product-badge">${product.badge || 'Disponible'}</span>
                         <button class="like-button" onclick="toggleFavorite(event, ${product.id})">❤️</button>
-                        <div class="product-emoji">${product.emoji}</div>
+                        ${imageHTML}
                     </div>
                     <div class="product-info">
                         <div class="product-title">${product.title}</div>
-                        <div class="product-artist">par ${product.artist}</div>
+                        <div class="product-artist" onclick="viewArtistDetail(event, '${artistName}')">par ${artistName}</div>
                         <div class="product-footer">
                             <div class="product-price">${formatPrice(product.price)}</div>
                             <button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>
                         </div>
                     </div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         }
 
         // ==================== UTILITAIRES IMAGE ====================
@@ -2465,9 +2542,9 @@ function enterGallery() {
                 const itemTotal = item.price * item.quantity;
                 subtotal += itemTotal;
                 const imgHtml = item.image
-                    ? `<img loading="lazy" src="${item.image}" alt="${item.title}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
-                    : '';
-                const emojiHtml = `<span style="${item.image ? 'display:none;' : ''}align-items:center;justify-content:center;width:100%;height:100%;font-size:48px;display:flex;">${item.emoji || '🎨'}</span>`;
+                    ? `<img loading="lazy" src="${item.image}" alt="${item.title}" style="width:100%;height:100%;object-fit:contain;" onerror="this.style.display='none'">`
+                    : `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:48px;">${item.emoji || '🎨'}</span>`;
+                const emojiHtml = '';
                 return `
                     <div class="cart-item" id="cart-item-${item.id}">
                         <div class="cart-item-img">${imgHtml}${emojiHtml}</div>
@@ -2884,12 +2961,26 @@ function enterGallery() {
                     quantity: item.quantity || 1
                 }));
 
+                // Récupérer le mode et coût de livraison sélectionnés
+                const selShipping = document.querySelector('.shipping-option.selected');
+                const shippingCost = selShipping ? parseInt(selShipping.dataset.cost) : 3000;
+                const shippingMode = selShipping ? (selShipping.dataset.mode || 'poste') : 'poste';
+                const shippingNames = {
+                    'poste':       'La Poste — Livraison à domicile',
+                    'transport':   'Compagnie de transport',
+                    'mainpropre':  'Remise en main propre'
+                };
+                const shippingLabel = shippingNames[shippingMode] || 'Frais de livraison';
+
                 const response = await fetch('api_stripe_checkout.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        user_id:    userId,
-                        cart_items: cartFallback
+                        user_id:       userId,
+                        cart_items:    cartFallback,
+                        shipping_cost: shippingCost,
+                        shipping_mode: shippingMode,
+                        shipping_label: shippingLabel
                     })
                 });
 
@@ -4204,66 +4295,6 @@ function enterGallery() {
         }
 
         // ==================== CHAT ====================
-        function toggleChat() {
-            document.getElementById('chatWindow').classList.toggle('show');
-        }
-
-        async function sendChatMessage() {
-            const input = document.getElementById('chatInput');
-            const message = input.value.trim();
-            if (!message) return;
-
-            const messagesDiv = document.getElementById('chatMessages');
-
-            // Afficher le message de l'utilisateur
-            const userMsg = document.createElement('div');
-            userMsg.className = 'chat-message user';
-            userMsg.textContent = message;
-            messagesDiv.appendChild(userMsg);
-            input.value = '';
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-            // Indicateur d'envoi
-            const sending = document.createElement('div');
-            sending.className = 'chat-message bot';
-            sending.innerHTML = '<em style="opacity:0.6">📤 Envoi en cours...</em>';
-            messagesDiv.appendChild(sending);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-            // Infos expéditeur
-            const senderName  = currentUser?.name  || currentUser?.displayName || 'Visiteur';
-            const senderEmail = currentUser?.email  || 'inconnu@arkyl.app';
-
-            try {
-                // Envoi via EmailJS (service gratuit, pas de serveur mail requis)
-                // emailjs.send(serviceId, templateId, params)
-                await emailjs.send('service_arkyl', 'template_arkyl_contact', {
-                    from_name:  senderName,
-                    from_email: senderEmail,
-                    message:    message,
-                    reply_to:   senderEmail,
-                    sent_at:    new Date().toLocaleString('fr-FR')
-                });
-
-                sending.remove();
-
-                const botMsg = document.createElement('div');
-                botMsg.className = 'chat-message bot';
-                botMsg.innerHTML = '✅ Message envoyé ! Nous vous répondrons à <strong>' + senderEmail + '</strong> dans les plus brefs délais.';
-                messagesDiv.appendChild(botMsg);
-
-            } catch(e) {
-                // Fallback : ouvrir le client mail avec le message pré-rempli
-                sending.remove();
-                const botMsg = document.createElement('div');
-                botMsg.className = 'chat-message bot';
-                const mailtoLink = `mailto:arkyl.app@gmail.com?subject=${encodeURIComponent('[ARKYL] Message de ' + senderName)}&body=${encodeURIComponent(message)}`;
-                botMsg.innerHTML = `⚠️ Envoi direct indisponible. <a href="${mailtoLink}" style="color:#d4af37;font-weight:700;" target="_blank">Cliquez ici pour envoyer l'email</a> à arkyl.app@gmail.com`;
-                messagesDiv.appendChild(botMsg);
-            }
-
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
 
         // ==================== PRODUCT DETAIL ====================
         function viewProductDetail(productId) {
@@ -5773,24 +5804,21 @@ function enterGallery() {
                 const result = await resp.json();
                 if (result.success && result.data && result.data.length > 0) {
                     // Synchroniser db.artworks avec les données serveur
-                    result.data.forEach(art => {
-                        const exists = db.artworks.find(a => a.id === art.id);
-                        if (!exists) {
-                            db.artworks.push({
-                                id: art.id,
-                                title: art.title,
-                                category: art.category,
-                                price: art.price,
-                                description: art.description || '',
-                                photo: art.image_url,
-                                photos: art.photos || [art.image_url],
-                                technique: art.technique || '',
-                                dimensions: art.dimensions || null,
-                                status: 'published',
-                                createdAt: art.created_at || new Date().toISOString()
-                            });
-                        }
-                    });
+                    // Remplacer complètement db.artworks par les données serveur
+                    db.artworks = result.data.map(art => ({
+                        id: art.id,               // ID PostgreSQL (int)
+                        server_id: art.id,        // Alias explicite
+                        title: art.title,
+                        category: art.category,
+                        price: art.price,
+                        description: art.description || '',
+                        photo: art.image_url,
+                        photos: art.photos || [art.image_url],
+                        technique: art.technique || '',
+                        dimensions: art.dimensions || null,
+                        status: 'published',
+                        createdAt: art.created_at || new Date().toISOString()
+                    }));
                     db._save('artist_artworks', db.artworks);
                     // Rafraîchir si déjà sur la section œuvres
                     const artSection = document.getElementById('artworksSection');
@@ -6143,7 +6171,7 @@ function enterGallery() {
             resetPhotoUpload(); // Reset photo state
             
             if (id) {
-                const a = db.artworks.find(x => x.id === id);
+                const a = db.artworks.find(x => String(x.id) === String(id));
                 if (a) {
                     document.getElementById('artwork-title').value       = a.title;
                     document.getElementById('artwork-category').value    = a.category;
@@ -6262,7 +6290,7 @@ function enterGallery() {
                     // ⭐ ENVOI AU SERVEUR
                     try {
                         const updateData = {
-                            artwork_id: editingArtworkId,
+                            artwork_id: parseInt(editingArtworkId) || editingArtworkId,
                             artist_id: currentUser.id,
                             title: artwork.title,
                             category: artwork.category,
@@ -6899,8 +6927,6 @@ function enterGallery() {
             // Get current artist account
             const acc = safeStorage.get('arkyl_artist_account', null) || _memStore['arkyl_artist_account'] || null;
             
-            console.log('🔍 DEBUG: Compte artiste récupéré:', acc);
-            
             if (!acc) {
                 console.error('❌ DEBUG: Aucun compte artiste trouvé');
                 showToast('⚠️ Aucun compte artiste trouvé');
@@ -6917,8 +6943,6 @@ function enterGallery() {
             const website = document.getElementById('editArtistWebsite').value.trim();
             const social = document.getElementById('editArtistSocial').value.trim();
 
-            console.log('🔍 DEBUG: Valeurs récupérées:', { name, email, phone, country, specialty, bio, website, social });
-
             // Validation
             if (!name || name.length < 2) {
                 console.warn('⚠️ DEBUG: Nom invalide');
@@ -6930,9 +6954,8 @@ function enterGallery() {
                 showToast('⚠️ Veuillez entrer un email valide');
                 return;
             }
-            if (!phone || phone.length < 8) {
-                console.warn('⚠️ DEBUG: Téléphone invalide');
-                showToast('⚠️ Veuillez entrer un numéro de téléphone valide');
+            if (!phone || phone.length < 6) {
+                showToast('⚠️ Veuillez entrer un numéro de téléphone valide (min. 6 chiffres)');
                 return;
             }
             if (!country) {
@@ -6940,14 +6963,9 @@ function enterGallery() {
                 showToast('⚠️ Veuillez sélectionner votre pays');
                 return;
             }
-            if (!specialty) {
-                console.warn('⚠️ DEBUG: Spécialité manquante');
-                showToast('⚠️ Veuillez renseigner votre spécialité');
-                return;
-            }
-            if (!bio || bio.length < 10) {
-                console.warn('⚠️ DEBUG: Biographie trop courte');
-                showToast('⚠️ Veuillez renseigner une biographie (min. 10 caractères)');
+            // Spécialité optionnelle
+            if (!bio || bio.length < 3) {
+                showToast('⚠️ Veuillez renseigner une biographie (min. 3 caractères)');
                 return;
             }
 
@@ -6967,8 +6985,6 @@ function enterGallery() {
                 acc.avatar = window.tempProfileImage;
                 window.tempProfileImage = null;
             }
-
-            console.log('🔍 DEBUG: Objet compte avant sauvegarde:', acc);
 
             // Sauvegarder en mémoire ET localStorage
             try {
@@ -7253,6 +7269,21 @@ function enterGallery() {
                 renderNewsList();
                 showToast('✅ Actualité supprimée');
             }
+        }
+
+        async function deleteAllNews() {
+            if (!confirm('Supprimer TOUTES les actualités ? Cette action est irréversible.')) return;
+
+            showToast('🗑️ Suppression en cours...');
+            // Supprimer une par une dans l'ordre
+            const ids = newsItems.map(n => n.id);
+            for (const id of ids) {
+                await saveNewsToServer('delete', { id });
+            }
+            newsItems = [];
+            renderNewsTicker();
+            renderNewsList();
+            showToast('✅ Toutes les actualités ont été supprimées');
         }
 
         // ==================== IMAGE LIGHTBOX (plein écran) ====================

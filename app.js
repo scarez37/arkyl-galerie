@@ -20,6 +20,7 @@ function enterGallery() {
         let favoritesCache = null;
         let lastRenderTime = {};
         let autoRefreshInterval = null;
+        let currentAdminFilter = "all";
 
         function debounce(func, wait) {
             let timeout;

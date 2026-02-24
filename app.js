@@ -6026,15 +6026,31 @@ function enterGallery() {
         // ==================== ARTISTE DATABASE ====================
         class ArtistDatabase {
             constructor() {
-                this.artworks = this._load('artist_artworks') || [];
-                this.sales    = this._load('artist_sales')    || []; // Tableau vide par défaut
-                this.nextId = this._load('next_artwork_id') || 1;
+                // Ne pas charger au constructeur — attendre setArtist()
+                this.artistKey = 'unknown';
+                this.artworks = [];
+                this.sales    = [];
+                this.nextId   = 1;
+            }
+
+            // Initialiser la DB pour un artiste précis — isole les données par compte
+            setArtist(artistId) {
+                this.artistKey = 'artist_' + String(artistId).replace(/[^a-zA-Z0-9]/g, '_');
+                this.artworks = [];
+                this.sales    = [];
+                this.nextId   = 1;
+                console.log('🎨 ArtistDB initialisée pour:', this.artistKey);
+            }
+
+            _key(k) {
+                return 'arkyl_' + this.artistKey + '_' + k;
             }
             
             _load(k) { 
                 try { 
-                    const d = _memStore['arkyl_'+k] || null; 
-                    return d ? JSON.parse(d) : null; 
+                    const d = _memStore[this._key(k)];
+                    if (d !== undefined) return Array.isArray(d) ? d : JSON.parse(d);
+                    return null;
                 } catch(e){ 
                     console.error('Erreur de chargement:', k, e); 
                     return null; 
@@ -6043,11 +6059,10 @@ function enterGallery() {
             
             _save(k,v) { 
                 try { 
-                    _memStore['arkyl_'+k] = v; 
+                    _memStore[this._key(k)] = v;
                     return true;
                 } catch(e){
                     console.error('Erreur de sauvegarde:', k, e);
-                    // Check if quota exceeded
                     if (e.name === 'QuotaExceededError') {
                         showToast('⚠️ Espace de stockage insuffisant. Supprimez des œuvres anciennes.');
                     }
@@ -6100,11 +6115,11 @@ function enterGallery() {
                 } 
             }
             
-            // Helper method to clear all data
+            // Helper method to clear all data for current artist
             clearAll() {
-                delete _memStore['arkyl_artist_artworks'];
-                delete _memStore['arkyl_artist_sales'];
-                delete _memStore['arkyl_next_artwork_id'];
+                delete _memStore[this._key('artist_artworks')];
+                delete _memStore[this._key('artist_sales')];
+                delete _memStore[this._key('next_artwork_id')];
                 this.artworks = [];
                 this.sales = [];
                 this.nextId = 1;
@@ -6135,10 +6150,8 @@ function enterGallery() {
         async function loadArtistArtworksFromServer() {
             if (!currentUser || !currentUser.id) return;
 
-            // Toujours partir d'un état vide pour cet artiste
-            db.artworks = [];
-            db.sales = [];
-            db._save('artist_artworks', []);
+            // Initialiser la DB pour cet artiste précis (clés isolées par ID)
+            db.setArtist(currentUser.id);
 
             try {
                 const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(currentUser.id)}&t=${Date.now()}`);

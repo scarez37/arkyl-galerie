@@ -15,7 +15,7 @@ function refreshGalleryByPage(pageId) {
     } else if (pageId === 'cartPage' && typeof renderCart === 'function') {
         renderCart();
     }
-}
+}  // Fin DOMContentLoaded
 
 
 function enterGallery() {
@@ -268,14 +268,14 @@ function enterGallery() {
                     if (raw !== null) return JSON.parse(raw);
                 } catch(e) {}
                 return (key in _memStore) ? _memStore[key] : defaultValue;
-            }
+            },
             set: (key, value) => {
                 try {
                     localStorage.setItem(key, JSON.stringify(value));
                 } catch(e) {}
                 _memStore[key] = value;
                 return true;
-            }
+            },
             remove: (key) => {
                 try { localStorage.removeItem(key); } catch(e) {}
                 delete _memStore[key];
@@ -290,8 +290,8 @@ function enterGallery() {
         let cartItems = [];
         let orderHistory = safeStorage.get('arkyl_orders', []);
         let notifications = safeStorage.get('arkyl_notifications', [
-            { id: 1, title: 'Bienvenue!', text: 'Découvrez nos nouvelles œuvres d\'art', time: 'Il y a 2h', unread: true }
-            { id: 2, title: 'Promotion', text: '-20% sur toutes les sculptures cette semaine', time: 'Il y a 5h', unread: true }
+            { id: 1, title: 'Bienvenue!', text: 'Découvrez nos nouvelles œuvres d\'art', time: 'Il y a 2h', unread: true },
+            { id: 2, title: 'Promotion', text: '-20% sur toutes les sculptures cette semaine', time: 'Il y a 5h', unread: true },
             { id: 3, title: 'Nouvel artiste', text: 'Kofi Mensah a ajouté de nouvelles peintures', time: 'Hier', unread: false }
         ]);
 
@@ -300,12 +300,12 @@ function enterGallery() {
         // Cache des données
         let appData = {
             artworks: [],
-            artists: {}
+            artists: {},
             news: [],
             orders: [],
             users: [],
-            interactions: { likes: [], comments: [] }
-            settings: {}
+            interactions: { likes: [], comments: [] },
+            settings: {},
             metadata: {}
         };
 
@@ -381,7 +381,7 @@ function enterGallery() {
                     } else {
                         showGoogleSignInError();
                     }
-                } 2000);
+                }, 2000);
             }
         }
         
@@ -567,7 +567,7 @@ function enterGallery() {
         async function chargerPanierUtilisateur(userId) {
             if (!userId) return;
             try {
-                const response = fetch(
+                const response = await fetch(
                     `https://arkyl-galerie.onrender.com/api_get_panier.php?user_id=${encodeURIComponent(userId)}`
                 );
                 const data = await response.json();
@@ -652,7 +652,7 @@ function enterGallery() {
             // Rechargement avec paramètre ?clear= pour vider toute la RAM du navigateur
             setTimeout(() => {
                 window.location.href = window.location.pathname + '?clear=' + Date.now();
-            } 600);
+            }, 600);
         }
 
         function updateAuthUI() {
@@ -1226,7 +1226,7 @@ function enterGallery() {
                         <div class="top-artist-rank">${medal}</div>
                         <div class="top-artist-avatar" style="overflow:hidden;">
                             ${artistData.avatar && (artistData.avatar.startsWith('http') || artistData.avatar.startsWith('data:'))
-                                ? buildMiniAvatar({ profile_image: artistData.avatar, avatar: '🎨', avatar_style: artistData.avatarStyle || 'slices', name } 60, null)
+                                ? buildMiniAvatar({ profile_image: artistData.avatar, avatar: '🎨', avatar_style: artistData.avatarStyle || 'slices', name }, 60, null)
                                 : '<div style="font-size:24px;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">👤</div>'
                             }
                         </div>
@@ -1728,7 +1728,7 @@ function enterGallery() {
             if (!currentUser) return;
             
             try {
-                const response = fetch(`api_interactions.php?action=get_user_likes&user_email=${encodeURIComponent(currentUser.email)}`);
+                const response = await fetch(`api_interactions.php?action=get_user_likes&user_email=${encodeURIComponent(currentUser.email)}`);
                 const result = await response.json();
                 
                 if (result.success && result.data) {
@@ -1788,16 +1788,16 @@ function enterGallery() {
             const n = btns.length;
             // Directions douces en arc horizontal
             const directions = [
-                { tx: '-80px', ty: '-8px'  }
-                { tx: '-60px', ty: '-25px' }
-                { tx: '-35px', ty: '-38px' }
-                { tx: '0px',   ty: '-45px' }
-                { tx: '35px',  ty: '-38px' }
-                { tx: '60px',  ty: '-25px' }
-                { tx: '80px',  ty: '-8px'  }
-                { tx: '80px',  ty: '18px'  }
-                { tx: '55px',  ty: '35px'  }
-                { tx: '20px',  ty: '45px'  }
+                { tx: '-80px', ty: '-8px'  },
+                { tx: '-60px', ty: '-25px' },
+                { tx: '-35px', ty: '-38px' },
+                { tx: '0px',   ty: '-45px' },
+                { tx: '35px',  ty: '-38px' },
+                { tx: '60px',  ty: '-25px' },
+                { tx: '80px',  ty: '-8px'  },
+                { tx: '80px',  ty: '18px'  },
+                { tx: '55px',  ty: '35px'  },
+                { tx: '20px',  ty: '45px'  },
                 { tx: '-20px', ty: '45px'  }
             ];
             if (isOpen) {
@@ -1822,7 +1822,7 @@ function enterGallery() {
                         btn.style.opacity = '0';
                         btn.style.pointerEvents = '';
                     });
-                } 500);
+                }, 500);
             } else {
                 // Ouverture : depuis la direction avec spring
                 cats.dataset.open = '1';
@@ -2147,9 +2147,9 @@ function enterGallery() {
             // Appel API en arrière-plan (sans bloquer l'UI)
             try {
                 const userId = currentUser?.id || createGuestSession();
-                const response = fetch('https://arkyl-galerie.onrender.com/api_ajouter_favoris.php', {
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_ajouter_favoris.php', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ artwork_id: productId, user_id: userId })
                 });
                 const responseText = await response.text();
@@ -2185,7 +2185,7 @@ function enterGallery() {
                 } else if (typeof chargerLaVraieGalerie === 'function') {
                     chargerLaVraieGalerie();
                 }
-            } 400);
+            }, 400);
         }
 
         // ===== UTILITAIRES D'ANIMATION =====
@@ -2233,7 +2233,7 @@ function enterGallery() {
                 setTimeout(() => {
                     const googleBtn = document.getElementById('googleLoginBtn');
                     if (googleBtn) googleBtn.click();
-                } 800);
+                }, 800);
                 return;
             }
 
@@ -2243,9 +2243,9 @@ function enterGallery() {
             btn.disabled = true;
 
             try {
-                const response = fetch('https://arkyl-galerie.onrender.com/api_ajouter_panier.php', {
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_ajouter_panier.php', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ artwork_id: productId, user_id: currentUser.id || currentUser.googleId || currentUser.email, quantity: 1 })
                 });
 
@@ -2739,19 +2739,19 @@ function enterGallery() {
 
         // ── Compagnies transport interurbain CI ─────────────────────────
         const COMPAGNIES_TRANSPORT_CI = [
-            { nom: 'Océan',          desc: 'Océan Transport — réseau Abidjan & intérieur' }
-            { nom: 'SBTA',           desc: 'Société de Bus et Transport en Afrique — national' }
-            { nom: 'CTE',            desc: 'Compagnie de Transport de l\'Est — Abengourou & Est CI' }
-            { nom: 'AT',             desc: 'Abidjan Transit — liaisons urbaines & périurbaines' }
-            { nom: 'UTB',            desc: 'Union des Transports de Bouaké — réseau national' }
-            { nom: 'STIF',           desc: 'Société de Transport Interurbain — Daloa & national' }
-            { nom: 'STGB',           desc: 'Société de Transport Grand Bassam' }
-            { nom: 'Sans Frontières',desc: 'Liaisons CI, Burkina Faso, Mali' }
-            { nom: 'MST',            desc: 'Mon Service Transport — Abidjan & intérieur' }
-            { nom: 'KTC',            desc: 'Korhogo Transport & Compagnie — Nord CI' }
-            { nom: 'Trans Ivoir',    desc: 'Liaisons interurbaines Centre-Ouest' }
-            { nom: 'Bouaké Express', desc: 'Bouaké ↔ Abidjan express' }
-            { nom: 'SOTRA',          desc: 'Transport urbain Abidjan & grandes villes' }
+            { nom: 'Océan',          desc: 'Océan Transport — réseau Abidjan & intérieur' },
+            { nom: 'SBTA',           desc: 'Société de Bus et Transport en Afrique — national' },
+            { nom: 'CTE',            desc: 'Compagnie de Transport de l\'Est — Abengourou & Est CI' },
+            { nom: 'AT',             desc: 'Abidjan Transit — liaisons urbaines & périurbaines' },
+            { nom: 'UTB',            desc: 'Union des Transports de Bouaké — réseau national' },
+            { nom: 'STIF',           desc: 'Société de Transport Interurbain — Daloa & national' },
+            { nom: 'STGB',           desc: 'Société de Transport Grand Bassam' },
+            { nom: 'Sans Frontières',desc: 'Liaisons CI, Burkina Faso, Mali' },
+            { nom: 'MST',            desc: 'Mon Service Transport — Abidjan & intérieur' },
+            { nom: 'KTC',            desc: 'Korhogo Transport & Compagnie — Nord CI' },
+            { nom: 'Trans Ivoir',    desc: 'Liaisons interurbaines Centre-Ouest' },
+            { nom: 'Bouaké Express', desc: 'Bouaké ↔ Abidjan express' },
+            { nom: 'SOTRA',          desc: 'Transport urbain Abidjan & grandes villes' },
             { nom: 'Autre',          desc: 'Autre compagnie / taxi-brousse' }
         ];
 
@@ -2904,7 +2904,7 @@ function enterGallery() {
             if (_userId) {
                 fetch('https://arkyl-galerie.onrender.com/api_supprimer_panier.php', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'quantite', user_id: _userId, artwork_id: itemId, quantity: newQty })
                 }).catch(e => console.warn('Sync quantité BDD échouée :', e.message));
             }
@@ -2929,7 +2929,7 @@ function enterGallery() {
                     btn.textContent = '🗑️ Supprimer';
                 }
                 delete _removeTimers[itemId];
-            } 3000);
+            }, 3000);
         }
 
         function removeFromCart(itemId) {
@@ -2944,7 +2944,7 @@ function enterGallery() {
             if (_userId) {
                 fetch('https://arkyl-galerie.onrender.com/api_supprimer_panier.php', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'supprimer', user_id: _userId, artwork_id: itemId })
                 }).catch(e => console.warn('Sync BDD échouée :', e.message));
             }
@@ -2981,7 +2981,7 @@ function enterGallery() {
                 setTimeout(() => {
                     const googleBtn = document.getElementById('googleLoginBtn');
                     if (googleBtn) googleBtn.click();
-                } 800);
+                }, 800);
                 return;
             }
 
@@ -3003,9 +3003,9 @@ function enterGallery() {
                 };
                 const shippingLabel = shippingNames[shippingMode] || 'Frais de livraison';
 
-                const response = fetch('api_stripe_checkout.php', {
+                const response = await fetch('api_stripe_checkout.php', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         user_id:       userId,
                         cart_items:    cartFallback,
@@ -3149,7 +3149,7 @@ function enterGallery() {
                     showToast('🎉 Paiement confirmé ! Commande ' + minOrder.order_number + ' créée.');
                     navigateTo('orders');
                     showOrderSuccessModal(minOrder);
-                } 300);
+                }, 300);
                 return;
             }
 
@@ -3203,7 +3203,7 @@ function enterGallery() {
 
                 // Nettoyer l'URL sans recharger la page
                 const cleanUrl = window.location.pathname;
-                window.history.replaceState({} document.title, cleanUrl);
+                window.history.replaceState({}, document.title, cleanUrl);
 
                 // Afficher la page commandes avec confirmation
                 setTimeout(() => {
@@ -3211,7 +3211,7 @@ function enterGallery() {
                     navigateTo('orders');
                     // Afficher modal de succès
                     showOrderSuccessModal(order);
-                } 400);
+                }, 400);
 
             } else {
                 console.log('ℹ️ Commande déjà dans l\'historique');
@@ -3260,23 +3260,23 @@ function enterGallery() {
         const ORDERS_API = 'https://arkyl-galerie.onrender.com/api_commandes.php';
 
         const DELIVERY_STATUSES = [
-            { key: 'En préparation', icon: '📦', label: 'En préparation', color: '#ff9800' }
-            { key: 'Préparée',       icon: '✅', label: 'Préparée',       color: '#ff9800' }
-            { key: 'Expédiée',       icon: '🚚', label: 'Expédiée',       color: '#2196f3' }
-            { key: 'En transit',     icon: '🛵', label: 'En transit',     color: '#2196f3' }
+            { key: 'En préparation', icon: '📦', label: 'En préparation', color: '#ff9800' },
+            { key: 'Préparée',       icon: '✅', label: 'Préparée',       color: '#ff9800' },
+            { key: 'Expédiée',       icon: '🚚', label: 'Expédiée',       color: '#2196f3' },
+            { key: 'En transit',     icon: '🛵', label: 'En transit',     color: '#2196f3' },
             { key: 'Livrée',         icon: '📬', label: 'Livrée',         color: '#4caf50' }
         ];
 
         const CARRIERS = [
-            { id: 'laposte_ci',  name: '🇨🇮 La Poste CI',     url: 'https://www.laposte.ci/suivi-de-colis?num=' }
-            { id: 'dhl',         name: 'DHL',                  url: 'https://www.dhl.com/fr-fr/home/tracking.html?tracking-id=' }
-            { id: 'chronopost',  name: 'Chronopost',           url: 'https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT=' }
-            { id: 'colissimo',   name: 'Colissimo',            url: 'https://www.laposte.fr/outils/suivre-vos-envois?code=' }
-            { id: 'fedex',       name: 'FedEx',                url: 'https://www.fedex.com/fr-fr/tracking.html?tracknumbers=' }
-            { id: 'ups',         name: 'UPS',                  url: 'https://www.ups.com/track?tracknum=' }
-            { id: 'gls',         name: 'GLS',                  url: 'https://gls-group.com/track/' }
-            { id: 'bolloré',     name: 'Bolloré Logistics',    url: '' }
-            { id: 'nsia',        name: 'NSIA Transport',        url: '' }
+            { id: 'laposte_ci',  name: '🇨🇮 La Poste CI',     url: 'https://www.laposte.ci/suivi-de-colis?num=' },
+            { id: 'dhl',         name: 'DHL',                  url: 'https://www.dhl.com/fr-fr/home/tracking.html?tracking-id=' },
+            { id: 'chronopost',  name: 'Chronopost',           url: 'https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT=' },
+            { id: 'colissimo',   name: 'Colissimo',            url: 'https://www.laposte.fr/outils/suivre-vos-envois?code=' },
+            { id: 'fedex',       name: 'FedEx',                url: 'https://www.fedex.com/fr-fr/tracking.html?tracknumbers=' },
+            { id: 'ups',         name: 'UPS',                  url: 'https://www.ups.com/track?tracknum=' },
+            { id: 'gls',         name: 'GLS',                  url: 'https://gls-group.com/track/' },
+            { id: 'bolloré',     name: 'Bolloré Logistics',    url: '' },
+            { id: 'nsia',        name: 'NSIA Transport',        url: '' },
             { id: 'other',       name: 'Autre transporteur',   url: '' }
         ];
 
@@ -3310,7 +3310,7 @@ function enterGallery() {
                 }));
                 const resp = fetch(ORDERS_API, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'create',
                         user_id: currentUser?.id || currentUser?.googleId || currentUser?.email || '',
@@ -3368,9 +3368,9 @@ function enterGallery() {
         function buildOrderTimeline(order) {
             const es = order.escrow_status || 'payée_en_attente';
             const steps = [
-                { key: 'payée_en_attente', icon: '💳', label: 'Commande validée' }
-                { key: 'expédiée',         icon: '🚚', label: 'Expédiée' }
-                { key: 'livrée_confirmée', icon: '📬', label: 'Réception confirmée' }
+                { key: 'payée_en_attente', icon: '💳', label: 'Commande validée' },
+                { key: 'expédiée',         icon: '🚚', label: 'Expédiée' },
+                { key: 'livrée_confirmée', icon: '📬', label: 'Réception confirmée' },
                 { key: 'fonds_libérés',    icon: '✅', label: 'Transaction complète' }
             ];
             const escrowOrder = ['payée_en_attente','expédiée','livrée_confirmée','fonds_libérés'];
@@ -3576,7 +3576,7 @@ function enterGallery() {
                 // Change filter to show the new status section
                 setTimeout(() => {
                     filterAdminOrders(newStatus);
-                } 300);
+                }, 300);
             }
         }
 
@@ -3588,7 +3588,7 @@ function enterGallery() {
             try {
                 const resp = fetch(ORDERS_API, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'confirm_reception', order_id: orderId })
                 });
                 if (data.success) {
@@ -3597,7 +3597,7 @@ function enterGallery() {
                     setTimeout(async () => {
                         showToast('💰 Fonds libérés — l\'artiste a été payé !');
                         renderOrders();
-                    } 2000);
+                    }, 2000);
                 }
             } catch(e) {
                 // Fallback local
@@ -4233,10 +4233,22 @@ function enterGallery() {
         }
 
         // 🚚 NOUVELLE FONCTION: Mettre à jour le statut d'une commande
-        ,
-                'Expédiée': { icon: '🚚', client: 'Votre commande a été expédiée !', admin: 'Commande expédiée' }
-                'En livraison': { icon: '🛵', client: 'Votre commande est en cours de livraison', admin: 'Commande en livraison' }
-                'Livrée': { icon: '✅', client: 'Votre commande a été livrée avec succès !', admin: 'Commande livrée' }
+        function updateOrderStatus(orderId, newStatus) {
+            const orders = safeStorage.get('arkyl_orders', []);
+            const orderIndex = orders.findIndex(o => o.id === orderId);
+            if (orderIndex === -1) return;
+
+            const order = orders[orderIndex];
+            const oldStatus = order.status;
+            order.status = newStatus;
+            orders[orderIndex] = order;
+            safeStorage.set('arkyl_orders', orders);
+
+            const statusMessages = {
+                'En préparation': { icon: '📦', client: 'Votre commande est en préparation', admin: 'Commande en préparation' },
+                'Expédiée': { icon: '🚚', client: 'Votre commande a été expédiée !', admin: 'Commande expédiée' },
+                'En livraison': { icon: '🛵', client: 'Votre commande est en cours de livraison', admin: 'Commande en livraison' },
+                'Livrée': { icon: '✅', client: 'Votre commande a été livrée avec succès !', admin: 'Commande livrée' },
                 'Annulée': { icon: '❌', client: 'Votre commande a été annulée', admin: 'Commande annulée' }
             };
             
@@ -4296,7 +4308,7 @@ function enterGallery() {
                     adminMessage: 'La commande est maintenant en préparation',
                     artistTitle: '📦 Préparation de votre œuvre',
                     artistMessage: 'Votre œuvre est en cours de préparation pour livraison'
-                }
+                },
                 'Expédiée': {
                     icon: '🚚',
                     clientTitle: '🚚 Commande expédiée !',
@@ -4305,7 +4317,7 @@ function enterGallery() {
                     adminMessage: 'La commande a été expédiée au client',
                     artistTitle: '🚚 Votre œuvre a été expédiée !',
                     artistMessage: 'Votre œuvre est en route vers le client'
-                }
+                },
                 'En livraison': {
                     icon: '🛵',
                     clientTitle: '🛵 Commande en cours de livraison',
@@ -4314,7 +4326,7 @@ function enterGallery() {
                     adminMessage: 'La commande est en livraison chez le client',
                     artistTitle: '🛵 Livraison en cours',
                     artistMessage: 'Votre œuvre est actuellement en cours de livraison'
-                }
+                },
                 'Livrée': {
                     icon: '✅',
                     clientTitle: '✅ Commande livrée !',
@@ -4323,7 +4335,7 @@ function enterGallery() {
                     adminMessage: 'La commande a été livrée au client avec succès',
                     artistTitle: '✅ Œuvre livrée avec succès !',
                     artistMessage: 'Félicitations ! Votre œuvre a été livrée au client'
-                }
+                },
                 'Annulée': {
                     icon: '❌',
                     clientTitle: '❌ Commande annulée',
@@ -4590,12 +4602,12 @@ function enterGallery() {
 
             navigateTo('productDetail');
             hideLoading();
-            } 400);
+            }, 400);
         }
 
         function addToCartFromDetail(productId) {
             const btn = document.getElementById('detail-cart-btn') || document.querySelector('.detail-add-cart-btn');
-            const fakeEvent = { stopPropagation: () => {} currentTarget: btn, target: btn };
+            const fakeEvent = { stopPropagation: () => {}, currentTarget: btn, target: btn };
             addToCart(fakeEvent, productId);
         }
 
@@ -4613,7 +4625,7 @@ function enterGallery() {
                     mainImage.src = window.currentProductPhotos[index];
                     mainImage.onclick = () => openImageLightbox(window.currentProductPhotos[index]);
                     mainImage.style.opacity = '1';
-                } 150);
+                }, 150);
             }
             
             if (indexDisplay) {
@@ -4650,7 +4662,7 @@ function enterGallery() {
                 setTimeout(() => {
                     mainImg.src = window.currentProductPhotos[index];
                     mainImg.style.opacity = '1';
-                } 150);
+                }, 150);
             }
             // Mettre à jour le compteur
             const counter = document.getElementById('jmCurrent');
@@ -4706,7 +4718,7 @@ function enterGallery() {
             // Récupérer les œuvres : depuis l'API et depuis getProducts()
             let artistWorks = [];
             try {
-                const response = fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=${Date.now()}`);
+                const response = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=${Date.now()}`);
                 const result = await response.json();
                 if (result.success && result.data) {
                     artistWorks = result.data.filter(a =>
@@ -4911,56 +4923,57 @@ function enterGallery() {
             }
         }
 
+
         async function followArtist(artistId, artistName) {
-    if (!currentUser) {
-        showToast('⚠️ Veuillez vous connecter pour suivre un artiste');
-        return;
-    }
-
-    try {
-        // 1. On prévient le serveur
-        const response = await fetch('https://arkyl-galerie.onrender.com/api_toggle_follow.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                user_id: currentUser.id, 
-                artist_id: artistId 
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            // 2. On met à jour la mémoire locale selon la réponse du serveur
-            if (!currentUser.following) currentUser.following = [];
-
-            if (data.action === 'followed') {
-                const avatarImgElement = document.querySelector('.artist-header-avatar');
-                const artistAvatar = avatarImgElement ? avatarImgElement.src : 'default-avatar.png';
-                
-                currentUser.following.push({
-                    id: artistId,
-                    name: artistName,
-                    avatar: artistAvatar
-                });
-                showToast(`✅ Vous suivez maintenant ${artistName}`);
-            } else if (data.action === 'unfollowed') {
-                currentUser.following = currentUser.following.filter(f => f.id !== artistId);
-                showToast(`ℹ️ Vous ne suivez plus ${artistName}`);
+            if (!currentUser) {
+                showToast('⚠️ Veuillez vous connecter pour suivre un artiste');
+                return;
             }
 
-            safeStorage.set('arkyl_current_user', currentUser);
-            
-            // (Optionnel) Ici tu peux ajouter une ligne pour changer le texte du bouton de "Suivre" à "Abonné"
-            
-        } else {
-            showToast('❌ Erreur serveur : ' + data.message);
+            try {
+                // 1. On prévient le serveur
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_toggle_follow.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        user_id: currentUser.id, 
+                        artist_id: artistId 
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // 2. On met à jour la mémoire locale selon la réponse du serveur
+                    if (!currentUser.following) currentUser.following = [];
+
+                    if (data.action === 'followed') {
+                        const avatarImgElement = document.querySelector('.artist-header-avatar');
+                        const artistAvatar = avatarImgElement ? avatarImgElement.src : 'default-avatar.png';
+                        
+                        currentUser.following.push({
+                            id: artistId,
+                            name: artistName,
+                            avatar: artistAvatar
+                        });
+                        showToast(`✅ Vous suivez maintenant ${artistName}`);
+                    } else if (data.action === 'unfollowed') {
+                        currentUser.following = currentUser.following.filter(f => f.id !== artistId);
+                        showToast(`ℹ️ Vous ne suivez plus ${artistName}`);
+                    }
+
+                    safeStorage.set('arkyl_current_user', currentUser);
+                    
+                } else {
+                    showToast('❌ Erreur serveur : ' + data.message);
+                }
+            } catch (error) {
+                console.error("Erreur d'abonnement :", error);
+                showToast('❌ Erreur de connexion au serveur');
+            }
         }
-    } catch (error) {
-        console.error("Erreur d'abonnement :", error);
-        showToast('❌ Erreur de connexion au serveur');
-    }
-}
+
+
 
 // ==========================================
 // SERVICE D'UPLOAD D'IMAGES EXTERNE (CLOUDINARY)
@@ -4993,4 +5006,6 @@ async function uploadImageToCloudinary(file) {
         console.error("Erreur d'upload :", error);
         throw error;
     }
-}
+}  // Fin DOMContentLoaded
+
+}  // Fin DOMContentLoaded

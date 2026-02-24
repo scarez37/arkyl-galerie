@@ -6120,15 +6120,7 @@ function enterGallery() {
         let currentGalleryFilter = 'all';
 
         // ==================== MODE SWITCHING ====================
-        function switchToArtistMode() {
-            // Vider les données du précédent artiste avant de charger les nouvelles
-            db.artworks = [];
-            db.sales = [];
-            db.nextId = 1;
-            db._save('artist_artworks', []);
-            db._save('artist_sales', []);
-            db._save('next_artwork_id', 1);
-
+        async function switchToArtistMode() {
             document.getElementById('clientNav').style.display  = 'none';
             document.getElementById('artistNav').style.display  = 'flex';
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -6136,21 +6128,25 @@ function enterGallery() {
             hydrateProfile();
             showArtistSection('dashboard');
             window.scrollTo(0,0);
-            // Charger les œuvres depuis le serveur pour cet artiste
-            loadArtistArtworksFromServer();
+            // Attendre le chargement serveur avant d'afficher — évite les données du précédent artiste
+            await loadArtistArtworksFromServer();
         }
 
         async function loadArtistArtworksFromServer() {
             if (!currentUser || !currentUser.id) return;
+
+            // Toujours partir d'un état vide pour cet artiste
+            db.artworks = [];
+            db.sales = [];
+            db._save('artist_artworks', []);
+
             try {
                 const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(currentUser.id)}&t=${Date.now()}`);
                 const result = await resp.json();
-                if (result.success && result.data && result.data.length > 0) {
-                    // Synchroniser db.artworks avec les données serveur
-                    // Remplacer complètement db.artworks par les données serveur
+                if (result.success && result.data) {
                     db.artworks = result.data.map(art => ({
-                        id: art.id,               // ID PostgreSQL (int)
-                        server_id: art.id,        // Alias explicite
+                        id: art.id,
+                        server_id: art.id,
                         title: art.title,
                         category: art.category,
                         price: art.price,
@@ -6163,15 +6159,16 @@ function enterGallery() {
                         createdAt: art.created_at || new Date().toISOString()
                     }));
                     db._save('artist_artworks', db.artworks);
-                    // Rafraîchir si déjà sur la section œuvres
-                    const artSection = document.getElementById('artworksSection');
-                    if (artSection && artSection.classList.contains('active')) renderArtworks();
-                    const dashSection = document.getElementById('dashboardSection');
-                    if (dashSection && dashSection.classList.contains('active')) updateDashboard();
                 }
             } catch(e) {
-                // Silencieux — données locales suffisent
+                // Silencieux — db.artworks reste [] pour cet artiste
             }
+
+            // Toujours rafraîchir l'UI après le chargement (même si 0 œuvres)
+            const artSection = document.getElementById('artworksSection');
+            if (artSection && artSection.classList.contains('active')) renderArtworks();
+            const dashSection = document.getElementById('dashboardSection');
+            if (dashSection && dashSection.classList.contains('active')) updateDashboard();
         }
 
         function switchToClientMode() {

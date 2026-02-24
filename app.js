@@ -605,38 +605,41 @@ function enterGallery() {
             // Déconnecter de Google
             if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
                 google.accounts.id.disableAutoSelect();
+                console.log('✅ Déconnexion Google effectuée');
             }
-
-            // Super-nettoyage : toutes les clés possibles liées aux comptes et aux œuvres
-            const keysToDestroy = [
-                'arkyl_current_user',
-                'arkyl_arkyl_current_user',
-                'arkyl_user',
-                'arkyl_artist_account',
-                'arkyl_products',
-                'arkyl_pending_order',
-                'arkyl_cart',
-                'arkyl_orders',
-                'arkyl_favorites',
-                'arkyl_notifications',
-                'arkyl_last_page',
-            ];
-            keysToDestroy.forEach(key => {
-                localStorage.removeItem(key);
-                safeStorage.remove(key);
-                delete _memStore[key];
-            });
-
-            // Réinitialiser les variables globales
+            
+            // Déconnecter le compte utilisateur
             currentUser = null;
-            if (typeof window.toutesLesOeuvres !== 'undefined') window.toutesLesOeuvres = [];
+            safeStorage.remove('arkyl_current_user');
 
+            // Vider le panier et l'adresse en mémoire au logout (localStorage conservé par compte)
+            cartItems = [];
+            clientAddress = null;
+            posteVille = '';
+            transportCompagnie = '';
+            mainPropreLieu = '';
+            updateBadges();
+            
+            // Déconnecter le compte artiste (si existant)
+            if (hasArtistAccount) {
+                safeStorage.remove('arkyl_artist_account'); delete _memStore['arkyl_artist_account'];
+                console.log('✅ Compte artiste déconnecté');
+            }
+            
+            // Retour au mode client si on était en mode artiste
+            const artistSpace = document.getElementById('artistSpace');
+            if (artistSpace && artistSpace.style.display !== 'none') {
+                switchToClientMode();
+            }
+            
+            updateAuthUI();
             showToast('👋 Déconnecté avec succès - À bientôt!');
-
-            // Rechargement avec paramètre ?clear= pour vider toute la RAM du navigateur
-            setTimeout(() => {
-                window.location.href = window.location.pathname + '?clear=' + Date.now();
-            }, 600);
+            
+            // Hide user menu
+            document.getElementById('userMenuDropdown').classList.remove('show');
+            
+            // Navigate to home page
+            navigateTo('home');
         }
 
         function updateAuthUI() {
@@ -1081,7 +1084,7 @@ function enterGallery() {
                     </div>
                     <div class="admin-item-actions">
                         <button class="admin-btn-edit" onclick="editArtwork(${product.id})">✏️ Modifier</button>
-                        <button class="admin-btn-delete" onclick="deleteArtwork(${product.id})">🗑️ Supprimer</button>
+                        <button class="admin-btn-delete" onclick="deleteAdminArtwork(${product.id})">🗑️ Supprimer</button>
                     </div>
                 </div>
             `).join('');
@@ -1314,7 +1317,7 @@ function enterGallery() {
                     </div>
                     <div class="admin-item-actions">
                         <button class="admin-btn-edit" onclick="editArtwork(${product.id})">✏️ Modifier</button>
-                        <button class="admin-btn-delete" onclick="deleteArtwork(${product.id})">🗑️ Supprimer</button>
+                        <button class="admin-btn-delete" onclick="deleteAdminArtwork(${product.id})">🗑️ Supprimer</button>
                     </div>
                 </div>
             `).join('');
@@ -1412,7 +1415,7 @@ function enterGallery() {
             }
         }
 
-        function deleteArtwork(id) {
+        function deleteAdminArtwork(id) {
             if (!confirm('Êtes-vous sûr de vouloir supprimer cette œuvre ?')) return;
             
             let products = getProducts();
@@ -1641,29 +1644,22 @@ function enterGallery() {
             else if (page === 'orders') renderOrders();
             else if (page === 'adminOrders') renderAdminOrders();
             else if (page === 'home') {
-                // renderProducts() est désactivée — on utilise chargerLaVraieGalerie()
                 if (window.toutesLesOeuvres && window.toutesLesOeuvres.length > 0) {
                     if (typeof afficherOeuvresFiltrees === 'function') afficherOeuvresFiltrees();
                 } else if (typeof chargerLaVraieGalerie === 'function') {
                     chargerLaVraieGalerie();
                 }
             }
-            else if (page === 'myArtists') renderMyArtistsPage(); // Appel async géré automatiquement
-            // productDetail and artistDetail don't need special handling
+            else if (page === 'myArtists') renderMyArtistsPage();
+            
+            // Historique de navigation (fusionné ici, plus besoin du wrapper)
+            if (typeof updateNavigationHistory === 'function') updateNavigationHistory(page);
             
             window.scrollTo(0, 0);
         }
 
         // ==================== PRODUCTS ====================
-        // ============ FONCTION DÉSACTIVÉE - REMPLACÉE PAR chargerLaVraieGalerie() ============
-        async function renderProducts() {
-            // ⚠️ FONCTION DÉSACTIVÉE : La galerie est maintenant gérée par chargerLaVraieGalerie()
-            // Cette fonction est conservée vide pour éviter les erreurs des autres scripts qui l'appellent
-            console.log('ℹ️ renderProducts() désactivée - utiliser chargerLaVraieGalerie() à la place');
-            return;
-        }
-
-        // Tout vient de l'API uniquement
+        // Galerie gérée par chargerLaVraieGalerie() dans galerie.js
 
         // ============ GESTION DES LIKES AVEC DONNÉES CENTRALISÉES ============
         async function toggleLikeDB(event, artworkId) {
@@ -4335,58 +4331,6 @@ function enterGallery() {
         }
 
         // 🚚 NOUVELLE FONCTION: Mettre à jour le statut d'une commande
-        function updateOrderStatus(orderId, newStatus) {
-            const order = orderHistory.find(o => o.id === orderId);
-            if (!order) return;
-            
-            const oldStatus = order.status;
-            order.status = newStatus;
-            safeStorage.set('arkyl_orders', orderHistory);
-            
-            // Icônes et messages selon le statut
-            const statusMessages = {
-                'En préparation': { icon: '📦', client: 'Votre commande est en cours de préparation', admin: 'Commande en préparation' },
-                'Expédiée': { icon: '🚚', client: 'Votre commande a été expédiée !', admin: 'Commande expédiée' },
-                'En livraison': { icon: '🛵', client: 'Votre commande est en cours de livraison', admin: 'Commande en livraison' },
-                'Livrée': { icon: '✅', client: 'Votre commande a été livrée avec succès !', admin: 'Commande livrée' },
-                'Annulée': { icon: '❌', client: 'Votre commande a été annulée', admin: 'Commande annulée' }
-            };
-            
-            const statusInfo = statusMessages[newStatus] || statusMessages['En préparation'];
-            
-            // Notification client
-            const clientNotification = {
-                id: Date.now(),
-                title: `${statusInfo.icon} Mise à jour de commande`,
-                text: `${statusInfo.client} • Commande #${orderId} • Statut: ${oldStatus} → ${newStatus}`,
-                time: 'À l\'instant',
-                unread: true,
-                type: 'order-status',
-                orderId: orderId
-            };
-            
-            notifications.unshift(clientNotification);
-            
-            // Notification admin si applicable
-            if (currentUser && currentUser.isAdmin) {
-                const adminNotification = {
-                    id: Date.now() + 1,
-                    title: `📊 Statut modifié`,
-                    text: `${statusInfo.admin} • Commande #${orderId} • Client: ${order.user} • ${oldStatus} → ${newStatus}`,
-                    time: 'À l\'instant',
-                    unread: true,
-                    type: 'order-admin',
-                    orderId: orderId
-                };
-                
-                notifications.unshift(adminNotification);
-            }
-            
-            safeStorage.set('arkyl_notifications', notifications);
-            updateBadges();
-            renderNotifications();
-        }
-
         // 🔔 NOUVELLE FONCTION: Envoyer des notifications lors des changements de statut
         function sendStatusChangeNotifications(order, oldStatus, newStatus) {
             const itemsCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
@@ -6016,31 +5960,15 @@ function enterGallery() {
         // ==================== ARTISTE DATABASE ====================
         class ArtistDatabase {
             constructor() {
-                // Ne pas charger au constructeur — attendre setArtist()
-                this.artistKey = 'unknown';
-                this.artworks = [];
-                this.sales    = [];
-                this.nextId   = 1;
-            }
-
-            // Initialiser la DB pour un artiste précis — isole les données par compte
-            setArtist(artistId) {
-                this.artistKey = 'artist_' + String(artistId).replace(/[^a-zA-Z0-9]/g, '_');
-                this.artworks = [];
-                this.sales    = [];
-                this.nextId   = 1;
-                console.log('🎨 ArtistDB initialisée pour:', this.artistKey);
-            }
-
-            _key(k) {
-                return 'arkyl_' + this.artistKey + '_' + k;
+                this.artworks = this._load('artist_artworks') || [];
+                this.sales    = this._load('artist_sales')    || []; // Tableau vide par défaut
+                this.nextId = this._load('next_artwork_id') || 1;
             }
             
             _load(k) { 
                 try { 
-                    const d = _memStore[this._key(k)];
-                    if (d !== undefined) return Array.isArray(d) ? d : JSON.parse(d);
-                    return null;
+                    const d = _memStore['arkyl_'+k] || null; 
+                    return d ? JSON.parse(d) : null; 
                 } catch(e){ 
                     console.error('Erreur de chargement:', k, e); 
                     return null; 
@@ -6049,10 +5977,11 @@ function enterGallery() {
             
             _save(k,v) { 
                 try { 
-                    _memStore[this._key(k)] = v;
+                    _memStore['arkyl_'+k] = v; 
                     return true;
                 } catch(e){
                     console.error('Erreur de sauvegarde:', k, e);
+                    // Check if quota exceeded
                     if (e.name === 'QuotaExceededError') {
                         showToast('⚠️ Espace de stockage insuffisant. Supprimez des œuvres anciennes.');
                     }
@@ -6105,11 +6034,11 @@ function enterGallery() {
                 } 
             }
             
-            // Helper method to clear all data for current artist
+            // Helper method to clear all data
             clearAll() {
-                delete _memStore[this._key('artist_artworks')];
-                delete _memStore[this._key('artist_sales')];
-                delete _memStore[this._key('next_artwork_id')];
+                delete _memStore['arkyl_artist_artworks'];
+                delete _memStore['arkyl_artist_sales'];
+                delete _memStore['arkyl_next_artwork_id'];
                 this.artworks = [];
                 this.sales = [];
                 this.nextId = 1;
@@ -6125,7 +6054,7 @@ function enterGallery() {
         let currentGalleryFilter = 'all';
 
         // ==================== MODE SWITCHING ====================
-        async function switchToArtistMode() {
+        function switchToArtistMode() {
             document.getElementById('clientNav').style.display  = 'none';
             document.getElementById('artistNav').style.display  = 'flex';
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -6133,23 +6062,21 @@ function enterGallery() {
             hydrateProfile();
             showArtistSection('dashboard');
             window.scrollTo(0,0);
-            // Attendre le chargement serveur avant d'afficher — évite les données du précédent artiste
-            await loadArtistArtworksFromServer();
+            // Charger les œuvres depuis le serveur pour la modification
+            loadArtistArtworksFromServer();
         }
 
         async function loadArtistArtworksFromServer() {
             if (!currentUser || !currentUser.id) return;
-
-            // Initialiser la DB pour cet artiste précis (clés isolées par ID)
-            db.setArtist(currentUser.id);
-
             try {
                 const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(currentUser.id)}&t=${Date.now()}`);
                 const result = await resp.json();
-                if (result.success && result.data) {
+                if (result.success && result.data && result.data.length > 0) {
+                    // Synchroniser db.artworks avec les données serveur
+                    // Remplacer complètement db.artworks par les données serveur
                     db.artworks = result.data.map(art => ({
-                        id: art.id,
-                        server_id: art.id,
+                        id: art.id,               // ID PostgreSQL (int)
+                        server_id: art.id,        // Alias explicite
                         title: art.title,
                         category: art.category,
                         price: art.price,
@@ -6162,16 +6089,15 @@ function enterGallery() {
                         createdAt: art.created_at || new Date().toISOString()
                     }));
                     db._save('artist_artworks', db.artworks);
+                    // Rafraîchir si déjà sur la section œuvres
+                    const artSection = document.getElementById('artworksSection');
+                    if (artSection && artSection.classList.contains('active')) renderArtworks();
+                    const dashSection = document.getElementById('dashboardSection');
+                    if (dashSection && dashSection.classList.contains('active')) updateDashboard();
                 }
             } catch(e) {
-                // Silencieux — db.artworks reste [] pour cet artiste
+                // Silencieux — données locales suffisent
             }
-
-            // Toujours rafraîchir l'UI après le chargement (même si 0 œuvres)
-            const artSection = document.getElementById('artworksSection');
-            if (artSection && artSection.classList.contains('active')) renderArtworks();
-            const dashSection = document.getElementById('dashboardSection');
-            if (dashSection && dashSection.classList.contains('active')) updateDashboard();
         }
 
         function switchToClientMode() {
@@ -6237,13 +6163,18 @@ function enterGallery() {
 
         // ==================== ARTISTE NAVIGATION ====================
         function filterArtistOrders(status, btn) {
-            document.querySelectorAll('#salesSection .filter-btn').forEach(b => b.classList.remove('active'));
-            if (btn) btn.classList.add('active');
+            // Désactiver tous les boutons filtre dans le conteneur parent du bouton cliqué
+            if (btn) {
+                const filterBar = btn.closest('.filter-bar') || btn.parentElement;
+                filterBar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            }
             const cards = document.querySelectorAll('#artistOrdersContainer .admin-order-card');
             cards.forEach(card => {
-                const statusEl = card.querySelector('[data-status]');
                 if (status === 'all') { card.style.display = ''; return; }
-                const cardStatus = statusEl?.dataset?.status || card.innerHTML;
+                // Chercher le statut dans data-status ou dans le texte de la carte
+                const statusEl = card.querySelector('[data-status]');
+                const cardStatus = statusEl ? statusEl.dataset.status : card.innerText;
                 card.style.display = cardStatus.includes(status) ? '' : 'none';
             });
         }
@@ -6270,21 +6201,13 @@ function enterGallery() {
 
         // ==================== DASHBOARD ====================
         function updateDashboard() {
-            if (!currentUser || !currentUser.id) return;
-
             // Ensure db.sales is an array
             if (!Array.isArray(db.sales)) {
                 db.sales = [];
                 db._save('artist_sales', db.sales);
             }
-
-            // Filtre blindé : ne compter que les œuvres de cet artiste
-            const myArtworks = db.artworks.filter(a =>
-                !a.artist_id || String(a.artist_id).trim() === String(currentUser.id).trim()
-            );
-            db.artworks = myArtworks; // Synchroniser db pour le reste du dashboard
-
-            document.getElementById('totalArtworks').textContent = myArtworks.length;
+            
+            document.getElementById('totalArtworks').textContent = db.artworks.length;
             const rev = db.sales.reduce((s,sale) => s + sale.price, 0);
             document.getElementById('totalRevenue').textContent = formatPrice(rev);
             document.getElementById('totalSales').textContent   = db.sales.length;
@@ -6766,15 +6689,8 @@ function enterGallery() {
 
         function renderArtworks() {
             const c = document.getElementById('artworksGrid');
-            if (!currentUser || !currentUser.id) return;
-
-            // Filtre blindé : on compare en String pour éviter les problèmes d'ID Google (grand nombre)
-            const myArtworks = db.artworks.filter(a =>
-                !a.artist_id || String(a.artist_id).trim() === String(currentUser.id).trim()
-            );
-
-            if (!myArtworks.length) { c.innerHTML = '<p style="text-align:center;opacity:0.7;grid-column:1/-1;">Aucune œuvre. Commencez à créer votre portfolio !</p>'; return; }
-            c.innerHTML = myArtworks.map(a => {
+            if (!db.artworks.length) { c.innerHTML = '<p style="text-align:center;opacity:0.7;grid-column:1/-1;">Aucune œuvre. Commencez à créer votre portfolio !</p>'; return; }
+            c.innerHTML = db.artworks.map(a => {
                 // Determine what to display: photo or emoji
                 let imageContent = '';
                 if (a.photo) {
@@ -6822,87 +6738,6 @@ function enterGallery() {
         }
 
         // ==================== PUBLIC PRODUCTS MANAGEMENT ====================
-        function addToPublicProducts(artwork) {
-            const products = getProducts();
-            
-            // Trouver le prochain ID disponible
-            const maxId = products.length > 0 ? Math.max(...products.map(p => p.id)) : 0;
-            
-            const publicProduct = {
-                id: maxId + 1,
-                title: artwork.title,
-                artist: artwork.artistName || 'Artiste',
-                artistCountry: artwork.artistCountry || '',
-                artistAvatar: artwork.artistAvatar || '',
-                category: artwork.category,
-                price: artwork.price,
-                image: artwork.photo,
-                photos: artwork.photos || [artwork.photo],
-                description: artwork.description || '',
-                dimensions: artwork.dimensions || null,
-                technique: artwork.technique || null,
-                techniqueCustom: artwork.techniqueCustom || null,
-                createdAt: new Date().toISOString(),
-                // Stocker l'ID de l'artiste pour lier les deux
-                artistArtworkId: artwork.id
-            };
-            
-            products.push(publicProduct);
-            saveProducts(products);
-            
-            // Ajouter au storage partagé pour le monitoring en temps réel
-            const artworkKey = `artwork:${publicProduct.id}`;
-            window.storage.set(artworkKey, JSON.stringify(publicProduct), true).then(() => {
-                console.log('✅ Œuvre ajoutée au storage partagé:', artworkKey);
-            }).catch(err => {
-                console.log('⚠️ Erreur ajout storage:', err);
-            });
-            
-            console.log('✅ Œuvre ajoutée à la galerie publique:', publicProduct);
-        }
-
-        function updatePublicProduct(artistArtworkId, artwork) {
-            const products = getProducts();
-            const index = products.findIndex(p => p.artistArtworkId === artistArtworkId);
-            
-            if (index > -1) {
-                products[index] = {
-                    ...products[index],
-                    title: artwork.title,
-                    category: artwork.category,
-                    price: artwork.price,
-                    image: artwork.photo,
-                    photos: artwork.photos || [artwork.photo],
-                    description: artwork.description || '',
-                    dimensions: artwork.dimensions || null,
-                    technique: artwork.technique || null,
-                    techniqueCustom: artwork.techniqueCustom || null
-                };
-                
-                saveProducts(products);
-            }
-        }
-
-        function removeFromPublicProducts(artistArtworkId) {
-            const products = getProducts();
-            const productToRemove = products.find(p => p.artistArtworkId === artistArtworkId);
-            const filtered = products.filter(p => p.artistArtworkId !== artistArtworkId);
-            
-            if (filtered.length < products.length) {
-                saveProducts(filtered);
-                
-                // Supprimer aussi du storage partagé
-                if (productToRemove && productToRemove.id) {
-                    const artworkKey = `artwork:${productToRemove.id}`;
-                    window.storage.delete(artworkKey, true).then(() => {
-                        console.log('✅ Œuvre supprimée du storage partagé:', artworkKey);
-                    }).catch(err => {
-                        console.log('⚠️ Erreur suppression storage:', err);
-                    });
-                }
-            }
-        }
-
         // ==================== SALES ====================
         function renderSales() {
             const tbody = document.getElementById('salesTableBody');
@@ -7199,12 +7034,7 @@ function enterGallery() {
             document.getElementById('loadingOverlay').classList.remove('show');
         }
 
-        // Override original navigateTo to use history
-        const originalNavigateTo = navigateTo;
-        navigateTo = function(page) {
-            originalNavigateTo(page);
-            updateNavigationHistory(page);
-        };
+        // navigateTo gère désormais l'historique en interne (plus de wrapper)
 
         // ==================== ARTIST PROFILE MANAGEMENT ====================
         

@@ -618,6 +618,14 @@ function enterGallery() {
             posteVille = '';
             transportCompagnie = '';
             mainPropreLieu = '';
+
+            // ── Réinitialiser tous les caches liés au compte ────────────
+            productsCache = null;
+            favoritesCache = null;
+            lastRenderTime = {};
+            window.toutesLesOeuvres = [];
+            notifications = [];
+
             updateBadges();
             
             // Déconnecter le compte artiste (si existant)

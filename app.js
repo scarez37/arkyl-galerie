@@ -191,6 +191,57 @@ function enterGallery() {
             new MutationObserver(apply).observe(document.documentElement, { childList: true, subtree: true });
         })();
 
+        let currentUser = null; // Déclaré globalement — restauré par restoreSession
+        const _memStore = {};
+        const safeStorage = {
+            get: (key, defaultValue = null) => {
+                try {
+                    const raw = localStorage.getItem(key);
+                    if (raw !== null) return JSON.parse(raw);
+                } catch(e) {}
+                return (key in _memStore) ? _memStore[key] : defaultValue;
+            },
+            set: (key, value) => {
+                try {
+                    localStorage.setItem(key, JSON.stringify(value));
+                } catch(e) {}
+                _memStore[key] = value;
+                return true;
+            },
+            remove: (key) => {
+                try { localStorage.removeItem(key); } catch(e) {}
+                delete _memStore[key];
+                return true;
+            }
+        };
+
+        // ==================== DATA ====================
+        // Retourne le compte artiste de l'utilisateur connecté (cherche par Google ID puis par email)
+        function getArtistAccount() {
+            if (!currentUser) return null;
+            // 1. Chercher par Google ID (clé principale)
+            const uid = currentUser.id || currentUser.googleId;
+            if (uid) {
+                const byId = safeStorage.get(`arkyl_artist_account_${uid}`, null);
+                if (byId) return byId;
+            }
+            // 2. Fallback par email (créé avant connexion Google ou depuis connexion.html)
+            if (currentUser.email) {
+                const byEmail = safeStorage.get(`arkyl_artist_account_email_${currentUser.email.toLowerCase()}`, null);
+                if (byEmail) {
+                    // Migrer vers la clé Google ID pour les prochaines fois
+                    if (uid) safeStorage.set(`arkyl_artist_account_${uid}`, byEmail);
+                    return byEmail;
+                }
+            }
+            return null;
+        }
+
+        // Clé de stockage principale pour le compte artiste courant
+        function artistAccountKey() {
+            const uid = currentUser?.id || currentUser?.googleId || currentUser?.email || 'default';
+            return `arkyl_artist_account_${uid}`;
+        }
         document.addEventListener('DOMContentLoaded', () => {
 
             // ── DÉTECTION RETOUR STRIPE — EN PREMIER AVANT TOUT ─────────
@@ -336,56 +387,6 @@ function enterGallery() {
 
         // ==================== SAFE STORAGE HELPERS ====================
         // Persiste dans localStorage avec fallback mémoire
-        const _memStore = {};
-        const safeStorage = {
-            get: (key, defaultValue = null) => {
-                try {
-                    const raw = localStorage.getItem(key);
-                    if (raw !== null) return JSON.parse(raw);
-                } catch(e) {}
-                return (key in _memStore) ? _memStore[key] : defaultValue;
-            },
-            set: (key, value) => {
-                try {
-                    localStorage.setItem(key, JSON.stringify(value));
-                } catch(e) {}
-                _memStore[key] = value;
-                return true;
-            },
-            remove: (key) => {
-                try { localStorage.removeItem(key); } catch(e) {}
-                delete _memStore[key];
-                return true;
-            }
-        };
-
-        // ==================== DATA ====================
-        // Retourne le compte artiste de l'utilisateur connecté (cherche par Google ID puis par email)
-        function getArtistAccount() {
-            if (!currentUser) return null;
-            // 1. Chercher par Google ID (clé principale)
-            const uid = currentUser.id || currentUser.googleId;
-            if (uid) {
-                const byId = safeStorage.get(`arkyl_artist_account_${uid}`, null);
-                if (byId) return byId;
-            }
-            // 2. Fallback par email (créé avant connexion Google ou depuis connexion.html)
-            if (currentUser.email) {
-                const byEmail = safeStorage.get(`arkyl_artist_account_email_${currentUser.email.toLowerCase()}`, null);
-                if (byEmail) {
-                    // Migrer vers la clé Google ID pour les prochaines fois
-                    if (uid) safeStorage.set(`arkyl_artist_account_${uid}`, byEmail);
-                    return byEmail;
-                }
-            }
-            return null;
-        }
-
-        // Clé de stockage principale pour le compte artiste courant
-        function artistAccountKey() {
-            const uid = currentUser?.id || currentUser?.googleId || currentUser?.email || 'default';
-            return `arkyl_artist_account_${uid}`;
-        }
         window.currentCategory = 'all';
         let currentCategory = 'all';
         let favorites = safeStorage.get('arkyl_favorites', []);
@@ -427,7 +428,6 @@ function enterGallery() {
         }
         
         
-        let currentUser = null; // Sera restauré depuis localStorage au démarrage
 
         // ============ SYSTÈME DE CONNEXION GOOGLE AUTHENTIQUE ============
         

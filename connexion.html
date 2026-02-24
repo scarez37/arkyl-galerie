@@ -261,29 +261,52 @@
             console.log('📥 Réponse parsée:', result);
 
             if (result.success) {
-                // Sauvegarder les informations dans localStorage (ancien système)
+                const userId   = result.user_id   || result.id;
+                const userName = result.user_name  || result.name;
+                const userEmail= result.user_email || result.email;
+
+                // Compte artiste — structure attendue par app.js
                 const artistAccount = {
-                    id: result.user_id,
-                    name: result.user_name,
-                    email: result.user_email,
-                    country: 'Côte d\'Ivoire',
-                    avatar: '',
+                    id:      userId,
+                    name:    userName,
+                    email:   userEmail,
+                    country: result.country || 'Côte d\'Ivoire',
+                    avatar:  result.avatar  || '',
                     isArtist: true
                 };
-                
-                localStorage.setItem('arkyl_artist_account', JSON.stringify(artistAccount));
-                localStorage.setItem('user_id', result.user_id);
-                localStorage.setItem('user_name', result.user_name);
-                localStorage.setItem('user_email', result.user_email);
-                
-                console.log('✅ Connexion réussie! ID:', result.user_id);
-                console.log('✅ Mode artiste activé');
-                
-                // Message de succès
+
+                // currentUser — structure attendue par app.js
+                const currentUser = {
+                    id:        userId,
+                    googleId:  userId,
+                    email:     userEmail,
+                    name:      userName,
+                    picture:   result.avatar || '',
+                    isArtist:  true,
+                    artistName: userName,
+                    isAdmin:   false
+                };
+
+                // ── Sauvegarder sous TOUTES les clés attendues par app.js ──
+                // 1. Clé par ID (clé principale de app.js)
+                localStorage.setItem(
+                    `arkyl_artist_account_${userId}`,
+                    JSON.stringify(artistAccount)
+                );
+                // 2. Clé par email (fallback de app.js)
+                localStorage.setItem(
+                    `arkyl_artist_account_email_${userEmail.toLowerCase()}`,
+                    JSON.stringify(artistAccount)
+                );
+                // 3. currentUser (pour restoreSession dans app.js)
+                localStorage.setItem('arkyl_current_user', JSON.stringify(currentUser));
+
+                console.log('✅ Connexion réussie! ID:', userId);
+                console.log('✅ Clés sauvegardées:', `arkyl_artist_account_${userId}`);
+
                 successMsg.textContent = "✅ " + result.message + " Redirection vers l'espace artiste...";
                 successMsg.style.display = 'block';
-                
-                // Redirection vers index.html avec mode artiste activé
+
                 setTimeout(() => {
                     window.location.href = 'index.html?mode=artist';
                 }, 1500);

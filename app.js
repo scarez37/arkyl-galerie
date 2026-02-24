@@ -705,6 +705,10 @@ function enterGallery() {
             lastRenderTime = {};
             window.toutesLesOeuvres = [];
             notifications = [];
+            // Réinitialiser le db artiste pour ne pas laisser les données d'un compte sur l'autre
+            db.switchArtist('default');
+            db.artworks = [];
+            db.sales = [];
 
             updateBadges();
             
@@ -6070,15 +6074,19 @@ function enterGallery() {
 
         // ==================== ARTISTE DATABASE ====================
         class ArtistDatabase {
-            constructor() {
+            constructor(artistId = 'default') {
+                this.artistId = artistId;
                 this.artworks = this._load('artist_artworks') || [];
-                this.sales    = this._load('artist_sales')    || []; // Tableau vide par défaut
-                this.nextId = this._load('next_artwork_id') || 1;
+                this.sales    = this._load('artist_sales')    || [];
+                this.nextId   = this._load('next_artwork_id') || 1;
             }
-            
+
+            // Clé unique par artiste : evite tout partage entre comptes
+            _key(k) { return `arkyl_${this.artistId}_${k}`; }
+
             _load(k) { 
                 try { 
-                    const d = _memStore['arkyl_'+k] || null; 
+                    const d = _memStore[this._key(k)] || null; 
                     return d ? JSON.parse(d) : null; 
                 } catch(e){ 
                     console.error('Erreur de chargement:', k, e); 
@@ -6086,18 +6094,25 @@ function enterGallery() {
                 } 
             }
             
-            _save(k,v) { 
+            _save(k, v) { 
                 try { 
-                    _memStore['arkyl_'+k] = v; 
+                    _memStore[this._key(k)] = v; 
                     return true;
                 } catch(e){
                     console.error('Erreur de sauvegarde:', k, e);
-                    // Check if quota exceeded
                     if (e.name === 'QuotaExceededError') {
                         showToast('⚠️ Espace de stockage insuffisant. Supprimez des œuvres anciennes.');
                     }
                     return false;
                 } 
+            }
+
+            // Recharge les données pour un nouvel artiste sans recréer l'objet
+            switchArtist(newArtistId) {
+                this.artistId = newArtistId;
+                this.artworks = this._load('artist_artworks') || [];
+                this.sales    = this._load('artist_sales')    || [];
+                this.nextId   = this._load('next_artwork_id') || 1;
             }
             
             addArtwork(a) { 
@@ -6110,7 +6125,6 @@ function enterGallery() {
                               this._save('next_artwork_id', this.nextId);
                 
                 if (!saved) {
-                    // Rollback if save failed
                     this.artworks.pop();
                     this.nextId--;
                     throw new Error('Échec de la sauvegarde');
@@ -6124,7 +6138,6 @@ function enterGallery() {
                     this.artworks[i] = {...this.artworks[i], ...u}; 
                     
                     if (!this._save('artist_artworks', this.artworks)) {
-                        // Rollback on failure
                         this.artworks[i] = backup;
                         throw new Error('Échec de la mise à jour');
                     }
@@ -6138,24 +6151,22 @@ function enterGallery() {
                     this.artworks.splice(i, 1); 
                     
                     if (!this._save('artist_artworks', this.artworks)) {
-                        // Rollback on failure
                         this.artworks.splice(i, 0, backup);
                         throw new Error('Échec de la suppression');
                     }
                 } 
             }
             
-            // Helper method to clear all data
             clearAll() {
-                delete _memStore['arkyl_artist_artworks'];
-                delete _memStore['arkyl_artist_sales'];
-                delete _memStore['arkyl_next_artwork_id'];
+                delete _memStore[this._key('artist_artworks')];
+                delete _memStore[this._key('artist_sales')];
+                delete _memStore[this._key('next_artwork_id')];
                 this.artworks = [];
                 this.sales = [];
                 this.nextId = 1;
             }
         }
-        const db = new ArtistDatabase();
+        const db = new ArtistDatabase('default');
         
         // Nettoyer les données de ventes au démarrage
         db.sales = [];
@@ -6170,10 +6181,15 @@ function enterGallery() {
             document.getElementById('artistNav').style.display  = 'flex';
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById('artistSpace').style.display = 'block';
+
+            // ⭐ Charger le bon slot de données pour cet artiste
+            const artistId = currentUser?.id || currentUser?.googleId || currentUser?.email || 'default';
+            db.switchArtist(artistId);
+
             hydrateProfile();
             showArtistSection('dashboard');
             window.scrollTo(0,0);
-            // Charger les œuvres depuis le serveur pour la modification
+            // Charger les œuvres depuis le serveur (source de vérité)
             loadArtistArtworksFromServer();
         }
 

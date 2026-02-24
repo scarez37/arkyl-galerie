@@ -361,10 +361,18 @@ try {
             exit;
         }
         // ON DELETE CASCADE supprime automatiquement order_items et order_timeline
-        // Chercher d'abord par order_number (string), puis par id numérique si petit entier
-        $stmt = $db->prepare("DELETE FROM orders WHERE order_number = ? OR (id::text = ?)");
-        $stmt->execute([$orderId, (string)$orderId]);
-        echo json_encode(['success' => true]);
+        $stmt = $db->prepare("DELETE FROM orders WHERE id::text = ? OR order_number = ?");
+        $stmt->execute([(string)$orderId, (string)$orderId]);
+        $deleted = $stmt->rowCount();
+        if ($deleted > 0) {
+            echo json_encode(['success' => true, 'deleted' => $deleted]);
+        } else {
+            // Aucune ligne supprimée — debug
+            $check = $db->prepare("SELECT id, order_number FROM orders LIMIT 5");
+            $check->execute();
+            $rows = $check->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode(['success' => false, 'error' => "Commande introuvable (id=$orderId)", 'debug_rows' => $rows]);
+        }
         exit;
     }
 

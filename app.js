@@ -219,20 +219,32 @@ function enterGallery() {
         // Retourne le compte artiste de l'utilisateur connecté (cherche par Google ID puis par email)
         function getArtistAccount() {
             if (!currentUser) return null;
-            // 1. Chercher par Google ID (clé principale)
             const uid = currentUser.id || currentUser.googleId;
+
+            // 1. Clé par ID utilisateur (principale)
             if (uid) {
                 const byId = safeStorage.get(`arkyl_artist_account_${uid}`, null);
                 if (byId) return byId;
             }
-            // 2. Fallback par email (créé avant connexion Google ou depuis connexion.html)
+            // 2. Clé par email (fallback connexion.html)
             if (currentUser.email) {
                 const byEmail = safeStorage.get(`arkyl_artist_account_email_${currentUser.email.toLowerCase()}`, null);
                 if (byEmail) {
-                    // Migrer vers la clé Google ID pour les prochaines fois
                     if (uid) safeStorage.set(`arkyl_artist_account_${uid}`, byEmail);
                     return byEmail;
                 }
+            }
+            // 3. Ancienne clé fixe (comptes créés avant la migration)
+            const legacy = safeStorage.get('arkyl_artist_account', null);
+            if (legacy && (
+                legacy.email?.toLowerCase() === currentUser.email?.toLowerCase() ||
+                legacy.id === uid
+            )) {
+                // Migrer vers les nouvelles clés
+                if (uid) safeStorage.set(`arkyl_artist_account_${uid}`, legacy);
+                if (currentUser.email) safeStorage.set(`arkyl_artist_account_email_${currentUser.email.toLowerCase()}`, legacy);
+                console.log('✅ Migration ancienne clé artiste vers nouvelles clés');
+                return legacy;
             }
             return null;
         }

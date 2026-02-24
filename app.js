@@ -6266,16 +6266,26 @@ function enterGallery() {
         }
 
         async function loadArtistArtworksFromServer() {
-            if (!currentUser || !currentUser.id) return;
+            // Vérifier que l'ID artiste est bien défini (jamais charger sans filtre)
+            const artistServerId = currentUser?.id || currentUser?.googleId;
+            if (!currentUser || !artistServerId || String(artistServerId) === 'undefined') {
+                console.warn('⚠️ loadArtistArtworksFromServer: artist_id manquant, chargement annulé');
+                return;
+            }
             // Afficher le skeleton pendant le chargement
             showSkeletonLoader('artworksGrid', 6, 'grid');
             try {
-                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(currentUser.id)}&t=${Date.now()}`);
+                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(artistServerId)}&t=${Date.now()}`);
                 const result = await resp.json();
                 if (result.success && result.data && result.data.length > 0) {
+                    // Filtrer côté client aussi — ne garder QUE les œuvres de cet artiste
+                    const myArtworks = result.data.filter(art =>
+                        String(art.artist_id) === String(artistServerId) ||
+                        String(art.user_id)   === String(artistServerId)
+                    );
                     // Synchroniser db.artworks avec les données serveur
                     // Remplacer complètement db.artworks par les données serveur
-                    db.artworks = result.data.map(art => ({
+                    db.artworks = myArtworks.map(art => ({
                         id: art.id,               // ID PostgreSQL (int)
                         server_id: art.id,        // Alias explicite
                         title: art.title,

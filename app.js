@@ -243,7 +243,7 @@ function enterGallery() {
 
             if (urlParams.get('mode') === 'artist') {
                 // Vérifier que l'artiste a bien un compte
-                const hasArtistAccount = safeStorage.get('arkyl_artist_account', null) || _memStore['arkyl_artist_account'] || null;
+                const hasArtistAccount = safeStorage.get(artistAccountKey(), null);
                 if (hasArtistAccount) {
                     console.log('🎨 Mode artiste détecté via URL - Activation automatique...');
                     setTimeout(() => {
@@ -348,6 +348,11 @@ function enterGallery() {
         };
 
         // ==================== DATA ====================
+        // Clé de compte artiste isolée par utilisateur Google
+        function artistAccountKey() {
+            const uid = currentUser?.id || currentUser?.googleId || currentUser?.email || 'default';
+            return `arkyl_artist_account_${uid}`;
+        }
         window.currentCategory = 'all';
         let currentCategory = 'all';
         let favorites = safeStorage.get('arkyl_favorites', []);
@@ -455,13 +460,14 @@ function enterGallery() {
                 // Décoder le JWT token pour extraire les informations utilisateur
                 const payload = parseJwt(response.credential);
                 
-                // Vérifier s'il existe un compte artiste avec cet email
-                const existingArtistAccount = safeStorage.get('arkyl_artist_account', null);
+                // Vérifier s'il existe un compte artiste pour CET utilisateur spécifique
+                // On utilise payload.sub (Google ID) car currentUser n'est pas encore défini
+                const userKey = `arkyl_artist_account_${payload.sub}`;
+                const existingArtistAccount = safeStorage.get(userKey, null);
                 let isArtist = false;
                 let artistName = null;
                 
                 if (existingArtistAccount && existingArtistAccount.email === payload.email) {
-                    // Compte artiste trouvé avec le même email Google
                     isArtist = true;
                     artistName = existingArtistAccount.name;
                     console.log('✅ Compte artiste existant détecté:', artistName);
@@ -541,7 +547,7 @@ function enterGallery() {
         function handleArtistSpace() {
            
             // Vérifier d'abord si l'artiste a un compte enregistré
-            const hasArtistAccount = safeStorage.get('arkyl_artist_account', null) || _memStore['arkyl_artist_account'] || null;
+            const hasArtistAccount = safeStorage.get(artistAccountKey(), null);
             
             if (hasArtistAccount) {
                 // Compte trouvé → Activer le mode artiste directement
@@ -674,8 +680,9 @@ function enterGallery() {
             const userName = currentUser ? currentUser.name : 'utilisateur';
             const userType = currentUser && currentUser.isArtist ? 'Artiste' : currentUser && currentUser.isAdmin ? 'Admin' : 'Utilisateur';
             
-            // Vérifier s'il y a aussi un compte artiste
-            const hasArtistAccount = safeStorage.get('arkyl_artist_account', null) || _memStore['arkyl_artist_account'] || null;
+            // Capturer la clé artiste AVANT de nullifier currentUser
+            const artistKey = artistAccountKey();
+            const hasArtistAccount = safeStorage.get(artistKey, null);
             const confirmMessage = hasArtistAccount 
                 ? `🚪 Se déconnecter?\n\nVous êtes actuellement connecté comme ${userType}: ${userName}\n\n⚠️ Votre compte artiste sera également déconnecté.\n\nCliquez OK pour vous déconnecter.`
                 : `🚪 Se déconnecter?\n\nVous êtes actuellement connecté comme ${userType}: ${userName}\n\nCliquez OK pour vous déconnecter.`;
@@ -712,9 +719,9 @@ function enterGallery() {
 
             updateBadges();
             
-            // Déconnecter le compte artiste (si existant)
+            // Déconnecter le compte artiste (si existant) — on utilise artistKey capturé avant le null
             if (hasArtistAccount) {
-                safeStorage.remove('arkyl_artist_account'); delete _memStore['arkyl_artist_account'];
+                safeStorage.remove(artistKey);
                 console.log('✅ Compte artiste déconnecté');
             }
             
@@ -6042,7 +6049,7 @@ function enterGallery() {
 
             setTimeout(() => {
                 // Persist the artist account flag
-                safeStorage.set('arkyl_artist_account', accountData); _memStore['arkyl_artist_account'] = accountData;
+                safeStorage.set(artistAccountKey(), accountData);
 
                 // Si l'utilisateur est connecté avec Google et que l'email correspond, lier les comptes
                 if (currentUser && currentUser.email === accountData.email) {
@@ -6084,27 +6091,32 @@ function enterGallery() {
             // Clé unique par artiste : evite tout partage entre comptes
             _key(k) { return `arkyl_${this.artistId}_${k}`; }
 
-            _load(k) { 
-                try { 
-                    const d = _memStore[this._key(k)] || null; 
-                    return d ? JSON.parse(d) : null; 
-                } catch(e){ 
-                    console.error('Erreur de chargement:', k, e); 
-                    return null; 
-                } 
+            _load(k) {
+                try {
+                    // Priorité : localStorage (persistant) puis _memStore (fallback)
+                    const raw = localStorage.getItem(this._key(k));
+                    if (raw !== null) return JSON.parse(raw);
+                    const mem = _memStore[this._key(k)];
+                    return mem !== undefined ? (typeof mem === 'string' ? JSON.parse(mem) : mem) : null;
+                } catch(e) {
+                    console.error('Erreur de chargement:', k, e);
+                    return null;
+                }
             }
-            
-            _save(k, v) { 
-                try { 
-                    _memStore[this._key(k)] = v; 
+
+            _save(k, v) {
+                try {
+                    localStorage.setItem(this._key(k), JSON.stringify(v));
+                    _memStore[this._key(k)] = v;
                     return true;
-                } catch(e){
+                } catch(e) {
                     console.error('Erreur de sauvegarde:', k, e);
                     if (e.name === 'QuotaExceededError') {
                         showToast('⚠️ Espace de stockage insuffisant. Supprimez des œuvres anciennes.');
                     }
+                    try { _memStore[this._key(k)] = v; return true; } catch(_) {}
                     return false;
-                } 
+                }
             }
 
             // Recharge les données pour un nouvel artiste sans recréer l'objet
@@ -6158,19 +6170,17 @@ function enterGallery() {
             }
             
             clearAll() {
-                delete _memStore[this._key('artist_artworks')];
-                delete _memStore[this._key('artist_sales')];
-                delete _memStore[this._key('next_artwork_id')];
+                ['artist_artworks', 'artist_sales', 'next_artwork_id'].forEach(k => {
+                    delete _memStore[this._key(k)];
+                    try { localStorage.removeItem(this._key(k)); } catch(_) {}
+                });
                 this.artworks = [];
                 this.sales = [];
                 this.nextId = 1;
             }
         }
         const db = new ArtistDatabase('default');
-        
-        // Nettoyer les données de ventes au démarrage
-        db.sales = [];
-        db._save('artist_sales', []);
+        // Note: données chargées depuis localStorage à switchArtist()
         
         let editingArtworkId = null;
         let currentGalleryFilter = 'all';
@@ -6238,7 +6248,7 @@ function enterGallery() {
 
         // ==================== HYDRATION ====================
         function hydrateProfile(skipToast = false) {
-            const acc = safeStorage.get('arkyl_artist_account', null) || _memStore['arkyl_artist_account'] || null;
+            const acc = safeStorage.get(artistAccountKey(), null);
             if (!acc) return;
 
             // Update nav avatar
@@ -6663,7 +6673,7 @@ function enterGallery() {
             }
 
             // Get artist account info
-            const artistAccount = safeStorage.get('arkyl_artist_account', null);
+            const artistAccount = safeStorage.get(artistAccountKey(), null);
             if (!artistAccount) {
                 showToast('❌ Compte artiste non trouvé');
                 return;
@@ -7200,7 +7210,7 @@ function enterGallery() {
         
         function openArtistEditModal() {
             // Get artist account data from memory
-            const acc = safeStorage.get('arkyl_artist_account', null) || _memStore['arkyl_artist_account'] || null;
+            const acc = safeStorage.get(artistAccountKey(), null);
             
             if (!acc) {
                 showToast('⚠️ Aucun compte artiste trouvé');
@@ -7288,7 +7298,7 @@ function enterGallery() {
         async function saveArtistProfile() {
             
             // Get current artist account
-            const acc = safeStorage.get('arkyl_artist_account', null) || _memStore['arkyl_artist_account'] || null;
+            const acc = safeStorage.get(artistAccountKey(), null);
             
             if (!acc) {
                 console.error('❌ DEBUG: Aucun compte artiste trouvé');
@@ -7352,8 +7362,8 @@ function enterGallery() {
 
             // Sauvegarder en mémoire ET localStorage
             try {
-                _memStore['arkyl_artist_account'] = acc;
-                safeStorage.set('arkyl_artist_account', acc);
+                
+                safeStorage.set(artistAccountKey(), acc);
 
                 hydrateProfile(true);
                 closeArtistEditModal();
@@ -8425,34 +8435,32 @@ function enterGallery() {
         // ==================== TICKER NAVIGATION ====================
         (function() {
             let tickerPaused = false;
-            let tickerOffset = 0;          // px décalage manuel
-            const STEP = 320;              // px par clic
+            let tickerOffset = 0;
+            const STEP = 320;
 
-            function getContent() { return document.getElementById('newsTickerContent'); }
+            function getScroll()   { return document.querySelector('.news-ticker-scroll'); }
+            function getContent()  { return document.querySelector('.news-ticker-content'); }
 
             function applyOffset(delta) {
+                const scroll = getScroll();
+                if (!scroll) return;
+
+                // Utiliser scrollLeft (fiable) plutôt que transform CSS
+                scroll.scrollBy({ left: delta, behavior: 'smooth' });
+
+                // Pause l'animation CSS pendant 5 s
                 const c = getContent();
-                if (!c) return;
-                c.classList.add('paused');
-                tickerPaused = true;
-                tickerOffset += delta;
-                const maxOffset = c.scrollWidth / 2;
-                if (tickerOffset > 0) tickerOffset = 0;
-                if (tickerOffset < -maxOffset) tickerOffset = -maxOffset + Math.abs(delta);
-                c.style.transform = `translateX(${tickerOffset}px)`;
-                clearTimeout(window._tickerResumeTimer);
-                window._tickerResumeTimer = setTimeout(() => {
-                    tickerPaused = false;
-                    tickerOffset = 0;
-                    c.style.transform = '';
-                    c.classList.remove('paused');
-                }, 5000);
+                if (c) {
+                    c.classList.add('paused');
+                    clearTimeout(window._tickerResumeTimer);
+                    window._tickerResumeTimer = setTimeout(() => {
+                        c.classList.remove('paused');
+                    }, 5000);
+                }
             }
 
-            // Pause/reprise au survol (déjà géré en CSS hover, mais on renforce)
             document.addEventListener('DOMContentLoaded', function() {
-                const scrollWrap = document.querySelector('.news-ticker-scroll-wrap') || document.querySelector('.news-ticker-scroll');
-                const scroll = document.querySelector('.news-ticker-scroll');
+                const scroll = getScroll();
                 if (!scroll) return;
 
                 scroll.addEventListener('mouseenter', () => {
@@ -8464,33 +8472,23 @@ function enterGallery() {
                     if (c && !tickerPaused) c.classList.remove('paused');
                 });
 
-                // Défilement à la molette
                 scroll.addEventListener('wheel', (e) => {
                     e.preventDefault();
-                    applyOffset(-e.deltaY * 0.8);
+                    applyOffset(e.deltaY * 0.8);
                 }, { passive: false });
 
-                // Sur mobile : scroll natif (CSS overflow-x auto)
-                // Pas besoin de touchmove manuel — le navigateur gère nativement
-                // On pause juste l'animation CSS au toucher
                 scroll.addEventListener('touchstart', () => {
                     const c = getContent();
                     if (c) c.classList.add('paused');
                 }, { passive: true });
 
                 scroll.addEventListener('touchend', () => {
-                    // Ne reprend pas auto sur mobile — l'utilisateur scrolle librement
+                    // scroll natif mobile — pas besoin de reprendre manuellement
                 }, { passive: true });
             });
 
             window.tickerNav = function(dir) {
-                const isMobile = window.innerWidth <= 768;
-                if (isMobile) {
-                    const scrollEl = document.querySelector('.news-ticker-scroll');
-                    if (scrollEl) scrollEl.scrollBy({ left: dir * STEP, behavior: 'smooth' });
-                } else {
-                    applyOffset(dir * STEP);
-                }
+                applyOffset(dir * STEP);
             };
         })();
 

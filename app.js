@@ -8854,6 +8854,7 @@ function enterGallery() {
         async function adminDeleteOrder(orderId, orderRef) {
             if (!confirm(`Supprimer définitivement la commande ${orderRef} ?\nCette action est irréversible.`)) return;
             try {
+                // Supprimer en base
                 const resp = await fetch(ORDERS_API, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -8861,6 +8862,15 @@ function enterGallery() {
                 });
                 const data = await resp.json();
                 if (data.success) {
+                    // Supprimer aussi du localStorage
+                    const localOrders = safeStorage.get('arkyl_orders', []);
+                    const filtered = localOrders.filter(o =>
+                        String(o.id) !== String(orderId) &&
+                        String(o.server_id) !== String(orderId) &&
+                        o.order_number !== orderRef
+                    );
+                    safeStorage.set('arkyl_orders', filtered);
+                    orderHistory = filtered;
                     showToast('🗑️ Commande supprimée');
                     await renderAdminOrders();
                 } else {

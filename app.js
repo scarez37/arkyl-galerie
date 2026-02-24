@@ -62,9 +62,7 @@ function enterGallery() {
                 const now = Date.now();
                 const lastRender = lastRenderTime[pageId] || 0;
                 if (now - lastRender > 30000) {
-                    if (pageId === 'homePage' && typeof renderProducts === 'function') (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
-                    else if (pageId === 'favoritesPage' && typeof renderFavorites === 'function') renderFavorites();
-                    else if (pageId === 'cartPage' && typeof renderCart === 'function') renderCart();
+                    refreshGalleryByPage(pageId);
                     lastRenderTime[pageId] = now;
                 }
             }, 30000);
@@ -89,9 +87,7 @@ function enterGallery() {
             const currentPage = document.querySelector('.page.active');
             if (!currentPage) return;
             const pageId = currentPage.id;
-            if (pageId === 'homePage' && typeof renderProducts === 'function') (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
-            else if (pageId === 'favoritesPage' && typeof renderFavorites === 'function') renderFavorites();
-            else if (pageId === 'cartPage' && typeof renderCart === 'function') renderCart();
+            refreshGalleryByPage(pageId);
             if (typeof updateBadges === 'function') updateBadges();
             if (typeof renderNotifications === 'function') renderNotifications();
             showUpdateIndicator();
@@ -4923,9 +4919,9 @@ function enterGallery() {
 
     try {
         // 1. On prévient le serveur
-        const response = fetch('https://arkyl-galerie.onrender.com/api_toggle_follow.php', {
+        const response = await fetch('https://arkyl-galerie.onrender.com/api_toggle_follow.php', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 user_id: currentUser.id, 
                 artist_id: artistId 
@@ -4982,7 +4978,7 @@ async function uploadImageToCloudinary(file) {
     const cloudName = 'ddah64j2a'; // Ton Cloud Name réel
 
     try {
-        const response = fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
             method: 'POST',
             body: formData
         });
@@ -4998,4 +4994,3 @@ async function uploadImageToCloudinary(file) {
         throw error;
     }
 }
-

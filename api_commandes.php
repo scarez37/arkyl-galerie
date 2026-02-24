@@ -34,8 +34,6 @@ function ensureTables($db) {
         $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS escrow_released_at TIMESTAMPTZ");
         $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS escrow_auto_release_date TIMESTAMPTZ");
         $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_by VARCHAR(50)");
-        $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_name VARCHAR(255)");
-        $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)");
         $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS escrow_status VARCHAR(50) DEFAULT 'payée_en_attente'");
         $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_mode VARCHAR(50)");
         $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_address TEXT");
@@ -136,7 +134,7 @@ try {
         if ($isAdmin) {
             $stmt = $db->query("
                 SELECT o.*, 
-                    jsonb_agg(jsonb_build_object(
+                    json_agg(json_build_object(
                         'id', oi.id, 'artwork_id', oi.artwork_id, 'title', oi.title,
                         'artist', oi.artist_name, 'artist_id', oi.artist_id,
                         'price', oi.price, 'quantity', oi.quantity, 'image', oi.image_url
@@ -149,7 +147,7 @@ try {
         } elseif ($artistId) {
             $stmt = $db->prepare("
                 SELECT DISTINCT o.*,
-                    jsonb_agg(jsonb_build_object(
+                    json_agg(json_build_object(
                         'id', oi.id, 'artwork_id', oi.artwork_id, 'title', oi.title,
                         'artist', oi.artist_name, 'artist_id', oi.artist_id,
                         'price', oi.price, 'quantity', oi.quantity, 'image', oi.image_url
@@ -163,7 +161,7 @@ try {
         } else {
             $stmt = $db->prepare("
                 SELECT o.*,
-                    jsonb_agg(jsonb_build_object(
+                    json_agg(json_build_object(
                         'id', oi.id, 'artwork_id', oi.artwork_id, 'title', oi.title,
                         'artist', oi.artist_name, 'artist_id', oi.artist_id,
                         'price', oi.price, 'quantity', oi.quantity, 'image', oi.image_url
@@ -351,6 +349,20 @@ try {
             WHERE id = ? OR order_number = ?
         ")->execute([$orderId, $orderId]);
 
+        echo json_encode(['success' => true]);
+        exit;
+    }
+
+    // ── POST delete_order (admin) ───────────────────────────────────────────
+    if ($action === 'delete_order') {
+        $orderId = $body['order_id'] ?? '';
+        if (!$orderId) {
+            echo json_encode(['success' => false, 'error' => 'order_id manquant']);
+            exit;
+        }
+        // ON DELETE CASCADE supprime automatiquement order_items et order_timeline
+        $stmt = $db->prepare("DELETE FROM orders WHERE id = ? OR order_number = ?");
+        $stmt->execute([$orderId, $orderId]);
         echo json_encode(['success' => true]);
         exit;
     }

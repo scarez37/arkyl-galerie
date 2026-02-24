@@ -243,7 +243,7 @@ function enterGallery() {
 
             if (urlParams.get('mode') === 'artist') {
                 // Vérifier que l'artiste a bien un compte
-                const hasArtistAccount = safeStorage.get(artistAccountKey(), null);
+                const hasArtistAccount = getArtistAccount();
                 if (hasArtistAccount) {
                     console.log('🎨 Mode artiste détecté via URL - Activation automatique...');
                     setTimeout(() => {
@@ -348,7 +348,28 @@ function enterGallery() {
         };
 
         // ==================== DATA ====================
-        // Clé de compte artiste isolée par utilisateur Google
+        // Retourne le compte artiste de l'utilisateur connecté (cherche par Google ID puis par email)
+        function getArtistAccount() {
+            if (!currentUser) return null;
+            // 1. Chercher par Google ID (clé principale)
+            const uid = currentUser.id || currentUser.googleId;
+            if (uid) {
+                const byId = safeStorage.get(`arkyl_artist_account_${uid}`, null);
+                if (byId) return byId;
+            }
+            // 2. Fallback par email (créé avant connexion Google ou depuis connexion.html)
+            if (currentUser.email) {
+                const byEmail = safeStorage.get(`arkyl_artist_account_email_${currentUser.email.toLowerCase()}`, null);
+                if (byEmail) {
+                    // Migrer vers la clé Google ID pour les prochaines fois
+                    if (uid) safeStorage.set(`arkyl_artist_account_${uid}`, byEmail);
+                    return byEmail;
+                }
+            }
+            return null;
+        }
+
+        // Clé de stockage principale pour le compte artiste courant
         function artistAccountKey() {
             const uid = currentUser?.id || currentUser?.googleId || currentUser?.email || 'default';
             return `arkyl_artist_account_${uid}`;
@@ -462,14 +483,19 @@ function enterGallery() {
                 
                 // Vérifier s'il existe un compte artiste pour CET utilisateur spécifique
                 // On utilise payload.sub (Google ID) car currentUser n'est pas encore défini
+                // Chercher le compte artiste par Google ID puis par email
                 const userKey = `arkyl_artist_account_${payload.sub}`;
-                const existingArtistAccount = safeStorage.get(userKey, null);
+                const emailKey = `arkyl_artist_account_email_${payload.email.toLowerCase()}`;
+                let existingArtistAccount = safeStorage.get(userKey, null)
+                    || safeStorage.get(emailKey, null);
                 let isArtist = false;
                 let artistName = null;
-                
+
                 if (existingArtistAccount && existingArtistAccount.email === payload.email) {
                     isArtist = true;
                     artistName = existingArtistAccount.name;
+                    // Migrer vers clé Google ID si nécessaire
+                    safeStorage.set(userKey, existingArtistAccount);
                     console.log('✅ Compte artiste existant détecté:', artistName);
                 }
                 
@@ -547,7 +573,7 @@ function enterGallery() {
         function handleArtistSpace() {
            
             // Vérifier d'abord si l'artiste a un compte enregistré
-            const hasArtistAccount = safeStorage.get(artistAccountKey(), null);
+            const hasArtistAccount = getArtistAccount();
             
             if (hasArtistAccount) {
                 // Compte trouvé → Activer le mode artiste directement
@@ -6046,10 +6072,14 @@ function enterGallery() {
             btn.disabled = true;
 
             setTimeout(() => {
-                // Persist the artist account flag
-                safeStorage.set(artistAccountKey(), accountData);
+                // Sauvegarder sous la clé Google si connecté, PLUS toujours sous la clé email (fallback)
+                const emailKey = `arkyl_artist_account_email_${accountData.email.toLowerCase()}`;
+                safeStorage.set(emailKey, accountData);
+                if (currentUser && currentUser.id) {
+                    safeStorage.set(`arkyl_artist_account_${currentUser.id}`, accountData);
+                }
 
-                // Si l'utilisateur est connecté avec Google et que l'email correspond, lier les comptes
+                // Lier les comptes si connecté Google avec le même email
                 if (currentUser && currentUser.email === accountData.email) {
                     currentUser.isArtist = true;
                     currentUser.artistName = accountData.name;
@@ -6246,7 +6276,7 @@ function enterGallery() {
 
         // ==================== HYDRATION ====================
         function hydrateProfile(skipToast = false) {
-            const acc = safeStorage.get(artistAccountKey(), null);
+            const acc = getArtistAccount();
             if (!acc) return;
 
             // Update nav avatar
@@ -6671,7 +6701,7 @@ function enterGallery() {
             }
 
             // Get artist account info
-            const artistAccount = safeStorage.get(artistAccountKey(), null);
+            const artistAccount = getArtistAccount();
             if (!artistAccount) {
                 showToast('❌ Compte artiste non trouvé');
                 return;
@@ -7208,7 +7238,7 @@ function enterGallery() {
         
         function openArtistEditModal() {
             // Get artist account data from memory
-            const acc = safeStorage.get(artistAccountKey(), null);
+            const acc = getArtistAccount();
             
             if (!acc) {
                 showToast('⚠️ Aucun compte artiste trouvé');
@@ -7296,7 +7326,7 @@ function enterGallery() {
         async function saveArtistProfile() {
             
             // Get current artist account
-            const acc = safeStorage.get(artistAccountKey(), null);
+            const acc = getArtistAccount();
             
             if (!acc) {
                 console.error('❌ DEBUG: Aucun compte artiste trouvé');
@@ -7362,6 +7392,10 @@ function enterGallery() {
             try {
                 
                 safeStorage.set(artistAccountKey(), acc);
+                // Maintenir la clé email synchronisée
+                if (acc.email) {
+                    safeStorage.set(`arkyl_artist_account_email_${acc.email.toLowerCase()}`, acc);
+                }
 
                 hydrateProfile(true);
                 closeArtistEditModal();

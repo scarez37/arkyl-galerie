@@ -261,9 +261,22 @@
             console.log('📥 Réponse parsée:', result);
 
             if (result.success) {
-                const userId   = result.user_id   || result.id;
-                const userName = result.user_name  || result.name;
-                const userEmail= result.user_email || result.email;
+                // Logger tous les champs retournés par l'API pour debug
+                console.log('📦 Champs retournés par api_connexion.php:', Object.keys(result));
+                console.log('📦 result complet:', JSON.stringify(result));
+
+                const userId   = result.user_id   || result.id        || result.artist_id || result.userId;
+                const userName = result.user_name  || result.name      || result.username  || result.artist_name;
+                const userEmail= result.user_email || result.email     || result.user_mail;
+
+                if (!userId) {
+                    console.error('❌ Aucun user_id retourné par le serveur !', result);
+                    errorMsg.textContent = "❌ Erreur serveur : identifiant manquant.";
+                    errorMsg.style.display = 'block';
+                    btn.textContent = "Se connecter";
+                    btn.disabled = false;
+                    return;
+                }
 
                 // Compte artiste — structure attendue par app.js
                 const artistAccount = {

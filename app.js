@@ -605,48 +605,18 @@ function enterGallery() {
             // Déconnecter de Google
             if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
                 google.accounts.id.disableAutoSelect();
-                console.log('✅ Déconnexion Google effectuée');
             }
-            
-            // Déconnecter le compte utilisateur
-            currentUser = null;
-            safeStorage.remove('arkyl_current_user');
 
-            // Vider le panier et l'adresse en mémoire au logout (localStorage conservé par compte)
-            cartItems = [];
-            clientAddress = null;
-            posteVille = '';
-            transportCompagnie = '';
-            mainPropreLieu = '';
-            updateBadges();
-            
-            // Déconnecter le compte artiste (si existant) + vider ses données locales
-            if (hasArtistAccount) {
-                safeStorage.remove('arkyl_artist_account'); delete _memStore['arkyl_artist_account'];
-                // Vider les œuvres/ventes de l'artiste pour ne pas les montrer au prochain artiste
-                db.artworks = [];
-                db.sales = [];
-                db.nextId = 1;
-                db._save('artist_artworks', []);
-                db._save('artist_sales', []);
-                db._save('next_artwork_id', 1);
-                console.log('✅ Compte artiste déconnecté');
-            }
-            
-            // Retour au mode client si on était en mode artiste
-            const artistSpace = document.getElementById('artistSpace');
-            if (artistSpace && artistSpace.style.display !== 'none') {
-                switchToClientMode();
-            }
-            
-            updateAuthUI();
+            // Nettoyer les données sensibles du localStorage avant rechargement
+            safeStorage.remove('arkyl_current_user');
+            safeStorage.remove('arkyl_artist_account');
+            safeStorage.remove('arkyl_pending_order');
+
             showToast('👋 Déconnecté avec succès - À bientôt!');
-            
-            // Hide user menu
-            document.getElementById('userMenuDropdown').classList.remove('show');
-            
-            // Navigate to home page
-            navigateTo('home');
+
+            // Rechargement complet : vide toute la RAM (memStore, db, variables globales)
+            // C'est la seule garantie qu'aucune donnée d'un artiste ne fuira vers le suivant
+            setTimeout(() => window.location.reload(), 800);
         }
 
         function updateAuthUI() {

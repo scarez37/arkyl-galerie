@@ -8835,6 +8835,10 @@ function enterGallery() {
                             style="width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));color:white;transition:all 0.3s;">
                             💾 Enregistrer la mise à jour
                         </button>
+                        <button onclick="adminDeleteOrder('${orderId}', '${order.order_number || '#'+orderId}')"
+                            style="width:100%;padding:11px;border:1px solid rgba(220,53,69,0.4);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;background:rgba(220,53,69,0.1);color:#ff6b6b;margin-top:8px;transition:all 0.3s;">
+                            🗑️ Supprimer la commande
+                        </button>
                     </div>
 
                     <!-- Historique -->
@@ -8845,6 +8849,26 @@ function enterGallery() {
                         </details>` : ''}
                 </div>`;
             }).join('');
+        }
+
+        async function adminDeleteOrder(orderId, orderRef) {
+            if (!confirm(`Supprimer définitivement la commande ${orderRef} ?\nCette action est irréversible.`)) return;
+            try {
+                const resp = await fetch(ORDERS_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'delete_order', order_id: orderId })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('🗑️ Commande supprimée');
+                    await renderAdminOrders();
+                } else {
+                    showToast('❌ Erreur : ' + (data.error || 'Inconnue'));
+                }
+            } catch(e) {
+                showToast('❌ Erreur réseau');
+            }
         }
 
         async function adminUpdateOrderStatus(orderId) {

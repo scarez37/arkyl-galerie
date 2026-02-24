@@ -607,16 +607,36 @@ function enterGallery() {
                 google.accounts.id.disableAutoSelect();
             }
 
-            // Nettoyer les données sensibles du localStorage avant rechargement
-            safeStorage.remove('arkyl_current_user');
-            safeStorage.remove('arkyl_artist_account');
-            safeStorage.remove('arkyl_pending_order');
+            // Super-nettoyage : toutes les clés possibles liées aux comptes et aux œuvres
+            const keysToDestroy = [
+                'arkyl_current_user',
+                'arkyl_arkyl_current_user',
+                'arkyl_user',
+                'arkyl_artist_account',
+                'arkyl_products',
+                'arkyl_pending_order',
+                'arkyl_cart',
+                'arkyl_orders',
+                'arkyl_favorites',
+                'arkyl_notifications',
+                'arkyl_last_page',
+            ];
+            keysToDestroy.forEach(key => {
+                localStorage.removeItem(key);
+                safeStorage.remove(key);
+                delete _memStore[key];
+            });
+
+            // Réinitialiser les variables globales
+            currentUser = null;
+            if (typeof window.toutesLesOeuvres !== 'undefined') window.toutesLesOeuvres = [];
 
             showToast('👋 Déconnecté avec succès - À bientôt!');
 
-            // Rechargement complet : vide toute la RAM (memStore, db, variables globales)
-            // C'est la seule garantie qu'aucune donnée d'un artiste ne fuira vers le suivant
-            setTimeout(() => window.location.reload(), 800);
+            // Rechargement avec paramètre ?clear= pour vider toute la RAM du navigateur
+            setTimeout(() => {
+                window.location.href = window.location.pathname + '?clear=' + Date.now();
+            }, 600);
         }
 
         function updateAuthUI() {
@@ -6250,13 +6270,21 @@ function enterGallery() {
 
         // ==================== DASHBOARD ====================
         function updateDashboard() {
+            if (!currentUser || !currentUser.id) return;
+
             // Ensure db.sales is an array
             if (!Array.isArray(db.sales)) {
                 db.sales = [];
                 db._save('artist_sales', db.sales);
             }
-            
-            document.getElementById('totalArtworks').textContent = db.artworks.length;
+
+            // Filtre blindé : ne compter que les œuvres de cet artiste
+            const myArtworks = db.artworks.filter(a =>
+                !a.artist_id || String(a.artist_id).trim() === String(currentUser.id).trim()
+            );
+            db.artworks = myArtworks; // Synchroniser db pour le reste du dashboard
+
+            document.getElementById('totalArtworks').textContent = myArtworks.length;
             const rev = db.sales.reduce((s,sale) => s + sale.price, 0);
             document.getElementById('totalRevenue').textContent = formatPrice(rev);
             document.getElementById('totalSales').textContent   = db.sales.length;
@@ -6738,8 +6766,15 @@ function enterGallery() {
 
         function renderArtworks() {
             const c = document.getElementById('artworksGrid');
-            if (!db.artworks.length) { c.innerHTML = '<p style="text-align:center;opacity:0.7;grid-column:1/-1;">Aucune œuvre. Commencez à créer votre portfolio !</p>'; return; }
-            c.innerHTML = db.artworks.map(a => {
+            if (!currentUser || !currentUser.id) return;
+
+            // Filtre blindé : on compare en String pour éviter les problèmes d'ID Google (grand nombre)
+            const myArtworks = db.artworks.filter(a =>
+                !a.artist_id || String(a.artist_id).trim() === String(currentUser.id).trim()
+            );
+
+            if (!myArtworks.length) { c.innerHTML = '<p style="text-align:center;opacity:0.7;grid-column:1/-1;">Aucune œuvre. Commencez à créer votre portfolio !</p>'; return; }
+            c.innerHTML = myArtworks.map(a => {
                 // Determine what to display: photo or emoji
                 let imageContent = '';
                 if (a.photo) {

@@ -15,6 +15,86 @@ function enterGallery() {
             }
         });
 
+        // ==================== SKELETON LOADER ====================
+        (function injectSkeletonStyles() {
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes skeleton-shimmer {
+                    0%   { background-position: -600px 0; }
+                    100% { background-position:  600px 0; }
+                }
+                .skeleton-base {
+                    background: linear-gradient(90deg,
+                        rgba(255,255,255,0.06) 25%,
+                        rgba(255,255,255,0.14) 50%,
+                        rgba(255,255,255,0.06) 75%);
+                    background-size: 600px 100%;
+                    animation: skeleton-shimmer 1.5s infinite linear;
+                    border-radius: 8px;
+                }
+                /* Carte grille (dashboard artiste / galerie artiste) */
+                .skeleton-card {
+                    background: rgba(255,255,255,0.04);
+                    border-radius: 16px;
+                    overflow: hidden;
+                    border: 1px solid rgba(255,255,255,0.08);
+                }
+                .skeleton-card .sk-img {
+                    width: 100%; aspect-ratio: 1/1;
+                }
+                .skeleton-card .sk-body {
+                    padding: 12px;
+                    display: flex; flex-direction: column; gap: 8px;
+                }
+                .skeleton-card .sk-title  { height: 14px; width: 70%; }
+                .skeleton-card .sk-sub    { height: 11px; width: 45%; }
+                .skeleton-card .sk-price  { height: 16px; width: 35%; margin-top: 4px; }
+                /* Ligne liste (admin) */
+                .skeleton-row {
+                    display: flex; align-items: center; gap: 14px;
+                    background: rgba(255,255,255,0.04);
+                    border-radius: 14px; padding: 14px;
+                    border: 1px solid rgba(255,255,255,0.07);
+                }
+                .skeleton-row .sk-thumb { width: 60px; height: 60px; flex-shrink: 0; border-radius: 10px; }
+                .skeleton-row .sk-info  { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+                .skeleton-row .sk-line1 { height: 13px; width: 55%; }
+                .skeleton-row .sk-line2 { height: 11px; width: 35%; }
+            `;
+            document.head.appendChild(style);
+        })();
+
+        /**
+         * Affiche un skeleton loader dans un conteneur.
+         * @param {string} containerId  - id du conteneur cible
+         * @param {number} count        - nombre de placeholders (défaut 6)
+         * @param {'grid'|'list'} type  - style grille ou liste (défaut 'grid')
+         */
+        function showSkeletonLoader(containerId, count = 6, type = 'grid') {
+            const c = document.getElementById(containerId);
+            if (!c) return;
+            if (type === 'list') {
+                c.innerHTML = Array.from({ length: count }, () => `
+                    <div class="skeleton-row">
+                        <div class="sk-thumb skeleton-base"></div>
+                        <div class="sk-info">
+                            <div class="sk-line1 skeleton-base"></div>
+                            <div class="sk-line2 skeleton-base"></div>
+                        </div>
+                    </div>`).join('');
+            } else {
+                c.innerHTML = Array.from({ length: count }, () => `
+                    <div class="skeleton-card">
+                        <div class="sk-img skeleton-base"></div>
+                        <div class="sk-body">
+                            <div class="sk-title skeleton-base"></div>
+                            <div class="sk-sub   skeleton-base"></div>
+                            <div class="sk-price skeleton-base"></div>
+                        </div>
+                    </div>`).join('');
+            }
+        }
+
         // Variables pour optimisation (déclarées une seule fois)
         let productsCache = null;
         let favoritesCache = null;
@@ -1299,13 +1379,19 @@ function enterGallery() {
             const products = getProducts();
             
             if (products.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align: center; padding: 60px 20px; opacity: 0.7;">
-                        <div style="font-size: 60px; margin-bottom: 20px;">🖼️</div>
-                        <h3>Aucune œuvre</h3>
-                        <p>Ajoutez votre première œuvre pour commencer</p>
-                    </div>
-                `;
+                showSkeletonLoader('adminArtworksList', 5, 'list');
+                // Après un court délai, afficher le vrai état vide si toujours rien
+                setTimeout(() => {
+                    if (getProducts().length === 0) {
+                        container.innerHTML = `
+                            <div style="text-align: center; padding: 60px 20px; opacity: 0.7;">
+                                <div style="font-size: 60px; margin-bottom: 20px;">🖼️</div>
+                                <h3>Aucune œuvre</h3>
+                                <p>Ajoutez votre première œuvre pour commencer</p>
+                            </div>
+                        `;
+                    }
+                }, 2000);
                 return;
             }
             
@@ -6093,6 +6179,8 @@ function enterGallery() {
 
         async function loadArtistArtworksFromServer() {
             if (!currentUser || !currentUser.id) return;
+            // Afficher le skeleton pendant le chargement
+            showSkeletonLoader('artworksGrid', 6, 'grid');
             try {
                 const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(currentUser.id)}&t=${Date.now()}`);
                 const result = await resp.json();
@@ -6674,7 +6762,7 @@ function enterGallery() {
                             result = JSON.parse(responseText);
                         } catch (e) {
                             console.error('❌ Erreur parsing JSON:', e);
-                            alert("❌ Le serveur n'a pas renvoyé du JSON valide. Réponse: " + responseText.substring(0, 200));
+                            console.error('❌ Réponse serveur non-JSON:', responseText.substring(0, 200));
                             throw new Error('Réponse serveur invalide');
                         }
                         
@@ -6682,15 +6770,23 @@ function enterGallery() {
                         
                         if (result.success) {
                             console.log('✅ Œuvre envoyée au serveur:', result);
-                            alert("✅ Succès : " + result.message);
+                            // ⭐ Remplacer l'ID local par l'ID PostgreSQL réel
+                            const serverId = result.id || result.artwork_id;
+                            if (serverId) {
+                                const localArtwork = db.artworks[db.artworks.length - 1];
+                                if (localArtwork) {
+                                    localArtwork.id = serverId;
+                                    localArtwork.server_id = serverId;
+                                    db._save('artist_artworks', db.artworks);
+                                    console.log('✅ ID local remplacé par ID PostgreSQL:', serverId);
+                                }
+                            }
                         } else {
                             console.warn('⚠️ Sauvegarde serveur échouée:', result.message);
-                            alert("🛑 Erreur du serveur : " + result.message + "\n\nDonnées envoyées: " + JSON.stringify(dataToSend, null, 2));
                             showToast('⚠️ Œuvre publiée localement, mais pas sur le serveur : ' + result.message);
                         }
                     } catch (serverError) {
                         console.error('❌ Erreur serveur:', serverError);
-                        alert("❌ VRAIE ERREUR JAVASCRIPT : " + serverError.message);
                         showToast('❌ Erreur réseau : ' + serverError.message);
                     }
                 }
@@ -6714,7 +6810,15 @@ function enterGallery() {
 
         function renderArtworks() {
             const c = document.getElementById('artworksGrid');
-            if (!db.artworks.length) { c.innerHTML = '<p style="text-align:center;opacity:0.7;grid-column:1/-1;">Aucune œuvre. Commencez à créer votre portfolio !</p>'; return; }
+            if (!db.artworks.length) {
+                // Si en cours de chargement serveur, skeleton — sinon message vide
+                if (currentUser && currentUser.id) {
+                    showSkeletonLoader('artworksGrid', 6, 'grid');
+                } else {
+                    c.innerHTML = '<p style="text-align:center;opacity:0.7;grid-column:1/-1;">Aucune œuvre. Commencez à créer votre portfolio !</p>';
+                }
+                return;
+            }
             c.innerHTML = db.artworks.map(a => {
                 // Determine what to display: photo or emoji
                 let imageContent = '';
@@ -6790,7 +6894,12 @@ function enterGallery() {
         function renderArtistGallery() {
             const products = getProducts();
             const filtered = currentGalleryFilter === 'all' ? products : products.filter(p => p.category === currentGalleryFilter);
-            document.getElementById('artistGalleryGrid').innerHTML = filtered.map(p => `
+            const grid = document.getElementById('artistGalleryGrid');
+            if (!filtered.length) {
+                showSkeletonLoader('artistGalleryGrid', 6, 'grid');
+                return;
+            }
+            grid.innerHTML = filtered.map(p => `
                 <div class="artwork-card" onclick="artistViewProductDetail(${p.id})">
                     <div class="artwork-image"><img src="${p.image}" alt="${p.title}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'"></div>
                     <div class="artwork-info">

@@ -194,7 +194,7 @@ try {
     // ── GET single ──────────────────────────────────────────────────────────
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'get') {
         $orderId = $_GET['order_id'] ?? '';
-        $stmt = $db->prepare("SELECT * FROM orders WHERE id = ? OR order_number = ?");
+        $stmt = $db->prepare("SELECT * FROM orders WHERE order_number = ? OR id::text = ?");
         $stmt->execute([$orderId, $orderId]);
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -310,7 +310,7 @@ try {
             $setFields .= ", delivered_at = NOW()";
         }
 
-        $db->prepare("UPDATE orders SET $setFields WHERE id = :id OR order_number = :id")
+        $db->prepare("UPDATE orders SET $setFields WHERE order_number = :id OR id::text = :id")
            ->execute($params);
 
         // Ajouter à la timeline
@@ -319,7 +319,7 @@ try {
         if ($carrier) $tlNote .= " ($carrier)";
 
         $db->prepare("INSERT INTO order_timeline (order_id, status, note, updated_by, updated_by_role) VALUES (
-            (SELECT id FROM orders WHERE id = ? OR order_number = ? LIMIT 1), ?, ?, ?, ?
+            (SELECT id FROM orders WHERE order_number = ? OR id::text = ? LIMIT 1), ?, ?, ?, ?
         )")->execute([$orderId, $orderId, $newStatus, $tlNote, $updatedByRole]);
 
         echo json_encode(['success' => true, 'message' => 'Statut mis à jour']);
@@ -335,19 +335,19 @@ try {
                 escrow_status = 'livrée_confirmée',
                 confirmed_at = NOW(),
                 updated_at = NOW()
-            WHERE id = ? OR order_number = ?
-        ")->execute([$orderId, $orderId]);
+            WHERE order_number = ? OR id::text = ?
+        ")->execute([$orderId, (string)$orderId]);
 
         $db->prepare("INSERT INTO order_timeline (order_id, status, note, updated_by_role) VALUES (
-            (SELECT id FROM orders WHERE id = ? OR order_number = ? LIMIT 1),
+            (SELECT id FROM orders WHERE order_number = ? OR id::text = ? LIMIT 1),
             'Livrée', 'Réception confirmée par l\\'acheteur', 'buyer'
         )")->execute([$orderId, $orderId]);
 
         // Libération fonds après 2 secondes (simulé par flag)
         $db->prepare("
             UPDATE orders SET escrow_status = 'fonds_libérés', escrow_released_at = NOW()
-            WHERE id = ? OR order_number = ?
-        ")->execute([$orderId, $orderId]);
+            WHERE order_number = ? OR id::text = ?
+        ")->execute([$orderId, (string)$orderId]);
 
         echo json_encode(['success' => true]);
         exit;
@@ -361,8 +361,9 @@ try {
             exit;
         }
         // ON DELETE CASCADE supprime automatiquement order_items et order_timeline
-        $stmt = $db->prepare("DELETE FROM orders WHERE id = ? OR order_number = ?");
-        $stmt->execute([$orderId, $orderId]);
+        // Chercher d'abord par order_number (string), puis par id numérique si petit entier
+        $stmt = $db->prepare("DELETE FROM orders WHERE order_number = ? OR (id::text = ?)");
+        $stmt->execute([$orderId, (string)$orderId]);
         echo json_encode(['success' => true]);
         exit;
     }

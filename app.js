@@ -184,14 +184,14 @@ function enterGallery() {
                     console.log('🎨 Mode artiste détecté via URL - Activation automatique...');
                     setTimeout(() => {
                         switchToArtistMode();
-                    } 500);
+                    }, 500);
                 }
             }
             
             setTimeout(() => {
                 startAutoRefresh();
                 showUpdateIndicator();
-            } 2000);
+            }, 2000);
         });
 
         window.addEventListener('beforeunload', () => {
@@ -557,7 +557,7 @@ function enterGallery() {
 
             if (userData.isAdmin) {
                 showToast(`🎉 Bienvenue Admin ${userData.name}!`);
-                setTimeout(() => { goToAdmin(); } 1500);
+                setTimeout(() => { goToAdmin(); }, 1500);
             } else {
                 showToast(successMessage);
             }
@@ -2289,7 +2289,7 @@ function enterGallery() {
                 console.warn('Erreur addToCart :', error.message);
                 showToast('❌ Erreur de connexion. Réessayez.');
             } finally {
-                setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; } 700);
+                setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; }, 700);
             }
         }
 

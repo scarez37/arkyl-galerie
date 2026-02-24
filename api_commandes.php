@@ -34,6 +34,8 @@ function ensureTables($db) {
         $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS escrow_released_at TIMESTAMPTZ");
         $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS escrow_auto_release_date TIMESTAMPTZ");
         $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_by VARCHAR(50)");
+        $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_name VARCHAR(255)");
+        $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)");
         $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS escrow_status VARCHAR(50) DEFAULT 'payée_en_attente'");
         $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_mode VARCHAR(50)");
         $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_address TEXT");

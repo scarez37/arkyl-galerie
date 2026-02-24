@@ -719,11 +719,9 @@ function enterGallery() {
 
             updateBadges();
             
-            // Déconnecter le compte artiste (si existant) — on utilise artistKey capturé avant le null
-            if (hasArtistAccount) {
-                safeStorage.remove(artistKey);
-                console.log('✅ Compte artiste déconnecté');
-            }
+            // NE PAS supprimer le compte artiste du localStorage — il doit persister entre sessions
+            // On efface seulement la mémoire active (db), pas le compte enregistré
+            console.log('✅ Session artiste terminée (compte conservé pour reconnexion)');
             
             // Retour au mode client si on était en mode artiste
             const artistSpace = document.getElementById('artistSpace');

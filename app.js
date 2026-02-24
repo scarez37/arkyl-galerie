@@ -1423,23 +1423,40 @@ function enterGallery() {
             }
         }
 
-        function deleteAdminArtwork(id) {
+        async function deleteAdminArtwork(id) {
             if (!confirm('Êtes-vous sûr de vouloir supprimer cette œuvre ?')) return;
             
-            let products = getProducts();
-            const artwork = products.find(p => p.id === id);
-            const artworkTitle = artwork ? artwork.title : 'Œuvre';
-            
-            products = products.filter(p => p.id !== id);
-            saveProducts(products);
-            
-            showToast('🗑️ Œuvre supprimée');
-            logAdminActivity('🗑️', `Œuvre supprimée: ${artworkTitle}`);
-            renderAdminArtworks();
-            
-            // Update the main gallery if it's visible
-            if (document.getElementById('homePage').classList.contains('active')) {
-                (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
+            try {
+                // Appel API pour supprimer de la base de données PostgreSQL
+                const resp = await fetch('https://arkyl-galerie.onrender.com/api_supprimer_oeuvre.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                const data = await resp.json();
+                if (!data.success) {
+                    showToast('❌ Erreur serveur : ' + (data.message || 'Suppression impossible'));
+                    return;
+                }
+
+                let products = getProducts();
+                const artwork = products.find(p => p.id === id);
+                const artworkTitle = artwork ? artwork.title : 'Œuvre';
+                
+                products = products.filter(p => p.id !== id);
+                saveProducts(products);
+                
+                showToast('🗑️ Œuvre supprimée');
+                logAdminActivity('🗑️', `Œuvre supprimée: ${artworkTitle}`);
+                renderAdminArtworks();
+                
+                // Update the main gallery if it's visible
+                if (document.getElementById('homePage').classList.contains('active')) {
+                    (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
+                }
+            } catch (error) {
+                showToast('❌ Erreur réseau : ' + error.message);
+                console.error('Erreur suppression admin:', error);
             }
         }
 
@@ -6726,16 +6743,26 @@ function enterGallery() {
             }).join('');
         }
 
-        function deleteArtwork(id) {
+        async function deleteArtwork(id) {
             if (!confirm('Supprimer cette œuvre de votre portfolio et de la galerie publique ?')) return;
             
             try {
-                // Remove from public products first
+                // Appel API pour supprimer de la base de données PostgreSQL
+                const resp = await fetch('https://arkyl-galerie.onrender.com/api_supprimer_oeuvre.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                const data = await resp.json();
+                if (!data.success) {
+                    showToast('❌ Erreur serveur : ' + (data.message || 'Suppression impossible'));
+                    return;
+                }
+
+                // Supprimer du cache local et du storage partagé
                 removeFromPublicProducts(id);
-                
-                // Then remove from artist's artworks
                 db.deleteArtwork(id);
-                
+
                 showToast('✅ Œuvre supprimée de votre portfolio et de la galerie');
                 renderArtworks();
                 updateDashboard();

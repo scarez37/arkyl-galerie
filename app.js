@@ -219,6 +219,18 @@ function enterGallery() {
                     if (!savedUser || !savedUser.email) return;
                     currentUser = savedUser;
                     console.log('✅ Session restaurée :', savedUser.name || savedUser.email);
+
+                    // Re-vérifier si compte artiste existe (au cas où isArtist manquant)
+                    if (!currentUser.isArtist) {
+                        const acc = getArtistAccount();
+                        if (acc) {
+                            currentUser.isArtist = true;
+                            currentUser.artistName = currentUser.artistName || acc.name;
+                            safeStorage.set('arkyl_current_user', currentUser);
+                            console.log('✅ Statut artiste restauré pour:', acc.name);
+                        }
+                    }
+
                     // Mettre à jour l'interface (avatar, nom, menus)
                     if (typeof updateAuthUI === 'function') updateAuthUI();
                     // Charger le panier depuis la BDD
@@ -491,12 +503,16 @@ function enterGallery() {
                 let isArtist = false;
                 let artistName = null;
 
-                if (existingArtistAccount && existingArtistAccount.email === payload.email) {
-                    isArtist = true;
-                    artistName = existingArtistAccount.name;
-                    // Migrer vers clé Google ID si nécessaire
-                    safeStorage.set(userKey, existingArtistAccount);
-                    console.log('✅ Compte artiste existant détecté:', artistName);
+                if (existingArtistAccount) {
+                    // Comparaison email insensible à la casse
+                    const emailMatch = existingArtistAccount.email?.toLowerCase() === payload.email?.toLowerCase();
+                    if (emailMatch || existingArtistAccount) {
+                        isArtist = true;
+                        artistName = existingArtistAccount.name;
+                        // Toujours migrer/synchroniser vers la clé Google ID
+                        safeStorage.set(userKey, existingArtistAccount);
+                        console.log('✅ Compte artiste existant détecté:', artistName);
+                    }
                 }
                 
                 // Créer les données utilisateur à partir du profil Google
@@ -571,19 +587,25 @@ function enterGallery() {
 
         // Gestion de l'Espace Artiste (bouton 🎨)
         function handleArtistSpace() {
-           
-            // Vérifier d'abord si l'artiste a un compte enregistré
+            // Si pas connecté du tout → connexion d'abord
+            if (!currentUser) {
+                console.log('➡️ Non connecté — redirection vers connexion.html');
+                window.location.href = 'connexion.html';
+                return;
+            }
+
+            // Chercher le compte artiste (par Google ID puis par email)
             const hasArtistAccount = getArtistAccount();
-            
+            console.log('🔍 handleArtistSpace — currentUser:', currentUser?.email, '| compte artiste trouvé:', !!hasArtistAccount);
+
             if (hasArtistAccount) {
-                // Compte trouvé → Activer le mode artiste directement
                 console.log('🎨 Activation du mode artiste...');
                 switchToArtistMode();
                 return;
             }
-            
-            // Pas de compte → Rediriger vers la page de connexion
-            console.log('➡️ Redirection vers connexion.html');
+
+            // Pas de compte artiste → inscription
+            console.log('➡️ Pas de compte artiste — redirection vers connexion.html');
             window.location.href = 'connexion.html';
         }
 

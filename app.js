@@ -651,7 +651,7 @@ function enterGallery() {
             currentUser.artistName = artistName;
             currentUser.name = artistName;
             currentUser.email = cleanEmail;
-            currentUser.picture = artistsData[artistName].profileImage || currentUser.picture;
+            currentUser.picture = (artistsData[artistName] && artistsData[artistName].profileImage) ? artistsData[artistName].profileImage : currentUser.picture;
 
             // Sauvegarder
             safeStorage.set('arkyl_current_user', currentUser);
@@ -842,10 +842,10 @@ function enterGallery() {
                 // Handle artist profile image or regular avatar
                 if (currentUser.isArtist && currentUser.artistName) {
                     const artistData = artistsData[currentUser.artistName];
-                    if (artistData.profileImage) {
+                    if (artistData && artistData.profileImage) {
                         userAvatar.src = artistData.profileImage;
                     } else {
-                        userAvatar.src = currentUser.picture;
+                        userAvatar.src = currentUser.picture || '';
                     }
                     // Add artist badge to username display
                     userName.innerHTML = `${currentUser.name} <span class="artist-badge-nav">Artiste</span>`;
@@ -1138,7 +1138,7 @@ function enterGallery() {
                 `;
                 
                 artists.forEach(artistName => {
-                    const artist = artistsData[artistName];
+                    const artist = artistsData[artistName] || {};
                     html += `
                         <div style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; display: flex; align-items: center; gap: 15px; transition: all 0.3s ease; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'" onclick="switchAdminTab('artists'); setTimeout(() => document.querySelector('[data-artist-name=\\'${artistName}\\']')?.scrollIntoView({behavior: 'smooth', block: 'center'}), 300);">
                             <div style="width: 60px; height: 60px; border-radius: 50%; background: ${artist.avatarGradient || 'linear-gradient(135deg, #667eea, #764ba2)'}; display: flex; align-items: center; justify-content: center; font-size: 28px;">

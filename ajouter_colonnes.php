@@ -23,3 +23,9 @@ try {
 
 echo "</body></html>";
 ?>
+$db->exec("CREATE TABLE IF NOT EXISTS followers (
+    user_id VARCHAR(255) NOT NULL,
+    artist_id VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, artist_id)
+);");

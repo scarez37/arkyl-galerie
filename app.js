@@ -1,23 +1,3 @@
-console.log("🚀 APP.JS COMMENCE À SE CHARGER !");
-
-
-// ==========================================
-// UTILITAIRE RENDU GALERIE CENTRALISÉ
-// ==========================================
-
-function refreshGalleryByPage(pageId) {
-    if (pageId === 'homePage') {
-        (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0)
-            ? afficherOeuvresFiltrees()
-            : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
-    } else if (pageId === 'favoritesPage' && typeof renderFavorites === 'function') {
-        renderFavorites();
-    } else if (pageId === 'cartPage' && typeof renderCart === 'function') {
-        renderCart();
-    }
-}  // Fin DOMContentLoaded
-
-
 function enterGallery() {
             const introPage = document.getElementById('intro-page');
             const mainContent = document.getElementById('main-content');
@@ -62,7 +42,9 @@ function enterGallery() {
                 const now = Date.now();
                 const lastRender = lastRenderTime[pageId] || 0;
                 if (now - lastRender > 30000) {
-                    refreshGalleryByPage(pageId);
+                    if (pageId === 'homePage' && typeof renderProducts === 'function') (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
+                    else if (pageId === 'favoritesPage' && typeof renderFavorites === 'function') renderFavorites();
+                    else if (pageId === 'cartPage' && typeof renderCart === 'function') renderCart();
                     lastRenderTime[pageId] = now;
                 }
             }, 30000);
@@ -87,7 +69,9 @@ function enterGallery() {
             const currentPage = document.querySelector('.page.active');
             if (!currentPage) return;
             const pageId = currentPage.id;
-            refreshGalleryByPage(pageId);
+            if (pageId === 'homePage' && typeof renderProducts === 'function') (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
+            else if (pageId === 'favoritesPage' && typeof renderFavorites === 'function') renderFavorites();
+            else if (pageId === 'cartPage' && typeof renderCart === 'function') renderCart();
             if (typeof updateBadges === 'function') updateBadges();
             if (typeof renderNotifications === 'function') renderNotifications();
             showUpdateIndicator();
@@ -1097,7 +1081,7 @@ function enterGallery() {
                     </div>
                     <div class="admin-item-actions">
                         <button class="admin-btn-edit" onclick="editArtwork(${product.id})">✏️ Modifier</button>
-                        <button class="admin-btn-delete" onclick="deleteArtistArtwork(${product.id})">🗑️ Supprimer</button>
+                        <button class="admin-btn-delete" onclick="deleteArtwork(${product.id})">🗑️ Supprimer</button>
                     </div>
                 </div>
             `).join('');
@@ -1330,7 +1314,7 @@ function enterGallery() {
                     </div>
                     <div class="admin-item-actions">
                         <button class="admin-btn-edit" onclick="editArtwork(${product.id})">✏️ Modifier</button>
-                        <button class="admin-btn-delete" onclick="deleteArtistArtwork(${product.id})">🗑️ Supprimer</button>
+                        <button class="admin-btn-delete" onclick="deleteArtwork(${product.id})">🗑️ Supprimer</button>
                     </div>
                 </div>
             `).join('');
@@ -1716,7 +1700,7 @@ function enterGallery() {
                 }
                 
                 // Sauvegarder les modifications
-                saveAppData();
+                await saveAppData();
                 
             } catch (error) {
                 console.error('❌ Erreur lors du like:', error);
@@ -1798,7 +1782,7 @@ function enterGallery() {
                 { tx: '80px',  ty: '18px'  },
                 { tx: '55px',  ty: '35px'  },
                 { tx: '20px',  ty: '45px'  },
-                { tx: '-20px', ty: '45px'  }
+                { tx: '-20px', ty: '45px'  },
             ];
             if (isOpen) {
                 // Fermeture : blur + scale + glissement
@@ -2104,7 +2088,7 @@ function enterGallery() {
             try {
                 console.log('🔄 Rafraîchissement de la galerie...');
                 if (typeof chargerLaVraieGalerie === 'function') {
-                    chargerLaVraieGalerie();
+                    await chargerLaVraieGalerie();
                     showToast('✅ Galerie rafraîchie !');
                 } else {
                     location.reload();
@@ -2318,9 +2302,10 @@ function enterGallery() {
             const userId = currentUser?.id || createGuestSession();
 
             try {
-                const resp = fetch(
+                const resp = await fetch(
                     `https://arkyl-galerie.onrender.com/api_get_favoris.php?user_id=${encodeURIComponent(userId)}&t=${Date.now()}`
                 );
+                const data = await resp.json();
 
                 if (!data.success || !data.data || data.data.length === 0) {
                     // Fallback local
@@ -2752,7 +2737,7 @@ function enterGallery() {
             { nom: 'Trans Ivoir',    desc: 'Liaisons interurbaines Centre-Ouest' },
             { nom: 'Bouaké Express', desc: 'Bouaké ↔ Abidjan express' },
             { nom: 'SOTRA',          desc: 'Transport urbain Abidjan & grandes villes' },
-            { nom: 'Autre',          desc: 'Autre compagnie / taxi-brousse' }
+            { nom: 'Autre',          desc: 'Autre compagnie / taxi-brousse' },
         ];
 
         let transportCompagnie = (function() {
@@ -3058,7 +3043,7 @@ function enterGallery() {
                         shippingCost: shippingCostVal,
                         shippingMode,
                         shippingName: shippingLabel,
-                        shippingAddress: clientAddress ? `${clientAddress.nom} ${clientAddress.tel} ${clientAddress.ville}${clientAddress.quartier ? ', ' + clientAddress.quartier : ''}` : '',
+                        shippingAddress: clientAddress ? `${clientAddress.nom}, ${clientAddress.tel}, ${clientAddress.ville}${clientAddress.quartier ? ', ' + clientAddress.quartier : ''}` : '',
                         paymentMethod: 'Stripe',
                         total,
                         status: 'En préparation',
@@ -3264,7 +3249,7 @@ function enterGallery() {
             { key: 'Préparée',       icon: '✅', label: 'Préparée',       color: '#ff9800' },
             { key: 'Expédiée',       icon: '🚚', label: 'Expédiée',       color: '#2196f3' },
             { key: 'En transit',     icon: '🛵', label: 'En transit',     color: '#2196f3' },
-            { key: 'Livrée',         icon: '📬', label: 'Livrée',         color: '#4caf50' }
+            { key: 'Livrée',         icon: '📬', label: 'Livrée',         color: '#4caf50' },
         ];
 
         const CARRIERS = [
@@ -3277,7 +3262,7 @@ function enterGallery() {
             { id: 'gls',         name: 'GLS',                  url: 'https://gls-group.com/track/' },
             { id: 'bolloré',     name: 'Bolloré Logistics',    url: '' },
             { id: 'nsia',        name: 'NSIA Transport',        url: '' },
-            { id: 'other',       name: 'Autre transporteur',   url: '' }
+            { id: 'other',       name: 'Autre transporteur',   url: '' },
         ];
 
         function getTrackingUrl(carrier, trackingNumber) {
@@ -3308,7 +3293,7 @@ function enterGallery() {
                     quantity: i.quantity || 1,
                     image: i.image || i.image_url || ''
                 }));
-                const resp = fetch(ORDERS_API, {
+                const resp = await fetch(ORDERS_API, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -3327,6 +3312,7 @@ function enterGallery() {
                         items
                     })
                 });
+                const r = await resp.json();
                 if (r.success) {
                     // Sauvegarder le server_id localement
                     order.server_id = r.order_id;
@@ -3340,7 +3326,8 @@ function enterGallery() {
             const userId = currentUser?.id || currentUser?.googleId || currentUser?.email;
             if (!userId) return false;
             try {
-                const resp = fetch(`${ORDERS_API}?action=list&user_id=${encodeURIComponent(userId)}&t=${Date.now()}`);
+                const resp = await fetch(`${ORDERS_API}?action=list&user_id=${encodeURIComponent(userId)}&t=${Date.now()}`);
+                const data = await resp.json();
                 if (data.success && data.orders.length > 0) {
                     // Fusionner avec localStorage — server prioritaire
                     const serverIds = data.orders.map(o => String(o.id));
@@ -3371,7 +3358,7 @@ function enterGallery() {
                 { key: 'payée_en_attente', icon: '💳', label: 'Commande validée' },
                 { key: 'expédiée',         icon: '🚚', label: 'Expédiée' },
                 { key: 'livrée_confirmée', icon: '📬', label: 'Réception confirmée' },
-                { key: 'fonds_libérés',    icon: '✅', label: 'Transaction complète' }
+                { key: 'fonds_libérés',    icon: '✅', label: 'Transaction complète' },
             ];
             const escrowOrder = ['payée_en_attente','expédiée','livrée_confirmée','fonds_libérés'];
             const stepIdx = escrowOrder.indexOf(es);
@@ -3405,7 +3392,7 @@ function enterGallery() {
             const container = document.getElementById('ordersContainer');
             container.innerHTML = '<div style="text-align:center;padding:60px;opacity:0.6;">⏳ Chargement de vos commandes...</div>';
 
-            loadOrdersFromServer();
+            await loadOrdersFromServer();
 
             if (orderHistory.length === 0) {
                 container.innerHTML = `
@@ -3586,17 +3573,18 @@ function enterGallery() {
             if (btn) { btn.disabled = true; btn.textContent = '⏳ Confirmation en cours...'; }
 
             try {
-                const resp = fetch(ORDERS_API, {
+                const resp = await fetch(ORDERS_API, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'confirm_reception', order_id: orderId })
                 });
+                const data = await resp.json();
                 if (data.success) {
                     showToast('✅ Réception confirmée ! Fonds en cours de libération...');
                     addNotification('Œuvre reçue', 'Merci d\'avoir confirmé la réception. Les fonds sont transférés à l\'artiste.');
                     setTimeout(async () => {
                         showToast('💰 Fonds libérés — l\'artiste a été payé !');
-                        renderOrders();
+                        await renderOrders();
                     }, 2000);
                 }
             } catch(e) {
@@ -3610,7 +3598,7 @@ function enterGallery() {
                     orderHistory = orders;
                 }
                 showToast('✅ Réception confirmée (hors ligne)');
-                renderOrders();
+                await renderOrders();
             }
         }
 
@@ -3645,27 +3633,141 @@ function enterGallery() {
                     showToast('🚚 Commande marquée expédiée avec preuve !');
                     addNotification('Preuve d\'expédition', `Commande ${order.order_number || '#'+orderId} : preuve d'expédition enregistrée`);
                 };
-                
-            // NOUVELLE VERSION : Upload direct vers Cloudinary
-            if (proofFile) {
-                showToast('⏳ Upload de la preuve en cours...');
-                try {
-                    // 1. On envoie l'image sur le Cloud
-                    const secureUrl = uploadImageToCloudinary(proofFile);
-                    
-                    // 2. On met juste l'URL propre dans le payload JSON
-                    payload.shipping_proof_url = secureUrl;
-                    
-                    // 3. On envoie au serveur PHP
-                    sendStatusUpdate(payload);
-                } catch (e) {
-                    showToast('❌ Échec de l\'envoi de l\'image de preuve');
-                }
+                reader.readAsDataURL(proofFile);
             } else {
-                sendStatusUpdate(payload);
+                safeStorage.set('arkyl_orders', orders);
+                orderHistory = orders;
+                renderAdminOrders();
+                showToast('🚚 Commande marquée expédiée !');
             }
 
-            renderArtistOrders();
+            // Auto-libération après 21 jours (simulé ici via flag)
+            order.escrow_auto_release_date = new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString();
+            safeStorage.set('arkyl_orders', orders);
+
+            // Envoyer notification à l'acheteur
+            sendStatusChangeNotifications(order, 'En préparation', 'Expédiée');
+        }
+
+
+
+        // ===== VUE ARTISTE : ses ventes + mise à jour statut =====
+        async function renderArtistOrders() {
+            const container = document.getElementById('artistOrdersContainer');
+            if (!container) return;
+            const artistId = currentUser?.id || currentUser?.googleId || currentUser?.email;
+            if (!artistId) return;
+
+            container.innerHTML = '<div style="text-align:center;padding:40px;opacity:0.6;">⏳ Chargement de vos ventes...</div>';
+
+            let orders = [];
+            try {
+                const resp = await fetch(`${ORDERS_API}?action=list&artist_id=${encodeURIComponent(artistId)}&t=${Date.now()}`);
+                const data = await resp.json();
+                if (data.success) orders = data.orders;
+            } catch(e) { /* local fallback */ }
+
+            if (orders.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align:center;padding:60px;opacity:0.7;">
+                        <div style="font-size:60px;margin-bottom:16px;">🎨</div>
+                        <div style="font-size:18px;font-weight:600;">Aucune vente pour le moment</div>
+                        <div style="font-size:14px;opacity:0.6;margin-top:8px;">Vos ventes apparaîtront ici dès qu'une commande inclut vos œuvres.</div>
+                    </div>`;
+                return;
+            }
+
+            const totalRevenue = orders.reduce((s, o) => {
+                const myItems = (o.items||[]).filter(i => i.artist_id === artistId || i.artist === currentUser?.artistName);
+                return s + myItems.reduce((ss, i) => ss + (parseFloat(i.price)||0) * (i.quantity||1), 0);
+            }, 0);
+
+            container.innerHTML = `
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:28px;">
+                    <div class="orders-stat-card"><div class="orders-stat-icon">🛒</div><div class="orders-stat-value">${orders.length}</div><div class="orders-stat-label">Ventes</div></div>
+                    <div class="orders-stat-card"><div class="orders-stat-icon">💰</div><div class="orders-stat-value">${formatPrice(totalRevenue)}</div><div class="orders-stat-label">Revenus</div></div>
+                </div>
+                ${orders.map(order => {
+                    const orderId = order.id || order.server_id;
+                    const myItems = (order.items||[]).filter(i => !i.artist_id || i.artist_id === artistId || (i.artist||i.artist_name) === currentUser?.artistName);
+                    const myRevenue = myItems.reduce((s,i) => s + (parseFloat(i.price)||0)*(i.quantity||1), 0);
+                    const carrierOptions = CARRIERS.map(c => `<option value="${c.id}" ${order.carrier===c.id?'selected':''}>${c.name}</option>`).join('');
+                    const statusOptions = DELIVERY_STATUSES.filter(s => !['Livrée'].includes(s.key) || order.status === 'Livrée').map(s =>
+                        `<option value="${s.key}" ${order.status===s.key?'selected':''}>${s.icon} ${s.label}</option>`
+                    ).join('');
+
+                    return `
+                    <div class="admin-order-card">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+                            <div>
+                                <div style="font-size:16px;font-weight:700;color:var(--ocre);">📦 ${order.order_number || '#'+orderId}</div>
+                                <div style="font-size:13px;opacity:0.7;margin-top:3px;">👤 ${order.user_name || 'Acheteur'}</div>
+                                <div style="font-size:12px;opacity:0.5;">📅 ${order.created_at ? new Date(order.created_at).toLocaleDateString('fr-FR') : ''}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:18px;font-weight:800;color:var(--ocre);">${formatPrice(myRevenue)}</div>
+                                <span style="padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;background:${statusColor(order.status)}33;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}55;">
+                                    ${statusIcon(order.status)} ${order.status}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Mes œuvres dans cette commande -->
+                        <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:12px;margin-bottom:14px;">
+                            ${myItems.map(item => `
+                                <div style="display:flex;gap:10px;align-items:center;padding:6px 0;">
+                                    ${item.image_url||item.image ? `<img src="${item.image_url||item.image}" style="width:40px;height:40px;border-radius:6px;object-fit:cover;">` : '<div style="width:40px;height:40px;border-radius:6px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">🎨</div>'}
+                                    <div style="flex:1;font-size:13px;font-weight:600;">${item.title}</div>
+                                    <div style="font-weight:700;color:var(--ocre);font-size:13px;">${formatPrice((item.price||0)*(item.quantity||1))}</div>
+                                </div>`).join('')}
+                        </div>
+
+                        <!-- Mise à jour statut (artiste) -->
+                        ${order.status !== 'Livrée' && order.status !== 'fonds_libérés' ? `
+                        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px;">
+                            <div style="font-weight:700;font-size:13px;margin-bottom:12px;">📤 Mettre à jour l'expédition</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                                <select id="art-status-${orderId}" style="padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;">
+                                    ${statusOptions}
+                                </select>
+                                <select id="art-carrier-${orderId}" style="padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;">
+                                    <option value="">Transporteur...</option>
+                                    ${carrierOptions}
+                                </select>
+                            </div>
+                            <input id="art-tracking-${orderId}" type="text" placeholder="N° de suivi" value="${order.tracking_number||''}"
+                                style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+                            <input id="art-note-${orderId}" type="text" placeholder="Note pour l'acheteur"
+                                style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+                            <button onclick="artistUpdateOrderStatus('${orderId}')"
+                                style="width:100%;padding:12px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));color:white;">
+                                💾 Enregistrer
+                            </button>
+                        </div>` : `
+                        <div style="background:rgba(76,175,80,0.1);border:1px solid rgba(76,175,80,0.3);border-radius:10px;padding:12px;font-size:13px;">
+                            ✅ Commande livrée — fonds en cours de libération
+                        </div>`}
+                    </div>`;
+                }).join('')}`;
+        }
+
+        async function artistUpdateOrderStatus(orderId) {
+            const status   = document.getElementById(`art-status-${orderId}`)?.value;
+            const tracking = document.getElementById(`art-tracking-${orderId}`)?.value?.trim();
+            const carrier  = document.getElementById(`art-carrier-${orderId}`)?.value;
+            const note     = document.getElementById(`art-note-${orderId}`)?.value?.trim();
+
+            await sendStatusUpdate({
+                action: 'update_status',
+                order_id: orderId,
+                status,
+                tracking_number: tracking || null,
+                carrier: carrier || null,
+                note: note || null,
+                updated_by: currentUser?.name || currentUser?.artistName || 'artiste',
+                updated_by_role: 'artist',
+            });
+            await renderArtistOrders();
         }
 
         // ===== BADGES HAMBURGER — commandes en cours =====
@@ -4234,18 +4336,16 @@ function enterGallery() {
 
         // 🚚 NOUVELLE FONCTION: Mettre à jour le statut d'une commande
         function updateOrderStatus(orderId, newStatus) {
-            const orders = safeStorage.get('arkyl_orders', []);
-            const orderIndex = orders.findIndex(o => o.id === orderId);
-            if (orderIndex === -1) return;
-
-            const order = orders[orderIndex];
+            const order = orderHistory.find(o => o.id === orderId);
+            if (!order) return;
+            
             const oldStatus = order.status;
             order.status = newStatus;
-            orders[orderIndex] = order;
-            safeStorage.set('arkyl_orders', orders);
-
+            safeStorage.set('arkyl_orders', orderHistory);
+            
+            // Icônes et messages selon le statut
             const statusMessages = {
-                'En préparation': { icon: '📦', client: 'Votre commande est en préparation', admin: 'Commande en préparation' },
+                'En préparation': { icon: '📦', client: 'Votre commande est en cours de préparation', admin: 'Commande en préparation' },
                 'Expédiée': { icon: '🚚', client: 'Votre commande a été expédiée !', admin: 'Commande expédiée' },
                 'En livraison': { icon: '🛵', client: 'Votre commande est en cours de livraison', admin: 'Commande en livraison' },
                 'Livrée': { icon: '✅', client: 'Votre commande a été livrée avec succès !', admin: 'Commande livrée' },
@@ -4738,7 +4838,7 @@ function enterGallery() {
             // ⭐ Récupérer le profil artiste depuis l'API (avatar, bio, spécialité)
             let serverArtistProfile = null;
             try {
-                const profileResp = fetch(`https://arkyl-galerie.onrender.com/api_modifier_profil.php?artist_name=${encodeURIComponent(artistName)}&t=${Date.now()}`);
+                const profileResp = await fetch(`https://arkyl-galerie.onrender.com/api_modifier_profil.php?artist_name=${encodeURIComponent(artistName)}&t=${Date.now()}`);
                 if (profileResp.ok) {
                     const profileResult = await profileResp.json();
                     if (profileResult.success && profileResult.artist) {
@@ -4873,69 +4973,12 @@ function enterGallery() {
             return followed.some(a => a.name === artistName);
         }
 
-        // ==================== MY ARTISTS PAGE ====================
-        async function renderMyArtistsPage() {
-            const container = document.getElementById('myArtistsContainer');
-            if (!container) return;
-
-            const followed = getFollowedArtists();
-
-            if (followed.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align:center;padding:60px 20px;opacity:0.7;">
-                        <div style="font-size:50px;margin-bottom:16px;">🎨</div>
-                        <h3 style="margin-bottom:8px;">Aucun artiste suivi</h3>
-                        <p>Explorez la galerie et suivez vos artistes préférés !</p>
-                        <button class="btn-large" onclick="navigateTo('home')" style="margin-top:20px;">
-                            Découvrir les artistes
-                        </button>
-                    </div>`;
-                return;
-            }
-
-            container.innerHTML = `
-                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;padding:16px;">
-                    ${followed.map(artist => `
-                        <div class="product-card" onclick="viewArtistDetail(event, '${artist.name}')"
-                             style="cursor:pointer;text-align:center;padding:20px 12px;">
-                            <div style="font-size:44px;margin-bottom:10px;">
-                                ${artist.avatar || '👤'}
-                            </div>
-                            <div style="font-weight:700;margin-bottom:6px;">${artist.name}</div>
-                            <button class="btn" onclick="event.stopPropagation();toggleFollowArtist('${artist.name}')"
-                                    style="font-size:12px;padding:4px 12px;margin-top:6px;">
-                                ✓ Abonné
-                            </button>
-                        </div>
-                    `).join('')}
-                </div>`;
-        }
-
-        // ==================== TICKER NAVIGATION ====================
-        let _tickerCurrentIndex = 0;
-
-        function tickerNav(direction) {
-            const items = document.querySelectorAll('.ticker-item, .news-item, .news-ticker-item');
-            if (!items || items.length === 0) return;
-
-            _tickerCurrentIndex = (_tickerCurrentIndex + direction + items.length) % items.length;
-
-            // Essayer de scroller l'item visible dans le ticker
-            const ticker = document.querySelector('.news-ticker-container, .ticker-track, .ticker-wrapper');
-            if (ticker) {
-                const item = items[_tickerCurrentIndex];
-                if (item) {
-                    item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                }
-            }
-        }
-
         // Fonction toggle pour suivre/ne plus suivre
         async function toggleFollowArtist(artistName) {
             if (isFollowingArtist(artistName)) {
-                unfollowArtistWithAnimation(artistName);
+                await unfollowArtistWithAnimation(artistName);
             } else {
-                followArtist(artistName);
+                await followArtist(artistName);
             }
         }
 
@@ -4980,298 +5023,3891 @@ function enterGallery() {
             }
         }
 
-
-        // ==========================================
-        // EXPOSITION GLOBALE — fonctions appelées depuis le HTML via onclick
-        // ==========================================
-        window.navigateTo              = navigateTo;
-        window.enterGallery            = enterGallery;
-        window.toggleHamburgerMenu     = toggleHamburgerMenu;
-        window.closeHamburgerMenu      = closeHamburgerMenu;
-        window.toggleUserMenu          = toggleUserMenu;
-        window.toggleNotifications     = toggleNotifications;
-        window.handleLogout            = handleLogout;
-        window.handleArtistSpace       = handleArtistSpace;
-        window.handleQuickArtistLogin  = handleQuickArtistLogin;
-        window.goToAdmin               = goToAdmin;
-        window.goToAdminNews           = goToAdminNews;
-        window.goToAdminOrders         = goToAdminOrders;
-        window.goToOrders              = goToOrders;
-        window.backToClientMode        = backToClientMode;
-        window.triggerManualRefresh    = triggerManualRefresh;
-        window.rafraichirGalerie       = rafraichirGalerie;
-        window.toggleFavorite          = toggleFavorite;
-        window.toggleLikeDB            = toggleLikeDB;
-        window.addToCart               = addToCart;
-        window.addToCartFromDetail     = addToCartFromDetail;
-        window.renderCart              = renderCart;
-        window.renderFavorites         = renderFavorites;
-        window.renderOrders            = renderOrders;
-        window.renderMyArtistsPage     = renderMyArtistsPage;
-        window.viewProductDetail       = viewProductDetail;
-        window.viewArtistDetail        = viewArtistDetail;
-        window.toggleFollowArtist      = toggleFollowArtist;
-        window.selectCategory          = selectCategory;
-        window.filterProducts          = filterProducts;
-        window.toggleCategoryBtns      = toggleCategoryBtns;
-        window.selectShipping          = selectShipping;
-        window.changeQuantity          = changeQuantity;
-        window.confirmRemoveFromCart   = confirmRemoveFromCart;
-        window.removeFromCart          = removeFromCart;
-        window.validerPaiementStripe   = validerPaiementStripe;
-        window.saveClientAddress       = saveClientAddress;
-        window.editAddress             = editAddress;
-        window.cancelAddressEdit       = cancelAddressEdit;
-        window.confirmerVillePoste     = confirmerVillePoste;
-        window.confirmerLieuMainPropre = confirmerLieuMainPropre;
-        window.selectionnerCompagnie   = selectionnerCompagnie;
-        window.markAllAsRead           = markAllAsRead;
-        window.markAsRead              = markAsRead;
-        window.openNotificationDetail  = openNotificationDetail;
-        window.tickerNav               = tickerNav;
-        window.nextPhoto               = nextPhoto;
-        window.previousPhoto           = previousPhoto;
-        window.switchAdminTab          = switchAdminTab;
-        window.performAdminSearch      = performAdminSearch;
-        window.clearAdminSearch        = clearAdminSearch;
-        window.filterArtworks          = filterArtworks;
-        window.clearArtworksSearch     = clearArtworksSearch;
-        window.filterArtists           = filterArtists;
-        window.clearArtistsSearch      = clearArtistsSearch;
-        window.renderAdminOverview     = renderAdminOverview;
-        window.renderAdminArtworks     = renderAdminArtworks;
-        window.openAddArtworkModal     = openAddArtworkModal;
-        window.editArtwork             = editArtwork;
-        window.saveAdminArtwork        = saveAdminArtwork;
-        window.deleteArtwork           = deleteArtwork;
-        window.closeArtworkModal       = closeArtworkModal;
-        window.renderAdminArtists      = renderAdminArtists;
-        window.openAddArtistModal      = openAddArtistModal;
-        window.editArtist              = editArtist;
-        window.saveArtist              = saveArtist;
-        window.deleteArtist            = deleteArtist;
-        window.closeArtistModal        = closeArtistModal;
-        window.filterAdminOrders       = filterAdminOrders;
-        window.changeOrderStatus       = changeOrderStatus;
-        window.confirmReception        = confirmReception;
-        window.markAsShippedWithProof  = markAsShippedWithProof;
-        window.addNotification         = addNotification;
-        window.updateHamburgerOrderBadges = updateHamburgerOrderBadges;
-
-        // ==========================================
-        // FONCTIONS UTILITAIRES GLOBALES MANQUANTES
-        // (définies ici si absentes d'un autre fichier)
-        // ==========================================
-        if (typeof formatPrice === 'undefined') {
-            window.formatPrice = function(amount) {
-                if (amount == null || isNaN(amount)) return '—';
-                return new Intl.NumberFormat('fr-CI', {
-                    style: 'currency',
-                    currency: 'XOF',
-                    minimumFractionDigits: 0
-                }).format(amount);
-            };
-        }
-        if (typeof showToast === 'undefined') {
-            window.showToast = function(message, duration = 3000) {
-                let toast = document.getElementById('toastMessage');
-                if (!toast) {
-                    toast = document.createElement('div');
-                    toast.id = 'toastMessage';
-                    toast.className = 'toast';
-                    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,0.95);color:#fff;padding:12px 24px;border-radius:12px;z-index:9999;font-size:14px;max-width:80vw;text-align:center;pointer-events:none;transition:opacity 0.3s;';
-                    document.body.appendChild(toast);
-                }
-                toast.textContent = message;
-                toast.style.opacity = '1';
-                clearTimeout(toast._timeout);
-                toast._timeout = setTimeout(() => { toast.style.opacity = '0'; }, duration);
-            };
-        }
-        if (typeof updateBadges === 'undefined') {
-            window.updateBadges = function() {
-                const cartBadge = document.getElementById('cartBadge');
-                const favBadge  = document.getElementById('favBadge');
-                const notifBadge = document.getElementById('notifBadge');
-                if (cartBadge) {
-                    const total = (typeof cartItems !== 'undefined' ? cartItems : []).reduce((s, i) => s + (i.quantity || 1), 0);
-                    cartBadge.textContent = total;
-                    cartBadge.style.display = total > 0 ? 'flex' : 'none';
-                }
-                if (favBadge) {
-                    const count = (typeof favorites !== 'undefined' ? favorites : []).length;
-                    favBadge.textContent = count;
-                    favBadge.style.display = count > 0 ? 'flex' : 'none';
-                }
-                if (notifBadge) {
-                    const count = (typeof notifications !== 'undefined' ? notifications : []).filter(n => n.unread).length;
-                    notifBadge.textContent = count;
-                    notifBadge.style.display = count > 0 ? 'flex' : 'none';
-                }
-            };
-        }
-        if (typeof switchToArtistMode === 'undefined') {
-            window.switchToArtistMode = function() {
-                if (!currentUser) return;
-                currentUser.isArtist = true;
-                safeStorage.set('arkyl_current_user', currentUser);
-                if (typeof updateAuthUI === 'function') updateAuthUI();
-                navigateTo('artistProfile');
-                if (typeof showToast === 'function') showToast('🎨 Mode artiste activé');
-            };
-        }
-        if (typeof updateFollowButton === 'undefined') {
-            window.updateFollowButton = function(artistName, isFollowing) {
-                const btnId = 'followBtn-' + artistName.replace(/\s+/g, '-');
-                const btn = document.getElementById(btnId);
-                if (btn) {
-                    btn.textContent = isFollowing ? '✓ Abonné' : '+ Suivre';
-                    if (isFollowing) btn.setAttribute('data-following', 'true');
-                    else btn.removeAttribute('data-following');
-                }
-            };
-        }
-
-        // ==========================================
-        // STUBS — fonctions définies dans d'autres fichiers JS du projet
-        // Ces stubs évitent les ReferenceError si les fichiers ne sont pas chargés
-        // ==========================================
-        if (typeof renderAdminOrders === 'undefined') {
-            window.renderAdminOrders = function() {
-                const container = document.getElementById('adminOrdersContainer');
-                if (container) container.innerHTML = '<p style="text-align:center;padding:40px;opacity:0.6;">Chargement des commandes admin...</p>';
-            };
-        }
-        if (typeof saveArtistsData === 'undefined') {
-            window.saveArtistsData = function() {
-                try { safeStorage.set('arkyl_artists_data', artistsData); } catch(e) {}
-            };
-        }
-        if (typeof loadArtistsData === 'undefined') {
-            window.loadArtistsData = function() {
-                return safeStorage.get('arkyl_artists_data', {});
-            };
-        }
-        if (typeof closeProductDetail === 'undefined') {
-            window.closeProductDetail = function() {
-                navigateTo('home');
-            };
-        }
-        if (typeof deleteArtistArtwork === 'undefined') {
-            window.deleteArtistArtwork = function(id) {
-                if (typeof deleteArtwork === 'function') deleteArtwork(id);
-            };
-        }
-        if (typeof chargerLaVraieGalerie === 'undefined') {
-            window.chargerLaVraieGalerie = async function() {
-                console.warn('chargerLaVraieGalerie() non disponible — galerie non chargée');
-            };
-        }
-        if (typeof afficherOeuvresFiltrees === 'undefined') {
-            window.afficherOeuvresFiltrees = function() {
-                if (typeof chargerLaVraieGalerie === 'function') chargerLaVraieGalerie();
-            };
-        }
-        if (typeof buildMiniAvatar === 'undefined') {
-            window.buildMiniAvatar = function(user, size = 40) {
-                const s = size + 'px';
-                if (user && user.profile_image && user.profile_image.startsWith('http')) {
-                    return `<img src="${user.profile_image}" style="width:${s};height:${s};border-radius:50%;object-fit:cover;" onerror="this.outerHTML='<span style=font-size:${size * 0.6}px>${user.avatar || '👤'}</span>'">`;
-                }
-                return `<span style="font-size:${size * 0.6}px;line-height:${s};display:inline-block;">${(user && user.avatar) || '👤'}</span>`;
-            };
-        }
-        if (typeof init === 'undefined') {
-            window.init = function() {
-                console.log('init() — galerie initialisée');
-                if (typeof chargerLaVraieGalerie === 'function') chargerLaVraieGalerie();
-                if (typeof updateBadges === 'function') updateBadges();
-            };
-        }
-
-
-        async function followArtist(artistId, artistName) {
-            if (!currentUser) {
-                showToast('⚠️ Veuillez vous connecter pour suivre un artiste');
+        async function followArtist(artistName) {
+            const followed = getFollowedArtists();
+            
+            // Check if already following
+            if (isFollowingArtist(artistName)) {
+                showToast(`ℹ️ Vous suivez déjà ${artistName}`);
                 return;
             }
 
+            // Trouver le bouton et ajouter l'animation
+            const btnId = 'followBtn-' + artistName.replace(/\s+/g, '-');
+            const btn = document.getElementById(btnId);
+            
+            if (btn) {
+                // Animation de chargement
+                btn.disabled = true;
+                btn.style.transform = 'scale(0.95)';
+                btn.innerHTML = '⏳ Abonnement...';
+            }
+
+            // Charger les œuvres depuis l'API et/ou local
+            let allProducts = [];
             try {
-                // 1. On prévient le serveur
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_toggle_follow.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        user_id: currentUser.id, 
-                        artist_id: artistId 
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    // 2. On met à jour la mémoire locale selon la réponse du serveur
-                    if (!currentUser.following) currentUser.following = [];
-
-                    if (data.action === 'followed') {
-                        const avatarImgElement = document.querySelector('.artist-header-avatar');
-                        const artistAvatar = avatarImgElement ? avatarImgElement.src : 'default-avatar.png';
-                        
-                        currentUser.following.push({
-                            id: artistId,
-                            name: artistName,
-                            avatar: artistAvatar
-                        });
-                        showToast(`✅ Vous suivez maintenant ${artistName}`);
-                    } else if (data.action === 'unfollowed') {
-                        currentUser.following = currentUser.following.filter(f => f.id !== artistId);
-                        showToast(`ℹ️ Vous ne suivez plus ${artistName}`);
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now());
+                const contentType = response.headers.get('content-type');
+                
+                if (response.ok && contentType && contentType.includes('application/json')) {
+                    const result = await response.json();
+                    if (result.success && result.data && result.data.length > 0) {
+                        allProducts = result.data.map(art => ({
+                            id: art.id,
+                            title: art.title,
+                            artist: art.artist_name,
+                            category: art.category,
+                            price: art.price,
+                            image_url: art.image_url,
+                            photos: art.photos || [art.image_url],
+                            artistAvatar: art.artist_avatar || '👨🏿‍🎨'
+                        }));
                     }
-
-                    safeStorage.set('arkyl_current_user', currentUser);
-                    
-                } else {
-                    showToast('❌ Erreur serveur : ' + data.message);
                 }
             } catch (error) {
-                console.error("Erreur d'abonnement :", error);
-                showToast('❌ Erreur de connexion au serveur');
+                console.log('⚠️ Erreur API, utilisation des données locales');
+            }
+            
+            // Données locales si API indisponible
+            if (allProducts.length === 0) {
+                allProducts = getProducts();
+            }
+
+            // Comparaison robuste pour trouver les œuvres de l'artiste
+            const artistProducts = allProducts.filter(p => 
+                p.artist && artistName && 
+                p.artist.trim().toLowerCase() === artistName.trim().toLowerCase()
+            );
+            
+            // Pas de blocage si 0 œuvres — l'artiste peut ne pas encore avoir publié
+
+            // Récupérer les données de l'artiste depuis artistsData si disponible
+            const artistData = artistsData[artistName] || {};
+
+            // Chercher une photo de profil dans les œuvres si disponible
+            let profileImageUrl = artistData.profileImage;
+            if (!profileImageUrl && artistProducts.length > 0) {
+                // Si l'œuvre a une image d'avatar de l'artiste, l'utiliser
+                const artworkWithProfile = artistProducts.find(p => p.artist_profile_image);
+                if (artworkWithProfile) {
+                    profileImageUrl = artworkWithProfile.artist_profile_image;
+                }
+            }
+
+            // Récupérer le style depuis serverArtistProfile si dispo (défini plus haut dans viewArtistDetail)
+            const savedAvatarStyle = (typeof serverArtistProfile !== 'undefined' && serverArtistProfile && serverArtistProfile.avatar_style)
+                ? serverArtistProfile.avatar_style : 'slices';
+
+            // Create artist profile
+            const artistProfile = {
+                name: artistName,
+                avatar: artistData.avatar || (artistProducts[0] && artistProducts[0].artistAvatar) || '👨🏿‍🎨',
+                specialty: artistData.specialty || (artistProducts[0] && artistProducts[0].category) || 'Artiste',
+                artworksCount: artistProducts.length,
+                followedAt: new Date().toISOString(),
+                bio: artistData.bio || (artistProducts[0] ? `Artiste talentueux spécialisé en ${artistProducts[0].category}` : ''),
+                profile_image: profileImageUrl,
+                avatar_style: savedAvatarStyle
+            };
+
+            followed.push(artistProfile);
+            saveFollowedArtists(followed);
+
+            // Animation de succès
+            if (btn) {
+                btn.innerHTML = '✓ Abonné';
+                btn.setAttribute('data-following', 'true');
+                btn.style.transform = 'scale(1.1)';
+                
+                // Animation de confettis
+                createConfetti(btn);
+                
+                setTimeout(() => {
+                    btn.style.transform = '';
+                    btn.disabled = false;
+                }, 300);
+            }
+
+            showToast(`✅ Vous suivez maintenant ${artistName}!`);
+            addNotification('Nouvel abonnement', `Vous suivez maintenant ${artistName}`);
+            
+            // Update UI if on artist detail page
+            updateFollowButton(artistName, true);
+        }
+
+        function unfollowArtist(artistName) {
+            const followed = getFollowedArtists();
+            const filtered = followed.filter(a => a.name !== artistName);
+            saveFollowedArtists(filtered);
+
+            showToast(`❌ Vous ne suivez plus ${artistName}`);
+            addNotification('Désabonnement', `Vous ne suivez plus ${artistName}`);
+            
+            // Update UI
+            updateFollowButton(artistName, false);
+            
+            // Refresh page if on My Artists page
+            const currentPage = document.querySelector('.page.active');
+            if (currentPage && currentPage.id === 'myArtistsPage') {
+                renderMyArtistsPage();
+            }
+        }
+
+        function updateFollowButton(artistName, isFollowing) {
+            // Find all follow buttons for this artist and update them
+            const buttons = document.querySelectorAll(`[data-artist="${artistName}"]`);
+            buttons.forEach(btn => {
+                if (isFollowing) {
+                    btn.textContent = '✓ Abonné';
+                    btn.style.background = 'rgba(76, 175, 80, 0.2)';
+                    btn.style.borderColor = '#4CAF50';
+                    btn.onclick = () => unfollowArtist(artistName);
+                } else {
+                    btn.textContent = '+ Suivre';
+                    btn.style.background = 'linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre))';
+                    btn.style.borderColor = 'transparent';
+                    btn.onclick = () => followArtist(artistName);
+                }
+            });
+        }
+
+
+        function buildMiniAvatar(artist, size, shape) {
+            // shape: 'circle' pour les petits formats, sinon utilise le style de l'artiste
+            const img = artist.profile_image;
+            const style = artist.avatar_style || 'slices';
+            const fallback = `<div style="font-size:${Math.round(size*0.45)}px;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">${artist.avatar || '🎨'}</div>`;
+
+            if (!img || img === 'undefined') return fallback;
+
+            if (shape === 'circle' || style === 'circle') {
+                return `<img loading="lazy" src="${img}" alt="${artist.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentElement.innerHTML='${artist.avatar || '🎨'}'">`;
+            }
+
+            if (style === 'slices') {
+                const cfg = SLICE_CONFIG.slices;
+                const slices = cfg.map((s, i) => {
+                    const h = s.hPct + '%';
+                    const alignSelf = s.hPct === 100 ? 'stretch' : s.vAlign;
+                    return `<div style="flex:1;border-radius:2px;background-image:url('${img}');background-position:${s.xPos}% center;background-size:${cfg.length * 110}% auto;height:${h};align-self:${alignSelf};"></div>`;
+                }).join('');
+                return `<div style="display:flex;flex-direction:row;gap:2px;align-items:stretch;width:100%;height:100%;">${slices}</div>`;
+            }
+            if (style === 'hslices') {
+                const cfg = SLICE_CONFIG.hslices;
+                const slices = cfg.map(s => {
+                    const alignSelf = s.wPct === 100 ? 'stretch' : s.hAlign;
+                    return `<div style="border-radius:2px;background-image:url('${img}');background-position:center ${s.yPos}%;background-size:auto ${cfg.length * 110}%;width:${s.wPct}%;align-self:${alignSelf};flex:1;"></div>`;
+                }).join('');
+                return `<div style="display:flex;flex-direction:column;gap:2px;align-items:stretch;width:100%;height:100%;">${slices}</div>`;
+            }
+            if (style === 'diamond') {
+                const s2 = Math.round(size * 0.55);
+                return `<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;">
+                    <div style="width:${s2}px;height:${s2}px;transform:rotate(45deg);border-radius:4px;overflow:hidden;">
+                        <img src="${img}" style="width:100%;height:100%;object-fit:cover;transform:rotate(-45deg) scale(1.45);">
+                    </div>
+                </div>`;
+            }
+            // square / fallback
+            return `<img loading="lazy" src="${img}" alt="${artist.name}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='${artist.avatar || '🎨'}'">`;
+        }
+        async function renderMyArtistsPage() {
+            const followed = getFollowedArtists();
+            const emptyState = document.getElementById('emptyArtistsState');
+            const carousel = document.getElementById('followedArtistsCarousel');
+            const loopsFeed = document.getElementById('artistsLoopsFeed');
+
+
+            // Show/hide empty state
+            if (followed.length === 0) {
+                emptyState.style.display = 'block';
+                document.getElementById('followedArtistsSection').style.display = 'none';
+                document.getElementById('artistsLoopsSection').style.display = 'none';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            document.getElementById('followedArtistsSection').style.display = 'block';
+            document.getElementById('artistsLoopsSection').style.display = 'block';
+
+            // Charger les œuvres depuis le serveur
+            let allProducts = [];
+            try {
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now());
+                const contentType = response.headers.get('content-type');
+                
+                if (response.ok && contentType && contentType.includes('application/json')) {
+                    const result = await response.json();
+                    if (result.success && result.data && result.data.length > 0) {
+                        allProducts = result.data.map(art => ({
+                            id: art.id,
+                            title: art.title,
+                            artist: art.artist_name,
+                            category: art.category,
+                            price: art.price,
+                            image_url: art.image_url,
+                            photos: art.photos || [art.image_url],
+                            emoji: '🎨',
+                            description: art.description || '',
+                            created_at: art.created_at || ''
+                        }));
+                    }
+                }
+            } catch (error) {
+                console.log('⚠️ Utilisation des données locales:', error);
+            }
+            
+            // Données locales si API indisponible si l'API échoue
+            if (allProducts.length === 0) {
+                allProducts = getProducts();
+                console.log('📦 Œuvres chargées depuis local:', allProducts.length);
+                console.log('📋 Artistes dans local:', [...new Set(allProducts.map(p => p.artist))]);
+            }
+
+            // Render carousel d'avatars (Your Loop)
+            carousel.innerHTML = followed.map(artist => `
+                <div class="artist-avatar-item" onclick="scrollToArtistLoops('${artist.name}')">
+                    <div class="artist-avatar-ring">
+                        <div class="artist-avatar-inner" style="overflow: hidden; background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1)); display: flex; align-items: center; justify-content: center;">
+                            ${buildMiniAvatar(artist, 70, null)}
+                        </div>
+                    </div>
+                    <div style="font-size: 12px; font-weight: 600; color: #ffffff; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${artist.name.split(' ')[0]}
+                    </div>
+                </div>
+            `).join('');
+
+            // Afficher un indicateur de chargement pendant le chargement du feed
+            loopsFeed.innerHTML = `
+                <div style="text-align: center; padding: 60px 20px;">
+                    <div style="font-size: 48px; margin-bottom: 20px; animation: pulse 1.5s ease-in-out infinite;">⏳</div>
+                    <div style="color: rgba(255, 255, 255, 0.9); font-size: 16px; font-weight: 600;">Chargement des créations...</div>
+                </div>
+            `;
+
+            // Render feed de loops (posts des artistes)
+            loopsFeed.innerHTML = followed.map(artist => {
+                const artistWorks = allProducts.filter(p => 
+                    p.artist && artist.name && 
+                    p.artist.trim().toLowerCase() === artist.name.trim().toLowerCase()
+                );
+                
+                if (artistWorks.length === 0) {
+                    return `<div style="text-align:center;padding:30px 20px;background:rgba(255,255,255,0.1);border-radius:16px;margin-bottom:16px;">
+                        <div style="font-size:40px;margin-bottom:10px;">🎨</div>
+                        <div style="color:rgba(255,255,255,0.9);font-weight:700;">${artist.name}</div>
+                        <div style="color:rgba(255,255,255,0.6);font-size:13px;margin-top:6px;">Aucune œuvre publiée pour le moment</div>
+                    </div>`;
+                }
+                
+                return artistWorks.map((work, index) => {
+                    // Utiliser uniquement les vraies données
+                    const isSocialLiked = isSociallyLiked(work.id);
+                    
+                    // Compter les likes réels pour cette œuvre
+                    const allSocialLikes = getSocialLikes();
+                    const realLikesCount = allSocialLikes.filter(id => id === work.id).length;
+                    
+                    // Utiliser la date de création si disponible, sinon rien
+                    const timeAgo = work.created_at || work.date || '';
+                    
+                    return `
+                    <div class="artist-loop-card" id="loop-${artist.name}-${index}" data-artist="${artist.name}">
+                        <!-- Header -->
+                        <div class="loop-header">
+                            <div class="loop-avatar" onclick="viewArtistDetail(event, '${artist.name}')" style="cursor: pointer; overflow: hidden; background: linear-gradient(135deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1)); display: flex; align-items: center; justify-content: center;">
+                                ${buildMiniAvatar(artist, 50, null)}
+                            </div>
+                            <div class="loop-info" onclick="viewArtistDetail(event, '${artist.name}')" style="cursor: pointer;">
+                                <div class="loop-artist-name">${artist.name}</div>
+                                <div class="loop-metadata">${timeAgo} • ${work.category}</div>
+                            </div>
+                            <button class="loop-menu-btn" onclick="toggleArtistMenu(event, '${artist.name}')" title="Plus d'options">
+                                ⋯
+                            </button>
+                        </div>
+
+                        <!-- Image de l'œuvre -->
+                        <div class="loop-image" onclick="viewProductDetailFromAPI(${work.id})" style="position: relative; background: linear-gradient(135deg, #f8f9fa 0%, #e8eaed 100%);">
+                            ${work.image_url && work.image_url !== 'undefined' 
+                                ? `<img loading="lazy" src="${work.image_url}" 
+                                       alt="${work.title}" 
+                                       style="width: 100%; height: 100%; object-fit: cover;"
+                                       onerror="this.style.display='none'; this.parentElement.querySelector('.loop-image-placeholder').style.display='flex';">
+                                   <div class="loop-image-placeholder" style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; flex-direction: column; font-size: 96px;">
+                                       ${work.emoji || '🎨'}
+                                   </div>`
+                                : `<div class="loop-image-placeholder" style="display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; flex-direction: column;">
+                                       <div style="font-size: 96px; margin-bottom: 16px;">${work.emoji || '🎨'}</div>
+                                       <div style="font-size: 14px; color: rgba(0,0,0,0.4); font-weight: 600;">Image à venir</div>
+                                   </div>`
+                            }
+                            <div class="loop-image-overlay">👁️</div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="loop-actions">
+                            <button class="loop-action-btn ${isSocialLiked ? 'liked' : ''}" onclick="toggleSocialLike(event, ${work.id}, this)" title="J'aime cette création">
+                                ${isSocialLiked ? '❤️' : '🤍'}
+                                ${realLikesCount > 0 ? `<span class="action-count" id="like-count-${work.id}">${realLikesCount}</span>` : ''}
+                            </button>
+                            <button class="loop-action-btn" onclick="focusComment(${work.id})" title="Commenter">
+                                💬
+                            </button>
+                            <button class="loop-action-btn" onclick="shareArtwork(${work.id})" title="Partager">
+                                📤
+                            </button>
+                            <div style="flex: 1;"></div>
+                            <button class="loop-action-btn ${favorites.includes(work.id) ? 'favorited' : ''}" onclick="toggleFavorite(event, ${work.id}); this.classList.toggle('favorited'); this.childNodes[0].textContent = favorites.includes(${work.id}) ? '⭐' : '☆'" title="Ajouter aux favoris">
+                                ${favorites.includes(work.id) ? '⭐' : '☆'}
+                            </button>
+                            <button class="loop-action-btn" onclick="addToCart(event, ${work.id})" title="Ajouter au panier">
+                                🛒
+                            </button>
+                        </div>
+
+                        <!-- Détails -->
+                        <div class="loop-details">
+                            ${realLikesCount > 0 ? `<div class="loop-likes">${realLikesCount} j'aime</div>` : ''}
+                            <div class="loop-title">
+                                <span class="artist-tag" onclick="viewArtistDetail(event, '${artist.name}')">${artist.name}</span> 
+                                ${work.title}
+                            </div>
+                            <div class="loop-description">
+                                ${work.description || ''}
+                            </div>
+                            <div class="loop-price" style="color: #D4A574; text-shadow: 0 2px 5px rgba(212, 165, 116, 0.3); margin-top: 8px;">
+                                ${formatPrice(work.price)}
+                            </div>
+                            
+                            <!-- Section commentaires -->
+                            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.15);">
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <input type="text" 
+                                           id="comment-${work.id}"
+                                           placeholder="Ajouter un commentaire..." 
+                                           style="flex: 1; background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 8px 16px; color: white; font-size: 13px; outline: none;"
+                                           onfocus="this.style.background='rgba(255, 255, 255, 0.2)'"
+                                           onblur="this.style.background='rgba(255, 255, 255, 0.15)'"
+                                    />
+                                    <button onclick="postComment(${work.id})" style="background: none; border: none; color: rgba(212, 165, 116, 0.8); font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.color='rgb(212, 165, 116)'" onmouseout="this.style.color='rgba(212, 165, 116, 0.8)'">
+                                        Publier
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `}).join('');
+            }).join('');
+        }
+
+        async function switchArtistTab(tab) {
+            // Update active tab
+            document.querySelectorAll('.artist-tab').forEach(t => {
+                t.classList.remove('active');
+            });
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+
+            // Show different content based on tab
+            if (tab === 'all') {
+                await renderMyArtistsPage();
+            } else if (tab === 'following') {
+                await renderFollowingArtistsGrid();
+            }
+        }
+
+        async function renderFollowingArtistsGrid() {
+            const followed = getFollowedArtists();
+            const emptyState = document.getElementById('emptyArtistsState');
+            const followedSection = document.getElementById('followedArtistsSection');
+            const loopsSection = document.getElementById('artistsLoopsSection');
+
+            // Hide the carousel and loops sections
+            followedSection.style.display = 'none';
+            loopsSection.style.display = 'none';
+
+            // Show/hide empty state
+            if (followed.length === 0) {
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            loopsSection.style.display = 'block';
+
+            // Charger les œuvres depuis le serveur
+            let allProducts = [];
+            try {
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now());
+                const contentType = response.headers.get('content-type');
+                
+                if (response.ok && contentType && contentType.includes('application/json')) {
+                    const result = await response.json();
+                    if (result.success && result.data && result.data.length > 0) {
+                        allProducts = result.data.map(art => ({
+                            id: art.id,
+                            title: art.title,
+                            artist: art.artist_name,
+                            category: art.category,
+                            price: art.price,
+                            image_url: art.image_url,
+                            photos: art.photos || [art.image_url],
+                            emoji: '🎨'
+                        }));
+                    }
+                }
+            } catch (error) {
+                console.log('⚠️ Utilisation des données locales');
+            }
+            
+            if (allProducts.length === 0) {
+                allProducts = getProducts();
+            }
+
+            // Create grid view for followed artists
+            const loopsFeed = document.getElementById('artistsLoopsFeed');
+            loopsFeed.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 20px; margin-top: 20px;">
+                    ${followed.map(artist => {
+                        // Comparaison robuste : ignorer la casse et les espaces
+                        const artistWorks = allProducts.filter(p => 
+                            p.artist && artist.name && 
+                            p.artist.trim().toLowerCase() === artist.name.trim().toLowerCase()
+                        );
+                        const totalLikes = 0; // Compteur de likes
+                        
+                        return `
+                            <div class="artist-profile-card" onclick="viewArtistDetail(event, '${artist.name}')" style="cursor: pointer;">
+                                <div class="artist-profile-header">
+                                    <div class="artist-profile-avatar" style="overflow: hidden; background: rgba(255,255,255,0.95); display: flex; align-items: center; justify-content: center;">
+                                        ${buildMiniAvatar(artist, 90, null)}
+                                    </div>
+                                    <div class="artist-profile-badge">✓</div>
+                                </div>
+                                
+                                <div class="artist-profile-info">
+                                    <h3 class="artist-profile-name">${artist.name}</h3>
+                                    <p class="artist-profile-specialty">${artist.specialty}</p>
+                                    
+                                    <div class="artist-profile-stats">
+                                        <div class="artist-profile-stat">
+                                            <span class="stat-value">${artistWorks.length}</span>
+                                            <span class="stat-label">Œuvres</span>
+                                        </div>
+                                        <div class="artist-profile-stat">
+                                            <span class="stat-value">${totalLikes}</span>
+                                            <span class="stat-label">Likes</span>
+                                        </div>
+                                        <div class="artist-profile-stat">
+                                            <span class="stat-value">0</span>
+                                            <span class="stat-label">Vues</span>
+                                        </div>
+                                    </div>
+
+                                    <p class="artist-profile-bio">${artist.bio}</p>
+
+                                    <div class="artist-profile-preview">
+                                        ${artistWorks.slice(0, 3).map(work => `
+                                            <div class="preview-artwork" style="overflow: hidden; background: linear-gradient(135deg, #f8f9fa, #e8eaed); display: flex; align-items: center; justify-content: center;">
+                                                ${work.image_url && work.image_url !== 'undefined'
+                                                    ? `<img loading="lazy" src="${work.image_url}" alt="${work.title}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size: 32px;\\'>${work.emoji || '🎨'}</div>'">` 
+                                                    : `<div style="font-size: 32px;">${work.emoji || '🎨'}</div>`}
+                                            </div>
+                                        `).join('')}
+                                        ${artistWorks.length > 3 ? `<div class="preview-more">+${artistWorks.length - 3}</div>` : ''}
+                                    </div>
+                                </div>
+
+                                <div class="artist-profile-actions">
+                                    <button onclick="event.stopPropagation(); viewArtistDetail(event, '${artist.name}')" class="btn-view-profile">
+                                        👁️ Voir le profil
+                                    </button>
+                                    <button onclick="event.stopPropagation(); unfollowArtist('${artist.name}')" class="btn-unfollow">
+                                        ✓ Abonné
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+
+        function scrollToArtistLoops(artistName) {
+            const element = document.querySelector(`[data-artist="${artistName}"]`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Highlight effect
+                element.style.transform = 'scale(1.02)';
+                setTimeout(() => {
+                    element.style.transform = 'scale(1)';
+                }, 300);
+            }
+        }
+
+        function toggleArtistMenu(event, artistName) {
+            event.stopPropagation();
+            
+            const menu = document.createElement('div');
+            menu.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: flex-end; justify-content: center; z-index: 10000; backdrop-filter: blur(5px);';
+            
+            menu.innerHTML = `
+                <div style="background: white; width: 100%; max-width: 600px; border-radius: 20px 20px 0 0; padding: 20px; animation: slideUpMenu 0.3s;">
+                    <div style="width: 40px; height: 4px; background: #e0e0e0; border-radius: 2px; margin: 0 auto 20px;"></div>
+                    
+                    <button onclick="viewArtistDetail(event, '${artistName}'); document.body.removeChild(this.closest('div').parentElement)" style="width: 100%; background: none; border: none; padding: 16px; text-align: left; font-size: 15px; font-weight: 500; color: #1a1a1a; cursor: pointer; border-radius: 12px; margin-bottom: 8px;" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='none'">
+                        👤 Voir le profil de ${artistName}
+                    </button>
+                    
+                    <button onclick="unfollowArtist('${artistName}'); document.body.removeChild(this.closest('div').parentElement)" style="width: 100%; background: none; border: none; padding: 16px; text-align: left; font-size: 15px; font-weight: 500; color: #f44336; cursor: pointer; border-radius: 12px; margin-bottom: 8px;" onmouseover="this.style.background='#ffebee'" onmouseout="this.style.background='none'">
+                        ❌ Ne plus suivre ${artistName}
+                    </button>
+                    
+                    <button onclick="document.body.removeChild(this.parentElement.parentElement)" style="width: 100%; background: #f0f0f0; border: none; padding: 16px; text-align: center; font-size: 15px; font-weight: 600; color: #666; cursor: pointer; border-radius: 12px; margin-top: 12px;">
+                        Annuler
+                    </button>
+                </div>
+                
+                
+            `;
+            
+            menu.onclick = (e) => {
+                if (e.target === menu) {
+                    document.body.removeChild(menu);
+                }
+            };
+            
+            document.body.appendChild(menu);
+        }
+
+        function shareArtwork(productId) {
+            const allProducts = getProducts();
+            const product = allProducts.find(p => p.id === productId);
+            
+            if (navigator.share) {
+                navigator.share({
+                    title: product.title,
+                    text: `Découvrez "${product.title}" par ${product.artist} sur ARKYL`,
+                    url: window.location.href
+                }).then(() => {
+                    showToast('✅ Partagé avec succès');
+                }).catch(() => {
+                    fallbackShare(product);
+                });
+            } else {
+                fallbackShare(product);
+            }
+        }
+
+        function fallbackShare(product) {
+            const shareText = `Découvrez "${product.title}" par ${product.artist} sur ARKYL - ${formatPrice(product.price)}`;
+            navigator.clipboard.writeText(shareText).then(() => {
+                showToast('📋 Lien copié dans le presse-papier');
+            }).catch(() => {
+                showToast('📤 ' + product.title);
+            });
+        }
+
+        // ==================== SYSTÈME DE LIKES POUR LE FEED SOCIAL ====================
+        // Stockage séparé pour les likes du feed (différent des favoris)
+        function getSocialLikes() {
+            return safeStorage.get('arkyl_social_likes', []);
+        }
+
+        function saveSocialLikes(likes) {
+            safeStorage.set('arkyl_social_likes', likes);
+        }
+
+        function isSociallyLiked(productId) {
+            const likes = getSocialLikes();
+            return likes.includes(productId);
+        }
+
+        // Nouvelle fonction pour gérer le like social avec animation
+        function toggleSocialLike(event, productId, button) {
+            event.stopPropagation();
+            
+            let likes = getSocialLikes();
+            const isCurrentlyLiked = likes.includes(productId);
+            
+            // Toggle like
+            if (isCurrentlyLiked) {
+                likes = likes.filter(id => id !== productId);
+            } else {
+                likes.push(productId);
+            }
+            saveSocialLikes(likes);
+            
+            // Animation du bouton
+            button.classList.add('liked');
+            setTimeout(() => {
+                button.classList.remove('liked');
+            }, 400);
+            
+            // Calculer le nouveau nombre total de likes pour cette œuvre
+            const newRealLikesCount = likes.filter(id => id === productId).length;
+            
+            // Mise à jour ou création du compteur
+            let countElement = button.querySelector('.action-count');
+            const newIsLiked = !isCurrentlyLiked;
+            
+            if (newRealLikesCount > 0) {
+                if (!countElement) {
+                    // Créer le compteur s'il n'existe pas
+                    countElement = document.createElement('span');
+                    countElement.className = 'action-count';
+                    countElement.id = 'like-count-' + productId;
+                    button.appendChild(countElement);
+                }
+                countElement.textContent = newRealLikesCount;
+            } else if (countElement) {
+                // Supprimer le compteur s'il n'y a plus de likes
+                countElement.remove();
+            }
+            
+            // Mise à jour de l'icône avec animation de cœur
+            const iconNode = button.childNodes[0];
+            if (iconNode && iconNode.nodeType === Node.TEXT_NODE) {
+                button.childNodes[0].textContent = newIsLiked ? '❤️' : '🤍';
+            }
+            
+            // Mise à jour du texte "X j'aime" dans les détails
+            const loopCard = button.closest('.artist-loop-card');
+            if (loopCard) {
+                let likesDiv = loopCard.querySelector('.loop-likes');
+                if (newRealLikesCount > 0) {
+                    if (!likesDiv) {
+                        // Créer le div s'il n'existe pas
+                        const detailsDiv = loopCard.querySelector('.loop-details');
+                        likesDiv = document.createElement('div');
+                        likesDiv.className = 'loop-likes';
+                        detailsDiv.insertBefore(likesDiv, detailsDiv.firstChild);
+                    }
+                    likesDiv.textContent = newRealLikesCount + ' j\'aime';
+                } else if (likesDiv) {
+                    // Supprimer le div s'il n'y a plus de likes
+                    likesDiv.remove();
+                }
+            }
+            
+            // Feedback visuel
+            if (newIsLiked) {
+                showToast('❤️ Vous aimez cette création !');
             }
         }
 
 
-
-// ==========================================
-// SERVICE D'UPLOAD D'IMAGES EXTERNE (CLOUDINARY)
-// ==========================================
-
-// ==========================================
-// SERVICE D'UPLOAD D'IMAGES EXTERNE (CLOUDINARY)
-// ==========================================
-async function uploadImageToCloudinary(file) {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    // 👇 INFOS CLOUDINARY CONFIGURÉES 👇
-    formData.append('upload_preset', 'arkyl_preset'); // Preset Unsigned
-    const cloudName = 'ddah64j2a'; // Ton Cloud Name réel
-
-    try {
-        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-            method: 'POST',
-            body: formData
-        });
-        
-        const data = await response.json();
-        if (data.secure_url) {
-            return data.secure_url; 
-        } else {
-            throw new Error('Erreur Cloudinary');
+        // Fonction pour focus sur le champ de commentaire
+        function focusComment(productId) {
+            const commentInput = document.getElementById(`comment-${productId}`);
+            if (commentInput) {
+                commentInput.focus();
+            }
         }
-    } catch (error) {
-        console.error("Erreur d'upload :", error);
-        throw error;
-    }
-}  // Fin DOMContentLoaded
 
-}  // Fin DOMContentLoaded
+        // Fonction pour poster un commentaire
+        function postComment(productId) {
+            const commentInput = document.getElementById(`comment-${productId}`);
+            if (!commentInput || !commentInput.value.trim()) {
+                showToast('⚠️ Veuillez écrire un commentaire');
+                return;
+            }
+            
+            const comment = commentInput.value.trim();
+            
+            // Animation de publication
+            commentInput.value = '';
+            commentInput.blur();
+            
+            // Feedback visuel
+            showToast('💬 Commentaire publié avec succès !');
+            
+            // TODO: sync commentaire API
+            console.log('Nouveau commentaire sur l\'œuvre', productId, ':', comment);
+        }
+
+        // ==================== UTILS ====================
+        function formatPrice(price) {
+            return price.toLocaleString('fr-FR') + ' FCFA';
+        }
+
+        function performSearch() {
+            const query = document.getElementById('globalSearch').value.trim().toLowerCase();
+            if (!query) {
+                showToast('⚠️ Entrez un terme de recherche');
+                return;
+            }
+
+            // Search in local products
+            const allProducts = getProducts();
+            const results = allProducts.filter(p => 
+                p.title.toLowerCase().includes(query) || 
+                p.artist.toLowerCase().includes(query) ||
+                p.category.toLowerCase().includes(query)
+            );
+
+            if (results.length > 0) {
+                // Show local results
+                navigateTo('home');
+                const container = document.getElementById('productsContainer');
+                container.innerHTML = results.map(product => `
+                    <div class="product-card" onclick="viewProductDetail(${product.id})">
+                        <div class="product-image">
+                            <span class="product-badge">${product.badge}</span>
+                            <button class="like-button" onclick="toggleFavorite(event, ${product.id})">
+                                ${favorites.includes(product.id) ? '❤️' : '🤍'}
+                            </button>
+                            <img src="${product.image}" alt="${product.title}" style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
+                        </div>
+                        <div class="product-info">
+                            <div class="product-title">${product.title}</div>
+                            <div class="product-artist" onclick="viewArtistDetail(event, '${product.artist}')">par ${product.artist}</div>
+                            <div class="product-footer">
+                                <div class="product-price">${formatPrice(product.price)}</div>
+                                <button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+                showToast(`✅ ${results.length} résultat(s) trouvé(s)`);
+            } else {
+                // Offer to search on Google
+                if (confirm(`Aucun résultat local pour "${query}". Rechercher sur Google ?`)) {
+                    window.open(`https://www.google.com/search?q=${encodeURIComponent('art africain ' + query)}`, '_blank');
+                } else {
+                    showToast(`❌ Aucun résultat pour "${query}"`);
+                    (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null); // Show all products again
+                }
+            }
+        }
+
+        // Allow Enter key in search
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('globalSearch');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        performSearch();
+                    }
+                });
+            }
+        });
+
+        function updateBadges() {
+            const notifCount = notifications.filter(n => n.unread).length;
+            document.getElementById('notifBadge').textContent = notifCount;
+            document.getElementById('notifBadge').style.display = notifCount > 0 ? 'block' : 'none';
+
+            document.getElementById('favBadge').textContent = favorites.length;
+            document.getElementById('favBadge').style.display = favorites.length > 0 ? 'block' : 'none';
+
+            const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0);
+            const cartBadge = document.getElementById('cartBadge');
+            if (cartBadge) {
+                cartBadge.textContent = cartCount;
+                cartBadge.style.display = cartCount > 0 ? 'block' : 'none';
+            }
+        }
+
+        let toastTimeout;
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastText').textContent = message;
+            toast.classList.add('show');
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // ==================== ARTIST REGISTRATION ====================
+
+
+        function openArtistRegistration() {
+            document.getElementById('artistRegModal').classList.add('show');
+            resetRegistrationForm();
+        }
+
+        function closeArtistRegistration() {
+            document.getElementById('artistRegModal').classList.remove('show');
+        }
+
+        function resetRegistrationForm() {
+            // Reset all inputs
+            ['reg-name','reg-email','reg-phone','reg-password','reg-password-confirm'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+            document.getElementById('reg-country').value = '';
+            document.getElementById('reg-bio').value = '';
+
+            // Reset specialty chips
+            document.querySelectorAll('.specialty-chip').forEach(c => c.classList.remove('selected'));
+
+            // Reset avatar preview
+            const regPreview = document.getElementById('regAvatarImg');
+            if (regPreview) { regPreview.innerHTML = '👤'; regPreview.removeAttribute('src'); }
+            window.tempRegAvatar = null;
+
+            // Reset stepper
+            goToRegStepVisual(1);
+            validateRegStep1();
+        }
+
+        // --- Step navigation ---
+        function goToRegStep(step) {
+            // Validate before proceeding
+            if (step === 2) {
+                if (!validateRegStep1(true)) return;
+            }
+            if (step === 3) {
+                if (!validateRegStep2(true)) return;
+                buildReviewCard();
+            }
+            goToRegStepVisual(step);
+        }
+
+        function goToRegStepVisual(step) {
+            // Hide all panels
+            document.querySelectorAll('.reg-step-panel').forEach(p => p.classList.remove('active'));
+            document.getElementById('regStep' + step).classList.add('active');
+
+            // Update stepper dots
+            for (let i = 1; i <= 3; i++) {
+                const dot = document.getElementById('stepDot' + i);
+                dot.classList.remove('active', 'done');
+                if (i < step) dot.classList.add('done');
+                else if (i === step) dot.classList.add('active');
+            }
+
+            // Update connector lines
+            for (let i = 1; i <= 2; i++) {
+                const line = document.getElementById('stepLine' + i);
+                line.classList.toggle('done', i < step);
+            }
+        }
+
+        // --- Avatar & specialty selectors ---
+        function selectAvatar(el) {
+            document.querySelectorAll('.avatar-option').forEach(a => a.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+
+        function toggleSpecialty(el) {
+            el.classList.toggle('selected');
+            validateRegStep2();
+        }
+
+        // --- Validation ---
+        function validateRegStep1(showErrors = false) {
+            const name  = document.getElementById('reg-name').value.trim();
+            const email = document.getElementById('reg-email').value.trim();
+            const phone = document.getElementById('reg-phone').value.trim();
+            const pw    = document.getElementById('reg-password').value;
+            const pwc   = document.getElementById('reg-password-confirm').value;
+
+            let valid = name.length >= 2
+                     && email.includes('@') && email.includes('.')
+                     && phone.length >= 8
+                     && pw.length >= 6
+                     && pw === pwc;
+
+            document.getElementById('regNext1').disabled = !valid;
+
+            if (showErrors && !valid) {
+                if (pw.length < 6) showToast('Le mot de passe doit avoir au moins 6 caractères');
+                else if (pw !== pwc) showToast('Les mots de passe ne correspondent pas');
+                else showToast('Veuillez compléter tous les champs');
+                return false;
+            }
+            return valid;
+        }
+
+        function validateRegStep2(showErrors = false) {
+            const country = document.getElementById('reg-country').value;
+            const specialties = document.querySelectorAll('.specialty-chip.selected');
+
+            let valid = country !== '' && specialties.length > 0;
+
+            document.getElementById('regNext2').disabled = !valid;
+
+            if (showErrors && !valid) {
+                if (!country) showToast('Veuillez sélectionner votre pays');
+                else showToast('Choisissez au moins une spécialité');
+                return false;
+            }
+            return valid;
+        }
+
+        // --- Build review card (step 3) ---
+        function buildReviewCard() {
+            const name    = document.getElementById('reg-name').value.trim();
+            const email   = document.getElementById('reg-email').value.trim();
+            const phone   = document.getElementById('reg-phone').value.trim();
+            const country = document.getElementById('reg-country').value;
+            const regAvatarEl = document.getElementById('regAvatarImg');
+            const avatarSrc = window.tempRegAvatar || (regAvatarEl && regAvatarEl.tagName === 'IMG' ? regAvatarEl.src : null);
+            const specs   = [...document.querySelectorAll('.specialty-chip.selected')].map(c => c.textContent.trim());
+            const bio     = document.getElementById('reg-bio').value.trim();
+
+            document.getElementById('regReviewCard').innerHTML = `
+                ${avatarSrc ? `<div class="reg-review-row"><span>Avatar</span><span><img loading="lazy" src="${avatarSrc}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;border:2px solid var(--or);" /></span></div>` : ''}
+                <div class="reg-review-row"><span>Nom</span><span>${name}</span></div>
+                <div class="reg-review-row"><span>Email</span><span>${email}</span></div>
+                <div class="reg-review-row"><span>Téléphone</span><span>${phone}</span></div>
+                <div class="reg-review-row"><span>Pays</span><span>${country}</span></div>
+                <div class="reg-review-row"><span>Spécialité(s)</span><span>${specs.join(', ')}</span></div>
+                ${bio ? `<div class="reg-review-row"><span>Bio</span><span style="max-width:55%;text-align:right;line-height:1.4;">${bio}</span></div>` : ''}
+            `;
+        }
+
+        // --- Submit ---
+        function submitArtistRegistration() {
+            // Gather data
+            const accountData = {
+                name:     document.getElementById('reg-name').value.trim(),
+                email:    document.getElementById('reg-email').value.trim(),
+                phone:    document.getElementById('reg-phone').value.trim(),
+                country:  document.getElementById('reg-country').value,
+                avatar:   window.tempRegAvatar || null,
+                specialty:[...document.querySelectorAll('.specialty-chip.selected')].map(c => c.textContent.trim()),
+                bio:      document.getElementById('reg-bio').value.trim(),
+                createdAt: new Date().toISOString()
+            };
+
+            // Simulate a brief loading delay for realism
+            const btn = document.querySelector('#regStep3 .reg-btn-next:last-child');
+            btn.textContent = 'Création en cours...';
+            btn.disabled = true;
+
+            setTimeout(() => {
+                // Persist the artist account flag
+                safeStorage.set('arkyl_artist_account', accountData); _memStore['arkyl_artist_account'] = accountData;
+
+                // Si l'utilisateur est connecté avec Google et que l'email correspond, lier les comptes
+                if (currentUser && currentUser.email === accountData.email) {
+                    currentUser.isArtist = true;
+                    currentUser.artistName = accountData.name;
+                    safeStorage.set('arkyl_current_user', currentUser);
+                    console.log('✅ Compte Google lié au compte artiste:', accountData.name);
+                }
+
+                // Show success step
+                document.querySelectorAll('.reg-step-panel').forEach(p => p.classList.remove('active'));
+                document.getElementById('regStep4').classList.add('active');
+
+                // Update stepper: all done
+                for (let i = 1; i <= 3; i++) {
+                    const dot = document.getElementById('stepDot' + i);
+                    dot.classList.remove('active');
+                    dot.classList.add('done');
+                }
+                document.querySelectorAll('.reg-step-line').forEach(l => l.classList.add('done'));
+            }, 1200);
+        }
+
+        function goToArtistSpace() {
+            closeArtistRegistration();
+            switchToArtistMode();
+        }
+
+
+        // ==================== ARTISTE DATABASE ====================
+        class ArtistDatabase {
+            constructor() {
+                // Ne pas charger au constructeur — attendre setArtist()
+                this.artistKey = 'unknown';
+                this.artworks = [];
+                this.sales    = [];
+                this.nextId   = 1;
+            }
+
+            // Initialiser la DB pour un artiste précis — isole les données par compte
+            setArtist(artistId) {
+                this.artistKey = 'artist_' + String(artistId).replace(/[^a-zA-Z0-9]/g, '_');
+                this.artworks = [];
+                this.sales    = [];
+                this.nextId   = 1;
+                console.log('🎨 ArtistDB initialisée pour:', this.artistKey);
+            }
+
+            _key(k) {
+                return 'arkyl_' + this.artistKey + '_' + k;
+            }
+            
+            _load(k) { 
+                try { 
+                    const d = _memStore[this._key(k)];
+                    if (d !== undefined) return Array.isArray(d) ? d : JSON.parse(d);
+                    return null;
+                } catch(e){ 
+                    console.error('Erreur de chargement:', k, e); 
+                    return null; 
+                } 
+            }
+            
+            _save(k,v) { 
+                try { 
+                    _memStore[this._key(k)] = v;
+                    return true;
+                } catch(e){
+                    console.error('Erreur de sauvegarde:', k, e);
+                    if (e.name === 'QuotaExceededError') {
+                        showToast('⚠️ Espace de stockage insuffisant. Supprimez des œuvres anciennes.');
+                    }
+                    return false;
+                } 
+            }
+            
+            addArtwork(a) { 
+                a.id = this.nextId++; 
+                a.status = 'published'; 
+                a.createdAt = new Date().toISOString(); 
+                this.artworks.push(a); 
+                
+                const saved = this._save('artist_artworks', this.artworks) && 
+                              this._save('next_artwork_id', this.nextId);
+                
+                if (!saved) {
+                    // Rollback if save failed
+                    this.artworks.pop();
+                    this.nextId--;
+                    throw new Error('Échec de la sauvegarde');
+                }
+            }
+            
+            updateArtwork(id, u) { 
+                const i = this.artworks.findIndex(a => a.id === id); 
+                if (i > -1) { 
+                    const backup = {...this.artworks[i]};
+                    this.artworks[i] = {...this.artworks[i], ...u}; 
+                    
+                    if (!this._save('artist_artworks', this.artworks)) {
+                        // Rollback on failure
+                        this.artworks[i] = backup;
+                        throw new Error('Échec de la mise à jour');
+                    }
+                } 
+            }
+            
+            deleteArtwork(id) { 
+                const i = this.artworks.findIndex(a => a.id === id); 
+                if (i > -1) { 
+                    const backup = this.artworks[i];
+                    this.artworks.splice(i, 1); 
+                    
+                    if (!this._save('artist_artworks', this.artworks)) {
+                        // Rollback on failure
+                        this.artworks.splice(i, 0, backup);
+                        throw new Error('Échec de la suppression');
+                    }
+                } 
+            }
+            
+            // Helper method to clear all data for current artist
+            clearAll() {
+                delete _memStore[this._key('artist_artworks')];
+                delete _memStore[this._key('artist_sales')];
+                delete _memStore[this._key('next_artwork_id')];
+                this.artworks = [];
+                this.sales = [];
+                this.nextId = 1;
+            }
+        }
+        const db = new ArtistDatabase();
+        
+        // Nettoyer les données de ventes au démarrage
+        db.sales = [];
+        db._save('artist_sales', []);
+        
+        let editingArtworkId = null;
+        let currentGalleryFilter = 'all';
+
+        // ==================== MODE SWITCHING ====================
+        async function switchToArtistMode() {
+            document.getElementById('clientNav').style.display  = 'none';
+            document.getElementById('artistNav').style.display  = 'flex';
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('artistSpace').style.display = 'block';
+            hydrateProfile();
+            showArtistSection('dashboard');
+            window.scrollTo(0,0);
+            // Attendre le chargement serveur avant d'afficher — évite les données du précédent artiste
+            await loadArtistArtworksFromServer();
+        }
+
+        async function loadArtistArtworksFromServer() {
+            if (!currentUser || !currentUser.id) return;
+
+            // Initialiser la DB pour cet artiste précis (clés isolées par ID)
+            db.setArtist(currentUser.id);
+
+            try {
+                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(currentUser.id)}&t=${Date.now()}`);
+                const result = await resp.json();
+                if (result.success && result.data) {
+                    db.artworks = result.data.map(art => ({
+                        id: art.id,
+                        server_id: art.id,
+                        title: art.title,
+                        category: art.category,
+                        price: art.price,
+                        description: art.description || '',
+                        photo: art.image_url,
+                        photos: art.photos || [art.image_url],
+                        technique: art.technique || '',
+                        dimensions: art.dimensions || null,
+                        status: 'published',
+                        createdAt: art.created_at || new Date().toISOString()
+                    }));
+                    db._save('artist_artworks', db.artworks);
+                }
+            } catch(e) {
+                // Silencieux — db.artworks reste [] pour cet artiste
+            }
+
+            // Toujours rafraîchir l'UI après le chargement (même si 0 œuvres)
+            const artSection = document.getElementById('artworksSection');
+            if (artSection && artSection.classList.contains('active')) renderArtworks();
+            const dashSection = document.getElementById('dashboardSection');
+            if (dashSection && dashSection.classList.contains('active')) updateDashboard();
+        }
+
+        function switchToClientMode() {
+            document.getElementById('artistNav').style.display  = 'none';
+            document.getElementById('clientNav').style.display  = 'flex';
+            document.getElementById('artistSpace').style.display = 'none';
+            navigateTo('home');
+        }
+
+        // ==================== HYDRATION ====================
+        function hydrateProfile(skipToast = false) {
+            const acc = safeStorage.get('arkyl_artist_account', null) || _memStore['arkyl_artist_account'] || null;
+            if (!acc) return;
+
+            // Update nav avatar
+            const navAvatar = document.getElementById('navAvatar');
+            if (navAvatar) {
+                if (acc.avatar && (acc.avatar.startsWith('http') || acc.avatar.startsWith('data:'))) {
+                    navAvatar.innerHTML = `<img loading="lazy" src="${acc.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
+                } else {
+                    navAvatar.textContent = acc.avatar || '🎨';
+                }
+            }
+
+            // Update welcome banner avatar
+            const welcomeAvatar = document.getElementById('welcomeAvatar');
+            if (welcomeAvatar) {
+                if (acc.avatar && (acc.avatar.startsWith('http') || acc.avatar.startsWith('data:'))) {
+                    welcomeAvatar.innerHTML = `<img loading="lazy" src="${acc.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
+                } else {
+                    welcomeAvatar.textContent = acc.avatar || '🎨';
+                }
+            }
+
+            const navArtistName = document.getElementById('navArtistName');
+            if (navArtistName) navArtistName.textContent = acc.name || 'Artiste';
+            
+            const welcomeName = document.getElementById('welcomeName');
+            if (welcomeName) welcomeName.textContent = 'Bienvenue, ' + (acc.name || 'Artiste');
+            
+            const welcomeBio = document.getElementById('welcomeBio');
+            if (welcomeBio) welcomeBio.textContent = acc.bio || 'Publiez vos œuvres et développez votre carrière sur ARKYL.';
+
+            let meta = '';
+            if (acc.country)   meta += '<span>📍 ' + acc.country + '</span>';
+            if (acc.specialty && acc.specialty.length) meta += '<span>🎨 ' + acc.specialty.join(' · ') + '</span>';
+            if (acc.email)     meta += '<span>✉️ ' + acc.email + '</span>';
+            
+            const welcomeMeta = document.getElementById('welcomeMeta');
+            if (welcomeMeta) welcomeMeta.innerHTML = meta;
+
+            // Toast contextualisé - uniquement si pas de skipToast
+            if (!skipToast) {
+                const fk = 'arkyl_artist_first_visit_done';
+                if (!_memStore[fk]) {
+                    _memStore[fk] = '1';
+                    showToast('🎉 Bienvenue, ' + acc.name + ' ! Votre espace artiste est prêt.');
+                } else {
+                    showToast('Bienvenue, ' + acc.name + ' ! 🎨');
+                }
+            }
+        }
+
+        // ==================== ARTISTE NAVIGATION ====================
+        function filterArtistOrders(status, btn) {
+            document.querySelectorAll('#salesSection .filter-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            const cards = document.querySelectorAll('#artistOrdersContainer .admin-order-card');
+            cards.forEach(card => {
+                const statusEl = card.querySelector('[data-status]');
+                if (status === 'all') { card.style.display = ''; return; }
+                const cardStatus = statusEl?.dataset?.status || card.innerHTML;
+                card.style.display = cardStatus.includes(status) ? '' : 'none';
+            });
+        }
+
+        function showArtistSection(section) {
+            document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('#artistNav .nav-link').forEach(l => l.classList.remove('active'));
+
+            const map = { dashboard:'dashboardSection', artworks:'artworksSection', sales:'salesSection', gallery:'artistGallerySection' };
+            if (section === 'sales') setTimeout(() => renderArtistOrders(), 100);
+            const navMap = { dashboard:'artNavDashboard', artworks:'artNavArtworks', sales:'artNavSales', gallery:'artNavGallery' };
+
+            if (map[section]) {
+                document.getElementById(map[section]).classList.add('active');
+                document.getElementById(navMap[section]).classList.add('active');
+            }
+
+            if (section === 'dashboard') updateDashboard();
+            if (section === 'artworks') renderArtworks();
+            if (section === 'sales')    renderSales();
+            if (section === 'gallery')  renderArtistGallery();
+            window.scrollTo(0,0);
+        }
+
+        // ==================== DASHBOARD ====================
+        function updateDashboard() {
+            if (!currentUser || !currentUser.id) return;
+
+            // Ensure db.sales is an array
+            if (!Array.isArray(db.sales)) {
+                db.sales = [];
+                db._save('artist_sales', db.sales);
+            }
+
+            // Filtre blindé : ne compter que les œuvres de cet artiste
+            const myArtworks = db.artworks.filter(a =>
+                !a.artist_id || String(a.artist_id).trim() === String(currentUser.id).trim()
+            );
+            db.artworks = myArtworks; // Synchroniser db pour le reste du dashboard
+
+            document.getElementById('totalArtworks').textContent = myArtworks.length;
+            const rev = db.sales.reduce((s,sale) => s + sale.price, 0);
+            document.getElementById('totalRevenue').textContent = formatPrice(rev);
+            document.getElementById('totalSales').textContent   = db.sales.length;
+            
+            // Display recent activity based on actual data
+            const recentActivityEl = document.getElementById('recentActivity');
+            if (db.artworks.length === 0 && db.sales.length === 0) {
+                recentActivityEl.innerHTML = `
+                    <p style="opacity:0.6;line-height:1.8;text-align:center;">
+                        🎨 Aucune activité pour le moment<br>
+                        Commencez par publier votre première œuvre !
+                    </p>`;
+            } else {
+                let activities = [];
+                
+                // Add recent artworks
+                const recentArtworks = db.artworks.slice(-3).reverse();
+                recentArtworks.forEach(a => {
+                    activities.push(`✅ Œuvre "${a.title}" publiée`);
+                });
+                
+                // Add recent sales
+                const recentSales = db.sales.slice(-3).reverse();
+                recentSales.forEach(s => {
+                    activities.push(`💰 Vente : "${s.artwork}" — ${formatPrice(s.price)}`);
+                });
+                
+                recentActivityEl.innerHTML = `
+                    <p style="opacity:0.8;line-height:1.8;">
+                        ${activities.join('<br>')}
+                    </p>`;
+            }
+        }
+        
+        // Function to reset all artist data (useful for testing or fresh start)
+        function resetArtistData() {
+            if (confirm('⚠️ Voulez-vous vraiment réinitialiser toutes vos données (œuvres, ventes) ?\n\nCette action est irréversible !')) {
+                db.clearAll();
+                updateDashboard();
+                renderArtworks();
+                renderSales();
+                showToast('✅ Données réinitialisées avec succès !');
+            }
+        }
+        
+        // Expose reset function globally for console access
+        window.resetArtistData = resetArtistData;
+
+        // ==================== PHOTO UPLOAD MANAGEMENT ====================
+        let currentImageMode = 'photo'; // Mode photo uniquement
+        let currentPhotosData = []; // Store multiple base64 photo data (max 5)
+
+
+        // Nouvelle fonction pour gérer plusieurs photos
+        function handleMultiplePhotosUpload(event) {
+            const files = Array.from(event.target.files);
+            if (!files.length) return;
+
+            // Vérifier qu'on ne dépasse pas 5 photos au total
+            const remainingSlots = 5 - currentPhotosData.length;
+            if (files.length > remainingSlots) {
+                showToast(`⚠️ Vous ne pouvez ajouter que ${remainingSlots} photo(s) supplémentaire(s)`);
+                return;
+            }
+
+            let filesProcessed = 0;
+            files.forEach(file => {
+                // Validate file type
+                if (!file.type.startsWith('image/')) {
+                    showToast('⚠️ Veuillez sélectionner des images uniquement');
+                    return;
+                }
+
+                // Validate file size (5MB max)
+                const maxSize = 5 * 1024 * 1024;
+                if (file.size > maxSize) {
+                    showToast(`⚠️ ${file.name} dépasse 5 MB`);
+                    return;
+                }
+
+                // Read and store the image
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    currentPhotosData.push(e.target.result);
+                    filesProcessed++;
+                    
+                    if (filesProcessed === files.length) {
+                        updatePhotosPreview();
+                        showToast(`✅ ${files.length} photo(s) ajoutée(s)`);
+                    }
+                };
+                reader.onerror = function() {
+                    showToast('⚠️ Erreur lors du chargement d\'une photo');
+                };
+                reader.readAsDataURL(file);
+            });
+            
+            // Reset input
+            event.target.value = '';
+        }
+
+        function updatePhotosPreview() {
+            const grid = document.getElementById('photosPreviewGrid');
+            grid.innerHTML = currentPhotosData.map((photo, index) => `
+                <div style="position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: rgba(255,255,255,0.1); border: 2px solid ${index === 0 ? 'rgba(212, 165, 116, 0.8)' : 'rgba(255,255,255,0.2)'};">
+                    <img loading="lazy" src="${photo}" alt="Photo ${index + 1}" style="width: 100%; height: 100%; object-fit: cover;">
+                    ${index === 0 ? '<div style="position: absolute; top: 4px; left: 4px; background: rgba(212, 165, 116, 0.95); color: white; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700;">PRINCIPALE</div>' : ''}
+                    <button onclick="removePhotoAtIndex(${index})" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,0,0,0.8)'" onmouseout="this.style.background='rgba(0,0,0,0.7)'">×</button>
+                    ${index > 0 ? `<button onclick="setMainPhoto(${index})" style="position: absolute; bottom: 4px; left: 4px; background: rgba(255,255,255,0.9); color: #333; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: 600; transition: all 0.2s;" onmouseover="this.style.background='rgba(212, 165, 116, 0.9)'; this.style.color='white'" onmouseout="this.style.background='rgba(255,255,255,0.9)'; this.style.color='#333'">⭐ Principale</button>` : ''}
+                </div>
+            `).join('');
+            
+            // Afficher/masquer le placeholder
+            document.getElementById('photoPlaceholder').style.display = currentPhotosData.length >= 5 ? 'none' : 'block';
+            if (currentPhotosData.length >= 5) {
+                document.getElementById('photoUploadContainer').style.display = 'none';
+            }
+        }
+
+        function removePhotoAtIndex(index) {
+            if (confirm('Supprimer cette photo ?')) {
+                currentPhotosData.splice(index, 1);
+                updatePhotosPreview();
+                
+                // Réafficher le container d'upload si on a moins de 5 photos
+                if (currentPhotosData.length < 5) {
+                    document.getElementById('photoUploadContainer').style.display = 'block';
+                }
+                
+                showToast('Photo supprimée');
+            }
+        }
+
+        function setMainPhoto(index) {
+            // Déplacer la photo sélectionnée en première position
+            const photo = currentPhotosData.splice(index, 1)[0];
+            currentPhotosData.unshift(photo);
+            updatePhotosPreview();
+            showToast('✅ Photo principale mise à jour');
+        }
+
+
+        function changePhoto(event) {
+            event.stopPropagation();
+            document.getElementById('artwork-photo-input').click();
+        }
+
+        function removePhoto(event) {
+            event.stopPropagation();
+            currentPhotosData = [];
+            updatePhotosPreview();
+            document.getElementById('photoUploadContainer').style.display = 'block';
+            showToast('Toutes les photos supprimées');
+        }
+
+        function resetPhotoUpload() {
+            currentPhotosData = [];
+            updatePhotosPreview();
+            document.getElementById('artwork-photo-input').value = '';
+            document.getElementById('photoUploadContainer').style.display = 'block';
+        }
+
+        // ==================== PUBLIC PRODUCTS MANAGEMENT ====================
+        function addToPublicProducts(artwork) {
+            const products = getProducts();
+            
+            // Trouver le prochain ID disponible
+            const maxId = products.length > 0 ? Math.max(...products.map(p => p.id)) : 0;
+            
+            const publicProduct = {
+                id: maxId + 1,
+                title: artwork.title,
+                artist: artwork.artistName || 'Artiste',
+                artistCountry: artwork.artistCountry || '',
+                artistAvatar: artwork.artistAvatar || '',
+                category: artwork.category,
+                price: artwork.price,
+                image: artwork.photo,
+                photos: artwork.photos || [artwork.photo],
+                description: artwork.description || '',
+                dimensions: artwork.dimensions || null,
+                technique: artwork.technique || null,
+                techniqueCustom: artwork.techniqueCustom || null,
+                createdAt: new Date().toISOString(),
+                // Stocker l'ID de l'artiste pour lier les deux
+                artistArtworkId: artwork.id
+            };
+            
+            products.push(publicProduct);
+            saveProducts(products);
+            
+            // Ajouter au storage partagé pour le monitoring en temps réel
+            const artworkKey = `artwork:${publicProduct.id}`;
+            window.storage.set(artworkKey, JSON.stringify(publicProduct), true).then(() => {
+                console.log('✅ Œuvre ajoutée au storage partagé:', artworkKey);
+            }).catch(err => {
+                console.log('⚠️ Erreur ajout storage:', err);
+            });
+            
+            console.log('✅ Œuvre ajoutée à la galerie publique:', publicProduct);
+        }
+
+        function updatePublicProduct(artistArtworkId, artwork) {
+            const products = getProducts();
+            const index = products.findIndex(p => p.artistArtworkId === artistArtworkId);
+            
+            if (index > -1) {
+                products[index] = {
+                    ...products[index],
+                    title: artwork.title,
+                    category: artwork.category,
+                    price: artwork.price,
+                    image: artwork.photo,
+                    photos: artwork.photos || [artwork.photo],
+                    description: artwork.description || '',
+                    dimensions: artwork.dimensions || null,
+                    technique: artwork.technique || null,
+                    techniqueCustom: artwork.techniqueCustom || null
+                };
+                
+                saveProducts(products);
+            }
+        }
+
+        function removeFromPublicProducts(artistArtworkId) {
+            const products = getProducts();
+            const productToRemove = products.find(p => p.artistArtworkId === artistArtworkId);
+            const filtered = products.filter(p => p.artistArtworkId !== artistArtworkId);
+            
+            if (filtered.length < products.length) {
+                saveProducts(filtered);
+                
+                // Supprimer aussi du storage partagé
+                if (productToRemove && productToRemove.id) {
+                    const artworkKey = `artwork:${productToRemove.id}`;
+                    window.storage.delete(artworkKey, true).then(() => {
+                        console.log('✅ Œuvre supprimée du storage partagé:', artworkKey);
+                    }).catch(err => {
+                        console.log('⚠️ Erreur suppression storage:', err);
+                    });
+                }
+            }
+        }
+
+        // ==================== ARTWORKS ====================
+        function openArtworkModal(id) {
+            editingArtworkId = id || null;
+            resetPhotoUpload(); // Reset photo state
+            
+            if (id) {
+                const a = db.artworks.find(x => String(x.id) === String(id));
+                if (a) {
+                    document.getElementById('artwork-title').value       = a.title;
+                    document.getElementById('artwork-category').value    = a.category;
+                    document.getElementById('artwork-price').value       = a.price;
+                    document.getElementById('artwork-description').value = a.description || '';
+                    
+                    // Dimensions
+                    document.getElementById('artwork-width').value  = a.dimensions?.width || '';
+                    document.getElementById('artwork-height').value = a.dimensions?.height || '';
+
+                    
+                    // Technique
+                    document.getElementById('artwork-technique').value = a.technique || '';
+                    if (a.technique === 'Autre' || (a.techniqueCustom && a.techniqueCustom !== a.technique)) {
+                        document.getElementById('artwork-technique-custom').style.display = 'block';
+                        document.getElementById('artwork-technique-custom').value = a.techniqueCustom || '';
+                    }
+                    
+                    // Handle photos if exist
+                    if (a.photos && a.photos.length > 0) {
+                        currentPhotosData = [...a.photos];
+                        updatePhotosPreview();
+                    } else if (a.photo) {
+                        // Compatibilité avec ancien système mono-photo
+                        currentPhotosData = [a.photo];
+                        updatePhotosPreview();
+                    }
+                }
+            } else {
+                document.getElementById('artwork-title').value       = '';
+                document.getElementById('artwork-category').value    = '';
+                document.getElementById('artwork-price').value       = '';
+                document.getElementById('artwork-description').value = '';
+                document.getElementById('artwork-width').value       = '';
+                document.getElementById('artwork-height').value      = '';
+
+                document.getElementById('artwork-technique').value   = '';
+                document.getElementById('artwork-technique-custom').value = '';
+                document.getElementById('artwork-technique-custom').style.display = 'none';
+            }
+            document.getElementById('artworkModal').classList.add('show');
+        }
+
+        // Gestion de l'affichage du champ technique personnalisé
+        document.addEventListener('DOMContentLoaded', function() {
+            const techniqueSelect = document.getElementById('artwork-technique');
+            const techniqueCustomInput = document.getElementById('artwork-technique-custom');
+            
+            if (techniqueSelect && techniqueCustomInput) {
+                techniqueSelect.addEventListener('change', function() {
+                    if (this.value === 'Autre' || this.value === '') {
+                        techniqueCustomInput.style.display = 'block';
+                    } else {
+                        techniqueCustomInput.style.display = 'none';
+                    }
+                });
+            }
+        });
+
+        function closeArtworkModal() {
+            document.getElementById('artworkModal').classList.remove('show');
+        }
+
+        async function saveArtwork() {
+            const title = document.getElementById('artwork-title').value.trim();
+            const cat   = document.getElementById('artwork-category').value;
+            if (!title || !cat) { showToast('Titre et catégorie obligatoires'); return; }
+
+            // Validate that we have at least one photo
+            if (!currentPhotosData || currentPhotosData.length === 0) {
+                showToast('⚠️ Veuillez ajouter au moins une photo de l\'œuvre');
+                return;
+            }
+
+            // Get artist account info
+            const artistAccount = safeStorage.get('arkyl_artist_account', null);
+            if (!artistAccount) {
+                showToast('❌ Compte artiste non trouvé');
+                return;
+            }
+
+            // Get dimensions
+            const width = parseFloat(document.getElementById('artwork-width').value) || null;
+            const height = parseFloat(document.getElementById('artwork-height').value) || null;
+            
+            // Get technique
+            const technique = document.getElementById('artwork-technique').value;
+            const techniqueCustom = document.getElementById('artwork-technique-custom').value.trim();
+
+            const artwork = {
+                title: title,
+                category: cat,
+                price: parseFloat(document.getElementById('artwork-price').value) || 0,
+                description: document.getElementById('artwork-description').value.trim(),
+                imageMode: 'photo',
+                photos: currentPhotosData, // Array de photos
+                photo: currentPhotosData[0], // Photo principale
+                dimensions: (width || height) ? { width, height } : null,
+                technique: technique || null,
+                techniqueCustom: (technique === 'Autre' || techniqueCustom) ? techniqueCustom : null,
+                emoji: '🎨',
+                artistName: artistAccount.name || 'Artiste',
+                artistCountry: artistAccount.country || '',
+                artistAvatar: artistAccount.avatar || ''
+            };
+
+            // Afficher un loader
+            showToast('📤 Publication en cours...');
+
+            try {
+                // Sauvegarder dans la base locale de l'artiste (pour son portfolio)
+                if (editingArtworkId) {
+                    db.updateArtwork(editingArtworkId, artwork);
+                    updatePublicProduct(editingArtworkId, artwork);
+
+                    // ⭐ ENVOI AU SERVEUR
+                    try {
+                        const updateData = {
+                            artwork_id: parseInt(editingArtworkId) || editingArtworkId,
+                            artist_id: currentUser.id,
+                            title: artwork.title,
+                            category: artwork.category,
+                            price: artwork.price,
+                            description: artwork.description || '',
+                            image_url: artwork.photo || null,
+                            photos: artwork.photos || [],
+                            technique: artwork.technique || '',
+                            dimensions: artwork.dimensions || null
+                        };
+                        const resp = await fetch('https://arkyl-galerie.onrender.com/api_modifier_oeuvre.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(updateData)
+                        });
+                        const res = await resp.json();
+                        if (res.success) {
+                            showToast('✅ Œuvre modifiée avec succès !');
+                        } else {
+                            showToast('⚠️ Sauvegarde locale OK, serveur : ' + res.message);
+                        }
+                    } catch (e) {
+                        showToast('⚠️ Modification enregistrée localement (hors ligne)');
+                    }
+                } else {
+                    // Ajouter d'abord à la base de données pour obtenir l'ID
+                    db.addArtwork(artwork);
+                    // Récupérer l'œuvre avec son ID généré
+                    const addedArtwork = db.artworks[db.artworks.length - 1];
+                    
+                    // ⭐ ENVOI DIRECT AU SERVEUR (plus besoin de addToPublicProducts)
+                    try {
+                        // Préparer les données en JSON
+                        const dataToSend = {
+                            title: addedArtwork.title,
+                            category: addedArtwork.category,
+                            price: addedArtwork.price,
+                            description: addedArtwork.description || '',
+                            artist_id: currentUser.id,
+                            artist_name: addedArtwork.artistName,
+                            artist_country: addedArtwork.artistCountry || '',
+                            image_url: addedArtwork.photo, // Photo principale en base64
+                            photos: addedArtwork.photos || [],
+                            technique: addedArtwork.technique || '',
+                            dimensions: addedArtwork.dimensions || null,
+                            status: 'publiée'
+                        };
+                        
+                        // Debug : afficher les données envoyées
+                        console.log('📤 Données envoyées à l\'API:', dataToSend);
+                        console.log('👤 currentUser:', currentUser);
+                        
+                        const response = await fetch('https://arkyl-galerie.onrender.com/api_ajouter_oeuvre.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(dataToSend)
+                        });
+                        
+                        // Debug : afficher la réponse brute
+                        console.log('📥 Statut HTTP:', response.status);
+                        const responseText = await response.text();
+                        console.log('📥 Réponse brute du serveur:', responseText);
+                        
+                        // Tenter de parser le JSON
+                        let result;
+                        try {
+                            result = JSON.parse(responseText);
+                        } catch (e) {
+                            console.error('❌ Erreur parsing JSON:', e);
+                            alert("❌ Le serveur n'a pas renvoyé du JSON valide. Réponse: " + responseText.substring(0, 200));
+                            throw new Error('Réponse serveur invalide');
+                        }
+                        
+                        console.log('📥 Réponse parsée:', result);
+                        
+                        if (result.success) {
+                            console.log('✅ Œuvre envoyée au serveur:', result);
+                            alert("✅ Succès : " + result.message);
+                        } else {
+                            console.warn('⚠️ Sauvegarde serveur échouée:', result.message);
+                            alert("🛑 Erreur du serveur : " + result.message + "\n\nDonnées envoyées: " + JSON.stringify(dataToSend, null, 2));
+                            showToast('⚠️ Œuvre publiée localement, mais pas sur le serveur : ' + result.message);
+                        }
+                    } catch (serverError) {
+                        console.error('❌ Erreur serveur:', serverError);
+                        alert("❌ VRAIE ERREUR JAVASCRIPT : " + serverError.message);
+                        showToast('❌ Erreur réseau : ' + serverError.message);
+                    }
+                }
+                
+                closeArtworkModal();
+                renderArtworks();
+                updateDashboard();
+                
+                showToast('✅ Œuvre publiée et visible par tous !');
+                
+                // Rafraîchir la galerie publique
+                if (typeof renderProducts === 'function') {
+                    (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
+                }
+                
+            } catch (error) {
+                console.error('Erreur publication:', error);
+                showToast('❌ Erreur: ' + error.message);
+            }
+        }
+
+        function renderArtworks() {
+            const c = document.getElementById('artworksGrid');
+            if (!currentUser || !currentUser.id) return;
+
+            // Filtre blindé : on compare en String pour éviter les problèmes d'ID Google (grand nombre)
+            const myArtworks = db.artworks.filter(a =>
+                !a.artist_id || String(a.artist_id).trim() === String(currentUser.id).trim()
+            );
+
+            if (!myArtworks.length) { c.innerHTML = '<p style="text-align:center;opacity:0.7;grid-column:1/-1;">Aucune œuvre. Commencez à créer votre portfolio !</p>'; return; }
+            c.innerHTML = myArtworks.map(a => {
+                // Determine what to display: photo or emoji
+                let imageContent = '';
+                if (a.photo) {
+                    imageContent = `<img loading="lazy" src="${a.photo}" alt="${a.title}" style="width:100%;height:100%;object-fit:cover;">`;
+                } else {
+                    imageContent = `<span style="font-size:70px;">${a.emoji || '🎨'}</span>`;
+                }
+                
+                return `
+                <div class="artwork-card">
+                    <div class="artwork-image">
+                        ${imageContent}
+                        <div class="artwork-status ${a.status}">${a.status==='published'?'Publiée':'En attente'}</div>
+                    </div>
+                    <div class="artwork-info">
+                        <div class="artwork-title">${a.title}</div>
+                        <div class="artwork-price">${formatPrice(a.price)}</div>
+                        <div class="artwork-meta"><span>🏷️ ${a.category}</span><span>👁️ 0 vues</span></div>
+                        <div class="artwork-actions">
+                            <button class="btn-small btn-edit" onclick="openArtworkModal(${a.id})">✏️ Modifier</button>
+                            <button class="btn-small btn-delete" onclick="deleteArtwork(${a.id})">🗑️ Supprimer</button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function deleteArtwork(id) {
+            if (!confirm('Supprimer cette œuvre de votre portfolio et de la galerie publique ?')) return;
+            
+            try {
+                // Remove from public products first
+                removeFromPublicProducts(id);
+                
+                // Then remove from artist's artworks
+                db.deleteArtwork(id);
+                
+                showToast('✅ Œuvre supprimée de votre portfolio et de la galerie');
+                renderArtworks();
+                updateDashboard();
+            } catch (error) {
+                showToast('❌ ' + error.message);
+                console.error('Erreur de suppression:', error);
+            }
+        }
+
+        // ==================== PUBLIC PRODUCTS MANAGEMENT ====================
+        function addToPublicProducts(artwork) {
+            const products = getProducts();
+            
+            // Trouver le prochain ID disponible
+            const maxId = products.length > 0 ? Math.max(...products.map(p => p.id)) : 0;
+            
+            const publicProduct = {
+                id: maxId + 1,
+                title: artwork.title,
+                artist: artwork.artistName || 'Artiste',
+                artistCountry: artwork.artistCountry || '',
+                artistAvatar: artwork.artistAvatar || '',
+                category: artwork.category,
+                price: artwork.price,
+                image: artwork.photo,
+                photos: artwork.photos || [artwork.photo],
+                description: artwork.description || '',
+                dimensions: artwork.dimensions || null,
+                technique: artwork.technique || null,
+                techniqueCustom: artwork.techniqueCustom || null,
+                createdAt: new Date().toISOString(),
+                // Stocker l'ID de l'artiste pour lier les deux
+                artistArtworkId: artwork.id
+            };
+            
+            products.push(publicProduct);
+            saveProducts(products);
+            
+            // Ajouter au storage partagé pour le monitoring en temps réel
+            const artworkKey = `artwork:${publicProduct.id}`;
+            window.storage.set(artworkKey, JSON.stringify(publicProduct), true).then(() => {
+                console.log('✅ Œuvre ajoutée au storage partagé:', artworkKey);
+            }).catch(err => {
+                console.log('⚠️ Erreur ajout storage:', err);
+            });
+            
+            console.log('✅ Œuvre ajoutée à la galerie publique:', publicProduct);
+        }
+
+        function updatePublicProduct(artistArtworkId, artwork) {
+            const products = getProducts();
+            const index = products.findIndex(p => p.artistArtworkId === artistArtworkId);
+            
+            if (index > -1) {
+                products[index] = {
+                    ...products[index],
+                    title: artwork.title,
+                    category: artwork.category,
+                    price: artwork.price,
+                    image: artwork.photo,
+                    photos: artwork.photos || [artwork.photo],
+                    description: artwork.description || '',
+                    dimensions: artwork.dimensions || null,
+                    technique: artwork.technique || null,
+                    techniqueCustom: artwork.techniqueCustom || null
+                };
+                
+                saveProducts(products);
+            }
+        }
+
+        function removeFromPublicProducts(artistArtworkId) {
+            const products = getProducts();
+            const productToRemove = products.find(p => p.artistArtworkId === artistArtworkId);
+            const filtered = products.filter(p => p.artistArtworkId !== artistArtworkId);
+            
+            if (filtered.length < products.length) {
+                saveProducts(filtered);
+                
+                // Supprimer aussi du storage partagé
+                if (productToRemove && productToRemove.id) {
+                    const artworkKey = `artwork:${productToRemove.id}`;
+                    window.storage.delete(artworkKey, true).then(() => {
+                        console.log('✅ Œuvre supprimée du storage partagé:', artworkKey);
+                    }).catch(err => {
+                        console.log('⚠️ Erreur suppression storage:', err);
+                    });
+                }
+            }
+        }
+
+        // ==================== SALES ====================
+        function renderSales() {
+            const tbody = document.getElementById('salesTableBody');
+            if (!db.sales.length) { tbody.innerHTML='<tr><td colspan="5" style="text-align:center;opacity:0.7;">Aucune vente</td></tr>'; return; }
+            tbody.innerHTML = db.sales.map(s => `<tr>
+                <td>${new Date(s.date).toLocaleDateString('fr-FR')}</td>
+                <td><strong>${s.artwork}</strong></td>
+                <td>${s.client}</td>
+                <td><strong>${formatPrice(s.price)}</strong></td>
+                <td><span style="background:${s.status==='Livrée'?'rgba(76,175,80,0.3)':'rgba(255,193,7,0.3)'};padding:5px 12px;border-radius:12px;font-size:12px;">${s.status}</span></td>
+            </tr>`).join('');
+        }
+
+        // ==================== ARTIST GALLERY ====================
+        function renderArtistGallery() {
+            const products = getProducts();
+            const filtered = currentGalleryFilter === 'all' ? products : products.filter(p => p.category === currentGalleryFilter);
+            document.getElementById('artistGalleryGrid').innerHTML = filtered.map(p => `
+                <div class="artwork-card" onclick="artistViewProductDetail(${p.id})">
+                    <div class="artwork-image"><img src="${p.image}" alt="${p.title}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'"></div>
+                    <div class="artwork-info">
+                        <div class="artwork-title">${p.title}</div>
+                        <div style="font-size:13px;opacity:0.8;margin-bottom:8px;cursor:pointer;" onclick="artistViewArtistDetail(event,'${p.artist}')">par ${p.artist}</div>
+                        <div class="artwork-price">${formatPrice(p.price)}</div>
+                        <div class="artwork-meta"><span>🏷️ ${p.category}</span><span>${p.badge}</span></div>
+                    </div>
+                </div>`).join('');
+        }
+
+        function filterArtistGallery(cat, event) {
+            currentGalleryFilter = cat;
+            document.querySelectorAll('#artistGalleryFilters .filter-btn').forEach(b => b.classList.remove('active'));
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+            renderArtistGallery();
+        }
+
+        // ==================== ARTISTE : PRODUCT DETAIL ====================
+        function artistViewProductDetail(productId) {
+            const allProducts = getProducts();
+            const product = allProducts.find(p => p.id === productId);
+            if (!product) return;
+            document.getElementById('artistProductDetailContainer').innerHTML = `
+                <div class="product-detail">
+                    <div class="product-detail-grid">
+                        <div class="product-detail-image"><img src="${product.image}" alt="${product.title}" style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'"></div>
+                        <div class="product-detail-info">
+                            <div class="product-detail-title">${product.title}</div>
+                            <div class="product-detail-artist" onclick="artistViewArtistDetail(event,'${product.artist}')" style="cursor:pointer;">👨‍🎨 par ${product.artist}</div>
+                            <div class="product-detail-price">${formatPrice(product.price)}</div>
+                            <div class="product-detail-meta">
+                                <div class="meta-item"><div class="meta-label">Catégorie</div><div class="meta-value">${product.category}</div></div>
+                                <div class="meta-item"><div class="meta-label">Statut</div><div class="meta-value">${product.badge}</div></div>
+                                <div class="meta-item"><div class="meta-label">Dimensions</div><div class="meta-value">80 × 60 cm</div></div>
+                                <div class="meta-item"><div class="meta-label">Technique</div><div class="meta-value">Huile sur toile</div></div>
+                            </div>
+                            <div class="product-detail-description">
+                                <h3 style="margin-bottom:10px;">Description</h3>
+                                <p>Cette magnifique œuvre capture l'essence de l'art africain contemporain. Créée avec passion, elle représente ${product.title.toLowerCase()} à travers le regard unique de ${product.artist}.</p>
+                            </div>
+                            <div class="product-detail-actions">
+                                <button class="btn-large btn-primary" onclick="showToast('Fonctionnalité disponible pour les clients')">🛒 Voir dans la boutique</button>
+                                <button class="btn-large btn-secondary" onclick="showToast('Œuvre ajoutée à vos inspirations')">⭐ Inspirations</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+            document.getElementById('artistProductDetailSection').classList.add('active');
+            window.scrollTo(0,0);
+        }
+
+        // ==================== ARTISTE : ARTIST DETAIL ====================
+        function artistViewArtistDetail(event, artistName) {
+            event.stopPropagation();
+            if (!artistName) return;
+            window.location.href = `profil.html?name=${encodeURIComponent(artistName)}`;
+        }
+        // ==================== INIT ====================
+        // ==================== PULL TO REFRESH ====================
+        let touchStartY = 0;
+        let touchCurrentY = 0;
+        let touchStartX = 0;
+        let touchCurrentX = 0;
+        let isPulling = false;
+        let isRefreshing = false;
+        let isSwiping = false;
+
+        document.addEventListener('touchstart', function(e) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            
+            // Check for pull to refresh (at top of page)
+            if (window.scrollY === 0 && !isRefreshing) {
+                isPulling = true;
+            }
+            
+            // Check for swipe back (from left edge)
+            if (touchStartX < 50 && currentHistoryIndex > 0) {
+                isSwiping = true;
+            }
+        }, { passive: true });
+
+        document.addEventListener('touchmove', function(e) {
+            touchCurrentX = e.touches[0].clientX;
+            touchCurrentY = e.touches[0].clientY;
+            
+            // Handle pull to refresh
+            if (isPulling && !isRefreshing) {
+                const pullDistance = touchCurrentY - touchStartY;
+                
+                if (pullDistance > 0 && pullDistance < 100) {
+                    const pullToRefresh = document.getElementById('pullToRefresh');
+                    pullToRefresh.classList.add('visible');
+                    pullToRefresh.style.transform = `translateY(${Math.min(pullDistance - 80, 0)}px)`;
+                }
+            }
+            
+            // Handle swipe back gesture
+            if (isSwiping) {
+                const swipeDistance = touchCurrentX - touchStartX;
+                if (swipeDistance > 50) {
+                    // Show visual feedback for swipe
+                    document.body.style.transform = `translateX(${Math.min(swipeDistance * 0.3, 100)}px)`;
+                    document.body.style.transition = 'none';
+                }
+            }
+        }, { passive: true });
+
+        document.addEventListener('touchend', function(e) {
+            // Handle pull to refresh
+            if (isPulling && !isRefreshing) {
+                const pullDistance = touchCurrentY - touchStartY;
+                const pullToRefresh = document.getElementById('pullToRefresh');
+                
+                if (pullDistance > 80) {
+                    refreshPage();
+                } else {
+                    pullToRefresh.classList.remove('visible');
+                    pullToRefresh.style.transform = '';
+                }
+                
+                isPulling = false;
+            }
+            
+            // Handle swipe back
+            if (isSwiping) {
+                const swipeDistance = touchCurrentX - touchStartX;
+                
+                if (swipeDistance > 100) {
+                    // Trigger back navigation
+                    goBack();
+                }
+                
+                // Reset body transform
+                document.body.style.transition = 'transform 0.3s ease';
+                document.body.style.transform = '';
+                setTimeout(() => {
+                    document.body.style.transition = '';
+                }, 300);
+                
+                isSwiping = false;
+            }
+            
+            touchStartX = 0;
+            touchStartY = 0;
+            touchCurrentX = 0;
+            touchCurrentY = 0;
+        }, { passive: true });
+
+        function refreshPage() {
+            if (isRefreshing) return;
+            
+            isRefreshing = true;
+            const pullToRefresh = document.getElementById('pullToRefresh');
+            pullToRefresh.classList.add('refreshing');
+            
+            // Simulate loading
+            setTimeout(() => {
+                // Refresh current page content
+                const currentPage = document.querySelector('.page.active');
+                if (currentPage && currentPage.id === 'homePage') {
+                    (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
+                } else if (currentPage && currentPage.id === 'favoritesPage') {
+                    renderFavorites();
+                } else if (currentPage && currentPage.id === 'cartPage') {
+                    renderCart();
+                } else if (currentPage && currentPage.id === 'artistDetailPage') {
+                    // Recharger le profil artiste actuel
+                    const artistNameElement = document.querySelector('.artist-detail-name');
+                    if (artistNameElement) {
+                        const artistName = artistNameElement.textContent.trim();
+                        viewArtistDetail(artistName);
+                    }
+                }
+                
+                // Update badges
+                updateBadges();
+                renderNotifications();
+                
+                showToast('✅ Page actualisée');
+                
+                // Hide refresh indicator
+                pullToRefresh.classList.remove('visible', 'refreshing');
+                pullToRefresh.style.transform = '';
+                isRefreshing = false;
+            }, 1000);
+        }
+
+        function manualRefresh() {
+            if (isRefreshing) return;
+            
+            const btn = event.target.closest('.icon-btn');
+            btn.style.animation = 'spin 0.5s linear';
+            
+            setTimeout(() => {
+                btn.style.animation = '';
+            }, 500);
+            
+            showLoading();
+            
+            setTimeout(() => {
+                // Refresh current page content
+                const currentPage = document.querySelector('.page.active');
+                if (currentPage && currentPage.id === 'homePage') {
+                    (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
+                } else if (currentPage && currentPage.id === 'favoritesPage') {
+                    renderFavorites();
+                } else if (currentPage && currentPage.id === 'cartPage') {
+                    renderCart();
+                }
+                
+                // Update badges and notifications
+                updateBadges();
+                renderNotifications();
+                
+                hideLoading();
+                showToast('✅ Page actualisée');
+            }, 600);
+        }
+
+        // ==================== NAVIGATION HISTORY ====================
+        const navigationHistory = [];
+        let currentHistoryIndex = -1;
+
+        function updateNavigationHistory(page) {
+            // Remove any forward history when navigating to a new page
+            navigationHistory.splice(currentHistoryIndex + 1);
+            navigationHistory.push(page);
+            currentHistoryIndex = navigationHistory.length - 1;
+            updateBackButton();
+        }
+
+        function updateBackButton() {
+            const backButton = document.getElementById('backButton');
+            if (currentHistoryIndex > 0) {
+                backButton.classList.add('show');
+            } else {
+                backButton.classList.remove('show');
+            }
+        }
+
+        function goBack() {
+            if (currentHistoryIndex > 0) {
+                currentHistoryIndex--;
+                const previousPage = navigationHistory[currentHistoryIndex];
+                navigateToWithoutHistory(previousPage);
+                updateBackButton();
+            }
+        }
+
+        function navigateToWithoutHistory(page) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            const pageElement = document.getElementById(page + 'Page');
+            if (pageElement) {
+                pageElement.classList.add('active');
+                
+                // Refresh content based on page
+                if (page === 'home') (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
+                else if (page === 'favorites') renderFavorites();
+                else if (page === 'cart') renderCart();
+                
+                window.scrollTo(0, 0);
+            }
+        }
+
+        // ==================== LOADING OVERLAY ====================
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.add('show');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('show');
+        }
+
+        // Override original navigateTo to use history
+        const originalNavigateTo = navigateTo;
+        navigateTo = function(page) {
+            originalNavigateTo(page);
+            updateNavigationHistory(page);
+        };
+
+        // ==================== ARTIST PROFILE MANAGEMENT ====================
+        
+        function openArtistEditModal() {
+            // Get artist account data from memory
+            const acc = safeStorage.get('arkyl_artist_account', null) || _memStore['arkyl_artist_account'] || null;
+            
+            if (!acc) {
+                showToast('⚠️ Aucun compte artiste trouvé');
+                return;
+            }
+            
+            // Update profile preview
+            const previewContainer = document.getElementById('profilePreviewContainer');
+            if (acc.avatar && (acc.avatar.startsWith('http') || acc.avatar.startsWith('data:'))) {
+                const savedStyle = acc.avatarStyle || 'slices';
+                renderProfilePreview(previewContainer, acc.avatar, savedStyle);
+            } else {
+                previewContainer.innerHTML = `<div class="profile-emoji-preview">${acc.avatar || '👤'}</div>`;
+            }
+            
+            // Fill all form fields with existing data
+            document.getElementById('editArtistName').value = acc.name || '';
+            document.getElementById('editArtistEmail').value = acc.email || '';
+            document.getElementById('editArtistPhone').value = acc.phone || '';
+            document.getElementById('editArtistCountry').value = acc.country || '';
+            document.getElementById('editArtistSpecialty').value = acc.specialty ? acc.specialty.join(', ') : '';
+            document.getElementById('editArtistBio').value = acc.bio || '';
+            document.getElementById('editArtistWebsite').value = acc.website || '';
+            document.getElementById('editArtistSocial').value = acc.social || '';
+            
+            // Update character count for bio
+            updateBioCharCount();
+            
+            // Show modal
+            document.getElementById('artistEditModal').classList.add('show');
+        }
+
+        function updateBioCharCount() {
+            const bioField = document.getElementById('editArtistBio');
+            const charCount = document.getElementById('bioCharCount');
+            if (bioField && charCount) {
+                const length = bioField.value.length;
+                const color = length >= 10 ? '#4CAF50' : length >= 5 ? '#FFC107' : '#F44336';
+                charCount.textContent = `${length} / 10 caractères minimum`;
+                charCount.style.color = color;
+            }
+        }
+
+        function closeArtistEditModal() {
+            document.getElementById('artistEditModal').classList.remove('show');
+        }
+
+        function handleProfileImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                showToast('⚠️ Veuillez sélectionner une image valide');
+                return;
+            }
+
+            // Validate file size (5MB max)
+            if (file.size > 5 * 1024 * 1024) {
+                showToast('⚠️ L\'image ne doit pas dépasser 5MB');
+                return;
+            }
+
+            // Read and convert to base64
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Image = e.target.result;
+                
+                // Update preview
+                const previewContainer = document.getElementById('profilePreviewContainer');
+                const currentStyle = window.tempAvatarStyle || 'slices';
+                renderProfilePreview(previewContainer, base64Image, currentStyle);
+                
+                // Store in temporary variable (will be saved on "Enregistrer")
+                window.tempProfileImage = base64Image;
+                
+                showToast('✅ Image chargée! Cliquez sur "Enregistrer" pour valider.');
+            };
+            reader.onerror = function() {
+                showToast('❌ Erreur lors du chargement de l\'image');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function saveArtistProfile() {
+            
+            // Get current artist account
+            const acc = safeStorage.get('arkyl_artist_account', null) || _memStore['arkyl_artist_account'] || null;
+            
+            if (!acc) {
+                console.error('❌ DEBUG: Aucun compte artiste trouvé');
+                showToast('⚠️ Aucun compte artiste trouvé');
+                return;
+            }
+
+            // Get all field values
+            const name = document.getElementById('editArtistName').value.trim();
+            const email = document.getElementById('editArtistEmail').value.trim();
+            const phone = document.getElementById('editArtistPhone').value.trim();
+            const country = document.getElementById('editArtistCountry').value;
+            const specialty = document.getElementById('editArtistSpecialty').value.trim();
+            const bio = document.getElementById('editArtistBio').value.trim();
+            const website = document.getElementById('editArtistWebsite').value.trim();
+            const social = document.getElementById('editArtistSocial').value.trim();
+
+            // Validation
+            if (!name || name.length < 2) {
+                console.warn('⚠️ DEBUG: Nom invalide');
+                showToast('⚠️ Veuillez entrer un nom valide (min. 2 caractères)');
+                return;
+            }
+            if (!email || !email.includes('@')) {
+                console.warn('⚠️ DEBUG: Email invalide');
+                showToast('⚠️ Veuillez entrer un email valide');
+                return;
+            }
+            if (!phone || phone.length < 6) {
+                showToast('⚠️ Veuillez entrer un numéro de téléphone valide (min. 6 chiffres)');
+                return;
+            }
+            if (!country) {
+                console.warn('⚠️ DEBUG: Pays non sélectionné');
+                showToast('⚠️ Veuillez sélectionner votre pays');
+                return;
+            }
+            // Spécialité optionnelle
+            if (!bio || bio.length < 3) {
+                showToast('⚠️ Veuillez renseigner une biographie (min. 3 caractères)');
+                return;
+            }
+
+            // Update all artist account data
+            acc.name = name;
+            acc.email = email;
+            acc.phone = phone;
+            acc.country = country;
+            acc.specialty = specialty.split(',').map(s => s.trim()).filter(s => s);
+            acc.bio = bio;
+            acc.website = website;
+            acc.social = social;
+            acc.updatedAt = new Date().toISOString();
+            
+            // Update profile image if a new one was uploaded
+            if (window.tempProfileImage) {
+                acc.avatar = window.tempProfileImage;
+                acc.avatarStyle = window.tempAvatarStyle || acc.avatarStyle || 'slices';
+                window.tempProfileImage = null;
+            }
+
+            // Sauvegarder en mémoire ET localStorage
+            try {
+                _memStore['arkyl_artist_account'] = acc;
+                safeStorage.set('arkyl_artist_account', acc);
+
+                hydrateProfile(true);
+                closeArtistEditModal();
+
+                // ⭐ ENVOI AU SERVEUR
+                try {
+                    const profileData = {
+                        artist_id: currentUser.id,
+                        name: acc.name,
+                        email: acc.email,
+                        phone: acc.phone || '',
+                        country: acc.country || '',
+                        specialty: acc.specialty || [],
+                        bio: acc.bio || '',
+                        website: acc.website || '',
+                        social: acc.social || '',
+                        avatar: acc.avatar || null,
+                        avatar_style: acc.avatarStyle || 'slices'
+                    };
+                    const resp = await fetch('https://arkyl-galerie.onrender.com/api_modifier_profil.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(profileData)
+                    });
+                    const res = await resp.json();
+                    if (res.success) {
+                        showToast('✅ Profil mis à jour avec succès !');
+                    } else {
+                        showToast('✅ Profil sauvegardé localement');
+                    }
+                } catch (e) {
+                    showToast('✅ Profil sauvegardé (hors ligne)');
+                }
+
+                if (typeof addNotification === 'function') {
+                    addNotification('Profil modifié', 'Vos informations ont été mises à jour avec succès.');
+                }
+            } catch (error) {
+                showToast('❌ Erreur lors de la sauvegarde du profil');
+            }
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('artistEditModal');
+            if (event.target === modal) {
+                closeArtistEditModal();
+            }
+        });
+
+        // ==================== NEWS MANAGEMENT (ADMIN) ====================
+        
+        // ========== ACTUALITÉS : stockage côté serveur (partagé entre tous les utilisateurs) ==========
+        const NEWS_API = 'https://arkyl-galerie.onrender.com/api_news.php';
+        let newsItems = [];
+
+        async function fetchNewsFromServer() {
+            try {
+                const res = await fetch(NEWS_API + '?action=get&t=' + Date.now());
+                const data = await res.json();
+                if (data.success && Array.isArray(data.news)) {
+                    // Normaliser is_image → isImage (colonne SQL snake_case)
+                    newsItems = data.news.map(n => ({
+                        ...n,
+                        isImage: n.isImage ?? (n.is_image == 1)
+                    }));
+                    return true;
+                }
+            } catch(e) {
+                console.warn('⚠️ Impossible de charger les actualités:', e);
+            }
+            return false;
+        }
+
+        async function saveNewsToServer(action, payload) {
+            // L'API PHP lit l'action depuis ?action= dans l'URL
+            try {
+                const res = await fetch(NEWS_API + '?action=' + action, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    // Recharger la liste complète depuis le serveur pour rester en sync
+                    await fetchNewsFromServer();
+                }
+                return data;
+            } catch(e) {
+                console.error('❌ Erreur API news:', e);
+                showToast('❌ Erreur de connexion au serveur');
+                return { success: false };
+            }
+        }
+
+        function renderNewsTicker() {
+            const container = document.querySelector('.news-ticker-content');
+            if (!container) return;
+
+            // Duplicate items for seamless loop
+            const duplicatedNews = [...newsItems, ...newsItems];
+            
+            container.innerHTML = duplicatedNews.map((news, index) => {
+                const originalIndex = index % newsItems.length;
+                const iconHTML = news.isImage 
+                    ? `<img loading="lazy" src="${news.icon}" alt="Affiche" onerror="this.style.display='none'; this.parentElement.innerHTML='📰';">`
+                    : news.icon;
+                
+                return `
+                    <div class="news-ticker-item" onclick="openNewsLightbox(${originalIndex})">
+                        <div class="news-ticker-icon ${news.gradient}">
+                            ${iconHTML}
+                        </div>
+                        <span class="news-ticker-text">${news.text}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderNewsList() {
+            const container = document.getElementById('newsListContainer');
+            if (!container) return;
+
+            if (newsItems.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 60px 20px; background: rgba(255,255,255,0.1); border-radius: 20px;">
+                        <div style="font-size: 60px; margin-bottom: 20px;">📰</div>
+                        <p style="font-size: 18px; opacity: 0.8;">Aucune actualité pour le moment</p>
+                        <p style="font-size: 14px; opacity: 0.6; margin-top: 10px;">Cliquez sur "Ajouter une actualité" pour commencer</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = newsItems.map((news, index) => {
+                const iconDisplay = news.isImage 
+                    ? `<img loading="lazy" src="${news.icon}" style="width: 50px; height: 50px; border-radius: 10px; object-fit: cover;" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2250%22 height=%2250%22%3E%3Crect fill=%22%23ddd%22 width=%2250%22 height=%2250%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2230%22%3E📰%3C/text%3E%3C/svg%3E';">`
+                    : `<div style="font-size: 40px;">${news.icon}</div>`;
+
+                return `
+                    <div style="background: rgba(255,255,255,0.12); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.2); border-radius: 16px; padding: 20px; margin-bottom: 15px; display: flex; align-items: center; gap: 20px;">
+                        <div class="news-ticker-icon ${news.gradient}" style="width: 60px; height: 60px; flex-shrink: 0;">
+                            ${iconDisplay}
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-size: 15px; font-weight: 600; margin-bottom: 5px;">${news.text}</div>
+                            <div style="font-size: 12px; opacity: 0.7;">Gradient: ${news.gradient} ${news.isImage ? '· Image' : '· Emoji'}</div>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="editNews(${news.id})" style="background: rgba(66, 135, 245, 0.2); border: 1px solid rgba(66, 135, 245, 0.4); color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                                ✏️ Modifier
+                            </button>
+                            <button onclick="deleteNews(${news.id})" style="background: rgba(245, 66, 66, 0.2); border: 1px solid rgba(245, 66, 66, 0.4); color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                                🗑️ Supprimer
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openAddNewsModal() {
+            document.getElementById('newsModalTitle').textContent = '➕ Nouvelle Actualité';
+            document.getElementById('newsIcon').value = '';
+            document.getElementById('newsImageUpload').value = '';
+            document.getElementById('newsGradient').value = 'gradient-1';
+            document.getElementById('newsText').value = '';
+            document.getElementById('newsEditIndex').value = '';
+            document.getElementById('newsImagePreview').style.display = 'none';
+            document.getElementById('newsModal').classList.add('show');
+        }
+
+        // Gestion de l'upload d'image
+        document.addEventListener('DOMContentLoaded', function() {
+            const imageUpload = document.getElementById('newsImageUpload');
+            const urlInput = document.getElementById('newsIcon');
+            const previewContainer = document.getElementById('newsImagePreview');
+            const previewImg = document.getElementById('newsPreviewImg');
+
+            // Quand on upload une image
+            if (imageUpload) {
+                imageUpload.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file && file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = function(event) {
+                            const base64Image = event.target.result;
+                            // Mettre l'image en base64 dans le champ URL
+                            urlInput.value = base64Image;
+                            // Afficher la prévisualisation
+                            previewImg.src = base64Image;
+                            previewContainer.style.display = 'block';
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+
+            // Prévisualisation pour URL
+            if (urlInput) {
+                urlInput.addEventListener('input', function() {
+                    const value = this.value.trim();
+                    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:image')) {
+                        previewImg.src = value;
+                        previewContainer.style.display = 'block';
+                    } else {
+                        previewContainer.style.display = 'none';
+                    }
+                });
+            }
+        });
+
+        function editNews(id) {
+            const news = newsItems.find(n => n.id === id);
+            if (!news) return;
+            document.getElementById('newsModalTitle').textContent = '✏️ Modifier l\'Actualité';
+            document.getElementById('newsIcon').value = news.icon;
+            document.getElementById('newsImageUpload').value = ''; // Reset file input
+            document.getElementById('newsGradient').value = news.gradient;
+            document.getElementById('newsText').value = news.text;
+            document.getElementById('newsEditIndex').value = id; // ID serveur
+            
+            // Afficher la prévisualisation si c'est une image
+            const previewContainer = document.getElementById('newsImagePreview');
+            const previewImg = document.getElementById('newsPreviewImg');
+            if (news.isImage) {
+                previewImg.src = news.icon;
+                previewContainer.style.display = 'block';
+            } else {
+                previewContainer.style.display = 'none';
+            }
+            
+            document.getElementById('newsModal').classList.add('show');
+        }
+
+        function closeNewsModal() {
+            document.getElementById('newsModal').classList.remove('show');
+        }
+
+        async function saveNews() {
+            const icon = document.getElementById('newsIcon').value.trim();
+            const gradient = document.getElementById('newsGradient').value;
+            const text = document.getElementById('newsText').value.trim();
+            const editId = document.getElementById('newsEditIndex').value; // contient l'ID serveur ou ''
+
+            if (!icon || !text) {
+                showToast('⚠️ Veuillez remplir tous les champs');
+                return;
+            }
+
+            const isImage = icon.startsWith('http://') || icon.startsWith('https://') || icon.startsWith('data:image');
+            const payload = { icon, gradient, text, isImage };
+
+            let result;
+            if (editId !== '') {
+                // Mode édition : on envoie l'ID serveur
+                result = await saveNewsToServer('update', { id: parseInt(editId), ...payload });
+                if (result.success) showToast('✅ Actualité modifiée avec succès!');
+            } else {
+                // Mode ajout
+                result = await saveNewsToServer('add', payload);
+                if (result.success) showToast('✅ Actualité ajoutée avec succès!');
+            }
+
+            if (result.success) {
+                renderNewsTicker();
+                renderNewsList();
+                closeNewsModal();
+            }
+        }
+
+        async function deleteNews(id) {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer cette actualité ?')) return;
+
+            const result = await saveNewsToServer('delete', { id });
+            if (result.success) {
+                renderNewsTicker();
+                renderNewsList();
+                showToast('✅ Actualité supprimée');
+            }
+        }
+
+        async function deleteAllNews() {
+            if (!confirm('Supprimer TOUTES les actualités ? Cette action est irréversible.')) return;
+
+            showToast('🗑️ Suppression en cours...');
+            // Supprimer une par une dans l'ordre
+            const ids = newsItems.map(n => n.id);
+            for (const id of ids) {
+                await saveNewsToServer('delete', { id });
+            }
+            newsItems = [];
+            renderNewsTicker();
+            renderNewsList();
+            showToast('✅ Toutes les actualités ont été supprimées');
+        }
+
+        // ==================== IMAGE LIGHTBOX (plein écran) ====================
+        function openImageLightbox(src) {
+            let lb = document.getElementById('imageLightboxOverlay');
+            if (!lb) {
+                lb = document.createElement('div');
+                lb.id = 'imageLightboxOverlay';
+                lb.style.cssText = `
+                    position: fixed; inset: 0; z-index: 99999;
+                    background: rgba(0,0,0,0.92);
+                    display: flex; align-items: center; justify-content: center;
+                    cursor: zoom-out;
+                    animation: fadeInLb 0.2s ease;
+                `;
+                lb.innerHTML = `
+                    <style>
+                        @keyframes fadeInLb { from { opacity:0; } to { opacity:1; } }
+                        @keyframes zoomInLb { from { transform: scale(0.85); opacity:0; } to { transform: scale(1); opacity:1; } }
+                        #imageLightboxImg {
+                            max-width: 92vw; max-height: 92vh;
+                            object-fit: contain; border-radius: 12px;
+                            box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+                            animation: zoomInLb 0.25s cubic-bezier(0.34,1.56,0.64,1);
+                            cursor: default;
+                        }
+                        #imageLightboxClose {
+                            position: fixed; top: 20px; right: 24px;
+                            background: rgba(255,255,255,0.15); border: none;
+                            color: white; font-size: 28px; width: 48px; height: 48px;
+                            border-radius: 50%; cursor: pointer; display: flex;
+                            align-items: center; justify-content: center;
+                            transition: background 0.2s;
+                            backdrop-filter: blur(4px);
+                        }
+                        #imageLightboxClose:hover { background: rgba(255,255,255,0.3); }
+                    </style>
+                    <button id="imageLightboxClose" onclick="event.stopPropagation(); closeImageLightbox();">✕</button>
+                    <img loading="lazy" id="imageLightboxImg" src="" alt="Vue agrandie">
+                `;
+                lb.addEventListener('click', closeImageLightbox);
+                lb.querySelector('#imageLightboxImg').addEventListener('click', e => e.stopPropagation());
+                document.body.appendChild(lb);
+                // Fermer avec Echap
+                document.addEventListener('keydown', _lbKeyHandler);
+            }
+            document.getElementById('imageLightboxImg').src = src;
+            lb.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeImageLightbox() {
+            const lb = document.getElementById('imageLightboxOverlay');
+            if (lb) lb.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+
+        function _lbKeyHandler(e) {
+            if (e.key === 'Escape') closeImageLightbox();
+        }
+
+        // ==================== NEWS LIGHTBOX FUNCTIONS ====================
+        function openNewsLightbox(index) {
+            const news = newsItems[index];
+            if (!news) return;
+
+            const lightbox = document.getElementById('newsLightbox');
+            const imageContainer = document.getElementById('newsLightboxImage');
+            const title = document.getElementById('newsLightboxTitle');
+            const gradientName = document.getElementById('newsLightboxGradientName');
+            const gradientPreview = document.getElementById('newsLightboxGradientPreview');
+            const description = document.getElementById('newsLightboxDescription');
+
+            // Set title
+            title.textContent = news.text;
+
+            // Set image or emoji — utilise un <img loading="lazy"> pour voir l'image complète
+            if (news.isImage) {
+                imageContainer.classList.remove('emoji-display');
+                imageContainer.style.backgroundImage = 'none';
+                imageContainer.innerHTML = `<img loading="lazy" class="lightbox-img" src="${news.icon}" alt="${news.text}" onerror="this.parentElement.innerHTML='📰'">`;
+            } else {
+                imageContainer.classList.add('emoji-display');
+                imageContainer.style.backgroundImage = 'none';
+                imageContainer.innerHTML = news.icon;
+            }
+
+            // Set gradient info
+            const gradientNames = {
+                'gradient-1': 'Bronze-Cuivre',
+                'gradient-2': 'Terre-Argile',
+                'gradient-3': 'Or-Doré',
+                'gradient-4': 'Cuivre-Sable',
+                'gradient-5': 'Bronze-Sable'
+            };
+            gradientName.textContent = gradientNames[news.gradient] || news.gradient;
+
+            // Apply gradient preview
+            gradientPreview.className = `news-lightbox-gradient-preview news-ticker-icon ${news.gradient}`;
+
+            // Set description (same as text for now, you can enhance this)
+            description.textContent = news.text;
+
+            // Show lightbox
+            lightbox.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent scrolling
+        }
+
+        function closeNewsLightbox(event) {
+            // Close only if clicking on background or close button
+            if (event && event.target.closest('.news-lightbox-content') && !event.target.classList.contains('news-lightbox-close')) {
+                return;
+            }
+
+            const lightbox = document.getElementById('newsLightbox');
+            lightbox.classList.remove('active');
+            document.body.style.overflow = ''; // Restore scrolling
+        }
+
+        // Close lightbox with ESC key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeNewsLightbox();
+            }
+        });
+
+        // Close modal when clicking outside
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('newsModal');
+            if (event.target === modal) {
+                closeNewsModal();
+            }
+        });
+
+        // ==================== AVATAR UPLOAD HANDLERS ====================
+        function handleAvatarUpload(event, context) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                showToast('❌ Veuillez sélectionner une image valide');
+                return;
+            }
+
+            // Validate file size (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                showToast('❌ L\'image ne doit pas dépasser 5MB');
+                return;
+            }
+
+            // Read and display the image
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64 = e.target.result;
+                if (context === 'reg') {
+                    // Registration: update the avatar preview div
+                    const previewEl = document.getElementById('regAvatarImg');
+                    if (previewEl) {
+                        previewEl.innerHTML = `<img src="${base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                    }
+                    window.tempRegAvatar = base64;
+                } else {
+                    // Edit modal: use renderProfilePreview
+                    const previewContainer = document.getElementById('profilePreviewContainer');
+                    const currentStyle = window.tempAvatarStyle || 'slices';
+                    renderProfilePreview(previewContainer, base64, currentStyle);
+                    window.tempProfileImage = base64;
+                }
+                showToast('✅ Photo importée avec succès!');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // selectPresetAvatar removed (no more preset avatars)
+
+        function selectPresetAvatarEdit(src) {
+            const previewContainer = document.getElementById('profilePreviewContainer');
+            const currentStyle = window.tempAvatarStyle || 'slices';
+            renderProfilePreview(previewContainer, src, currentStyle);
+            window.tempProfileImage = src;
+            showToast('✅ Avatar sélectionné! Cliquez sur "Enregistrer" pour valider.');
+        }
+
+
+        // Données de découpe partagées entre édition et affichage public
+        const SLICE_CONFIG = {
+            slices: [
+                { xPos: 10, hPct: 75, vAlign: 'flex-start' },
+                { xPos: 30, hPct: 100, vAlign: 'stretch' },
+                { xPos: 50, hPct: 90,  vAlign: 'center' },
+                { xPos: 70, hPct: 100, vAlign: 'stretch' },
+                { xPos: 90, hPct: 70,  vAlign: 'flex-end' },
+            ],
+            hslices: [
+                { yPos: 10, wPct: 80, hAlign: 'flex-start' },
+                { yPos: 40, wPct: 100, hAlign: 'stretch' },
+                { yPos: 65, wPct: 90,  hAlign: 'flex-end' },
+                { yPos: 90, wPct: 100, hAlign: 'stretch' },
+            ]
+        };
+
+        function buildSlicesHTML(imageUrl, config, direction) {
+            if (direction === 'v') {
+                return config.map(s => {
+                    const h = s.hPct + '%';
+                    const alignSelf = s.hPct === 100 ? 'stretch' : s.vAlign;
+                    return `<div style="flex:1;border-radius:5px;background-image:url('${imageUrl}');background-position:${s.xPos}% center;background-size:${config.length * 110}% auto;height:${h};align-self:${alignSelf};transition:transform 0.3s ease;"></div>`;
+                }).join('');
+            } else {
+                return config.map(s => {
+                    const w = s.wPct + '%';
+                    const alignSelf = s.wPct === 100 ? 'stretch' : s.hAlign;
+                    return `<div style="border-radius:5px;background-image:url('${imageUrl}');background-position:center ${s.yPos}%;background-size:auto ${config.length * 110}%;width:${w};align-self:${alignSelf};flex:1;transition:transform 0.3s ease;"></div>`;
+                }).join('');
+            }
+        }
+
+        function buildAvatarDisplay(imageUrl, style, name) {
+            const W = 220, H = 250;
+            const wrap = `display:flex;justify-content:center;margin-bottom:24px;`;
+            if (style === 'slices') {
+                const slices = buildSlicesHTML(imageUrl, SLICE_CONFIG.slices, 'v');
+                return `<div style="${wrap}"><div style="display:flex;flex-direction:row;gap:4px;align-items:stretch;width:${W}px;height:${H}px;">${slices}</div></div>`;
+            } else if (style === 'hslices') {
+                const slices = buildSlicesHTML(imageUrl, SLICE_CONFIG.hslices, 'h');
+                return `<div style="${wrap}"><div style="display:flex;flex-direction:column;gap:4px;align-items:stretch;width:${W}px;height:${H}px;">${slices}</div></div>`;
+            } else if (style === 'diamond') {
+                return `<div style="${wrap}padding-top:30px;padding-bottom:30px;">
+                    <div style="width:160px;height:160px;transform:rotate(45deg);border-radius:16px;overflow:hidden;border:4px solid var(--terre-cuite);box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+                        <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;transform:rotate(-45deg) scale(1.45);">
+                    </div>
+                </div>`;
+            } else if (style === 'square') {
+                return `<div style="${wrap}">
+                    <div style="width:200px;height:200px;border-radius:24px;overflow:hidden;border:4px solid var(--terre-cuite);box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+                        <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;">
+                    </div>
+                </div>`;
+            } else {
+                // circle
+                return `<div style="${wrap}">
+                    <img loading="lazy" src="${imageUrl}" style="width:200px;height:200px;border-radius:50%;object-fit:cover;border:4px solid var(--terre-cuite);box-shadow:0 8px 24px rgba(0,0,0,0.4);" alt="${name}" onerror="this.style.display='none'">
+                </div>`;
+            }
+        }
+        function renderProfilePreview(container, imageUrl, style) {
+            window.tempAvatarStyle = style;
+            
+            // Update active button
+            document.querySelectorAll('.style-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.style === style);
+            });
+
+            if (style === 'slices') {
+                const slices = buildSlicesHTML(imageUrl, SLICE_CONFIG.slices, 'v');
+                container.innerHTML = `
+                    <div class="profile-display-wrapper style-slices">${slices}</div>
+                    ${styleSelectorHTML(style)}`;
+            } else if (style === 'hslices') {
+                const slices = buildSlicesHTML(imageUrl, SLICE_CONFIG.hslices, 'h');
+                container.innerHTML = `
+                    <div class="profile-display-wrapper style-hslices">${slices}</div>
+                    ${styleSelectorHTML(style)}`;
+            } else if (style === 'circle') {
+                container.innerHTML = `
+                    <div class="profile-display-wrapper style-circle">
+                        <img src="${imageUrl}" class="current-profile-preview" alt="Photo de profil">
+                    </div>
+                    ${styleSelectorHTML(style)}`;
+            } else if (style === 'square') {
+                container.innerHTML = `
+                    <div class="profile-display-wrapper style-square">
+                        <img src="${imageUrl}" class="current-profile-preview" alt="Photo de profil">
+                    </div>
+                    ${styleSelectorHTML(style)}`;
+            } else if (style === 'diamond') {
+                container.innerHTML = `
+                    <div class="profile-display-wrapper style-diamond">
+                        <img src="${imageUrl}" class="current-profile-preview" alt="Photo de profil">
+                    </div>
+                    ${styleSelectorHTML(style)}`;
+            }
+        }
+
+        function styleSelectorHTML(activeStyle) {
+            const styles = [
+                { id: 'slices',  icon: '▌▌▌', title: 'Bandes verticales' },
+                { id: 'hslices', icon: '≡',   title: 'Bandes horizontales' },
+                { id: 'circle',  icon: '◯',   title: 'Cercle' },
+                { id: 'square',  icon: '▢',   title: 'Carré arrondi' },
+                { id: 'diamond', icon: '◇',   title: 'Diamant' },
+            ];
+            const buttons = styles.map(s => 
+                `<button class="style-btn ${s.id === activeStyle ? 'active' : ''}" 
+                    data-style="${s.id}" 
+                    title="${s.title}"
+                    onclick="changeAvatarStyle('${s.id}')">${s.icon}</button>`
+            ).join('');
+            return `<div class="style-selector">${buttons}</div>`;
+        }
+
+        function changeAvatarStyle(style) {
+            const imgSrc = window.tempProfileImage;
+            if (!imgSrc) return;
+            const previewContainer = document.getElementById('profilePreviewContainer');
+            renderProfilePreview(previewContainer, imgSrc, style);
+        }
+
+        // ==================== INIT ====================
+        function init() {
+            (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
+            updateBadges();
+            renderNotifications();
+            updateAuthUI(); // Initialize authentication UI
+            
+            // Initialiser Google Sign-In après le chargement complet
+            if (document.readyState === 'complete') {
+                initializeGoogleSignIn();
+            } else {
+                window.addEventListener('load', initializeGoogleSignIn);
+            }
+            
+            // Charger les actualités depuis le serveur (partagées entre tous les utilisateurs)
+            fetchNewsFromServer().then(() => {
+                renderNewsTicker();
+                renderNewsList();
+            });
+            
+            // Restaurer la dernière page OU traiter retour Stripe
+            const lastPage = safeStorage.get('arkyl_last_page', null);
+            let startPage = 'home';
+
+            if (window._isStripeReturn || window._pendingStripeSession || window._pendingStripeOrderId) {
+                // Retour Stripe → ignorer la dernière page, traiter le paiement
+                safeStorage.remove('arkyl_last_page');
+                updateNavigationHistory('home');
+                setTimeout(() => processStripeReturn(window._pendingStripeSession, window._pendingStripeOrderId), 1200);
+            } else if (lastPage && (Date.now() - lastPage.timestamp) < 5000) {
+                startPage = lastPage.pageId.replace('Page', '');
+                setTimeout(() => {
+                    if (lastPage.artistName && startPage === 'artistDetail') {
+                        viewArtistDetail(lastPage.artistName);
+                    } else if (lastPage.productId && startPage === 'productDetail') {
+                        viewProductDetail(lastPage.productId);
+                    } else {
+                        navigateTo(startPage);
+                    }
+                }, 100);
+                safeStorage.remove('arkyl_last_page');
+            } else {
+                updateNavigationHistory(startPage);
+            }
+            
+            // Show welcome message based on auth status
+            if (currentUser) {
+                if (currentUser.isAdmin) {
+                    showToast(`👋 Bienvenue Admin ${currentUser.name}!`);
+                } else {
+                    showToast(`👋 Bienvenue ${currentUser.name}!`);
+                }
+            } else {
+                showToast('Bienvenue sur ARKYL! 🎨');
+            }
+        }
+
+        init();
+    
+    
+
+/* ============================
+   BLOC JS SUIVANT
+   ============================ */
+
+
+    // ==================== FONCTION POUR VOIR LES DÉTAILS D'UNE ŒUVRE DEPUIS L'API ====================
+    async function viewProductDetailFromAPI(artworkId) {
+        showLoading();
+        
+        try {
+            // Charger les détails depuis l'API
+            const response = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artwork_id=${artworkId}`);
+            const result = await response.json();
+            
+            if (!result.success || !result.data) {
+                hideLoading();
+                showToast('❌ Impossible de charger les détails de l\'œuvre');
+                return;
+            }
+            
+            const product = result.data;
+            
+            // Récupérer toutes les photos
+            const photos = product.photos && product.photos.length > 0 
+                ? product.photos 
+                : (product.image_url ? [product.image_url] : []);
+            
+            // Créer le carrousel d'images si plusieurs photos
+            let imageSection = '';
+            if (photos.length > 1) {
+                imageSection = `
+                    <div class="product-detail-image" style="position: relative;">
+                        <img id="mainProductImage" src="${photos[0]}" alt="${product.title}" style="width:100%;height:100%;object-fit:cover;border-radius:20px;cursor:pointer;" loading="lazy" onclick="openImageLightbox('${photos[0]}')" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
+                        
+                        <div style="position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.7); color: white; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
+                            <span id="currentPhotoIndex">1</span>/${photos.length}
+                        </div>
+                        
+                        <button class="like-button" onclick="toggleFavorite(event, ${product.id})" style="position:absolute;top:15px;right:15px;">🤍</button>
+                        
+                        ${photos.length > 1 ? `
+                            <button onclick="previousPhoto()" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.7); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 20px; display: flex; align-items: center; justify-content: center;">‹</button>
+                            <button onclick="nextPhoto()" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.7); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 20px; display: flex; align-items: center; justify-content: center;">›</button>
+                        ` : ''}
+                        
+                        <div style="display: flex; gap: 10px; margin-top: 15px; overflow-x: auto; padding: 5px 0;">
+                            ${photos.map((photo, index) => `
+                                <div onclick="changeMainPhoto(${index})" style="width: 80px; height: 80px; border-radius: 12px; overflow: hidden; cursor: pointer; border: 3px solid ${index === 0 ? 'rgba(212, 165, 116, 0.8)' : 'rgba(255,255,255,0.3)'};" class="thumbnail-photo" data-index="${index}">
+                                    <img loading="lazy" src="${photo}" alt="Photo ${index + 1}" style="width: 100%; height: 100%; object-fit: cover;">
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else {
+                imageSection = `
+                    <div class="product-detail-image">
+                        <img src="${photos[0] || product.image_url}" alt="${product.title}" style="width:100%;height:100%;object-fit:cover;border-radius:20px;cursor:pointer;" loading="lazy" onclick="openImageLightbox('${photos[0] || product.image_url}')" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
+                        <button class="like-button" onclick="toggleFavorite(event, ${product.id})" style="position:absolute;top:20px;right:20px;">🤍</button>
+                    </div>
+                `;
+            }
+            
+            // Créer les métadonnées avec TOUTES les informations
+            let dimensionsText = 'Non spécifiées';
+            // Parser les dimensions : depuis PostgreSQL c arrive comme string JSON
+            let dims = product.dimensions;
+            if (dims && typeof dims === 'string') {
+                try { dims = JSON.parse(dims); } catch(e) { dims = null; }
+            }
+            if (dims && (dims.width || dims.height)) {
+                const parts = [];
+                if (dims.width) parts.push(`L ${dims.width} cm`);
+                if (dims.height) parts.push(`H ${dims.height} cm`);
+                dimensionsText = parts.join(' × ');
+            }
+            
+            let techniqueText = product.technique || product.techniqueCustom || 'Non spécifiée';
+            
+            // Pays de l'artiste avec drapeau
+            let artistCountryText = '';
+            if (product.artist_country) {
+                const countryFlags = {
+                    'CI': '🇨🇮',
+                    'SN': '🇸🇳', 
+                    'ML': '🇲🇱',
+                    'BJ': '🇧🇯',
+                    'BF': '🇧🇫',
+                    'TG': '🇹🇬',
+                    'GH': '🇬🇭',
+                    'NG': '🇳🇬',
+                    'CM': '🇨🇲',
+                    'CD': '🇨🇩',
+                    'FR': '🇫🇷'
+                };
+                const flag = countryFlags[product.artist_country] || '🌍';
+                artistCountryText = `${flag} ${product.artist_country}`;
+            } else {
+                artistCountryText = 'Non spécifié';
+            }
+            
+            // Gérer les valeurs undefined
+            const artistName = product.artist_name || product.artist || 'Artiste inconnu';
+            const title = product.title || 'Sans titre';
+            const price = product.price || 0;
+            const category = product.category || 'Non spécifiée';
+            const description = product.description || 'Aucune description disponible.';
+            
+            const container = document.getElementById('productDetailContainer');
+            container.innerHTML = `
+                <div class="jm-detail">
+
+                    <!-- GALERIE STYLE JUMIA -->
+                    <div class="jm-gallery">
+                        <div class="jm-main-img-wrap">
+                            <img id="mainProductImage"
+                                 src="${photos[0] || ''}"
+                                 alt="${title}"
+                                 class="jm-main-img"
+                                 loading="lazy"
+                                 onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23222%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E%F0%9F%8E%A8%3C/text%3E%3C/svg%3E'">
+                            ${photos.length > 1 ? `
+                                <button class="jm-arrow jm-arrow-left" onclick="jmPrev()">&#8249;</button>
+                                <button class="jm-arrow jm-arrow-right" onclick="jmNext()">&#8250;</button>
+                                <div class="jm-counter"><span id="jmCurrent">1</span>/${photos.length}</div>
+                            ` : ''}
+                            <button class="jm-fav-btn" onclick="toggleFavorite(event, ${product.id})">🤍</button>
+                        </div>
+
+                        ${photos.length > 1 ? `
+                        <div class="jm-thumbs">
+                            ${photos.map((p, i) => `
+                                <div class="jm-thumb ${i === 0 ? 'active' : ''}" data-index="${i}" onclick="jmGoTo(${i})">
+                                    <img src="${p}" loading="lazy" alt="Photo ${i+1}"
+                                         onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23333%22 width=%22100%22 height=%22100%22/%3E%3C/svg%3E'">
+                                </div>
+                            `).join('')}
+                        </div>
+                        ` : ''}
+                    </div>
+
+                    <!-- INFOS PRODUIT -->
+                    <div class="jm-info">
+                        <div class="jm-badge-row">
+                            <span class="jm-badge">${product.badge || 'Disponible'}</span>
+                            <span class="jm-category">${category}</span>
+                        </div>
+
+                        <h1 class="jm-title">${title}</h1>
+
+                        <div class="jm-artist" onclick="viewArtistDetail(event, '${artistName}')">
+                            👨‍🎨 <span>${artistName}</span>
+                            ${artistCountryText ? `<span class="jm-country">${artistCountryText}</span>` : ''}
+                        </div>
+
+                        <div class="jm-price">${formatPrice(price)}</div>
+                        <div class="jm-price-sub">Prix en FCFA &nbsp;·&nbsp; Paiement sécurisé Stripe 🔒</div>
+
+                        <div class="jm-meta-grid">
+                            ${dimensionsText !== 'Non spécifiées' ? `
+                            <div class="jm-meta-item">
+                                <span class="jm-meta-icon">📐</span>
+                                <div><div class="jm-meta-label">Dimensions</div><div class="jm-meta-val">${dimensionsText}</div></div>
+                            </div>` : ''}
+                            ${techniqueText !== 'Non spécifiée' ? `
+                            <div class="jm-meta-item">
+                                <span class="jm-meta-icon">🖌️</span>
+                                <div><div class="jm-meta-label">Technique</div><div class="jm-meta-val">${techniqueText}</div></div>
+                            </div>` : ''}
+                            <div class="jm-meta-item">
+                                <span class="jm-meta-icon">🌍</span>
+                                <div><div class="jm-meta-label">Pays</div><div class="jm-meta-val">${artistCountryText || 'N/A'}</div></div>
+                            </div>
+                        </div>
+
+                        ${description ? `
+                        <div class="jm-desc">
+                            <div class="jm-desc-title">Description</div>
+                            <div class="jm-desc-text">${description}</div>
+                        </div>` : ''}
+
+                        <div class="jm-guarantees">
+                            <div class="jm-guarantee">🔒 Paiement 100% sécurisé</div>
+                            <div class="jm-guarantee">✅ Fonds libérés après réception</div>
+                            <div class="jm-guarantee">🚚 Livraison disponible</div>
+                        </div>
+
+                        <div class="jm-actions">
+                            <button class="jm-btn-cart" onclick="addToCart(event, ${product.id})">
+                                🛒 Ajouter au panier
+                            </button>
+                            <button class="jm-btn-fav" onclick="toggleFavorite(event, ${product.id})">
+                                🤍
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            `;            
+            window.currentProductPhotos = photos;
+            window.currentPhotoIndex = 0;
+            window.currentProductId = product.id;
+            
+            navigateTo('productDetail');
+            hideLoading();
+            
+        } catch (error) {
+            console.error('Erreur chargement détails:', error);
+            hideLoading();
+            showToast('❌ Erreur lors du chargement des détails');
+        }
+    }
+
+    // ==================== CHARGEMENT DE LA GALERIE ====================
+    document.addEventListener('DOMContentLoaded', chargerLaVraieGalerie);
+
+    async function chargerLaVraieGalerie() {
+        const grille = document.getElementById('productsContainer'); 
+        if (!grille) return; 
+
+        try {
+            // L'adresse COMPLÈTE et ABSOLUE de ton serveur API
+            const urlAPI = 'https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now();
+            
+            const reponse = await fetch(urlAPI);
+            const resultat = await reponse.json();
+
+            grille.innerHTML = ''; // On vide le texte de chargement
+
+            if (resultat.success && resultat.data.length > 0) {
+                window.toutesLesOeuvres = resultat.data;
+                afficherOeuvresFiltrees();
+            } else {
+                grille.innerHTML = '<p style="text-align:center; width:100%;">La galerie est vide pour le moment.</p>';
+            }
+
+        } catch (erreur) {
+            console.error("Erreur de communication :", erreur);
+            grille.innerHTML = '<p style="color:red; text-align:center;">Serveur injoignable pour le moment.</p>';
+        }
+    }
+
+    // Stockage global des œuvres
+    window.toutesLesOeuvres = [];
+
+    window.afficherOeuvresFiltrees = function() {
+        const grille = document.getElementById('productsContainer');
+        if (!grille) return;
+        const cat = window.currentCategory || 'all';
+        const selected = window.selectedCategories;
+        let oeuvres;
+        // Exclure les œuvres vendues
+        const oeuvresDisponibles = window.toutesLesOeuvres.filter(o => !o.is_sold);
+
+        if (cat === '__multi__' && selected && selected.size > 0) {
+            oeuvres = oeuvresDisponibles.filter(o => {
+                const c = (o.category || o.categorie || o.type || '').toLowerCase().trim();
+                return Array.from(selected).some(s => s.toLowerCase().trim() === c);
+            });
+        } else {
+            oeuvres = cat === 'all'
+                ? oeuvresDisponibles
+                : oeuvresDisponibles.filter(o => {
+                    const c = (o.category || o.categorie || o.type || '').toLowerCase().trim();
+                    return c === cat.toLowerCase().trim();
+                  });
+        }
+        grille.innerHTML = '';
+        if (oeuvres.length === 0) {
+            grille.innerHTML = '<p style="text-align:center;width:100%;opacity:0.7;padding:40px;">Aucune œuvre dans cette catégorie.</p>';
+            return;
+        }
+        oeuvres.forEach((oeuvre, index) => {
+                    // Gérer les photos multiples
+                    const photos = oeuvre.photos && Array.isArray(oeuvre.photos) && oeuvre.photos.length > 0
+                        ? oeuvre.photos
+                        : [oeuvre.image_url];
+                    
+                    // Si plusieurs photos, créer un carrousel
+                    let imageHTML = '';
+                    if (photos.length > 1) {
+                        imageHTML = `
+                            <div class="product-image" style="position: relative;">
+                                <span class="product-badge">${oeuvre.badge || 'Disponible'}</span>
+                                <button class="like-button" onclick="toggleFavorite(event, ${oeuvre.id})">🤍</button>
+                                <img src="${photos[0]}" alt="${oeuvre.title}"
+                                     style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;"
+                                     loading="lazy"
+                                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
+                                <!-- Petits points indicateurs (discrets, pas de flèches) -->
+                                <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:2;">
+                                    ${photos.map((_, i) => `<div style="width:6px;height:6px;border-radius:50%;background:${i===0?'rgba(255,255,255,0.95)':'rgba(255,255,255,0.4)'};"></div>`).join('')}
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        // Une seule photo - affichage classique
+                        imageHTML = `
+                            <div class="product-image">
+                                <span class="product-badge">${oeuvre.badge || 'Disponible'}</span>
+                                <button class="like-button" onclick="toggleFavorite(event, ${oeuvre.id})">🤍</button>
+                                <img src="${photos[0]}" alt="${oeuvre.title}" style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
+                            </div>
+                        `;
+                    }
+                    
+                    // Gérer les valeurs undefined
+                    const artistName = oeuvre.artist_name || oeuvre.artist || 'Artiste inconnu';
+                    const title = oeuvre.title || 'Sans titre';
+                    const price = oeuvre.price || 0;
+                    
+                    const carte = `
+                        <div class="product-card" 
+                             onclick="viewProductDetailFromAPI(${oeuvre.id})">
+                            ${imageHTML}
+                            <div class="product-info">
+                                <div class="product-title">${title}</div>
+                                <div class="product-artist" onclick="viewArtistDetail(event, '${artistName}')">par ${artistName}</div>
+                                <div class="product-footer">
+                                    <div class="product-price">${price} FCFA</div>
+                                    <button class="add-cart-btn" onclick="addToCart(event, ${oeuvre.id})">+ Panier</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    grille.innerHTML += carte;
+                });
+    }
+
+    // ==================== FONCTIONS DE CARROUSEL POUR LES CARTES ====================
+    
+    // Stocker l'index actuel pour chaque carte
+    window.cardPhotoIndexes = {};
+    
+    function showCardNavButtons(cardId) {
+        const prevBtn = document.querySelector(`.card-nav-prev-${cardId}`);
+        const nextBtn = document.querySelector(`.card-nav-next-${cardId}`);
+        if (prevBtn) prevBtn.style.display = 'flex';
+        if (nextBtn) nextBtn.style.display = 'flex';
+    }
+    
+    function hideCardNavButtons(cardId) {
+        const prevBtn = document.querySelector(`.card-nav-prev-${cardId}`);
+        const nextBtn = document.querySelector(`.card-nav-next-${cardId}`);
+        if (prevBtn) prevBtn.style.display = 'none';
+        if (nextBtn) nextBtn.style.display = 'none';
+    }
+    
+    function nextCardPhoto(cardId, totalPhotos) {
+        if (!window.cardPhotoIndexes[cardId]) {
+            window.cardPhotoIndexes[cardId] = 0;
+        }
+        
+        const currentIndex = window.cardPhotoIndexes[cardId];
+        const nextIndex = (currentIndex + 1) % totalPhotos;
+        
+        // Cacher l'image actuelle
+        const currentImg = document.getElementById(`card-img-${cardId}-${currentIndex}`);
+        if (currentImg) currentImg.style.opacity = '0';
+        
+        // Afficher la nouvelle image
+        const nextImg = document.getElementById(`card-img-${cardId}-${nextIndex}`);
+        if (nextImg) nextImg.style.opacity = '1';
+        
+        // Mettre à jour l'indicateur
+        const indicator = document.getElementById(`card-indicator-${cardId}`);
+        if (indicator) indicator.textContent = `${nextIndex + 1}/${totalPhotos}`;
+        
+        // Sauvegarder le nouvel index
+        window.cardPhotoIndexes[cardId] = nextIndex;
+    }
+    
+    function previousCardPhoto(cardId, totalPhotos) {
+        if (!window.cardPhotoIndexes[cardId]) {
+            window.cardPhotoIndexes[cardId] = 0;
+        }
+        
+        const currentIndex = window.cardPhotoIndexes[cardId];
+        const prevIndex = (currentIndex - 1 + totalPhotos) % totalPhotos;
+        
+        // Cacher l'image actuelle
+        const currentImg = document.getElementById(`card-img-${cardId}-${currentIndex}`);
+        if (currentImg) currentImg.style.opacity = '0';
+        
+        // Afficher la nouvelle image
+        const prevImg = document.getElementById(`card-img-${cardId}-${prevIndex}`);
+        if (prevImg) prevImg.style.opacity = '1';
+        
+        // Mettre à jour l'indicateur
+        const indicator = document.getElementById(`card-indicator-${cardId}`);
+        if (indicator) indicator.textContent = `${prevIndex + 1}/${totalPhotos}`;
+        
+        // Sauvegarder le nouvel index
+        window.cardPhotoIndexes[cardId] = prevIndex;
+    }
+
+
+
+/* ============================
+   BLOC JS SUIVANT
+   ============================ */
+
+
+        // ==================== TICKER NAVIGATION ====================
+        (function() {
+            let tickerPaused = false;
+            let tickerOffset = 0;          // px décalage manuel
+            const STEP = 320;              // px par clic
+
+            function getContent() { return document.getElementById('newsTickerContent'); }
+
+            function applyOffset(delta) {
+                const c = getContent();
+                if (!c) return;
+                c.classList.add('paused');
+                tickerPaused = true;
+                tickerOffset += delta;
+                const maxOffset = c.scrollWidth / 2;
+                if (tickerOffset > 0) tickerOffset = 0;
+                if (tickerOffset < -maxOffset) tickerOffset = -maxOffset + Math.abs(delta);
+                c.style.transform = `translateX(${tickerOffset}px)`;
+                clearTimeout(window._tickerResumeTimer);
+                window._tickerResumeTimer = setTimeout(() => {
+                    tickerPaused = false;
+                    tickerOffset = 0;
+                    c.style.transform = '';
+                    c.classList.remove('paused');
+                }, 5000);
+            }
+
+            // Pause/reprise au survol (déjà géré en CSS hover, mais on renforce)
+            document.addEventListener('DOMContentLoaded', function() {
+                const scrollWrap = document.querySelector('.news-ticker-scroll-wrap') || document.querySelector('.news-ticker-scroll');
+                const scroll = document.querySelector('.news-ticker-scroll');
+                if (!scroll) return;
+
+                scroll.addEventListener('mouseenter', () => {
+                    const c = getContent();
+                    if (c) c.classList.add('paused');
+                });
+                scroll.addEventListener('mouseleave', () => {
+                    const c = getContent();
+                    if (c && !tickerPaused) c.classList.remove('paused');
+                });
+
+                // Défilement à la molette
+                scroll.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    applyOffset(-e.deltaY * 0.8);
+                }, { passive: false });
+
+                // Sur mobile : scroll natif (CSS overflow-x auto)
+                // Pas besoin de touchmove manuel — le navigateur gère nativement
+                // On pause juste l'animation CSS au toucher
+                scroll.addEventListener('touchstart', () => {
+                    const c = getContent();
+                    if (c) c.classList.add('paused');
+                }, { passive: true });
+
+                scroll.addEventListener('touchend', () => {
+                    // Ne reprend pas auto sur mobile — l'utilisateur scrolle librement
+                }, { passive: true });
+            });
+
+            window.tickerNav = function(dir) {
+                const isMobile = window.innerWidth <= 768;
+                if (isMobile) {
+                    const scrollEl = document.querySelector('.news-ticker-scroll');
+                    if (scrollEl) scrollEl.scrollBy({ left: dir * STEP, behavior: 'smooth' });
+                } else {
+                    applyOffset(dir * STEP);
+                }
+            };
+        })();
+
+
+
+/* ============================
+   BLOC JS SUIVANT
+   ============================ */
+
+
+(function() {
+    const canvas = document.getElementById('golden-particles');
+    const ctx = canvas.getContext('2d');
+    let W, H, particles = [], symbols = [];
+
+    const COLORS = ['rgba(255,255,255,', 'rgba(240,240,240,', 'rgba(220,220,220,', 'rgba(200,200,200,'];
+
+    // Symboles Adinkra dessinés via Canvas 2D
+    // Chaque symbole = fonction(ctx, x, y, size)
+    const adinkraDrawers = [
+
+        // GYE NYAME — symbole de la suprématie divine (forme en S ornée)
+        function gyeNyame(ctx, x, y, s) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.beginPath();
+            ctx.moveTo(-s*0.5, 0);
+            ctx.bezierCurveTo(-s*0.5, -s*0.8, s*0.5, -s*0.8, s*0.5, 0);
+            ctx.bezierCurveTo(s*0.5, s*0.8, -s*0.5, s*0.8, -s*0.5, 0);
+            ctx.strokeStyle = 'inherit'; ctx.lineWidth = s*0.08;
+            ctx.stroke();
+            // Petits cercles décoratifs
+            [-s*0.5, s*0.5].forEach(cx => {
+                ctx.beginPath();
+                ctx.arc(cx, 0, s*0.12, 0, Math.PI*2);
+                ctx.stroke();
+            });
+            ctx.restore();
+        },
+
+        // SANKOFA — "revenir chercher ce qu'on a oublié" (oiseau regardant en arrière)
+        function sankofa(ctx, x, y, s) {
+            ctx.save();
+            ctx.translate(x, y);
+            // Corps coeur
+            ctx.beginPath();
+            ctx.moveTo(0, s*0.3);
+            ctx.bezierCurveTo(-s*0.6, -s*0.1, -s*0.6, -s*0.6, 0, -s*0.2);
+            ctx.bezierCurveTo(s*0.6, -s*0.6, s*0.6, -s*0.1, 0, s*0.3);
+            ctx.lineWidth = s*0.07; ctx.stroke();
+            // Tête retournée
+            ctx.beginPath();
+            ctx.arc(s*0.3, -s*0.4, s*0.15, 0, Math.PI*2);
+            ctx.stroke();
+            // Queue
+            ctx.beginPath();
+            ctx.moveTo(0, s*0.3);
+            ctx.lineTo(-s*0.2, s*0.55);
+            ctx.moveTo(0, s*0.3);
+            ctx.lineTo(s*0.1, s*0.58);
+            ctx.stroke();
+            ctx.restore();
+        },
+
+        // ADINKRAHENE — "roi des Adinkra" (3 cercles concentriques)
+        function adinkrahene(ctx, x, y, s) {
+            ctx.save();
+            ctx.translate(x, y);
+            [s*0.15, s*0.3, s*0.48].forEach(r => {
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, Math.PI*2);
+                ctx.lineWidth = s*0.06;
+                ctx.stroke();
+            });
+            ctx.restore();
+        },
+
+        // DWENNIMMEN — "bélier" (deux spirales en miroir = humilité + force)
+        function dwennimmen(ctx, x, y, s) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.lineWidth = s*0.07;
+            [[-1,1],[1,1],[1,-1],[-1,-1]].forEach(([sx,sy]) => {
+                ctx.beginPath();
+                ctx.arc(sx*s*0.25, sy*s*0.25, s*0.25, 0, Math.PI*1.5);
+                ctx.stroke();
+            });
+            ctx.restore();
+        },
+
+        // NYAME BIRIBI WO SORO — "étoile à 8 branches" (espoir, ciel)
+        function nyameSoro(ctx, x, y, s) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.lineWidth = s*0.07;
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(Math.cos(angle)*s*0.5, Math.sin(angle)*s*0.5);
+                ctx.stroke();
+            }
+            ctx.beginPath();
+            ctx.arc(0, 0, s*0.15, 0, Math.PI*2);
+            ctx.stroke();
+            ctx.restore();
+        },
+
+        // FUNTUNFUNEFU — "crocodiles siamois" (unité dans la diversité)
+        function funtun(ctx, x, y, s) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.lineWidth = s*0.07;
+            // Cercle central
+            ctx.beginPath(); ctx.arc(0,0,s*0.2,0,Math.PI*2); ctx.stroke();
+            // 4 têtes
+            const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+            dirs.forEach(([dx,dy]) => {
+                ctx.beginPath();
+                ctx.arc(dx*s*0.45, dy*s*0.45, s*0.12, 0, Math.PI*2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(dx*s*0.2, dy*s*0.2);
+                ctx.lineTo(dx*s*0.33, dy*s*0.33);
+                ctx.stroke();
+            });
+            ctx.restore();
+        },
+    ];
+
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
+
+    function createParticle() {
+        return {
+            x: Math.random() * W, y: Math.random() * H,
+            r: Math.random() * 2.2 + 0.5,
+            alpha: Math.random() * 0.5 + 0.08,
+            vx: (Math.random() - 0.5) * 0.35,
+            vy: -(Math.random() * 0.45 + 0.08),
+            color: COLORS[Math.floor(Math.random() * COLORS.length)],
+            twinkleSpeed: Math.random() * 0.015 + 0.004,
+            twinkleDir: Math.random() > 0.5 ? 1 : -1
+        };
+    }
+
+    function createSymbol() {
+        return {
+            x: Math.random() * W, y: Math.random() * H,
+            size: Math.random() * 28 + 18,
+            alpha: Math.random() * 0.06 + 0.03,
+            vx: (Math.random() - 0.5) * 0.12,
+            vy: -(Math.random() * 0.15 + 0.03),
+            rotation: Math.random() * Math.PI * 2,
+            rotSpeed: (Math.random() - 0.5) * 0.003,
+            drawFn: adinkraDrawers[Math.floor(Math.random() * adinkraDrawers.length)],
+            pulseSpeed: Math.random() * 0.008 + 0.002,
+            pulseDir: Math.random() > 0.5 ? 1 : -1
+        };
+    }
+
+    function init() {
+        resize();
+        particles = Array.from({length: 40}, createParticle);
+        symbols = Array.from({length: 7}, createSymbol);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, W, H);
+
+        // — Particules —
+        particles.forEach(p => {
+            p.alpha += p.twinkleSpeed * p.twinkleDir;
+            if (p.alpha >= 0.58 || p.alpha <= 0.04) p.twinkleDir *= -1;
+            p.x += p.vx; p.y += p.vy;
+            if (p.y < -5) p.y = H + 5;
+            if (p.x < -5) p.x = W + 5;
+            if (p.x > W + 5) p.x = -5;
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+            ctx.fillStyle = p.color + p.alpha + ')';
+            ctx.fill();
+
+            if (p.r > 1.4) {
+                const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r*4);
+                grd.addColorStop(0, p.color + (p.alpha*0.35) + ')');
+                grd.addColorStop(1, p.color + '0)');
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r*4, 0, Math.PI*2);
+                ctx.fillStyle = grd;
+                ctx.fill();
+            }
+        });
+
+        // — Symboles Adinkra —
+        symbols.forEach(s => {
+            s.rotation += s.rotSpeed;
+            s.x += s.vx; s.y += s.vy;
+            if (s.y < -80) s.y = H + 80;
+            if (s.x < -80) s.x = W + 80;
+            if (s.x > W + 80) s.x = -80;
+
+            ctx.save();
+            ctx.globalAlpha = 0.07;
+            ctx.strokeStyle = `rgba(212,175,55,1)`;
+            ctx.translate(s.x, s.y);
+            ctx.rotate(s.rotation);
+            s.drawFn(ctx, 0, 0, s.size);
+            ctx.restore();
+        });
+
+        requestAnimationFrame(draw);
+    }
+
+    window.addEventListener('resize', resize);
+    init();
+    draw();
+})();        async function loadAdminOrdersFromServer() {
+            try {
+                const resp = await fetch(`${ORDERS_API}?action=list&admin=1&t=${Date.now()}`);
+                const data = await resp.json();
+                if (data.success && data.orders.length > 0) {
+                    return data.orders.map(o => ({
+                        ...o,
+                        server_id: o.id,
+                        items: o.items || [],
+                        date: o.created_at ? new Date(o.created_at).toLocaleDateString('fr-FR', {day:'2-digit',month:'long',year:'numeric'}) : '',
+                        user: o.user_name,
+                        userEmail: o.user_email,
+                        shippedDate: o.shipped_at ? new Date(o.shipped_at).toLocaleString('fr-FR') : null,
+                        deliveredDate: o.delivered_at ? new Date(o.delivered_at).toLocaleString('fr-FR') : null,
+                    }));
+                }
+            } catch(e) {}
+            return safeStorage.get('arkyl_orders', []);
+        }
+
+        async function renderAdminOrders() {
+            const container = document.getElementById('adminOrdersContainer');
+            container.innerHTML = '<div style="text-align:center;padding:60px;opacity:0.6;">⏳ Chargement des commandes...</div>';
+
+            let orders = await loadAdminOrdersFromServer();
+            updateAdminOrderCounts(orders);
+
+            const filtered = currentAdminFilter === 'all' ? orders : orders.filter(o => o.status === currentAdminFilter);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div style="text-align:center;padding:60px;"><div style="font-size:80px;margin-bottom:20px;">🔍</div><div style="font-size:22px;font-weight:700;">Aucune commande</div></div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(order => {
+                const orderId = order.server_id || order.id;
+                const trackUrl = order.tracking_url || getTrackingUrl(order.carrier, order.tracking_number);
+                const { serverTimeline } = buildOrderTimeline(order);
+
+                const carrierOptions = CARRIERS.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+                const statusOptions = DELIVERY_STATUSES.map(s =>
+                    `<option value="${s.key}" ${order.status === s.key ? 'selected' : ''}>${s.icon} ${s.label}</option>`
+                ).join('');
+
+                return `
+                <div class="admin-order-card" id="order-card-${orderId}">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:15px;">
+                        <div>
+                            <div style="font-size:18px;font-weight:700;color:var(--ocre);">📦 ${order.order_number || '#' + orderId}</div>
+                            <div style="font-size:14px;opacity:0.8;margin-top:4px;">👤 ${order.user || order.user_name}${order.userEmail ? ` (${order.userEmail})` : ''}</div>
+                            <div style="font-size:13px;opacity:0.6;margin-top:2px;">📅 ${order.date}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:22px;font-weight:800;color:var(--ocre);margin-bottom:8px;">${formatPrice(parseFloat(order.total)||0)}</div>
+                            <span style="padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;background:${statusColor(order.status)}33;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}66;">
+                                ${statusIcon(order.status)} ${order.status}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Articles -->
+                    <div style="background:rgba(0,0,0,0.2);border-radius:12px;padding:15px;margin-bottom:15px;">
+                        ${(order.items||[]).map(item => `
+                            <div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+                                ${item.image || item.image_url ? `<img src="${item.image||item.image_url}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;">` : '<div style="width:48px;height:48px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">🎨</div>'}
+                                <div style="flex:1;">
+                                    <div style="font-weight:600;">${item.title}</div>
+                                    <div style="font-size:12px;opacity:0.6;">par ${item.artist||item.artist_name}</div>
+                                </div>
+                                <div style="font-weight:700;color:var(--ocre);">${formatPrice((item.price||0)*(item.quantity||1))}</div>
+                            </div>`).join('')}
+                    </div>
+
+                    <!-- Adresse livraison -->
+                    ${order.shipping_address ? `
+                        <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 16px;margin-bottom:15px;font-size:13px;">
+                            📍 <strong>Adresse :</strong> ${order.shipping_address}
+                            ${order.shipping_name ? ` · 🚚 ${order.shipping_name}` : ''}
+                        </div>` : ''}
+
+                    <!-- Tracking actuel -->
+                    ${order.tracking_number ? `
+                        <div style="background:rgba(33,150,243,0.1);border:1px solid rgba(33,150,243,0.3);border-radius:10px;padding:12px 16px;margin-bottom:15px;font-size:13px;">
+                            📦 Tracking : <strong>${order.tracking_number}</strong>
+                            ${order.carrier ? ` (${order.carrier.toUpperCase()})` : ''}
+                            ${trackUrl ? ` · <a href="${trackUrl}" target="_blank" style="color:#90caf9;">Suivre</a>` : ''}
+                        </div>` : ''}
+
+                    <!-- Zone mise à jour statut -->
+                    <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:18px;margin-bottom:12px;">
+                        <div style="font-weight:700;margin-bottom:14px;font-size:14px;">🔄 Mettre à jour la commande</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                            <div>
+                                <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:4px;">Statut</label>
+                                <select id="status-${orderId}" style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;">
+                                    ${statusOptions}
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:4px;">Transporteur</label>
+                                <select id="carrier-${orderId}" style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;">
+                                    <option value="">Choisir...</option>
+                                    ${carrierOptions}
+                                </select>
+                            </div>
+                        </div>
+                        <input id="tracking-${orderId}" type="text" placeholder="N° de suivi (ex: 1Z999AA10123456784)" value="${order.tracking_number||''}"
+                            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+                        <input id="note-${orderId}" type="text" placeholder="Note (optionnelle) — ex: Colis déposé à La Poste de Plateau"
+                            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+
+                        <div class="proof-upload-zone" onclick="document.getElementById('proof-${orderId}').click()" id="proof-zone-${orderId}" style="margin-bottom:10px;">
+                            <input type="file" id="proof-${orderId}" accept="image/*,.pdf" style="display:none"
+                                onchange="document.getElementById('proof-zone-${orderId}').innerHTML='✅ ' + this.files[0].name">
+                            <div style="font-size:20px;margin-bottom:4px;">📎</div>
+                            <div style="font-size:13px;font-weight:600;">Joindre preuve d'expédition (optionnel)</div>
+                            <div style="font-size:11px;opacity:0.5;margin-top:3px;">JPG, PNG ou PDF</div>
+                        </div>
+
+                        <button onclick="adminUpdateOrderStatus('${orderId}')"
+                            style="width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));color:white;transition:all 0.3s;">
+                            💾 Enregistrer la mise à jour
+                        </button>
+                    </div>
+
+                    <!-- Historique -->
+                    ${serverTimeline ? `
+                        <details style="margin-top:8px;">
+                            <summary style="cursor:pointer;font-size:13px;font-weight:600;opacity:0.7;padding:8px 0;">🕐 Historique de la commande</summary>
+                            <div style="margin-top:8px;padding:10px;background:rgba(0,0,0,0.2);border-radius:10px;">${serverTimeline}</div>
+                        </details>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        async function adminUpdateOrderStatus(orderId) {
+            const status   = document.getElementById(`status-${orderId}`)?.value;
+            const tracking = document.getElementById(`tracking-${orderId}`)?.value?.trim();
+            const carrier  = document.getElementById(`carrier-${orderId}`)?.value;
+            const note     = document.getElementById(`note-${orderId}`)?.value?.trim();
+            const proofInput = document.getElementById(`proof-${orderId}`);
+            const proofFile  = proofInput?.files?.[0];
+
+            const payload = {
+                action: 'update_status',
+                order_id: orderId,
+                status,
+                tracking_number: tracking || null,
+                carrier: carrier || null,
+                note: note || null,
+                updated_by: currentUser?.name || 'admin',
+                updated_by_role: 'admin',
+            };
+
+            // Uploader preuve si présente
+            if (proofFile) {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    payload.shipping_proof_url = e.target.result;
+                    await sendStatusUpdate(payload);
+                };
+                reader.readAsDataURL(proofFile);
+            } else {
+                await sendStatusUpdate(payload);
+            }
+        }
+
+        async function sendStatusUpdate(payload) {
+            try {
+                const resp = await fetch(ORDERS_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast(`✅ Statut mis à jour : ${payload.status}`);
+                    // Notifier l'acheteur
+                    addNotification('📦 Commande mise à jour', `Commande #${payload.order_id} → ${payload.status}${payload.tracking_number ? ' | Tracking : ' + payload.tracking_number : ''}`);
+                    await renderAdminOrders();
+                } else {
+                    showToast('❌ Erreur : ' + (data.error || 'Inconnue'));
+                }
+            } catch(e) {
+                showToast('❌ Erreur réseau');
+            }
+        }
+
+        // Note : la détection du retour Stripe est gérée en haut du fichier
+        // via window._pendingStripeOrderId → processStripeReturn()

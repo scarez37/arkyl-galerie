@@ -20,7 +20,6 @@ function enterGallery() {
         let favoritesCache = null;
         let lastRenderTime = {};
         let autoRefreshInterval = null;
-        let currentAdminFilter = "all";
 
         function debounce(func, wait) {
             let timeout;
@@ -621,9 +620,16 @@ function enterGallery() {
             mainPropreLieu = '';
             updateBadges();
             
-            // Déconnecter le compte artiste (si existant)
+            // Déconnecter le compte artiste (si existant) + vider ses données locales
             if (hasArtistAccount) {
                 safeStorage.remove('arkyl_artist_account'); delete _memStore['arkyl_artist_account'];
+                // Vider les œuvres/ventes de l'artiste pour ne pas les montrer au prochain artiste
+                db.artworks = [];
+                db.sales = [];
+                db.nextId = 1;
+                db._save('artist_artworks', []);
+                db._save('artist_sales', []);
+                db._save('next_artwork_id', 1);
                 console.log('✅ Compte artiste déconnecté');
             }
             
@@ -3743,13 +3749,6 @@ function enterGallery() {
                                 style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
                             <input id="art-note-${orderId}" type="text" placeholder="Note pour l'acheteur"
                                 style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
-                            <div class="proof-upload-zone" onclick="document.getElementById('art-proof-${orderId}').click()" id="art-proof-zone-${orderId}" style="margin-bottom:10px;">
-                                <input type="file" id="art-proof-${orderId}" accept="image/*,.pdf" style="display:none"
-                                    onchange="document.getElementById('art-proof-zone-${orderId}').innerHTML='✅ ' + this.files[0].name">
-                                <div style="font-size:20px;margin-bottom:4px;">📎</div>
-                                <div style="font-size:13px;font-weight:600;">Joindre preuve d'expédition (optionnel)</div>
-                                <div style="font-size:11px;opacity:0.5;margin-top:3px;">JPG, PNG ou PDF</div>
-                            </div>
                             <button onclick="artistUpdateOrderStatus('${orderId}')"
                                 style="width:100%;padding:12px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));color:white;">
                                 💾 Enregistrer
@@ -3763,14 +3762,12 @@ function enterGallery() {
         }
 
         async function artistUpdateOrderStatus(orderId) {
-            const status    = document.getElementById(`art-status-${orderId}`)?.value;
-            const tracking  = document.getElementById(`art-tracking-${orderId}`)?.value?.trim();
-            const carrier   = document.getElementById(`art-carrier-${orderId}`)?.value;
-            const note      = document.getElementById(`art-note-${orderId}`)?.value?.trim();
-            const proofInput = document.getElementById(`art-proof-${orderId}`);
-            const proofFile  = proofInput?.files?.[0];
+            const status   = document.getElementById(`art-status-${orderId}`)?.value;
+            const tracking = document.getElementById(`art-tracking-${orderId}`)?.value?.trim();
+            const carrier  = document.getElementById(`art-carrier-${orderId}`)?.value;
+            const note     = document.getElementById(`art-note-${orderId}`)?.value?.trim();
 
-            const payload = {
+            await sendStatusUpdate({
                 action: 'update_status',
                 order_id: orderId,
                 status,
@@ -3779,20 +3776,8 @@ function enterGallery() {
                 note: note || null,
                 updated_by: currentUser?.name || currentUser?.artistName || 'artiste',
                 updated_by_role: 'artist',
-            };
-
-            if (proofFile) {
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    payload.shipping_proof_url = e.target.result;
-                    await sendStatusUpdate(payload);
-                    await renderArtistOrders();
-                };
-                reader.readAsDataURL(proofFile);
-            } else {
-                await sendStatusUpdate(payload);
-                await renderArtistOrders();
-            }
+            });
+            await renderArtistOrders();
         }
 
         // ===== BADGES HAMBURGER — commandes en cours =====
@@ -6136,6 +6121,14 @@ function enterGallery() {
 
         // ==================== MODE SWITCHING ====================
         function switchToArtistMode() {
+            // Vider les données du précédent artiste avant de charger les nouvelles
+            db.artworks = [];
+            db.sales = [];
+            db.nextId = 1;
+            db._save('artist_artworks', []);
+            db._save('artist_sales', []);
+            db._save('next_artwork_id', 1);
+
             document.getElementById('clientNav').style.display  = 'none';
             document.getElementById('artistNav').style.display  = 'flex';
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -6143,7 +6136,7 @@ function enterGallery() {
             hydrateProfile();
             showArtistSection('dashboard');
             window.scrollTo(0,0);
-            // Charger les œuvres depuis le serveur pour la modification
+            // Charger les œuvres depuis le serveur pour cet artiste
             loadArtistArtworksFromServer();
         }
 
@@ -6270,6 +6263,7 @@ function enterGallery() {
 
             if (section === 'dashboard') updateDashboard();
             if (section === 'artworks') renderArtworks();
+            if (section === 'sales')    renderSales();
             if (section === 'gallery')  renderArtistGallery();
             window.scrollTo(0,0);
         }
@@ -8835,10 +8829,6 @@ function enterGallery() {
                             style="width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));color:white;transition:all 0.3s;">
                             💾 Enregistrer la mise à jour
                         </button>
-                        <button onclick="adminDeleteOrder('${orderId}', '${order.order_number || '#'+orderId}')"
-                            style="width:100%;padding:11px;border:1px solid rgba(220,53,69,0.4);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;background:rgba(220,53,69,0.1);color:#ff6b6b;margin-top:8px;transition:all 0.3s;">
-                            🗑️ Supprimer la commande
-                        </button>
                     </div>
 
                     <!-- Historique -->
@@ -8849,36 +8839,6 @@ function enterGallery() {
                         </details>` : ''}
                 </div>`;
             }).join('');
-        }
-
-        async function adminDeleteOrder(orderId, orderRef) {
-            if (!confirm(`Supprimer définitivement la commande ${orderRef} ?\nCette action est irréversible.`)) return;
-            try {
-                // Supprimer en base
-                const resp = await fetch(ORDERS_API, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'delete_order', order_id: orderId })
-                });
-                const data = await resp.json();
-                if (data.success) {
-                    // Supprimer aussi du localStorage
-                    const localOrders = safeStorage.get('arkyl_orders', []);
-                    const filtered = localOrders.filter(o =>
-                        String(o.id) !== String(orderId) &&
-                        String(o.server_id) !== String(orderId) &&
-                        o.order_number !== orderRef
-                    );
-                    safeStorage.set('arkyl_orders', filtered);
-                    orderHistory = filtered;
-                    showToast('🗑️ Commande supprimée');
-                    await renderAdminOrders();
-                } else {
-                    showToast('❌ Erreur : ' + (data.error || 'Inconnue'));
-                }
-            } catch(e) {
-                showToast('❌ Erreur réseau');
-            }
         }
 
         async function adminUpdateOrderStatus(orderId) {

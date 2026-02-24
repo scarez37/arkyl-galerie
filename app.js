@@ -4873,6 +4873,63 @@ function enterGallery() {
             return followed.some(a => a.name === artistName);
         }
 
+        // ==================== MY ARTISTS PAGE ====================
+        async function renderMyArtistsPage() {
+            const container = document.getElementById('myArtistsContainer');
+            if (!container) return;
+
+            const followed = getFollowedArtists();
+
+            if (followed.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align:center;padding:60px 20px;opacity:0.7;">
+                        <div style="font-size:50px;margin-bottom:16px;">🎨</div>
+                        <h3 style="margin-bottom:8px;">Aucun artiste suivi</h3>
+                        <p>Explorez la galerie et suivez vos artistes préférés !</p>
+                        <button class="btn-large" onclick="navigateTo('home')" style="margin-top:20px;">
+                            Découvrir les artistes
+                        </button>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = `
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;padding:16px;">
+                    ${followed.map(artist => `
+                        <div class="product-card" onclick="viewArtistDetail(event, '${artist.name}')"
+                             style="cursor:pointer;text-align:center;padding:20px 12px;">
+                            <div style="font-size:44px;margin-bottom:10px;">
+                                ${artist.avatar || '👤'}
+                            </div>
+                            <div style="font-weight:700;margin-bottom:6px;">${artist.name}</div>
+                            <button class="btn" onclick="event.stopPropagation();toggleFollowArtist('${artist.name}')"
+                                    style="font-size:12px;padding:4px 12px;margin-top:6px;">
+                                ✓ Abonné
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>`;
+        }
+
+        // ==================== TICKER NAVIGATION ====================
+        let _tickerCurrentIndex = 0;
+
+        function tickerNav(direction) {
+            const items = document.querySelectorAll('.ticker-item, .news-item, .news-ticker-item');
+            if (!items || items.length === 0) return;
+
+            _tickerCurrentIndex = (_tickerCurrentIndex + direction + items.length) % items.length;
+
+            // Essayer de scroller l'item visible dans le ticker
+            const ticker = document.querySelector('.news-ticker-container, .ticker-track, .ticker-wrapper');
+            if (ticker) {
+                const item = items[_tickerCurrentIndex];
+                if (item) {
+                    item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                }
+            }
+        }
+
         // Fonction toggle pour suivre/ne plus suivre
         async function toggleFollowArtist(artistName) {
             if (isFollowingArtist(artistName)) {
@@ -4921,6 +4978,215 @@ function enterGallery() {
             if (currentPage && currentPage.id === 'myArtistsPage') {
                 renderMyArtistsPage();
             }
+        }
+
+
+        // ==========================================
+        // EXPOSITION GLOBALE — fonctions appelées depuis le HTML via onclick
+        // ==========================================
+        window.navigateTo              = navigateTo;
+        window.enterGallery            = enterGallery;
+        window.toggleHamburgerMenu     = toggleHamburgerMenu;
+        window.closeHamburgerMenu      = closeHamburgerMenu;
+        window.toggleUserMenu          = toggleUserMenu;
+        window.toggleNotifications     = toggleNotifications;
+        window.handleLogout            = handleLogout;
+        window.handleArtistSpace       = handleArtistSpace;
+        window.handleQuickArtistLogin  = handleQuickArtistLogin;
+        window.goToAdmin               = goToAdmin;
+        window.goToAdminNews           = goToAdminNews;
+        window.goToAdminOrders         = goToAdminOrders;
+        window.goToOrders              = goToOrders;
+        window.backToClientMode        = backToClientMode;
+        window.triggerManualRefresh    = triggerManualRefresh;
+        window.rafraichirGalerie       = rafraichirGalerie;
+        window.toggleFavorite          = toggleFavorite;
+        window.toggleLikeDB            = toggleLikeDB;
+        window.addToCart               = addToCart;
+        window.addToCartFromDetail     = addToCartFromDetail;
+        window.renderCart              = renderCart;
+        window.renderFavorites         = renderFavorites;
+        window.renderOrders            = renderOrders;
+        window.renderMyArtistsPage     = renderMyArtistsPage;
+        window.viewProductDetail       = viewProductDetail;
+        window.viewArtistDetail        = viewArtistDetail;
+        window.toggleFollowArtist      = toggleFollowArtist;
+        window.selectCategory          = selectCategory;
+        window.filterProducts          = filterProducts;
+        window.toggleCategoryBtns      = toggleCategoryBtns;
+        window.selectShipping          = selectShipping;
+        window.changeQuantity          = changeQuantity;
+        window.confirmRemoveFromCart   = confirmRemoveFromCart;
+        window.removeFromCart          = removeFromCart;
+        window.validerPaiementStripe   = validerPaiementStripe;
+        window.saveClientAddress       = saveClientAddress;
+        window.editAddress             = editAddress;
+        window.cancelAddressEdit       = cancelAddressEdit;
+        window.confirmerVillePoste     = confirmerVillePoste;
+        window.confirmerLieuMainPropre = confirmerLieuMainPropre;
+        window.selectionnerCompagnie   = selectionnerCompagnie;
+        window.markAllAsRead           = markAllAsRead;
+        window.markAsRead              = markAsRead;
+        window.openNotificationDetail  = openNotificationDetail;
+        window.tickerNav               = tickerNav;
+        window.nextPhoto               = nextPhoto;
+        window.previousPhoto           = previousPhoto;
+        window.switchAdminTab          = switchAdminTab;
+        window.performAdminSearch      = performAdminSearch;
+        window.clearAdminSearch        = clearAdminSearch;
+        window.filterArtworks          = filterArtworks;
+        window.clearArtworksSearch     = clearArtworksSearch;
+        window.filterArtists           = filterArtists;
+        window.clearArtistsSearch      = clearArtistsSearch;
+        window.renderAdminOverview     = renderAdminOverview;
+        window.renderAdminArtworks     = renderAdminArtworks;
+        window.openAddArtworkModal     = openAddArtworkModal;
+        window.editArtwork             = editArtwork;
+        window.saveAdminArtwork        = saveAdminArtwork;
+        window.deleteArtwork           = deleteArtwork;
+        window.closeArtworkModal       = closeArtworkModal;
+        window.renderAdminArtists      = renderAdminArtists;
+        window.openAddArtistModal      = openAddArtistModal;
+        window.editArtist              = editArtist;
+        window.saveArtist              = saveArtist;
+        window.deleteArtist            = deleteArtist;
+        window.closeArtistModal        = closeArtistModal;
+        window.filterAdminOrders       = filterAdminOrders;
+        window.changeOrderStatus       = changeOrderStatus;
+        window.confirmReception        = confirmReception;
+        window.markAsShippedWithProof  = markAsShippedWithProof;
+        window.addNotification         = addNotification;
+        window.updateHamburgerOrderBadges = updateHamburgerOrderBadges;
+
+        // ==========================================
+        // FONCTIONS UTILITAIRES GLOBALES MANQUANTES
+        // (définies ici si absentes d'un autre fichier)
+        // ==========================================
+        if (typeof formatPrice === 'undefined') {
+            window.formatPrice = function(amount) {
+                if (amount == null || isNaN(amount)) return '—';
+                return new Intl.NumberFormat('fr-CI', {
+                    style: 'currency',
+                    currency: 'XOF',
+                    minimumFractionDigits: 0
+                }).format(amount);
+            };
+        }
+        if (typeof showToast === 'undefined') {
+            window.showToast = function(message, duration = 3000) {
+                let toast = document.getElementById('toastMessage');
+                if (!toast) {
+                    toast = document.createElement('div');
+                    toast.id = 'toastMessage';
+                    toast.className = 'toast';
+                    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(30,30,40,0.95);color:#fff;padding:12px 24px;border-radius:12px;z-index:9999;font-size:14px;max-width:80vw;text-align:center;pointer-events:none;transition:opacity 0.3s;';
+                    document.body.appendChild(toast);
+                }
+                toast.textContent = message;
+                toast.style.opacity = '1';
+                clearTimeout(toast._timeout);
+                toast._timeout = setTimeout(() => { toast.style.opacity = '0'; }, duration);
+            };
+        }
+        if (typeof updateBadges === 'undefined') {
+            window.updateBadges = function() {
+                const cartBadge = document.getElementById('cartBadge');
+                const favBadge  = document.getElementById('favBadge');
+                const notifBadge = document.getElementById('notifBadge');
+                if (cartBadge) {
+                    const total = (typeof cartItems !== 'undefined' ? cartItems : []).reduce((s, i) => s + (i.quantity || 1), 0);
+                    cartBadge.textContent = total;
+                    cartBadge.style.display = total > 0 ? 'flex' : 'none';
+                }
+                if (favBadge) {
+                    const count = (typeof favorites !== 'undefined' ? favorites : []).length;
+                    favBadge.textContent = count;
+                    favBadge.style.display = count > 0 ? 'flex' : 'none';
+                }
+                if (notifBadge) {
+                    const count = (typeof notifications !== 'undefined' ? notifications : []).filter(n => n.unread).length;
+                    notifBadge.textContent = count;
+                    notifBadge.style.display = count > 0 ? 'flex' : 'none';
+                }
+            };
+        }
+        if (typeof switchToArtistMode === 'undefined') {
+            window.switchToArtistMode = function() {
+                if (!currentUser) return;
+                currentUser.isArtist = true;
+                safeStorage.set('arkyl_current_user', currentUser);
+                if (typeof updateAuthUI === 'function') updateAuthUI();
+                navigateTo('artistProfile');
+                if (typeof showToast === 'function') showToast('🎨 Mode artiste activé');
+            };
+        }
+        if (typeof updateFollowButton === 'undefined') {
+            window.updateFollowButton = function(artistName, isFollowing) {
+                const btnId = 'followBtn-' + artistName.replace(/\s+/g, '-');
+                const btn = document.getElementById(btnId);
+                if (btn) {
+                    btn.textContent = isFollowing ? '✓ Abonné' : '+ Suivre';
+                    if (isFollowing) btn.setAttribute('data-following', 'true');
+                    else btn.removeAttribute('data-following');
+                }
+            };
+        }
+
+        // ==========================================
+        // STUBS — fonctions définies dans d'autres fichiers JS du projet
+        // Ces stubs évitent les ReferenceError si les fichiers ne sont pas chargés
+        // ==========================================
+        if (typeof renderAdminOrders === 'undefined') {
+            window.renderAdminOrders = function() {
+                const container = document.getElementById('adminOrdersContainer');
+                if (container) container.innerHTML = '<p style="text-align:center;padding:40px;opacity:0.6;">Chargement des commandes admin...</p>';
+            };
+        }
+        if (typeof saveArtistsData === 'undefined') {
+            window.saveArtistsData = function() {
+                try { safeStorage.set('arkyl_artists_data', artistsData); } catch(e) {}
+            };
+        }
+        if (typeof loadArtistsData === 'undefined') {
+            window.loadArtistsData = function() {
+                return safeStorage.get('arkyl_artists_data', {});
+            };
+        }
+        if (typeof closeProductDetail === 'undefined') {
+            window.closeProductDetail = function() {
+                navigateTo('home');
+            };
+        }
+        if (typeof deleteArtistArtwork === 'undefined') {
+            window.deleteArtistArtwork = function(id) {
+                if (typeof deleteArtwork === 'function') deleteArtwork(id);
+            };
+        }
+        if (typeof chargerLaVraieGalerie === 'undefined') {
+            window.chargerLaVraieGalerie = async function() {
+                console.warn('chargerLaVraieGalerie() non disponible — galerie non chargée');
+            };
+        }
+        if (typeof afficherOeuvresFiltrees === 'undefined') {
+            window.afficherOeuvresFiltrees = function() {
+                if (typeof chargerLaVraieGalerie === 'function') chargerLaVraieGalerie();
+            };
+        }
+        if (typeof buildMiniAvatar === 'undefined') {
+            window.buildMiniAvatar = function(user, size = 40) {
+                const s = size + 'px';
+                if (user && user.profile_image && user.profile_image.startsWith('http')) {
+                    return `<img src="${user.profile_image}" style="width:${s};height:${s};border-radius:50%;object-fit:cover;" onerror="this.outerHTML='<span style=font-size:${size * 0.6}px>${user.avatar || '👤'}</span>'">`;
+                }
+                return `<span style="font-size:${size * 0.6}px;line-height:${s};display:inline-block;">${(user && user.avatar) || '👤'}</span>`;
+            };
+        }
+        if (typeof init === 'undefined') {
+            window.init = function() {
+                console.log('init() — galerie initialisée');
+                if (typeof chargerLaVraieGalerie === 'function') chargerLaVraieGalerie();
+                if (typeof updateBadges === 'function') updateBadges();
+            };
         }
 
 

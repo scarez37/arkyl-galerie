@@ -785,6 +785,17 @@ function enterGallery() {
             // Déconnecter le compte utilisateur
             currentUser = null;
             safeStorage.remove('arkyl_current_user');
+            
+            // 🧹 Nettoyer AUSSI les clés simples utilisées par artist_dashboard.html
+            // (Fix pour éviter les sessions fantômes après logout)
+            try {
+                localStorage.removeItem('user_id');
+                localStorage.removeItem('user_name');
+                localStorage.removeItem('user_email');
+                console.log('✅ Clés simples supprimées (user_id, user_name, user_email)');
+            } catch (e) {
+                console.warn('⚠️ Erreur lors du nettoyage des clés simples:', e);
+            }
 
             // Vider le panier et l'adresse en mémoire au logout (localStorage conservé par compte)
             cartItems = [];

@@ -237,18 +237,26 @@
             const list = document.getElementById('artworks-list');
             
             try {
-                console.log('📥 Chargement des œuvres depuis:', API_URL);
+                console.log('📥 Chargement des œuvres de l\'artiste:', artistName, '(ID:', artistId, ')');
                 
-                const res = await fetch(`${API_URL}?t=${Date.now()}`);
+                // 🔐 IMPORTANT: Passer artist_id à l'API pour filtrer côté serveur
+                const res = await fetch(`${API_URL}?artist_id=${encodeURIComponent(artistId)}&t=${Date.now()}`);
                 const json = await res.json();
                 
                 console.log('📥 Réponse API galerie:', json);
                 
                 if(json.success && json.data) {
-                    // Filtrer les œuvres de cet artiste
-                    const mesOeuvres = json.data.filter(art => 
-                        String(art.artist_id) === String(artistId)
-                    );
+                    // 🔐 Filtrer les œuvres de cet artiste (filtre de sécurité client)
+                    const mesOeuvres = json.data.filter(art => {
+                        // Vérifier par ID artiste
+                        if (String(art.artist_id) === String(artistId)) return true;
+                        // Fallback: vérifier par nom d'artiste
+                        if (art.artist_name && artistName && 
+                            art.artist_name.toLowerCase() === artistName.toLowerCase()) return true;
+                        
+                        console.warn('⚠️ Artwork filtré (pas cet artiste):', art.title, '- artist_id:', art.artist_id, 'attendu:', artistId);
+                        return false;
+                    });
                     
                     console.log(`✅ ${mesOeuvres.length} œuvre(s) trouvée(s) pour l'artiste ID ${artistId}`);
                     

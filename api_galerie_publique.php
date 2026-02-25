@@ -135,6 +135,7 @@ function formatArtwork($oeuvre) {
         'techniqueCustom' => $oeuvre['technique_custom'] ?? null,
         'dimensions' => $dimensions,
         'description' => $oeuvre['description'] ?? null,
+        'artist_id' => !empty($oeuvre['artist_id']) ? intval($oeuvre['artist_id']) : null,  // ✅ AJOUTÉ
         'artist' => $oeuvre['artist_name'] ?? null,
         'artist_name' => $oeuvre['artist_name'] ?? null,
         'artist_country' => $oeuvre['artist_country'] ?? null,

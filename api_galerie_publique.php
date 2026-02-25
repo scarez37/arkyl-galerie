@@ -11,6 +11,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // Utiliser la configuration centralisée
 require_once __DIR__ . '/db_config.php';
 
+// 🔍 Log de débogage
+error_log("api_galerie_publique.php appelée avec : " . print_r($_GET, true));
+
 try {
     $db = getDatabase();
     
@@ -40,18 +43,49 @@ try {
         ], JSON_UNESCAPED_UNICODE);
         
     } else {
-        // ===== MODE : TOUTES LES ŒUVRES =====
-        $stmt = $db->query("SELECT * FROM artworks WHERE status = 'publiée' ORDER BY id DESC");
+        // ===== MODE : TOUTES LES ŒUVRES (optionnellement filtrées par artist_id) =====
+        $sql = "SELECT * FROM artworks WHERE status = 'publiée'";
+        $params = [];
+        
+        // 🔐 Filtrer par artist_id si fourni
+        if (isset($_GET['artist_id']) && !empty($_GET['artist_id'])) {
+            $artistId = $_GET['artist_id']; // Peut être un ID ou un email
+            
+            // Vérifier si c'est un numérique (ID) ou une chaîne (email/nom)
+            if (is_numeric($artistId)) {
+                // C'est un ID numérique
+                $sql .= " AND artist_id = :artist_id";
+                $params[':artist_id'] = intval($artistId);
+            } else {
+                // C'est un email ou nom d'artiste (fallback)
+                $sql .= " AND (artist_name = :artist_name OR artist_email = :artist_email)";
+                $params[':artist_name'] = $artistId;
+                $params[':artist_email'] = $artistId;
+            }
+        }
+        
+        $sql .= " ORDER BY id DESC";
+        
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
         $oeuvres = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Formater chaque œuvre
         $formatted = array_map('formatArtwork', $oeuvres);
         
-        echo json_encode([
+        // Ajouter info de filtrage à la réponse
+        $response = [
             'success' => true,
             'data' => $formatted,
             'count' => count($formatted)
-        ], JSON_UNESCAPED_UNICODE);
+        ];
+        
+        // 🔍 Debug: Ajouter info si filtrage appliqué
+        if (isset($_GET['artist_id']) && !empty($_GET['artist_id'])) {
+            $response['filtered_by'] = 'artist_id: ' . $_GET['artist_id'];
+        }
+        
+        echo json_encode($response, JSON_UNESCAPED_UNICODE);
     }
 
 } catch (Exception $e) {

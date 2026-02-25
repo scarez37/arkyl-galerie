@@ -6278,14 +6278,14 @@ function enterGallery() {
                 const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(artistServerId)}&t=${Date.now()}`);
                 const result = await resp.json();
                 if (result.success && result.data && result.data.length > 0) {
-                    // Filtrer côté client aussi — ne garder QUE les œuvres de cet artiste
-                    const myArtworks = result.data.filter(art =>
-                        String(art.artist_id) === String(artistServerId) ||
-                        String(art.user_id)   === String(artistServerId)
-                    );
-                    // Synchroniser db.artworks avec les données serveur
-                    // Remplacer complètement db.artworks par les données serveur
-                    db.artworks = myArtworks.map(art => ({
+                    // Logger le premier item pour voir les champs disponibles
+                    console.log('🔍 Champs API galerie:', Object.keys(result.data[0]));
+                    console.log('🔍 artistServerId utilisé:', artistServerId);
+                    console.log('🔍 Premier artwork:', result.data[0]);
+
+                    // L'API est déjà filtrée par artist_id côté serveur — pas besoin de refiltrer
+                    // Le filtre client causait un dashboard vide si les noms de champs ne correspondaient pas
+                    db.artworks = result.data.map(art => ({
                         id: art.id,               // ID PostgreSQL (int)
                         server_id: art.id,        // Alias explicite
                         title: art.title,
@@ -6894,6 +6894,9 @@ function enterGallery() {
                 updateDashboard();
                 
                 showToast('✅ Œuvre publiée et visible par tous !');
+
+                // Recharger depuis le serveur pour avoir les vrais IDs et données
+                setTimeout(() => loadArtistArtworksFromServer(), 1500);
                 
                 // Rafraîchir la galerie publique
                 if (typeof renderProducts === 'function') {

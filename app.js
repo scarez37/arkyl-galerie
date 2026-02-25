@@ -314,6 +314,33 @@ function enterGallery() {
                 }
             })();
 
+            // 🧹 Nettoyer localStorage pour éviter les QuotaExceededError
+            (function cleanupLocalStorage() {
+                try {
+                    const keysToRemove = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        // Nettoyer les clés inutiles ou trop lourdes
+                        if (key && (
+                            key.includes('_products_cache_') ||  // Cache produits
+                            key.includes('_artworks_') ||        // Anciennes œuvres cachées
+                            key.includes('_temp_') ||            // Données temporaires
+                            (key.startsWith('arkyl_') && key.includes('_photos_'))  // Photos base64
+                        )) {
+                            keysToRemove.push(key);
+                        }
+                    }
+                    keysToRemove.forEach(key => {
+                        try { localStorage.removeItem(key); } catch(_) {}
+                    });
+                    if (keysToRemove.length > 0) {
+                        console.log('🧹 Nettoyage localStorage:', keysToRemove.length, 'clés supprimées');
+                    }
+                } catch(e) {
+                    console.warn('Erreur cleanup localStorage:', e);
+                }
+            })();
+
             const urlParams = new URLSearchParams(window.location.search);
 
             if (urlParams.get('mode') === 'artist') {
@@ -6297,13 +6324,21 @@ function enterGallery() {
 
             _save(k, v) {
                 try {
-                    localStorage.setItem(this._key(k), JSON.stringify(v));
+                    const json = JSON.stringify(v);
+                    // Vérifier approximativement la taille avant de sauvegarder
+                    if (json.length > 1000000) { // > 1MB - trop volumineux
+                        console.warn('⚠️ Données trop volumineuses (' + (json.length/1024/1024).toFixed(2) + 'MB), fallback mémoire:', k);
+                        _memStore[this._key(k)] = v;
+                        return true;
+                    }
+                    localStorage.setItem(this._key(k), json);
                     _memStore[this._key(k)] = v;
                     return true;
                 } catch(e) {
-                    console.error('Erreur de sauvegarde:', k, e);
+                    console.error('Erreur de sauvegarde:', k, e.name);
                     if (e.name === 'QuotaExceededError') {
-                        showToast('⚠️ Espace de stockage insuffisant. Supprimez des œuvres anciennes.');
+                        console.warn('⚠️ localStorage saturé (' + (JSON.stringify(v).length/1024/1024).toFixed(2) + 'MB), fallback mémoire');
+                        showToast('⚠️ Espace disque plein. Les données restent en mémoire mais ne seront pas sauvegardées.');
                     }
                     try { _memStore[this._key(k)] = v; return true; } catch(_) {}
                     return false;
@@ -6428,7 +6463,9 @@ function enterGallery() {
                         status: 'published',
                         createdAt: art.created_at || new Date().toISOString()
                     }));
-                    db._save('artist_artworks', db.artworks);
+                    // 🔐 NE PAS sauvegarder dans localStorage (données du serveur = déjà persistées)
+                    // localStorage est limité et les images base64 le remplissent vite
+                    // Garder uniquement en mémoire (_memStore)
                     // Rafraîchir si déjà sur la section œuvres
                     const artSection = document.getElementById('artworksSection');
                     if (artSection && artSection.classList.contains('active')) renderArtworks();

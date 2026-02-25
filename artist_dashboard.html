@@ -430,9 +430,29 @@
 
         function logout() {
             if (confirm('Voulez-vous vraiment vous déconnecter ?')) {
+                // 🧹 Récupérer les données AVANT suppression
+                const userId = localStorage.getItem('user_id');
+                const userEmail = localStorage.getItem('user_email');
+                
+                // 1️⃣ Supprimer les clés simples (utilisées par artist_dashboard.html)
                 localStorage.removeItem('user_id');
                 localStorage.removeItem('user_name');
                 localStorage.removeItem('user_email');
+                
+                // 2️⃣ Supprimer les clés complexes (utilisées par app.js)
+                localStorage.removeItem('arkyl_current_user');
+                
+                // 3️⃣ Supprimer les clés artiste dynamiques
+                if (userId) {
+                    localStorage.removeItem(`arkyl_artist_account_${userId}`);
+                    console.log('✅ Clé artiste supprimée:', `arkyl_artist_account_${userId}`);
+                }
+                if (userEmail) {
+                    localStorage.removeItem(`arkyl_artist_account_email_${userEmail.toLowerCase()}`);
+                    console.log('✅ Clé artiste email supprimée');
+                }
+                
+                console.log('✅ Déconnexion complète - Toutes les clés supprimées');
                 window.location.href = 'index.html';
             }
         }

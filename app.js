@@ -7123,7 +7123,12 @@ function enterGallery() {
         // ==================== ARTIST GALLERY ====================
         function renderArtistGallery() {
             const products = getProducts();
-            const filtered = currentGalleryFilter === 'all' ? products : products.filter(p => p.category === currentGalleryFilter);
+            // 🔐 Filtrer pour n'afficher que les œuvres de l'artiste connecté
+            const artistProducts = products.filter(p => 
+                p.artist && currentUser.name &&
+                p.artist.toLowerCase() === currentUser.name.toLowerCase()
+            );
+            const filtered = currentGalleryFilter === 'all' ? artistProducts : artistProducts.filter(p => p.category === currentGalleryFilter);
             const grid = document.getElementById('artistGalleryGrid');
             if (!filtered.length) {
                 showSkeletonLoader('artistGalleryGrid', 6, 'grid');

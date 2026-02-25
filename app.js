@@ -2541,37 +2541,239 @@ function enterGallery() {
             container.style.display = 'grid';
             document.getElementById('emptyFavorites').style.display = 'none';
 
-            container.innerHTML = products.map(product => {
-                const photos = product.photos && product.photos.length > 0
-                    ? product.photos
-                    : (product.image_url ? [product.image_url] : []);
-                const mainImg = photos[0] || null;
-                const artistName = product.artist_name || product.artist || 'Artiste inconnu';
+            container.innerHTML = products.map(renderProductCard).join('');
+        }
 
-                const imageHTML = mainImg
-                    ? `<img src="${mainImg}" alt="${product.title}"
-                            style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;"
-                            loading="lazy"
-                            onerror="this.style.display='none'">`
-                    : `<div style="font-size:60px;display:flex;align-items:center;justify-content:center;height:100%;">🎨</div>`;
+        // ==================== TEMPLATES HTML ====================
 
-                return `
-                <div class="product-card" onclick="viewProductDetailFromAPI(${product.id})">
-                    <div class="product-image" style="position:relative;">
-                        <span class="product-badge">${product.badge || 'Disponible'}</span>
-                        <button class="like-button" onclick="toggleFavorite(event, ${product.id})">❤️</button>
-                        ${imageHTML}
+        /**
+         * Génère le HTML d'une carte produit pour la galerie.
+         * @param {Object} product
+         * @returns {string}
+         */
+        function renderProductCard(product) {
+            const photos = product.photos && product.photos.length > 0
+                ? product.photos
+                : (product.image_url ? [product.image_url] : []);
+            const mainImg    = photos[0] || null;
+            const artistName = product.artist_name || product.artist || 'Artiste inconnu';
+            const imageHTML  = mainImg
+                ? `<img src="${mainImg}" alt="${product.title}"
+                        style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;"
+                        loading="lazy"
+                        onerror="this.style.display='none'">`
+                : `<div style="font-size:60px;display:flex;align-items:center;justify-content:center;height:100%;">🎨</div>`;
+
+            return `
+            <div class="product-card" onclick="viewProductDetailFromAPI(${product.id})">
+                <div class="product-image" style="position:relative;">
+                    <span class="product-badge">${product.badge || 'Disponible'}</span>
+                    <button class="like-button" onclick="toggleFavorite(event, ${product.id})">❤️</button>
+                    ${imageHTML}
+                </div>
+                <div class="product-info">
+                    <div class="product-title">${product.title}</div>
+                    <div class="product-artist" onclick="viewArtistDetail(event, '${artistName}')">par ${artistName}</div>
+                    <div class="product-footer">
+                        <div class="product-price">${formatPrice(product.price)}</div>
+                        <button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>
                     </div>
-                    <div class="product-info">
-                        <div class="product-title">${product.title}</div>
-                        <div class="product-artist" onclick="viewArtistDetail(event, '${artistName}')">par ${artistName}</div>
-                        <div class="product-footer">
-                            <div class="product-price">${formatPrice(product.price)}</div>
-                            <button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>
+                </div>
+            </div>`;
+        }
+
+        /**
+         * Génère le HTML d'une ligne article dans une commande (partagé entre vue user et vue admin).
+         * @param {Object} item
+         * @returns {string}
+         */
+        function renderOrderItemRow(item) {
+            const thumb = (item.image || item.image_url)
+                ? `<img src="${item.image || item.image_url}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;">`
+                : `<div style="width:48px;height:48px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">🎨</div>`;
+            return `
+            <div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+                ${thumb}
+                <div style="flex:1;">
+                    <div style="font-weight:600;font-size:14px;">${item.title}</div>
+                    <div style="font-size:12px;opacity:0.6;">par ${item.artist || item.artist_name}</div>
+                </div>
+                <div style="font-weight:700;color:var(--ocre);">${formatPrice((item.price || 0) * (item.quantity || 1))}</div>
+            </div>`;
+        }
+
+        /**
+         * Génère le HTML d'une carte commande pour la vue utilisateur.
+         * @param {Object} order
+         * @returns {string}
+         */
+        function renderUserOrderCard(order) {
+            const es = order.escrow_status || 'payée_en_attente';
+            const { escrowSteps, serverTimeline } = buildOrderTimeline(order);
+            const trackUrl = order.tracking_url || getTrackingUrl(order.carrier, order.tracking_number);
+
+            const trackingBlock = order.tracking_number ? `
+                <div style="background:rgba(33,150,243,0.12);border:1px solid rgba(33,150,243,0.35);border-radius:12px;padding:14px 18px;margin:12px 0;">
+                    <div style="font-weight:700;font-size:13px;margin-bottom:6px;color:#90caf9;">📦 Suivi de livraison</div>
+                    <div style="font-size:14px;">
+                        ${order.carrier ? `<span style="opacity:0.7;">${order.carrier.toUpperCase()} · </span>` : ''}
+                        <strong>${order.tracking_number}</strong>
+                    </div>
+                    ${trackUrl ? `<a href="${trackUrl}" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;padding:8px 18px;background:linear-gradient(135deg,#2196f3,#1976d2);color:white;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;">🔍 Suivre mon colis</a>` : ''}
+                    ${order.shipping_proof_url ? `<a href="${order.shipping_proof_url}" target="_blank" style="display:inline-block;margin:10px 0 0 10px;padding:8px 18px;background:rgba(255,255,255,0.1);color:white;border-radius:8px;font-size:13px;text-decoration:none;">📎 Voir preuve d'expédition</a>` : ''}
+                </div>` : '';
+
+            const confirmBtn = es === 'expédiée' ? `
+                <button class="confirm-reception-btn" onclick="confirmReception('${order.server_id || order.id}')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                    J'ai bien reçu mon œuvre — Libérer les fonds
+                </button>` : '';
+
+            const countdownHtml = (es === 'expédiée' && order.escrow_auto_release_date) ? (() => {
+                const daysLeft = Math.max(0, Math.ceil((new Date(order.escrow_auto_release_date) - Date.now()) / 86400000));
+                return `<div class="escrow-countdown">⏱ Libération automatique dans ${daysLeft} jour${daysLeft > 1 ? 's' : ''} si aucun litige</div>`;
+            })() : '';
+
+            const timelineBlock = serverTimeline ? `
+                <details style="margin-top:12px;">
+                    <summary style="cursor:pointer;font-size:13px;font-weight:600;opacity:0.8;padding:8px 0;">🕐 Historique détaillé</summary>
+                    <div style="margin-top:10px;padding:10px;background:rgba(0,0,0,0.2);border-radius:10px;">${serverTimeline}</div>
+                </details>` : '';
+
+            return `
+            <div class="order-card">
+                <div class="order-header">
+                    <div>
+                        <div class="order-id">Commande ${order.order_number || '#' + (order.server_id || order.id)}</div>
+                        <div class="order-date">📅 ${order.date || new Date(order.created_at).toLocaleDateString('fr-FR')}</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+                        <span class="order-status" style="background:${statusColor(order.status)}22;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}44;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;">
+                            ${statusIcon(order.status)} ${order.status}
+                        </span>
+                        <span class="${es === 'fonds_libérés' ? 'funds-released-badge' : 'funds-locked-badge'}">
+                            ${es === 'fonds_libérés' ? '✅ Fonds libérés' : '🔒 Fonds sécurisés'}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="escrow-progress">${escrowSteps}</div>
+
+                ${trackingBlock}
+                ${countdownHtml}
+                ${confirmBtn}
+
+                <div style="background:rgba(0,0,0,0.2);border-radius:12px;padding:15px;margin:12px 0;">
+                    ${(order.items || []).map(renderOrderItemRow).join('')}
+                    <div style="display:flex;justify-content:space-between;padding-top:12px;font-size:15px;font-weight:700;">
+                        <span>Total</span><span style="color:var(--ocre);">${formatPrice(parseFloat(order.total) || 0)}</span>
+                    </div>
+                </div>
+
+                ${timelineBlock}
+            </div>`;
+        }
+
+        /**
+         * Génère le HTML d'une carte commande pour le panneau admin.
+         * @param {Object} order
+         * @returns {string}
+         */
+        function renderAdminOrderCard(order) {
+            const orderId = order.server_id || order.id;
+            const trackUrl = order.tracking_url || getTrackingUrl(order.carrier, order.tracking_number);
+            const { serverTimeline } = buildOrderTimeline(order);
+
+            const carrierOptions = CARRIERS.map(c =>
+                `<option value="${c.id}">${c.name}</option>`
+            ).join('');
+
+            const statusOptions = DELIVERY_STATUSES.map(s =>
+                `<option value="${s.key}" ${order.status === s.key ? 'selected' : ''}>${s.icon} ${s.label}</option>`
+            ).join('');
+
+            const shippingBlock = order.shipping_address ? `
+                <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 16px;margin-bottom:15px;font-size:13px;">
+                    📍 <strong>Adresse :</strong> ${order.shipping_address}
+                    ${order.shipping_name ? ` · 🚚 ${order.shipping_name}` : ''}
+                </div>` : '';
+
+            const trackingBlock = order.tracking_number ? `
+                <div style="background:rgba(33,150,243,0.1);border:1px solid rgba(33,150,243,0.3);border-radius:10px;padding:12px 16px;margin-bottom:15px;font-size:13px;">
+                    📦 Tracking : <strong>${order.tracking_number}</strong>
+                    ${order.carrier ? ` (${order.carrier.toUpperCase()})` : ''}
+                    ${trackUrl ? ` · <a href="${trackUrl}" target="_blank" style="color:#90caf9;">Suivre</a>` : ''}
+                </div>` : '';
+
+            const historyBlock = serverTimeline ? `
+                <details style="margin-top:8px;">
+                    <summary style="cursor:pointer;font-size:13px;font-weight:600;opacity:0.7;padding:8px 0;">🕐 Historique de la commande</summary>
+                    <div style="margin-top:8px;padding:10px;background:rgba(0,0,0,0.2);border-radius:10px;">${serverTimeline}</div>
+                </details>` : '';
+
+            return `
+            <div class="admin-order-card" id="order-card-${orderId}">
+                <div style="display:flex;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:15px;">
+                    <div>
+                        <div style="font-size:18px;font-weight:700;color:var(--ocre);">📦 ${order.order_number || '#' + orderId}</div>
+                        <div style="font-size:14px;opacity:0.8;margin-top:4px;">👤 ${order.user || order.user_name}${order.userEmail ? ` (${order.userEmail})` : ''}</div>
+                        <div style="font-size:13px;opacity:0.6;margin-top:2px;">📅 ${order.date}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:22px;font-weight:800;color:var(--ocre);margin-bottom:8px;">${formatPrice(parseFloat(order.total) || 0)}</div>
+                        <span style="padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;background:${statusColor(order.status)}33;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}66;">
+                            ${statusIcon(order.status)} ${order.status}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Articles -->
+                <div style="background:rgba(0,0,0,0.2);border-radius:12px;padding:15px;margin-bottom:15px;">
+                    ${(order.items || []).map(renderOrderItemRow).join('')}
+                </div>
+
+                ${shippingBlock}
+                ${trackingBlock}
+
+                <!-- Zone mise à jour statut -->
+                <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:18px;margin-bottom:12px;">
+                    <div style="font-weight:700;margin-bottom:14px;font-size:14px;">🔄 Mettre à jour la commande</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                        <div>
+                            <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:4px;">Statut</label>
+                            <select id="status-${orderId}" style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;">
+                                ${statusOptions}
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:4px;">Transporteur</label>
+                            <select id="carrier-${orderId}" style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;">
+                                <option value="">Choisir...</option>
+                                ${carrierOptions}
+                            </select>
                         </div>
                     </div>
-                </div>`;
-            }).join('');
+                    <input id="tracking-${orderId}" type="text" placeholder="N° de suivi (ex: 1Z999AA10123456784)" value="${order.tracking_number || ''}"
+                        style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+                    <input id="note-${orderId}" type="text" placeholder="Note (optionnelle) — ex: Colis déposé à La Poste de Plateau"
+                        style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+
+                    <div class="proof-upload-zone" onclick="document.getElementById('proof-${orderId}').click()" id="proof-zone-${orderId}" style="margin-bottom:10px;">
+                        <input type="file" id="proof-${orderId}" accept="image/*,.pdf" style="display:none"
+                            onchange="document.getElementById('proof-zone-${orderId}').innerHTML='✅ ' + this.files[0].name">
+                        <div style="font-size:20px;margin-bottom:4px;">📎</div>
+                        <div style="font-size:13px;font-weight:600;">Joindre preuve d'expédition (optionnel)</div>
+                        <div style="font-size:11px;opacity:0.5;margin-top:3px;">JPG, PNG ou PDF</div>
+                    </div>
+
+                    <button onclick="adminUpdateOrderStatus('${orderId}')"
+                        style="width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));color:white;transition:all 0.3s;">
+                        💾 Enregistrer la mise à jour
+                    </button>
+                </div>
+
+                ${historyBlock}
+            </div>`;
         }
 
         // ==================== UTILITAIRES IMAGE ====================
@@ -3594,80 +3796,7 @@ function enterGallery() {
                     <div class="orders-stat-card"><div class="orders-stat-icon">🎨</div><div class="orders-stat-value">${totalItems}</div><div class="orders-stat-label">Œuvres achetées</div></div>
                 </div>`;
 
-            const ordersHtml = orderHistory.map(order => {
-                const es = order.escrow_status || 'payée_en_attente';
-                const { escrowSteps, serverTimeline } = buildOrderTimeline(order);
-                const trackUrl = order.tracking_url || getTrackingUrl(order.carrier, order.tracking_number);
-
-                const trackingBlock = order.tracking_number ? `
-                    <div style="background:rgba(33,150,243,0.12);border:1px solid rgba(33,150,243,0.35);border-radius:12px;padding:14px 18px;margin:12px 0;">
-                        <div style="font-weight:700;font-size:13px;margin-bottom:6px;color:#90caf9;">📦 Suivi de livraison</div>
-                        <div style="font-size:14px;">
-                            ${order.carrier ? `<span style="opacity:0.7;">${order.carrier.toUpperCase()} · </span>` : ''}
-                            <strong>${order.tracking_number}</strong>
-                        </div>
-                        ${trackUrl ? `<a href="${trackUrl}" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;padding:8px 18px;background:linear-gradient(135deg,#2196f3,#1976d2);color:white;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;">🔍 Suivre mon colis</a>` : ''}
-                        ${order.shipping_proof_url ? `<a href="${order.shipping_proof_url}" target="_blank" style="display:inline-block;margin:10px 0 0 10px;padding:8px 18px;background:rgba(255,255,255,0.1);color:white;border-radius:8px;font-size:13px;text-decoration:none;">📎 Voir preuve d'expédition</a>` : ''}
-                    </div>` : '';
-
-                const confirmBtn = es === 'expédiée' ? `
-                    <button class="confirm-reception-btn" onclick="confirmReception('${order.server_id || order.id}')">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-                        J'ai bien reçu mon œuvre — Libérer les fonds
-                    </button>` : '';
-
-                const countdownHtml = es === 'expédiée' && order.escrow_auto_release_date ? (() => {
-                    const daysLeft = Math.max(0, Math.ceil((new Date(order.escrow_auto_release_date) - Date.now()) / 86400000));
-                    return `<div class="escrow-countdown">⏱ Libération automatique dans ${daysLeft} jour${daysLeft > 1 ? 's' : ''} si aucun litige</div>`;
-                })() : '';
-
-                const timelineBlock = serverTimeline ? `
-                    <details style="margin-top:12px;">
-                        <summary style="cursor:pointer;font-size:13px;font-weight:600;opacity:0.8;padding:8px 0;">🕐 Historique détaillé</summary>
-                        <div style="margin-top:10px;padding:10px;background:rgba(0,0,0,0.2);border-radius:10px;">${serverTimeline}</div>
-                    </details>` : '';
-
-                return `
-                <div class="order-card">
-                    <div class="order-header">
-                        <div>
-                            <div class="order-id">Commande ${order.order_number || '#' + (order.server_id || order.id)}</div>
-                            <div class="order-date">📅 ${order.date || new Date(order.created_at).toLocaleDateString('fr-FR')}</div>
-                        </div>
-                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-                            <span class="order-status" style="background:${statusColor(order.status)}22;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}44;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;">
-                                ${statusIcon(order.status)} ${order.status}
-                            </span>
-                            <span class="${es === 'fonds_libérés' ? 'funds-released-badge' : 'funds-locked-badge'}">
-                                ${es === 'fonds_libérés' ? '✅ Fonds libérés' : '🔒 Fonds sécurisés'}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="escrow-progress">${escrowSteps}</div>
-
-                    ${trackingBlock}
-                    ${countdownHtml}
-                    ${confirmBtn}
-
-                    <div style="background:rgba(0,0,0,0.2);border-radius:12px;padding:15px;margin:12px 0;">
-                        ${(order.items || []).map(item => `
-                            <div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);">
-                                ${item.image || item.image_url ? `<img src="${item.image || item.image_url}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;">` : '<div style="width:48px;height:48px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">🎨</div>'}
-                                <div style="flex:1;">
-                                    <div style="font-weight:600;font-size:14px;">${item.title}</div>
-                                    <div style="font-size:12px;opacity:0.6;">par ${item.artist || item.artist_name}</div>
-                                </div>
-                                <div style="font-weight:700;color:var(--ocre);">${formatPrice((item.price || 0) * (item.quantity || 1))}</div>
-                            </div>`).join('')}
-                        <div style="display:flex;justify-content:space-between;padding-top:12px;font-size:15px;font-weight:700;">
-                            <span>Total</span><span style="color:var(--ocre);">${formatPrice(parseFloat(order.total) || 0)}</span>
-                        </div>
-                    </div>
-
-                    ${timelineBlock}
-                </div>`;
-            }).join('');
+            const ordersHtml = orderHistory.map(renderUserOrderCard).join('');
 
             container.innerHTML = statsHtml + ordersHtml;
         }
@@ -8822,105 +8951,7 @@ function enterGallery() {
                 return;
             }
 
-            container.innerHTML = filtered.map(order => {
-                const orderId = order.server_id || order.id;
-                const trackUrl = order.tracking_url || getTrackingUrl(order.carrier, order.tracking_number);
-                const { serverTimeline } = buildOrderTimeline(order);
-
-                const carrierOptions = CARRIERS.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-                const statusOptions = DELIVERY_STATUSES.map(s =>
-                    `<option value="${s.key}" ${order.status === s.key ? 'selected' : ''}>${s.icon} ${s.label}</option>`
-                ).join('');
-
-                return `
-                <div class="admin-order-card" id="order-card-${orderId}">
-                    <div style="display:flex;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:15px;">
-                        <div>
-                            <div style="font-size:18px;font-weight:700;color:var(--ocre);">📦 ${order.order_number || '#' + orderId}</div>
-                            <div style="font-size:14px;opacity:0.8;margin-top:4px;">👤 ${order.user || order.user_name}${order.userEmail ? ` (${order.userEmail})` : ''}</div>
-                            <div style="font-size:13px;opacity:0.6;margin-top:2px;">📅 ${order.date}</div>
-                        </div>
-                        <div style="text-align:right;">
-                            <div style="font-size:22px;font-weight:800;color:var(--ocre);margin-bottom:8px;">${formatPrice(parseFloat(order.total)||0)}</div>
-                            <span style="padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;background:${statusColor(order.status)}33;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}66;">
-                                ${statusIcon(order.status)} ${order.status}
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Articles -->
-                    <div style="background:rgba(0,0,0,0.2);border-radius:12px;padding:15px;margin-bottom:15px;">
-                        ${(order.items||[]).map(item => `
-                            <div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);">
-                                ${item.image || item.image_url ? `<img src="${item.image||item.image_url}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;">` : '<div style="width:48px;height:48px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">🎨</div>'}
-                                <div style="flex:1;">
-                                    <div style="font-weight:600;">${item.title}</div>
-                                    <div style="font-size:12px;opacity:0.6;">par ${item.artist||item.artist_name}</div>
-                                </div>
-                                <div style="font-weight:700;color:var(--ocre);">${formatPrice((item.price||0)*(item.quantity||1))}</div>
-                            </div>`).join('')}
-                    </div>
-
-                    <!-- Adresse livraison -->
-                    ${order.shipping_address ? `
-                        <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 16px;margin-bottom:15px;font-size:13px;">
-                            📍 <strong>Adresse :</strong> ${order.shipping_address}
-                            ${order.shipping_name ? ` · 🚚 ${order.shipping_name}` : ''}
-                        </div>` : ''}
-
-                    <!-- Tracking actuel -->
-                    ${order.tracking_number ? `
-                        <div style="background:rgba(33,150,243,0.1);border:1px solid rgba(33,150,243,0.3);border-radius:10px;padding:12px 16px;margin-bottom:15px;font-size:13px;">
-                            📦 Tracking : <strong>${order.tracking_number}</strong>
-                            ${order.carrier ? ` (${order.carrier.toUpperCase()})` : ''}
-                            ${trackUrl ? ` · <a href="${trackUrl}" target="_blank" style="color:#90caf9;">Suivre</a>` : ''}
-                        </div>` : ''}
-
-                    <!-- Zone mise à jour statut -->
-                    <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:18px;margin-bottom:12px;">
-                        <div style="font-weight:700;margin-bottom:14px;font-size:14px;">🔄 Mettre à jour la commande</div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-                            <div>
-                                <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:4px;">Statut</label>
-                                <select id="status-${orderId}" style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;">
-                                    ${statusOptions}
-                                </select>
-                            </div>
-                            <div>
-                                <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:4px;">Transporteur</label>
-                                <select id="carrier-${orderId}" style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;">
-                                    <option value="">Choisir...</option>
-                                    ${carrierOptions}
-                                </select>
-                            </div>
-                        </div>
-                        <input id="tracking-${orderId}" type="text" placeholder="N° de suivi (ex: 1Z999AA10123456784)" value="${order.tracking_number||''}"
-                            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
-                        <input id="note-${orderId}" type="text" placeholder="Note (optionnelle) — ex: Colis déposé à La Poste de Plateau"
-                            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
-
-                        <div class="proof-upload-zone" onclick="document.getElementById('proof-${orderId}').click()" id="proof-zone-${orderId}" style="margin-bottom:10px;">
-                            <input type="file" id="proof-${orderId}" accept="image/*,.pdf" style="display:none"
-                                onchange="document.getElementById('proof-zone-${orderId}').innerHTML='✅ ' + this.files[0].name">
-                            <div style="font-size:20px;margin-bottom:4px;">📎</div>
-                            <div style="font-size:13px;font-weight:600;">Joindre preuve d'expédition (optionnel)</div>
-                            <div style="font-size:11px;opacity:0.5;margin-top:3px;">JPG, PNG ou PDF</div>
-                        </div>
-
-                        <button onclick="adminUpdateOrderStatus('${orderId}')"
-                            style="width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));color:white;transition:all 0.3s;">
-                            💾 Enregistrer la mise à jour
-                        </button>
-                    </div>
-
-                    <!-- Historique -->
-                    ${serverTimeline ? `
-                        <details style="margin-top:8px;">
-                            <summary style="cursor:pointer;font-size:13px;font-weight:600;opacity:0.7;padding:8px 0;">🕐 Historique de la commande</summary>
-                            <div style="margin-top:8px;padding:10px;background:rgba(0,0,0,0.2);border-radius:10px;">${serverTimeline}</div>
-                        </details>` : ''}
-                </div>`;
-            }).join('');
+            container.innerHTML = filtered.map(renderAdminOrderCard).join('');
         }
 
         async function adminUpdateOrderStatus(orderId) {

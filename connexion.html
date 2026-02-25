@@ -211,13 +211,6 @@
 </div>
 
 <script>
-    // Auto-remplissage pour le test (À RETIRER EN PRODUCTION)
-    const testMode = false; // Mettez à true pour tester facilement
-    if (testMode) {
-        document.getElementById('email').value = 'test@test.com';
-        document.getElementById('password').value = 'test123';
-    }
-    
     document.getElementById('loginForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         
@@ -322,11 +315,11 @@
                 console.log('✅ Connexion réussie! ID:', userId);
                 console.log('✅ Clés sauvegardées:', `arkyl_artist_account_${userId}`);
 
-                successMsg.textContent = "✅ " + result.message + " Redirection vers l'espace artiste...";
+                successMsg.textContent = "✅ " + result.message + " Redirection vers votre espace artiste...";
                 successMsg.style.display = 'block';
 
                 setTimeout(() => {
-                    window.location.href = 'index.html?mode=artist';
+                    window.location.href = 'artist_dashboard.html';
                 }, 1500);
                 
             } else {

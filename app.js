@@ -6447,9 +6447,26 @@ function enterGallery() {
                     console.log('🔍 artistServerId utilisé:', artistServerId);
                     console.log('🔍 Premier artwork:', result.data[0]);
 
+                    // 🔐 FILTRE DE SÉCURITÉ CLIENT : S'assurer que l'API n'a pas retourné les mauvaises données
+                    // Filtrer à nouveau côté client par artist_id (en cas d'erreur API)
+                    const filteredData = result.data.filter(art => {
+                        const apiArtistId = art.artist_id || art.user_id || art.created_by;
+                        const artistNameMatches = art.artist_name && currentUser.name && 
+                            art.artist_name.toLowerCase() === currentUser.name.toLowerCase();
+                        const idMatches = apiArtistId && String(apiArtistId) === String(artistServerId);
+                        
+                        const match = idMatches || artistNameMatches;
+                        if (!match) {
+                            console.warn('⚠️ Artwork filtré (pas de cet artiste):', art.title, 'artist_id:', apiArtistId, 'expected:', artistServerId);
+                        }
+                        return match;
+                    });
+                    
+                    console.log(`📊 API a retourné ${result.data.length} artworks, après filtrage client: ${filteredData.length}`);
+                    
                     // L'API est déjà filtrée par artist_id côté serveur — pas besoin de refiltrer
                     // Le filtre client causait un dashboard vide si les noms de champs ne correspondaient pas
-                    db.artworks = result.data.map(art => ({
+                    db.artworks = filteredData.map(art => ({
                         id: art.id,               // ID PostgreSQL (int)
                         server_id: art.id,        // Alias explicite
                         title: art.title,
@@ -6471,9 +6488,14 @@ function enterGallery() {
                     if (artSection && artSection.classList.contains('active')) renderArtworks();
                     const dashSection = document.getElementById('dashboardSection');
                     if (dashSection && dashSection.classList.contains('active')) updateDashboard();
+                } else {
+                    console.log('ℹ️ Aucune artwork retournée par l\'API pour cet artiste');
+                    db.artworks = [];
+                    renderArtworks();
                 }
             } catch(e) {
                 // Silencieux — données locales suffisent
+                console.error('❌ Erreur loadArtistArtworksFromServer:', e);
             }
         }
 

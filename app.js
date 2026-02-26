@@ -4021,7 +4021,7 @@ function enterGallery() {
             }
 
             const totalRevenue = orders.reduce((s, o) => {
-                const myItems = (o.items||[]).filter(i => i.artist_id === artistId || i.artist === currentUser?.artistName);
+                const myItems = (o.items||[]).filter(i => String(i.artist_id) === String(artistId) || i.artist_name === currentUser?.artistName || i.artist === currentUser?.artistName);
                 return s + myItems.reduce((ss, i) => ss + (parseFloat(i.price)||0) * (i.quantity||1), 0);
             }, 0);
 
@@ -4032,7 +4032,7 @@ function enterGallery() {
                 </div>
                 ${orders.map(order => {
                     const orderId = order.id || order.server_id;
-                    const myItems = (order.items||[]).filter(i => !i.artist_id || i.artist_id === artistId || (i.artist||i.artist_name) === currentUser?.artistName);
+                    const myItems = (order.items||[]).filter(i => !i.artist_id || String(i.artist_id) === String(artistId) || (i.artist_name||i.artist) === currentUser?.artistName);
                     const myRevenue = myItems.reduce((s,i) => s + (parseFloat(i.price)||0)*(i.quantity||1), 0);
                     const carrierOptions = CARRIERS.map(c => `<option value="${c.id}" ${order.carrier===c.id?'selected':''}>${c.name}</option>`).join('');
                     const statusOptions = DELIVERY_STATUSES.filter(s => !['Livrée'].includes(s.key) || order.status === 'Livrée').map(s =>

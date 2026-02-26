@@ -258,7 +258,8 @@
                 console.log('📦 Champs retournés par api_connexion.php:', Object.keys(result));
                 console.log('📦 result complet:', JSON.stringify(result));
 
-                const userId   = result.user_id   || result.id        || result.artist_id || result.userId;
+                // ⭐ FIX : Forcer en String pour éviter les comparaisons === ratées (PHP retourne des int)
+                const userId   = String(result.user_id   || result.id        || result.artist_id || result.userId || '');
                 const userName = result.user_name  || result.name      || result.username  || result.artist_name;
                 const userEmail= result.user_email || result.email     || result.user_mail;
 
@@ -273,24 +274,27 @@
 
                 // Compte artiste — structure attendue par app.js
                 const artistAccount = {
-                    id:      userId,
+                    id:      String(userId),
                     name:    userName,
                     email:   userEmail,
                     country: result.country || 'Côte d\'Ivoire',
                     avatar:  result.avatar  || '',
+                    artistName: result.artist_name || userName,
+                    role:    result.role    || 'artist',
                     isArtist: true
                 };
 
                 // currentUser — structure attendue par app.js
+                // ⭐ FIX : id et googleId toujours en String (évite === raté avec entiers PHP)
                 const currentUser = {
-                    id:        userId,
-                    googleId:  userId,
+                    id:        String(userId),
+                    googleId:  String(userId),
                     email:     userEmail,
                     name:      userName,
                     picture:   result.avatar || '',
                     isArtist:  true,
-                    artistName: userName,
-                    isAdmin:   false
+                    artistName: result.artist_name || userName,
+                    isAdmin:   result.role === 'admin'
                 };
 
                 // ── Sauvegarder sous TOUTES les clés attendues ──

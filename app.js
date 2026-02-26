@@ -6416,8 +6416,11 @@ function enterGallery() {
                 this.nextId = 1;
             }
         }
-        const db = new ArtistDatabase('default');
-        // Note: données chargées depuis localStorage à switchArtist()
+        // ⭐ FIX ISOLATION : charger le bon slot artiste dès l'instanciation
+        // (restoreSession() a déjà restauré currentUser avant cette ligne)
+        const _initArtistId = currentUser?.id || currentUser?.googleId || currentUser?.email || 'default';
+        const db = new ArtistDatabase(_initArtistId);
+        // Note: données rechargées via switchArtist() à chaque changement d'artiste
         
         let editingArtworkId = null;
         let currentGalleryFilter = 'all';

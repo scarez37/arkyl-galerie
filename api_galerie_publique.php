@@ -135,7 +135,9 @@ function formatArtwork($oeuvre) {
         'techniqueCustom' => $oeuvre['technique_custom'] ?? null,
         'dimensions' => $dimensions,
         'description' => $oeuvre['description'] ?? null,
-        'artist_id' => !empty($oeuvre['artist_id']) ? intval($oeuvre['artist_id']) : null,  // ✅ AJOUTÉ
+        // ⭐ FIX : artist_id toujours en String pour éviter === raté côté JS
+        // (currentUser.id est une string, la comparaison === avec un int PHP échoue)
+        'artist_id' => !empty($oeuvre['artist_id']) ? (string) intval($oeuvre['artist_id']) : null,
         'artist' => $oeuvre['artist_name'] ?? null,
         'artist_name' => $oeuvre['artist_name'] ?? null,
         'artist_country' => $oeuvre['artist_country'] ?? null,

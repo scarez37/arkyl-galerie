@@ -10,13 +10,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
 require_once __DIR__ . '/db_config.php';
 
 function ensureColumns($db) {
-    // Ajouter les colonnes manquantes sans planter si elles existent déjà
+    // ⭐ FIX Bug 1 : Travailler sur la table 'artists' (pas 'users')
+    // api_connexion.php insère dans 'artists' → c'est la source de vérité
     $cols = [
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_style VARCHAR(20) DEFAULT 'slices'"
+        "ALTER TABLE artists ADD COLUMN IF NOT EXISTS avatar       TEXT",
+        "ALTER TABLE artists ADD COLUMN IF NOT EXISTS avatar_style VARCHAR(20) DEFAULT 'slices'",
+        "ALTER TABLE artists ADD COLUMN IF NOT EXISTS phone        VARCHAR(50)",
+        "ALTER TABLE artists ADD COLUMN IF NOT EXISTS country      VARCHAR(100)",
+        "ALTER TABLE artists ADD COLUMN IF NOT EXISTS specialty    TEXT",
+        "ALTER TABLE artists ADD COLUMN IF NOT EXISTS bio          TEXT",
+        "ALTER TABLE artists ADD COLUMN IF NOT EXISTS website      VARCHAR(500)",
+        "ALTER TABLE artists ADD COLUMN IF NOT EXISTS social       VARCHAR(500)",
     ];
     foreach ($cols as $sql) {
-        try { $db->exec($sql); } catch (Exception $e) { /* ignore */ }
+        try { $db->exec($sql); } catch (Exception $e) { /* ignore si colonne existe déjà */ }
     }
+}
+
+// ── Helper : désérialiser la specialty stockée en JSON ───────────────────────
+function parseSpecialty($raw) {
+    if (!$raw) return [];
+    // ⭐ FIX Bug 2 : specialty stockée en JSON → toujours retourner un tableau
+    if (is_array($raw)) return $raw;
+    $decoded = json_decode($raw, true);
+    if (is_array($decoded)) return $decoded;
+    // Fallback : c'est une chaîne simple (ex: "Peinture, Sculpture")
+    return array_filter(array_map('trim', explode(',', $raw)));
 }
 
 // ── GET : lecture publique du profil artiste ─────────────────────────────────
@@ -33,11 +52,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             exit;
         }
 
+        // ⭐ FIX Bug 1 : SELECT dans 'artists' (plus 'users')
+        // ⭐ FIX Bug 3 : Ajouter 'email' dans le SELECT
         if ($artistId) {
-            $stmt = $db->prepare("SELECT id, name, phone, country, specialty, bio, website, social, avatar, avatar_style FROM users WHERE id = :id LIMIT 1");
-            $stmt->execute([':id' => $artistId]);
+            $stmt = $db->prepare("
+                SELECT id, name, email, phone, country, specialty, bio,
+                       website, social, avatar, avatar_style
+                FROM artists
+                WHERE id::text = :id
+                LIMIT 1
+            ");
+            $stmt->execute([':id' => (string)$artistId]);
         } else {
-            $stmt = $db->prepare("SELECT id, name, phone, country, specialty, bio, website, social, avatar, avatar_style FROM users WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name)) LIMIT 1");
+            $stmt = $db->prepare("
+                SELECT id, name, email, phone, country, specialty, bio,
+                       website, social, avatar, avatar_style
+                FROM artists
+                WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name))
+                   OR LOWER(TRIM(artist_name)) = LOWER(TRIM(:name))
+                LIMIT 1
+            ");
             $stmt->execute([':name' => $artistName]);
         }
 
@@ -48,21 +82,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             exit;
         }
 
-        // Compter les oeuvres
-        $countStmt = $db->prepare("SELECT COUNT(*) as total FROM artworks WHERE artist_id = :id");
-        $countStmt->execute([':id' => $user['id']]);
+        // Compter les œuvres liées
+        $countStmt = $db->prepare("SELECT COUNT(*) as total FROM artworks WHERE artist_id::text = :id");
+        $countStmt->execute([':id' => (string)$user['id']]);
         $countRow = $countStmt->fetch(PDO::FETCH_ASSOC);
+
+        // ⭐ FIX Bug 2 : retourner specialty désérialisée (tableau, pas string JSON)
+        $specialtyArray = parseSpecialty($user['specialty']);
 
         echo json_encode([
             'success' => true,
             'artist'  => [
-                'id'            => $user['id'],
+                'id'            => (string)$user['id'],   // toujours string
                 'name'          => $user['name'],
+                'email'         => $user['email'] ?? '',  // ⭐ FIX Bug 3
                 'avatar'        => $user['avatar'],
                 'avatar_style'  => $user['avatar_style'] ?? 'slices',
                 'bio'           => $user['bio'],
-                'specialty'     => $user['specialty'],
+                'specialty'     => $specialtyArray,       // ⭐ tableau, pas JSON string
                 'country'       => $user['country'],
+                'phone'         => $user['phone'] ?? '',
                 'website'       => $user['website'],
                 'social'        => $user['social'],
                 'artworks_count'=> (int)($countRow['total'] ?? 0),
@@ -98,27 +137,38 @@ try {
         throw new Exception("Champs obligatoires manquants (artist_id, name, email).");
     }
 
-    $check = $db->prepare("SELECT id FROM users WHERE id = :id");
-    $check->execute([':id' => $artist_id]);
+    // ⭐ FIX Bug 1 : Vérifier/créer dans 'artists' (plus 'users')
+    // ⭐ FIX Bug 4 : Comparer artist_id en text pour éviter mismatch int/string
+    $check = $db->prepare("SELECT id FROM artists WHERE id::text = :id");
+    $check->execute([':id' => (string)$artist_id]);
     if (!$check->fetch()) {
-        $insert = $db->prepare("INSERT INTO users (id, name, email) VALUES (:id, :name, :email)");
+        // L'artiste devrait exister (créé à l'inscription) — insérer en fallback
+        $insert = $db->prepare("INSERT INTO artists (id, name, email) VALUES (:id, :name, :email)
+                                ON CONFLICT (id) DO NOTHING");
         $insert->execute([':id' => $artist_id, ':name' => $name, ':email' => $email]);
     }
 
-    $setClause = "name = :name, phone = :phone, country = :country,
+    // ⭐ FIX Bug 2 : Stocker specialty en JSON array (pas en string plate)
+    $specialtyJson = json_encode(is_array($specialty)
+        ? $specialty
+        : array_filter(array_map('trim', explode(',', $specialty)))
+    );
+
+    $setClause = "name = :name, email = :email, phone = :phone, country = :country,
                   specialty = :specialty, bio = :bio, website = :website, social = :social";
     $params = [
-        ':name'     => $name,
-        ':phone'    => $phone,
-        ':country'  => $country,
-        ':specialty'=> json_encode(is_array($specialty) ? $specialty : [$specialty]),
-        ':bio'      => $bio,
-        ':website'  => $website,
-        ':social'   => $social,
-        ':id'       => $artist_id,
+        ':name'      => $name,
+        ':email'     => $email,
+        ':phone'     => $phone,
+        ':country'   => $country,
+        ':specialty' => $specialtyJson,
+        ':bio'       => $bio,
+        ':website'   => $website,
+        ':social'    => $social,
+        ':id'        => (string)$artist_id,
     ];
 
-    if ($avatar) {
+    if ($avatar !== null) {
         $setClause .= ", avatar = :avatar";
         $params[':avatar'] = $avatar;
     }
@@ -127,12 +177,14 @@ try {
         $params[':avatar_style'] = $avatar_style;
     }
 
-    $stmt = $db->prepare("UPDATE users SET $setClause WHERE id = :id");
+    // ⭐ FIX Bug 4 : Comparer id::text pour compatibilité int/string
+    $stmt = $db->prepare("UPDATE artists SET $setClause WHERE id::text = :id");
     $stmt->execute($params);
 
+    // Synchroniser le nom dans les œuvres si changé
     if ($name) {
-        $db->prepare("UPDATE artworks SET artist_name = :name WHERE artist_id = :id")
-           ->execute([':name' => $name, ':id' => $artist_id]);
+        $db->prepare("UPDATE artworks SET artist_name = :name WHERE artist_id::text = :id")
+           ->execute([':name' => $name, ':id' => (string)$artist_id]);
     }
 
     echo json_encode(['success' => true, 'message' => 'Profil mis à jour avec succès.']);

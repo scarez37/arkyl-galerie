@@ -131,41 +131,46 @@ try {
         $artistId = $_GET['artist_id'] ?? '';
         $isAdmin  = isset($_GET['admin']) && $_GET['admin'] == '1';
 
+        // ⭐ FIX : Retourner artist_id toujours en TEXT (évite === raté côté JS entre string et int)
+        //         Retourner BOTH 'artist' ET 'artist_name' (app.js lit les deux selon les endroits)
+        $itemsJson = "
+            json_build_object(
+                'id',          oi.id,
+                'artwork_id',  oi.artwork_id,
+                'title',       oi.title,
+                'artist',      oi.artist_name,
+                'artist_name', oi.artist_name,
+                'artist_id',   oi.artist_id::text,
+                'price',       oi.price,
+                'quantity',    oi.quantity,
+                'image',       oi.image_url,
+                'image_url',   oi.image_url
+            )";
+
         if ($isAdmin) {
             $stmt = $db->query("
-                SELECT o.*, 
-                    json_agg(json_build_object(
-                        'id', oi.id, 'artwork_id', oi.artwork_id, 'title', oi.title,
-                        'artist', oi.artist_name, 'artist_id', oi.artist_id,
-                        'price', oi.price, 'quantity', oi.quantity, 'image', oi.image_url
-                    ) ORDER BY oi.id) as items
+                SELECT o.*,
+                    json_agg($itemsJson ORDER BY oi.id) as items
                 FROM orders o
                 LEFT JOIN order_items oi ON oi.order_id = o.id
                 GROUP BY o.id
                 ORDER BY o.created_at DESC
             ");
         } elseif ($artistId) {
+            // ⭐ FIX : Comparer artist_id::text pour éviter les mismatch int/string
             $stmt = $db->prepare("
                 SELECT DISTINCT o.*,
-                    json_agg(json_build_object(
-                        'id', oi.id, 'artwork_id', oi.artwork_id, 'title', oi.title,
-                        'artist', oi.artist_name, 'artist_id', oi.artist_id,
-                        'price', oi.price, 'quantity', oi.quantity, 'image', oi.image_url
-                    ) ORDER BY oi.id) as items
+                    json_agg($itemsJson ORDER BY oi.id) as items
                 FROM orders o
-                INNER JOIN order_items oi ON oi.order_id = o.id AND oi.artist_id = :aid
+                INNER JOIN order_items oi ON oi.order_id = o.id AND oi.artist_id::text = :aid
                 GROUP BY o.id
                 ORDER BY o.created_at DESC
             ");
-            $stmt->execute([':aid' => $artistId]);
+            $stmt->execute([':aid' => (string)$artistId]);
         } else {
             $stmt = $db->prepare("
                 SELECT o.*,
-                    json_agg(json_build_object(
-                        'id', oi.id, 'artwork_id', oi.artwork_id, 'title', oi.title,
-                        'artist', oi.artist_name, 'artist_id', oi.artist_id,
-                        'price', oi.price, 'quantity', oi.quantity, 'image', oi.image_url
-                    ) ORDER BY oi.id) as items
+                    json_agg($itemsJson ORDER BY oi.id) as items
                 FROM orders o
                 LEFT JOIN order_items oi ON oi.order_id = o.id
                 WHERE o.user_id = :uid
@@ -245,6 +250,7 @@ try {
         $orderId = $stmt->fetchColumn();
 
         // Insérer les articles
+        // ⭐ FIX : artist_id stocké en string (VARCHAR) pour cohérence avec les comparaisons JS
         foreach (($body['items'] ?? []) as $item) {
             $db->prepare("
                 INSERT INTO order_items (order_id, artwork_id, title, artist_name, artist_id, price, quantity, image_url)
@@ -253,8 +259,8 @@ try {
                 $orderId,
                 $item['artwork_id'] ?? $item['id'] ?? null,
                 $item['title'] ?? '',
-                $item['artist'] ?? '',
-                $item['artist_id'] ?? '',
+                $item['artist'] ?? $item['artist_name'] ?? '',
+                (string)($item['artist_id'] ?? ''),  // ⭐ toujours string
                 $item['price'] ?? 0,
                 $item['quantity'] ?? 1,
                 $item['image'] ?? $item['image_url'] ?? '',

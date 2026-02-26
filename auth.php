@@ -19,10 +19,18 @@ try {
         $name = $data['name'] ?? '';
         $email = $data['email'] ?? '';
         $password = $data['password'] ?? '';
-        $artist_name = $data['artist_name'] ?? '';
+        $artist_name = $data['artist_name'] ?? $name;
 
         if (empty($name) || empty($email) || empty($password)) {
             echo json_encode(['success' => false, 'message' => 'Veuillez remplir tous les champs']);
+            exit;
+        }
+
+        // ⭐ FIX : Vérifier si l'email existe déjà
+        $check = $db->prepare("SELECT id FROM artists WHERE email = ?");
+        $check->execute([$email]);
+        if ($check->fetch()) {
+            echo json_encode(['success' => false, 'message' => 'Cet email est déjà utilisé']);
             exit;
         }
 
@@ -31,7 +39,18 @@ try {
         $stmt = $db->prepare("INSERT INTO artists (name, artist_name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$name, $artist_name, $email, $hashedPassword, 'artist']);
 
-        echo json_encode(['success' => true, 'message' => 'Inscription réussie']);
+        // ⭐ FIX : Retourner l'ID du nouvel artiste pour permettre l'auto-login
+        $newId = (string) $db->lastInsertId();
+
+        echo json_encode([
+            'success'     => true,
+            'message'     => 'Inscription réussie',
+            'user_id'     => $newId,
+            'user_name'   => $name,
+            'user_email'  => $email,
+            'artist_name' => $artist_name,
+            'role'        => 'artist'
+        ]);
     } 
 
     // --- ACTION : CONNEXION ---
@@ -49,12 +68,24 @@ try {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($user && password_verify($password, $user['password_hash'])) {
-            // On stocke les informations en session
-            $_SESSION['user_id'] = $user['id'];
+            // Stocker en session (côté serveur)
+            $_SESSION['user_id']   = $user['id'];
             $_SESSION['user_name'] = $user['name'];
-            $_SESSION['role'] = $user['role'];
+            $_SESSION['role']      = $user['role'];
 
-            echo json_encode(['success' => true, 'message' => 'Connexion réussie']);
+            // ⭐ FIX : Retourner toutes les données nécessaires au frontend
+            // (connexion.html a besoin de user_id, name, email pour le localStorage)
+            echo json_encode([
+                'success'      => true,
+                'message'      => 'Connexion réussie',
+                'user_id'      => (string) $user['id'],      // Toujours string pour éviter === raté en JS
+                'user_name'    => $user['name']     ?? '',
+                'user_email'   => $user['email']    ?? '',
+                'artist_name'  => $user['artist_name'] ?? $user['name'] ?? '',
+                'avatar'       => $user['avatar']   ?? '',
+                'country'      => $user['country']  ?? 'Côte d\'Ivoire',
+                'role'         => $user['role']     ?? 'artist'
+            ]);
         } else {
             echo json_encode(['success' => false, 'message' => 'Email ou mot de passe incorrect']);
         }

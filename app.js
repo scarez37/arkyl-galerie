@@ -6443,6 +6443,10 @@ function enterGallery() {
             loadArtistArtworksFromServer();
         }
 
+        // ⭐ FIX : Compteur de tentatives pour le cold start Render.com
+        let _artworksRetryCount = 0;
+        const _ARTWORKS_MAX_RETRY = 3;
+
         // ⭐ Flag global : true pendant le chargement serveur, false après
         let _artworksLoading = false;
 
@@ -6481,6 +6485,7 @@ function enterGallery() {
                     });
 
                     console.log(`📊 API: ${result.data.length} artworks → après filtre ID client: ${filteredData.length}`);
+                    _artworksRetryCount = 0; // ⭐ Reset retry — le serveur répond correctement
                     
                     // L'API est déjà filtrée par artist_id côté serveur — pas besoin de refiltrer
                     // Le filtre client causait un dashboard vide si les noms de champs ne correspondaient pas
@@ -6504,20 +6509,38 @@ function enterGallery() {
                     const dashSection = document.getElementById('dashboardSection');
                     if (dashSection && dashSection.classList.contains('active')) updateDashboard();
                 } else {
-                    console.log('ℹ️ Aucune artwork retournée par l\'API pour cet artiste');
-                    db.artworks = [];
-                    renderArtworks();
+                    // ⭐ FIX : L'API retourne data:[] mais NE PAS effacer les œuvres existantes
+                    // Cause : Render.com (hébergement gratuit) se met en veille → répond vide
+                    // Si db.artworks est déjà rempli (session en cours), on conserve les données
+                    if (db.artworks.length === 0) {
+                        // Tenter un rechargement automatique (cold start Render.com)
+                        if (_artworksRetryCount < _ARTWORKS_MAX_RETRY) {
+                            _artworksRetryCount++;
+                            const delai = _artworksRetryCount * 4000; // 4s, 8s, 12s
+                            console.log(`🔄 Aucune œuvre reçue — retry ${_artworksRetryCount}/${_ARTWORKS_MAX_RETRY} dans ${delai/1000}s (serveur en cours de réveil)`);
+                            setTimeout(() => loadArtistArtworksFromServer(), delai);
+                        } else {
+                            // Vraiment aucune œuvre après plusieurs tentatives
+                            _artworksRetryCount = 0;
+                            renderArtworks();
+                        }
+                    } else {
+                        // On a déjà des œuvres en mémoire — conserver, ne pas écraser
+                        console.warn('⚠️ API retourne 0 artwork mais db.artworks a des données — conservation des données existantes');
+                    }
                 }
             } catch(e) {
-                console.error('❌ Erreur loadArtistArtworksFromServer:', e);
-                db.artworks = [];
-                renderArtworks();
+                // ⭐ FIX : Serveur injoignable (Render.com en veille, réseau coupé...)
+                // NE JAMAIS effacer db.artworks sur une erreur réseau !
+                // Avant : db.artworks = [] → effaçait toutes les œuvres du dashboard
+                console.error('❌ Erreur loadArtistArtworksFromServer (données conservées):', e);
+                showToast('⚠️ Serveur momentanément indisponible — données conservées en mémoire');
             } finally {
-                // ⭐ FIX : Toujours marquer la fin du chargement pour éviter le skeleton infini
                 _artworksLoading = false;
                 renderArtworks();
             }
         }
+
 
         function switchToClientMode() {
             document.getElementById('artistNav').style.display  = 'none';

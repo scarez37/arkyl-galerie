@@ -196,10 +196,31 @@
         const API_ADD = 'https://arkyl-galerie.onrender.com/api_ajouter_oeuvre.php';
         const API_DELETE = 'https://arkyl-galerie.onrender.com/api_supprimer_oeuvre.php';
 
-        // Vérification Connexion
-        const artistId = localStorage.getItem('user_id');
-        const artistName = localStorage.getItem('user_name');
-        const artistEmail = localStorage.getItem('user_email');
+        // ── Vérification Connexion ──────────────────────────────────
+        // Priorité : clés simples (user_id) → fallback arkyl_current_user (app.js)
+        let artistId    = localStorage.getItem('user_id');
+        let artistName  = localStorage.getItem('user_name');
+        let artistEmail = localStorage.getItem('user_email');
+
+        // ⭐ FIX : Fallback sur arkyl_current_user si les clés simples sont absentes
+        if (!artistId) {
+            try {
+                const raw = localStorage.getItem('arkyl_current_user');
+                if (raw) {
+                    const cu = JSON.parse(raw);
+                    if (cu && (cu.id || cu.googleId)) {
+                        artistId    = String(cu.id || cu.googleId);
+                        artistName  = cu.artistName || cu.name || '';
+                        artistEmail = cu.email || '';
+                        // Remettre en place les clés simples pour cohérence
+                        localStorage.setItem('user_id',    artistId);
+                        localStorage.setItem('user_name',  artistName);
+                        localStorage.setItem('user_email', artistEmail);
+                        console.log('✅ Session restaurée depuis arkyl_current_user:', artistId);
+                    }
+                }
+            } catch(e) { console.warn('Erreur lecture arkyl_current_user:', e); }
+        }
 
         console.log('🔍 Vérification de connexion:');
         console.log('  - User ID:', artistId);
@@ -207,9 +228,10 @@
         console.log('  - User Email:', artistEmail);
 
         if (!artistId) {
-            showAlert('Vous devez d\'abord vous inscrire !', 'warning');
+            // ⭐ FIX : rediriger vers connexion (pas inscription)
+            showAlert('Vous devez vous connecter pour accéder à votre espace artiste.', 'warning');
             setTimeout(() => {
-                window.location.href = 'inscription.html';
+                window.location.href = 'connexion.html';
             }, 2000);
         } else {
             // Afficher les infos utilisateur
@@ -218,6 +240,7 @@
             
             // Charger les données
             chargerMesOeuvres();
+            chargerStats();
         }
 
         // Fonction d'alerte
@@ -348,9 +371,9 @@
                 console.log('  - Artist Name:', currentArtistName);
                 
                 if (!currentArtistId) {
-                    showAlert('Erreur : Vous devez d\'abord vous inscrire !', 'error');
+                    showAlert('Erreur : Vous devez d\'abord vous connecter !', 'error');
                     setTimeout(() => {
-                        window.location.href = 'inscription.html';
+                        window.location.href = 'connexion.html';
                     }, 2000);
                     return;
                 }
@@ -364,8 +387,9 @@
                 });
 
                 // Préparer les données
+                // ⭐ FIX : artist_id envoyé en String (cohérent avec localStorage et comparaisons JS)
                 const dataToSend = {
-                    artist_id: parseInt(currentArtistId),
+                    artist_id: String(currentArtistId),
                     artist_name: currentArtistName,
                     artist_country: 'Côte d\'Ivoire',
                     title: title,
@@ -430,10 +454,16 @@
             try {
                 console.log('🗑️ Suppression de l\'œuvre ID:', id);
                 
+                // ⭐ FIX : Toujours envoyer artist_id pour que l'API vérifie l'ownership
+                const currentArtistId = localStorage.getItem('user_id') || artistId;
+                
                 const res = await fetch(API_DELETE, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: id })
+                    body: JSON.stringify({
+                        id: id,
+                        artist_id: String(currentArtistId)  // ⭐ sécurité ownership
+                    })
                 });
                 
                 const data = await res.json();
@@ -453,29 +483,21 @@
 
         function logout() {
             if (confirm('Voulez-vous vraiment vous déconnecter ?')) {
-                // 🧹 Récupérer les données AVANT suppression
-                const userId = localStorage.getItem('user_id');
-                const userEmail = localStorage.getItem('user_email');
+                // ⭐ FIX : NE PAS supprimer arkyl_artist_account_* 
+                // Ces clés doivent persister pour la reconnexion (comportement app.js)
                 
-                // 1️⃣ Supprimer les clés simples (utilisées par artist_dashboard.html)
+                // 1️⃣ Supprimer uniquement la session active
                 localStorage.removeItem('user_id');
                 localStorage.removeItem('user_name');
                 localStorage.removeItem('user_email');
-                
-                // 2️⃣ Supprimer les clés complexes (utilisées par app.js)
                 localStorage.removeItem('arkyl_current_user');
                 
-                // 3️⃣ Supprimer les clés artiste dynamiques
-                if (userId) {
-                    localStorage.removeItem(`arkyl_artist_account_${userId}`);
-                    console.log('✅ Clé artiste supprimée:', `arkyl_artist_account_${userId}`);
-                }
-                if (userEmail) {
-                    localStorage.removeItem(`arkyl_artist_account_email_${userEmail.toLowerCase()}`);
-                    console.log('✅ Clé artiste email supprimée');
-                }
+                // ❌ SUPPRIMÉ (était erroné) :
+                // localStorage.removeItem(`arkyl_artist_account_${userId}`);
+                // localStorage.removeItem(`arkyl_artist_account_email_${email}`);
+                // → Ces clés sont conservées pour la reconnexion automatique
                 
-                console.log('✅ Déconnexion complète - Toutes les clés supprimées');
+                console.log('✅ Déconnexion — session supprimée, compte artiste conservé');
                 window.location.href = 'index.html';
             }
         }
@@ -486,6 +508,42 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // ⭐ AJOUTÉ : Charger les statistiques de ventes et revenus
+        async function chargerStats() {
+            try {
+                const API_ORDERS = 'https://arkyl-galerie.onrender.com/api_orders.php';
+                const res = await fetch(`${API_ORDERS}?action=list&artist_id=${encodeURIComponent(artistId)}&t=${Date.now()}`);
+                
+                if (!res.ok) return; // Silencieux si l'API n'existe pas encore
+                
+                const json = await res.json();
+                if (!json.success || !json.orders) return;
+
+                let totalVentes = 0;
+                let totalRevenu = 0;
+
+                json.orders.forEach(order => {
+                    const items = (order.items || []).filter(item =>
+                        String(item.artist_id) === String(artistId) ||
+                        (item.artist_name && artistName &&
+                         item.artist_name.toLowerCase().trim() === artistName.toLowerCase().trim())
+                    );
+                    if (items.length > 0) {
+                        totalVentes += items.length;
+                        totalRevenu += items.reduce((sum, i) => sum + (parseFloat(i.price) || 0), 0);
+                    }
+                });
+
+                document.getElementById('stat-sales').textContent   = totalVentes;
+                document.getElementById('stat-revenue').textContent = totalRevenu.toLocaleString('fr-FR') + ' FCFA';
+                
+                console.log(`📊 Stats : ${totalVentes} vente(s) — ${totalRevenu} FCFA`);
+            } catch (e) {
+                // Silencieux : les stats sont optionnelles
+                console.warn('⚠️ Stats non disponibles:', e.message);
+            }
         }
     </script>
 </body>

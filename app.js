@@ -6443,6 +6443,9 @@ function enterGallery() {
             loadArtistArtworksFromServer();
         }
 
+        // ⭐ Flag global : true pendant le chargement serveur, false après
+        let _artworksLoading = false;
+
         async function loadArtistArtworksFromServer() {
             // Vérifier que l'ID artiste est bien défini (jamais charger sans filtre)
             const artistServerId = currentUser?.id || currentUser?.googleId;
@@ -6451,38 +6454,39 @@ function enterGallery() {
                 return;
             }
             // Afficher le skeleton pendant le chargement
+            _artworksLoading = true;
             showSkeletonLoader('artworksGrid', 6, 'grid');
             try {
                 const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(artistServerId)}&t=${Date.now()}`);
                 const result = await resp.json();
                 if (result.success && result.data && result.data.length > 0) {
-                    // Logger le premier item pour voir les champs disponibles
                     console.log('🔍 Champs API galerie:', Object.keys(result.data[0]));
                     console.log('🔍 artistServerId utilisé:', artistServerId);
                     console.log('🔍 Premier artwork:', result.data[0]);
 
-                    // 🔐 FILTRE DE SÉCURITÉ CLIENT : S'assurer que l'API n'a pas retourné les mauvaises données
-                    // Filtrer à nouveau côté client par artist_id (en cas d'erreur API)
+                    // ⭐ FIX BUG 1 & 2 : Filtre client UNIQUEMENT par artist_id (pas par nom)
+                    // Raison : art.artist_name = pseudonyme "Rockets"
+                    //          currentUser.name = vrai nom "Amela Go" → comparaison TOUJOURS fausse
+                    //          → filteredData = [] → skeleton infini
+                    // Le fallback par nom causait aussi le Bug 2 : œuvres d'autres artistes incluses
+                    //   si leur artist_name correspond au nom stocké dans currentUser.name
                     const filteredData = result.data.filter(art => {
                         const apiArtistId = art.artist_id || art.user_id || art.created_by;
-                        const artistNameMatches = art.artist_name && currentUser.name && 
-                            art.artist_name.toLowerCase() === currentUser.name.toLowerCase();
                         const idMatches = apiArtistId && String(apiArtistId) === String(artistServerId);
-                        
-                        const match = idMatches || artistNameMatches;
-                        if (!match) {
-                            console.warn('⚠️ Artwork filtré (pas de cet artiste):', art.title, 'artist_id:', apiArtistId, 'expected:', artistServerId);
+                        if (!idMatches) {
+                            console.warn('⚠️ Artwork filtré (artist_id différent):', art.title,
+                                'artist_id retourné:', apiArtistId, 'attendu:', artistServerId);
                         }
-                        return match;
+                        return idMatches;
                     });
-                    
-                    console.log(`📊 API a retourné ${result.data.length} artworks, après filtrage client: ${filteredData.length}`);
+
+                    console.log(`📊 API: ${result.data.length} artworks → après filtre ID client: ${filteredData.length}`);
                     
                     // L'API est déjà filtrée par artist_id côté serveur — pas besoin de refiltrer
                     // Le filtre client causait un dashboard vide si les noms de champs ne correspondaient pas
                     db.artworks = filteredData.map(art => ({
-                        id: art.id,               // ID PostgreSQL (int)
-                        server_id: art.id,        // Alias explicite
+                        id: art.id,
+                        server_id: art.id,
                         title: art.title,
                         category: art.category,
                         price: art.price,
@@ -6494,9 +6498,6 @@ function enterGallery() {
                         status: 'published',
                         createdAt: art.created_at || new Date().toISOString()
                     }));
-                    // 🔐 NE PAS sauvegarder dans localStorage (données du serveur = déjà persistées)
-                    // localStorage est limité et les images base64 le remplissent vite
-                    // Garder uniquement en mémoire (_memStore)
                     // Rafraîchir si déjà sur la section œuvres
                     const artSection = document.getElementById('artworksSection');
                     if (artSection && artSection.classList.contains('active')) renderArtworks();
@@ -6508,8 +6509,13 @@ function enterGallery() {
                     renderArtworks();
                 }
             } catch(e) {
-                // Silencieux — données locales suffisent
                 console.error('❌ Erreur loadArtistArtworksFromServer:', e);
+                db.artworks = [];
+                renderArtworks();
+            } finally {
+                // ⭐ FIX : Toujours marquer la fin du chargement pour éviter le skeleton infini
+                _artworksLoading = false;
+                renderArtworks();
             }
         }
 
@@ -7113,12 +7119,14 @@ function enterGallery() {
 
         function renderArtworks() {
             const c = document.getElementById('artworksGrid');
+            if (!c) return;
             if (!db.artworks.length) {
-                // Si en cours de chargement serveur, skeleton — sinon message vide
-                if (currentUser && currentUser.id) {
+                // ⭐ FIX : Skeleton UNIQUEMENT si le chargement est en cours
+                // Avant : skeleton permanent si user connecté → boucle infinie
+                if (_artworksLoading) {
                     showSkeletonLoader('artworksGrid', 6, 'grid');
                 } else {
-                    c.innerHTML = '<p style="text-align:center;opacity:0.7;grid-column:1/-1;">Aucune œuvre. Commencez à créer votre portfolio !</p>';
+                    c.innerHTML = '<p style="text-align:center;opacity:0.7;grid-column:1/-1;padding:40px;">Aucune œuvre. Commencez à créer votre portfolio ! 🎨</p>';
                 }
                 return;
             }

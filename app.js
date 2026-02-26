@@ -456,8 +456,79 @@ function enterGallery() {
         
         // ==================== ARTISTS DATA ====================
         let artistsData = {};
-        
-        // Données artistes initialisées en mémoire uniquement
+
+        // ⭐ FIX : saveArtistsData était appelée partout mais jamais définie → crash silencieux
+        function saveArtistsData() {
+            safeStorage.set('arkyl_artists_data', artistsData);
+        }
+
+        // ⭐ FIX : Charger artistes ET œuvres depuis le serveur pour le panneau admin
+        async function loadAdminDataFromServer() {
+            try {
+                // 1. Charger TOUTES les œuvres (sans filtre artist_id)
+                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=${Date.now()}`);
+                const result = await resp.json();
+
+                if (!result.success || !result.data) return;
+
+                const artworks = result.data;
+
+                // 2. Mettre à jour getProducts() avec les vraies données serveur
+                const products = artworks.map(art => ({
+                    id:          art.id,
+                    title:       art.title,
+                    artist:      art.artist_name || art.artist || 'Inconnu',
+                    artist_id:   String(art.artist_id || ''),
+                    category:    art.category || '',
+                    price:       art.price || 0,
+                    image:       art.image_url || art.image || '',
+                    badge:       art.badge || 'Disponible',
+                    status:      art.status || 'publiée',
+                    description: art.description || '',
+                    photos:      art.photos || []
+                }));
+                saveProducts(products);
+
+                // 3. Reconstruire artistsData depuis les œuvres + profils serveur
+                const artistNames = [...new Set(artworks.map(a => a.artist_name || a.artist).filter(Boolean))];
+
+                for (const name of artistNames) {
+                    if (artistsData[name]) continue; // Déjà chargé
+                    const works = artworks.filter(a => (a.artist_name || a.artist) === name);
+
+                    // Essayer de charger le profil complet depuis l'API
+                    let serverProfile = null;
+                    try {
+                        const pResp = await fetch(`https://arkyl-galerie.onrender.com/api_modifier_profil.php?artist_name=${encodeURIComponent(name)}&t=${Date.now()}`);
+                        if (pResp.ok) {
+                            const pResult = await pResp.json();
+                            if (pResult.success && pResult.artist) serverProfile = pResult.artist;
+                        }
+                    } catch(e) {}
+
+                    artistsData[name] = {
+                        email:        serverProfile?.email    || works[0]?.artist_email || '',
+                        avatar:       serverProfile?.avatar   || '👨🏿‍🎨',
+                        profileImage: serverProfile?.avatar && (serverProfile.avatar.startsWith('http') || serverProfile.avatar.startsWith('data:'))
+                                      ? serverProfile.avatar : null,
+                        specialty:    serverProfile?.specialty
+                                      ? (Array.isArray(serverProfile.specialty) ? serverProfile.specialty.join(', ') : serverProfile.specialty)
+                                      : (works[0]?.category || 'Artiste'),
+                        bio:          serverProfile?.bio     || `Artiste spécialisé en ${works[0]?.category || 'art'}`,
+                        country:      serverProfile?.country || works[0]?.artist_country || '',
+                        website:      serverProfile?.website || '',
+                        followers:    0,
+                        works:        works.length,
+                        rating:       0
+                    };
+                }
+
+                console.log(`✅ Admin data chargé : ${products.length} œuvres, ${artistNames.length} artistes`);
+
+            } catch(e) {
+                console.error('❌ Erreur loadAdminDataFromServer:', e);
+            }
+        }
 
         // ==================== FONCTIONS DE GESTION DES DONNÉES ====================
 
@@ -1029,7 +1100,10 @@ function enterGallery() {
             // Close menu and navigate to admin page
             document.getElementById('userMenuDropdown').classList.remove('show');
             navigateTo('admin');
-            switchAdminTab('overview'); // Show overview by default
+            // ⭐ FIX : Charger les vraies données depuis le serveur avant d'afficher le panneau
+            loadAdminDataFromServer().then(() => {
+                switchAdminTab('overview');
+            });
         }
 
         function goToAdminNews() {
@@ -1353,7 +1427,11 @@ function enterGallery() {
 
         // ========== ADMIN OVERVIEW DASHBOARD ==========
         
-        function renderAdminOverview() {
+        async function renderAdminOverview() {
+            // ⭐ FIX : S'assurer que les données sont chargées avant d'afficher
+            if (getProducts().length === 0 || Object.keys(artistsData).length === 0) {
+                await loadAdminDataFromServer();
+            }
             const products = getProducts();
             const artists = Object.keys(artistsData);
             // Utilise la variable globale newsItems (chargée depuis le serveur)
@@ -1487,18 +1565,21 @@ function enterGallery() {
             
             if (products.length === 0) {
                 showSkeletonLoader('adminArtworksList', 5, 'list');
-                // Après un court délai, afficher le vrai état vide si toujours rien
-                setTimeout(() => {
-                    if (getProducts().length === 0) {
+                // ⭐ FIX : Recharger depuis le serveur si vide (au lieu d'attendre 2s puis abandonner)
+                loadAdminDataFromServer().then(() => {
+                    const fresh = getProducts();
+                    if (fresh.length === 0) {
                         container.innerHTML = `
                             <div style="text-align: center; padding: 60px 20px; opacity: 0.7;">
                                 <div style="font-size: 60px; margin-bottom: 20px;">🖼️</div>
                                 <h3>Aucune œuvre</h3>
-                                <p>Ajoutez votre première œuvre pour commencer</p>
+                                <p>Aucune œuvre publiée pour le moment</p>
                             </div>
                         `;
+                    } else {
+                        renderAdminArtworks(); // Réafficher avec les données fraîches
                     }
-                }, 2000);
+                });
                 return;
             }
             
@@ -1664,13 +1745,21 @@ function enterGallery() {
             const artists = Object.entries(artistsData);
             
             if (artists.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align: center; padding: 60px 20px; opacity: 0.7;">
-                        <div style="font-size: 60px; margin-bottom: 20px;">👨‍🎨</div>
-                        <h3>Aucun artiste</h3>
-                        <p>Ajoutez votre premier artiste pour commencer</p>
-                    </div>
-                `;
+                // ⭐ FIX : Recharger depuis le serveur si artistsData vide
+                container.innerHTML = '<div style="text-align:center;padding:40px;opacity:0.6;">⏳ Chargement des artistes...</div>';
+                loadAdminDataFromServer().then(() => {
+                    if (Object.keys(artistsData).length === 0) {
+                        container.innerHTML = `
+                            <div style="text-align: center; padding: 60px 20px; opacity: 0.7;">
+                                <div style="font-size: 60px; margin-bottom: 20px;">👨‍🎨</div>
+                                <h3>Aucun artiste</h3>
+                                <p>Aucun artiste enregistré pour le moment</p>
+                            </div>
+                        `;
+                    } else {
+                        renderAdminArtists(); // Réafficher avec les données fraîches
+                    }
+                });
                 return;
             }
             

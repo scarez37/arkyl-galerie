@@ -6179,11 +6179,17 @@ function enterGallery() {
 
         function updateBadges() {
             const notifCount = notifications.filter(n => n.unread).length;
-            document.getElementById('notifBadge').textContent = notifCount;
-            document.getElementById('notifBadge').style.display = notifCount > 0 ? 'block' : 'none';
+            const notifBadge = document.getElementById('notifBadge');
+            if (notifBadge) {
+                notifBadge.textContent = notifCount;
+                notifBadge.style.display = notifCount > 0 ? 'block' : 'none';
+            }
 
-            document.getElementById('favBadge').textContent = favorites.length;
-            document.getElementById('favBadge').style.display = favorites.length > 0 ? 'block' : 'none';
+            const favBadge = document.getElementById('favBadge');
+            if (favBadge) {
+                favBadge.textContent = favorites.length;
+                favBadge.style.display = favorites.length > 0 ? 'block' : 'none';
+            }
 
             const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0);
             const cartBadge = document.getElementById('cartBadge');
@@ -8666,7 +8672,7 @@ function enterGallery() {
 
             if (resultat.success && resultat.data.length > 0) {
                 window.toutesLesOeuvres = resultat.data;
-                afficherOeuvresFiltrees();
+                window.afficherOeuvresFiltrees();
             } else {
                 grille.innerHTML = '<p style="text-align:center; width:100%;">La galerie est vide pour le moment.</p>';
             }

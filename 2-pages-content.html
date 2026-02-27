@@ -1,0 +1,275 @@
+    <!-- ==================== HOME PAGE ==================== -->
+    <div id="homePage" class="page active">
+        <h1 class="page-title"> d'Art Africaine</h1>
+        <p class="page-subtitle">Découvrez des œuvres authentiques créées par les meilleurs artistes africains</p>
+        
+        <!-- News Ticker - Liquid Glass Style -->
+        <!-- Filtre SVG sketch/crayon -->
+        <svg class="sketch-filter" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <filter id="sketch" x="-10%" y="-10%" width="120%" height="120%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="4" seed="5" result="noise"/>
+                    <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.5" xChannelSelector="R" yChannelSelector="G"/>
+                </filter>
+            </defs>
+        </svg>
+
+        <div class="news-ticker-container">
+            <div class="news-ticker-wrapper">
+                <div class="news-ticker-scroll-wrap" style="position:relative;">
+                    <button class="ticker-nav-btn ticker-nav-prev" onclick="tickerNav(-1)" title="Précédent">‹</button>
+                    <button class="ticker-nav-btn ticker-nav-next" onclick="tickerNav(1)" title="Suivant">›</button>
+                    <div class="news-ticker-scroll">
+                    <div class="news-ticker-content" id="newsTickerContent">
+                        <!-- Contenu chargé dynamiquement depuis le serveur -->
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="filter-container" id="filterContainer" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+            <button class="filter-btn active" id="mainFilterBtn" onclick="toggleCategoryBtns(event)" style="display:flex;align-items:center;gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M7 12h10M11 18h2" stroke="#d4af37" stroke-width="2" stroke-linecap="round"/></svg>
+                Filtre
+            </button>
+            <button class="filter-btn" id="rafraichirBtn" onclick="rafraichir(event)" style="display:flex;align-items:center;gap:8px;background:rgba(76,175,80,0.2);border:1px solid rgba(76,175,80,0.4);">
+                <canvas id="crossCanvas" width="24" height="24" style="display:block;"></canvas>
+                Rafraîchir
+            </button>
+            <div id="categoryBtns" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:36px;">
+                <button class="filter-btn" data-cat="all" onclick="selectCategory(this)">Toutes</button>
+                <button class="filter-btn" data-cat="Peinture" onclick="selectCategory(this)">🖼️ Peintures</button>
+                <button class="filter-btn" data-cat="Sculpture" onclick="selectCategory(this)">🗿 Sculptures</button>
+                <button class="filter-btn" data-cat="Abstrait" onclick="selectCategory(this)">✨ Abstrait</button>
+                <button class="filter-btn" data-cat="Plastique" onclick="selectCategory(this)">🎭 Art Plastique</button>
+                <button class="filter-btn" data-cat="Photographie" onclick="selectCategory(this)">📷 Photographie</button>
+                <button class="filter-btn" data-cat="Dessin" onclick="selectCategory(this)"> Dessin</button>
+                <button class="filter-btn" data-cat="Textile" onclick="selectCategory(this)">🧵 Textile</button>
+                <button class="filter-btn" data-cat="Céramique" onclick="selectCategory(this)">🏺 Céramique</button>
+                <button class="filter-btn" data-cat="Numérique" onclick="selectCategory(this)">💻 Numérique</button>
+
+            </div>
+        </div>
+
+        <!-- GALERIE DYNAMIQUE DEPUIS LA BASE DE DONNÉES -->
+        <div id="galerie-live" class="products-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 30px; padding: 20px 0;"></div>
+
+        <div id="productsContainer" class="products-grid">
+            <!-- Les œuvres seront chargées dynamiquement depuis la base de données -->
+        </div>
+        
+        <!-- External Resources Section -->
+        <div style="margin-top:60px;padding:30px;background:rgba(255,255,255,0.1);backdrop-filter:blur(20px);border-radius:20px;border:1px solid rgba(255,255,255,0.2);">
+            <h2 style="font-size:24px;margin-bottom:20px;text-align:center;">🌍 Ressources Externes</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;">
+                <a href="https://www.google.com/search?q=art+africain+contemporain" target="_blank" rel="noopener noreferrer" style="padding:15px;background:rgba(255,255,255,0.15);border-radius:12px;text-decoration:none;color:white;display:flex;align-items:center;gap:10px;transition:all 0.3s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-srch2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="11" cy="11" r="7" stroke="url(#g-srch2)" stroke-width="2.2" fill="none"/><path d="M16.5 16.5L21 21" stroke="url(#g-srch2)" stroke-width="2.2" stroke-linecap="round"/></svg>
+                    <span>Rechercher art africain</span>
+                </a>
+                <a href="https://www.instagram.com/explore/tags/artafricain/" target="_blank" rel="noopener noreferrer" style="padding:15px;background:rgba(255,255,255,0.15);border-radius:12px;text-decoration:none;color:white;display:flex;align-items:center;gap:10px;transition:all 0.3s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <span style="font-size:24px;">📸</span>
+                    <span>Instagram #artafricain</span>
+                </a>
+                <a href="https://en.wikipedia.org/wiki/African_art" target="_blank" rel="noopener noreferrer" style="padding:15px;background:rgba(255,255,255,0.15);border-radius:12px;text-decoration:none;color:white;display:flex;align-items:center;gap:10px;transition:all 0.3s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <span style="font-size:24px;">📚</span>
+                    <span>En savoir plus sur Wikipedia</span>
+                </a>
+                <a href="https://www.youtube.com/results?search_query=art+africain+contemporain" target="_blank" rel="noopener noreferrer" style="padding:15px;background:rgba(255,255,255,0.15);border-radius:12px;text-decoration:none;color:white;display:flex;align-items:center;gap:10px;transition:all 0.3s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <span style="font-size:24px;">🎥</span>
+                    <span>Vidéos YouTube</span>
+                </a>
+            </div>
+            <p style="text-align:center;margin-top:20px;opacity:0.8;font-size:14px;">🌐 Explorez l'art africain au-delà d'ARKYL</p>
+        </div>
+    </div>
+
+    <!-- ==================== FAVORITES PAGE ==================== -->
+    <div id="favoritesPage" class="page">
+        <h1 class="page-title">Mes Favoris</h1>
+        <p class="page-subtitle">Vos œuvres préférées</p>
+        <div id="favoritesContainer" class="products-grid"></div>
+        <div id="emptyFavorites" class="empty-state" style="display:none;">
+            <div class="empty-state-icon">❤️</div>
+            <h3>Aucun favori</h3>
+            <p>Explorez notre galerie et ajoutez vos œuvres préférées!</p>
+            <button class="modal-btn" onclick="navigateTo('home')">Parcourir les œuvres</button>
+        </div>
+    </div>
+
+    <!-- ==================== CART PAGE ==================== -->
+    <div id="cartPage" class="page">
+        <h1 class="page-title">Mon Panier</h1>
+        <p class="page-subtitle">Finalisez votre commande</p>
+        <div id="cartContainer"></div>
+    </div>
+
+    <!-- ==================== MY ORDERS PAGE ==================== -->
+    <div id="ordersPage" class="page">
+        <h1 class="page-title"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:8px"><defs><linearGradient id="g-ord" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z" fill="url(#g-ord)"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" fill="#a0a0b0" opacity="0.7"/></svg>Mes Commandes</h1>
+        <p class="page-subtitle">Suivez l'historique de vos achats</p>
+        <div id="ordersContainer"></div>
+    </div>
+
+    <!-- ==================== ADMIN ORDERS PAGE ==================== -->
+    <div id="adminOrdersPage" class="page">
+        <h1 class="page-title"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:8px"><defs><linearGradient id="g-gcmd" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="4" y="8" width="16" height="13" rx="2.5" fill="url(#g-gcmd)"/><path d="M9 8V6a3 3 0 0 1 6 0v2" stroke="#1a1a2e" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>Gestion des Commandes</h1>
+        <p class="page-subtitle">Gérez toutes les commandes clients</p>
+        
+        <div id="adminOrdersFilters" style="margin-bottom: 30px; display: flex; gap: 15px; flex-wrap: wrap;">
+            <button class="filter-btn active" onclick="filterAdminOrders('all')" data-filter="all">
+                Toutes (<span id="countAll">0</span>)
+            </button>
+            <button class="filter-btn" onclick="filterAdminOrders('En préparation')" data-filter="En préparation">
+                En préparation (<span id="countPending">0</span>)
+            </button>
+            <button class="filter-btn" onclick="filterAdminOrders('Expédiée')" data-filter="Expédiée">
+                Expédiée (<span id="countShipped">0</span>)
+            </button>
+            <button class="filter-btn" onclick="filterAdminOrders('Livrée')" data-filter="Livrée">
+                Livrée (<span id="countDelivered">0</span>)
+            </button>
+        </div>
+        
+        <div id="adminOrdersContainer"></div>
+    </div>
+
+    <!-- ==================== PRODUCT DETAIL PAGE ==================== -->
+    <div id="productDetailPage" class="page">
+        <button class="btn" onclick="navigateTo('home')" style="margin-bottom:20px; background: rgba(255, 255, 255, 0.25); border: 1px solid rgba(255, 255, 255, 0.3); color: white; padding: 12px 24px; border-radius: 20px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(255, 255, 255, 0.4)'; this.style.transform='scale(1.05)';" onmouseout="this.style.background='rgba(255, 255, 255, 0.25)'; this.style.transform='scale(1)';">← Retour à la galerie</button>
+        <div id="productDetailContainer"></div>
+    </div>
+
+    <!-- ==================== ARTIST DETAIL PAGE ==================== -->
+    <div id="artistDetailPage" class="page">
+        <button class="btn" onclick="navigateTo('home')" style="margin-bottom:20px; background: rgba(255, 255, 255, 0.25); border: 1px solid rgba(255, 255, 255, 0.3); color: white; padding: 12px 24px; border-radius: 20px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(255, 255, 255, 0.4)'; this.style.transform='scale(1.05)';" onmouseout="this.style.background='rgba(255, 255, 255, 0.25)'; this.style.transform='scale(1)';">← Retour</button>
+        <div id="artistDetailContainer"></div>
+    </div>
+
+    <!-- ==================== DEVENIR ARTISTE PAGE ==================== -->
+    <div id="becomeArtistPage" class="page">
+        <div class="become-artist-hero">
+            <span class="hero-icon"></span>
+            <h1>Devenir Artiste sur ARKYL</h1>
+            <p>Rejoignez notre communauté de créateurs africains. Publiez vos œuvres, touchez des collectionneurs passionnés et développez votre carrière artistique.</p>
+        </div>
+
+        <div class="benefits-grid">
+            <div class="benefit-card">
+                <span class="benefit-icon">🖼️</span>
+                <h3>Portfolio en ligne</h3>
+                <p>Créez votre espace personnel et showcasez vos œuvres à un public mondial.</p>
+            </div>
+            <div class="benefit-card">
+                <span class="benefit-icon">💰</span>
+                <h3>Ventes directes</h3>
+                <p>Vendez vos œuvres sans intermédiaire et conservez la majeure partie de vos revenus.</p>
+            </div>
+            <div class="benefit-card">
+                <span class="benefit-icon">📈</span>
+                <h3>Tableau de bord</h3>
+                <p>Suivez vos performances, vos ventes et l'engagement de votre audience en temps réel.</p>
+            </div>
+            <div class="benefit-card">
+                <span class="benefit-icon">🌍</span>
+                <h3>Communauté africaine</h3>
+                <p>Rejoignez un réseau de artistes africains engagés dans la promotion de l'art du continent.</p>
+            </div>
+        </div>
+
+        <div class="become-artist-cta">
+            <button class="btn-become-artist" onclick="openArtistRegistration()"> Créer mon compte artiste</button>
+            <p>Inscription gratuite · Aucun engagement</p>
+        </div>
+    </div>
+
+    <!-- ==================== ADMIN NEWS MANAGEMENT PAGE ==================== -->
+    <div id="adminNewsPage" class="page">
+        <h1 class="page-title"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:8px"><defs><linearGradient id="g-gnws" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><rect x="3" y="4" width="18" height="16" rx="3" fill="url(#g-gnws)"/><path d="M7 8h10M7 12h7M7 16h5" stroke="#1a1a2e" stroke-width="1.5" stroke-linecap="round"/></svg>Gestion des Actualités</h1>
+        <p class="page-subtitle">Gérez le contenu de la barre d'actualités</p>
+        
+        <div style="max-width: 900px; margin: 0 auto;">
+            <!-- Boutons actions -->
+            <div style="margin-bottom: 30px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                <button onclick="deleteAllNews()" style="background: rgba(220,50,50,0.15); border: 1px solid rgba(220,50,50,0.4); color: #ff6b6b; padding: 12px 22px; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer;">
+                    🗑️ Supprimer tout
+                </button>
+                <button class="btn" onclick="openAddNewsModal()" style="background: linear-gradient(135deg, var(--terre-cuite), var(--terre-sombre)); border: none; color: white; padding: 14px 28px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="9" fill="#d4af37"/><path d="M12 8v8M8 12h8" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round"/></svg> Ajouter une actualité
+                </button>
+            </div>
+
+            <!-- Liste des actualités -->
+            <div id="newsListContainer"></div>
+        </div>
+    </div>
+
+    <!-- ==================== ADMIN MANAGEMENT PAGE ==================== -->
+    <!-- ==================== MES ARTISTES PAGE ==================== -->
+    <div id="myArtistsPage" class="page" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%); min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif; position: relative;">
+        
+        <!-- Effet glassmorphism background -->
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(100px); -webkit-backdrop-filter: blur(100px);"></div>
+        
+        <!-- Content wrapper avec glassmorphism -->
+        <div style="position: relative; z-index: 1;">
+        
+        <!-- Header avec tabs -->
+        <div style="position: sticky; top: 90px; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 100; border-bottom: 1px solid rgba(255, 255, 255, 0.3); padding: 20px 0; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);">
+            <div style="max-width: 680px; margin: 0 auto; padding: 0 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+                    <h1 style="font-size: 32px; font-weight: 800; color: #ffffff; margin: 0; letter-spacing: -0.5px; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);">Mes Artistes</h1>
+                    <button onclick="navigateTo('home')" style="background: rgba(255, 255, 255, 0.25); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.3); color: white; padding: 10px 20px; border-radius: 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); white-space: nowrap;" onmouseover="this.style.transform='translateY(-2px)'; this.style.background='rgba(255, 255, 255, 0.35)'; this.style.boxShadow='0 6px 20px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.background='rgba(255, 255, 255, 0.25)'; this.style.boxShadow='0 4px 15px rgba(0, 0, 0, 0.1)'">
+                        ✨ Découvrir
+                    </button>
+                </div>
+                
+                <!-- Tabs -->
+                <div style="display: flex; gap: 0; border-bottom: 2px solid rgba(255, 255, 255, 0.2);">
+                    <button class="artist-tab active" onclick="switchArtistTab('all')" data-tab="all" style="flex: 1; background: none; border: none; padding: 14px 0; font-size: 15px; font-weight: 700; color: rgba(255, 255, 255, 0.7); border-bottom: 3px solid transparent; cursor: pointer; transition: all 0.3s ease; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+                        Tous
+                    </button>
+                    <button class="artist-tab" onclick="switchArtistTab('following')" data-tab="following" style="flex: 1; background: none; border: none; padding: 14px 0; font-size: 15px; font-weight: 700; color: rgba(255, 255, 255, 0.7); border-bottom: 3px solid transparent; cursor: pointer; transition: all 0.3s ease; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+                        Abonnements
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div style="max-width: 680px; margin: 0 auto; padding: 0 16px 100px;">
+            
+            <!-- Section: Artistes suivis en haut (Your Loop) -->
+            <div id="followedArtistsSection" style="margin: 32px 0;">
+                <div style="font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.9); margin-bottom: 18px; text-transform: uppercase; letter-spacing: 1.2px; font-family: 'Segoe UI', sans-serif; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">Vos Artistes Préférés</div>
+                
+                <!-- Carousel horizontal d'avatars -->
+                <div id="followedArtistsCarousel" style="display: flex; gap: 20px; overflow-x: auto; padding: 12px 0; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
+                    <!-- Sera rempli dynamiquement -->
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyArtistsState" style="display: none; text-align: center; padding: 80px 24px; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 24px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15); border: 1px solid rgba(255, 255, 255, 0.3);">
+                <div style="font-size: 96px; margin-bottom: 24px; opacity: 0.8; filter: grayscale(0);"></div>
+                <h2 style="font-size: 26px; font-weight: 800; color: #ffffff; margin-bottom: 12px; letter-spacing: -0.5px; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);">Aucun artiste suivi</h2>
+                <p style="font-size: 16px; color: rgba(255, 255, 255, 0.9); margin-bottom: 32px; line-height: 1.5; max-width: 400px; margin-left: auto; margin-right: auto;">Découvrez des artistes talentueux et suivez leurs créations pour les retrouver ici</p>
+                <button onclick="navigateTo('home')" style="background: rgba(255, 255, 255, 0.3); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.4); color: white; padding: 14px 32px; border-radius: 28px; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-3px)'; this.style.background='rgba(255, 255, 255, 0.4)'; this.style.boxShadow='0 6px 20px rgba(0, 0, 0, 0.25)'" onmouseout="this.style.transform='translateY(0)'; this.style.background='rgba(255, 255, 255, 0.3)'; this.style.boxShadow='0 4px 16px rgba(0, 0, 0, 0.2)'">
+                    Découvrir les artistes
+                </button>
+            </div>
+
+            <!-- Section: Loops des artistes (feed style) -->
+            <div id="artistsLoopsSection" style="margin-top: 36px;">
+                <div style="font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.9); margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1.2px; font-family: 'Segoe UI', sans-serif; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">Créations Récentes</div>
+                <div id="artistsLoopsFeed">
+                    <!-- Sera rempli dynamiquement avec les posts/œuvres -->
+                </div>
+            </div>
+
+        </div>
+        </div>
+        <!-- Fin content wrapper glassmorphism -->
+
+        
+    </div>

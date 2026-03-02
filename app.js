@@ -3728,11 +3728,13 @@ function enterGallery() {
                 // ⭐ Marquer les œuvres achetées comme vendues → les retirer de la galerie
                 marquerOeuvresVendues(order.items || []);
 
-                // Sync avec le serveur en arrière-plan
-                syncOrderToServer(order).then(() => {
-                    console.log('🌐 Commande synchronisée avec le serveur');
-                }).catch(() => {
-                    console.log('⚠️ Sync serveur échouée — commande conservée localement');
+                // Sync avec le serveur — résultat visible dans la console
+                syncOrderToServer(order).then(success => {
+                    if (success) {
+                        console.log('✅ Commande synchronisée avec la base de données');
+                    } else {
+                        console.error('❌ Sync BDD échouée — commande uniquement en localStorage');
+                    }
                 });
 
                 // Envoyer les notifications
@@ -3835,55 +3837,77 @@ function enterGallery() {
         }
 
         async function syncOrderToServer(order) {
-            try {
-                const items = order.items.map(i => ({
-                    artwork_id: i.id || i.artwork_id,
-                    title: i.title,
-                    artist: i.artist || i.artist_name,
-                    artist_name: i.artist_name || i.artist,
-                    // ⭐ FIX : normaliser les deux variantes snake_case / camelCase
-                    artist_id: i.artist_id || i.artistId || '',
-                    price: i.price,
-                    quantity: i.quantity || 1,
-                    image: i.image || i.image_url || '',
-                    image_url: i.image_url || i.image || ''
-                }));
+            const userId = currentUser?.id || currentUser?.googleId || currentUser?.email || '';
+            if (!userId) {
+                console.error('❌ syncOrderToServer — user_id manquant, sync annulée');
+                return false;
+            }
 
-                // 🔍 DEBUG — vérifier que artist_id est bien présent
-                console.log('📦 syncOrderToServer — items envoyés:', items.map(i => ({
-                    title: i.title,
-                    artwork_id: i.artwork_id,
-                    artist_id: i.artist_id,
-                    artist_name: i.artist_name
-                })));
-                console.log('🔑 user_id envoyé:', currentUser?.id || currentUser?.googleId || currentUser?.email);
+            const items = order.items.map(i => ({
+                artwork_id: i.id || i.artwork_id,
+                title:      i.title,
+                artist:     i.artist || i.artist_name || '',
+                artist_name: i.artist_name || i.artist || '',
+                artist_id:  i.artist_id || i.artistId || '',
+                price:      i.price,
+                quantity:   i.quantity || 1,
+                image:      i.image || i.image_url || '',
+                image_url:  i.image_url || i.image || ''
+            }));
+
+            const payload = {
+                action:           'create',
+                user_id:          userId,
+                user_name:        order.user_name || order.user || currentUser?.name || '',
+                user_email:       order.user_email || order.userEmail || currentUser?.email || '',
+                subtotal:         order.subtotal  || 0,
+                tax:              order.tax       || 0,
+                shipping_cost:    order.shippingCost || order.shipping_cost || 0,
+                total:            order.total     || 0,
+                shipping_name:    order.shippingName  || order.shipping_name  || '',
+                shipping_mode:    order.shippingMode  || order.shipping_mode  || '',
+                shipping_address: order.shippingAddress || order.shipping_address || '',
+                payment_method:   order.paymentMethod || order.payment_method || 'Stripe',
+                items
+            };
+
+            console.log('📤 syncOrderToServer → envoi vers:', ORDERS_API);
+            console.log('📤 payload items:', items.map(i => ({ title: i.title, artwork_id: i.artwork_id, artist_id: i.artist_id })));
+
+            try {
                 const resp = await fetch(ORDERS_API, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'create',
-                        user_id: currentUser?.id || currentUser?.googleId || currentUser?.email || '',
-                        user_name: order.user || currentUser?.name || '',
-                        user_email: order.userEmail || currentUser?.email || '',
-                        subtotal: order.subtotal,
-                        tax: order.tax,
-                        shipping_cost: order.shippingCost || 0,
-                        total: order.total,
-                        shipping_name: order.shippingName || '',
-                        shipping_mode: order.shippingMode || '',
-                        shipping_address: order.shippingAddress || '',
-                        payment_method: order.paymentMethod || '',
-                        items
-                    })
+                    body: JSON.stringify(payload)
                 });
-                const r = await resp.json();
-                if (r.success) {
-                    // Sauvegarder le server_id localement
-                    order.server_id = r.order_id;
-                    order.order_number = r.order_number;
-                    safeStorage.set('arkyl_orders', orderHistory);
+
+                const rawText = await resp.text();
+                console.log('📥 syncOrderToServer — réponse brute:', rawText);
+
+                let r;
+                try { r = JSON.parse(rawText); }
+                catch(e) {
+                    console.error('❌ syncOrderToServer — réponse non-JSON:', rawText);
+                    showToast('⚠️ Erreur serveur commande — voir console F12');
+                    return false;
                 }
-            } catch(e) { /* silencieux */ }
+
+                if (r.success) {
+                    order.server_id    = r.order_id;
+                    order.order_number = r.order_number || order.order_number;
+                    safeStorage.set('arkyl_orders', orderHistory);
+                    console.log('✅ syncOrderToServer — commande créée en BDD, id:', r.order_id, 'num:', r.order_number);
+                    return true;
+                } else {
+                    console.error('❌ syncOrderToServer — échec API:', r.error || r.message);
+                    showToast('⚠️ Sync commande échouée : ' + (r.error || r.message || 'erreur inconnue'));
+                    return false;
+                }
+            } catch(e) {
+                console.error('❌ syncOrderToServer — erreur réseau:', e.message);
+                showToast('⚠️ Serveur injoignable — commande sauvegardée localement');
+                return false;
+            }
         }
 
         async function loadOrdersFromServer() {

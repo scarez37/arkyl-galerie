@@ -3569,11 +3569,14 @@ function enterGallery() {
                             id: i.id || i.artwork_id,
                             artwork_id: i.id || i.artwork_id,
                             title: i.title,
-                            artist: i.artist,
-                            artist_id: i.artistId || '',
+                            artist: i.artist || i.artist_name,
+                            artist_name: i.artist_name || i.artist,
+                            // ⭐ FIX : artist_id peut être snake_case OU camelCase selon la source
+                            artist_id: i.artist_id || i.artistId || '',
                             price: i.price,
                             quantity: i.quantity || 1,
-                            image: i.image_url || i.image || ''
+                            image: i.image_url || i.image || '',
+                            image_url: i.image_url || i.image || ''
                         })),
                         subtotal,
                         tax,
@@ -3827,11 +3830,14 @@ function enterGallery() {
                 const items = order.items.map(i => ({
                     artwork_id: i.id || i.artwork_id,
                     title: i.title,
-                    artist: i.artist,
-                    artist_id: i.artistId || i.artist_id || '',
+                    artist: i.artist || i.artist_name,
+                    artist_name: i.artist_name || i.artist,
+                    // ⭐ FIX : normaliser les deux variantes snake_case / camelCase
+                    artist_id: i.artist_id || i.artistId || '',
                     price: i.price,
                     quantity: i.quantity || 1,
-                    image: i.image || i.image_url || ''
+                    image: i.image || i.image_url || '',
+                    image_url: i.image_url || i.image || ''
                 }));
                 const resp = await fetch(ORDERS_API, {
                     method: 'POST',

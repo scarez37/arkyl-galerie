@@ -33,7 +33,7 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
 }
 
 // 🔑 Clé secrète Stripe (test)
-\Stripe\Stripe::setApiKey('je vais mettre après');
+\Stripe\Stripe::setApiKey('sk_test_51T2gpFF55lBdracChUzrVSa166Skh4ob49dtF3j0pa27zcWMk1YLnvt5Wz788K7O0CpIMJPMZcaKDqG241vgQ8tj00EY87nxyZ');
 
 try {
     $db = getDatabase();
@@ -42,7 +42,7 @@ try {
     $data  = json_decode($input, true);
 
     $user_id        = $data['user_id']        ?? '';
-    // 🆕 Le front peut envoyer le panier localStorage en secours
+    // Le front peut envoyer le panier localStorage en secours
     $cart_fallback  = $data['cart_items']     ?? [];
     // Frais de livraison envoyés depuis le panier JS
     $shipping_cost  = intval($data['shipping_cost']  ?? 3000);  // FCFA
@@ -56,8 +56,9 @@ try {
     // ─────────────────────────────────────────────────────────────────
     // ÉTAPE 1 — Chercher le panier en base PostgreSQL (source de vérité)
     // ─────────────────────────────────────────────────────────────────
+    // 🆕 AJOUT : a.artist_id pour savoir à qui appartient l'œuvre
     $stmt = $db->prepare("
-        SELECT c.quantity, c.artwork_id, a.title, a.price, a.image_url
+        SELECT c.quantity, c.artwork_id, a.title, a.price, a.image_url, a.artist_id
         FROM cart c
         INNER JOIN artworks a ON c.artwork_id = a.id
         WHERE c.user_id = :user_id
@@ -71,7 +72,6 @@ try {
     // ─────────────────────────────────────────────────────────────────
     if (empty($cartItems) && !empty($cart_fallback)) {
 
-        // Resynchroniser chaque article dans la table cart
         $upsertStmt = $db->prepare("
             INSERT INTO cart (user_id, artwork_id, quantity)
             VALUES (:user_id, :artwork_id, :quantity)
@@ -85,8 +85,8 @@ try {
             $quantity   = intval($fbItem['quantity'] ?? 1);
             if ($artwork_id <= 0) continue;
 
-            // Vérifier que l'œuvre existe vraiment en base (sécurité anti-falsification)
-            $checkStmt = $db->prepare("SELECT id, title, price FROM artworks WHERE id = :id");
+            // 🆕 AJOUT : artist_id dans la vérification de sécurité
+            $checkStmt = $db->prepare("SELECT id, title, price, artist_id FROM artworks WHERE id = :id");
             $checkStmt->execute([':id' => $artwork_id]);
             $artwork = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -99,8 +99,9 @@ try {
                 $validItems[] = [
                     'artwork_id' => $artwork_id,
                     'title'      => $artwork['title'],
-                    'price'      => $artwork['price'], // ✅ Prix de la BDD, jamais du front
-                    'quantity'   => $quantity
+                    'price'      => $artwork['price'],
+                    'quantity'   => $quantity,
+                    'artist_id'  => $artwork['artist_id'] // 🆕 Sauvegarde de l'ID artiste
                 ];
             }
         }
@@ -118,11 +119,6 @@ try {
 
     // ─────────────────────────────────────────────────────────────────
     // ÉTAPE 3 — Calculer le total en FCFA et convertir pour Stripe
-    //
-    // ⚠️  Stripe ne supporte pas XOF (FCFA) nativement.
-    //     Solution retenue : on affiche les prix en EUR en divisant par
-    //     le taux de change fixe CFA → EUR (1 EUR ≈ 655.957 FCFA).
-    //     Les montants restent EXACTS côté ARKYL.
     // ─────────────────────────────────────────────────────────────────
     define('FCFA_TO_EUR', 655.957);
 
@@ -131,7 +127,6 @@ try {
         $price_fcfa = floatval($item['price']);
         $price_eur_cents = intval(round(($price_fcfa / FCFA_TO_EUR) * 100));
 
-        // Sécurité : Stripe exige un minimum de 50 centimes
         if ($price_eur_cents < 50) $price_eur_cents = 50;
 
         $line_items[] = [
@@ -148,7 +143,7 @@ try {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // ÉTAPE 3b — Ajouter les frais de livraison comme ligne Stripe
+    // ÉTAPE 3b — Ajouter les frais de livraison
     // ─────────────────────────────────────────────────────────────────
     if ($shipping_cost > 0) {
         $shipping_eur_cents = intval(round(($shipping_cost / FCFA_TO_EUR) * 100));
@@ -168,8 +163,28 @@ try {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // ÉTAPE 4 — Générer un order_id unique et le passer à Stripe
-    //           pour pouvoir retrouver la commande dans le webhook
+    // ÉTAPE 3.5 — 💰 CALCUL DE LA COMMISSION ARKYL (31%)
+    // ─────────────────────────────────────────────────────────────────
+    $total_artworks_fcfa = 0;
+    $first_artist_id = null; 
+
+    foreach ($cartItems as $item) {
+        // On additionne uniquement le prix des œuvres (sans la livraison)
+        $total_artworks_fcfa += (floatval($item['price']) * intval($item['quantity']));
+        
+        // On récupère l'ID de l'artiste concerné
+        if (!$first_artist_id && isset($item['artist_id'])) {
+            $first_artist_id = $item['artist_id'];
+        }
+    }
+
+    // Calcul de la répartition
+    $commission_rate = 0.31;
+    $commission_amount = $total_artworks_fcfa * $commission_rate; // 31% pour ARKYL
+    $artist_payout = $total_artworks_fcfa - $commission_amount;   // 69% pour l'artiste
+
+    // ─────────────────────────────────────────────────────────────────
+    // ÉTAPE 4 — Générer la session Stripe avec le "sac à dos" (metadata)
     // ─────────────────────────────────────────────────────────────────
     $order_id = 'ARKYL-' . strtoupper(substr(md5($user_id . microtime()), 0, 8));
 
@@ -177,22 +192,25 @@ try {
         'payment_method_types' => ['card'],
         'line_items'           => $line_items,
         'mode'                 => 'payment',
-        'client_reference_id'  => $user_id,  // 🆕 Stripe garde la trace du client
-        'metadata'             => [           // 🆕 Données custom récupérables dans le webhook
-            'order_id'      => $order_id,
-            'user_id'       => $user_id,
-            'shipping_cost' => $shipping_cost,
-            'shipping_mode' => $shipping_mode,
+        'client_reference_id'  => $user_id,  
+        'metadata'             => [           
+            'order_id'          => $order_id,
+            'user_id'           => $user_id,
+            'artist_id'         => $first_artist_id,   // 🆕 ID de l'artiste
+            'shipping_cost'     => $shipping_cost,
+            'shipping_mode'     => $shipping_mode,
+            'commission_amount' => $commission_amount, // 🆕 Part ARKYL
+            'artist_payout'     => $artist_payout,     // 🆕 Part Artiste
         ],
-        // ✅ On passe l'order_id dans l'URL de succès pour afficher la confirmation
-        'success_url' => 'https://arkyl-galerie.onrender.com/index.html?order_id=' . $order_id . '&session_id={CHECKOUT_SESSION_ID}',
-        'cancel_url'  => 'https://arkyl-galerie.onrender.com/index.html',
+        // 🆕 IMPORTANT : Modification en index.php au lieu de index.html
+        'success_url' => 'https://arkyl-galerie.onrender.com/index.php?order_id=' . $order_id . '&session_id={CHECKOUT_SESSION_ID}',
+        'cancel_url'  => 'https://arkyl-galerie.onrender.com/index.php',
     ]);
 
     echo json_encode([
         'success'    => true,
         'url'        => $checkout_session->url,
-        'order_id'   => $order_id,  // 🆕 Renvoyé au front pour référence
+        'order_id'   => $order_id,  
         'session_id' => $checkout_session->id,
     ]);
 

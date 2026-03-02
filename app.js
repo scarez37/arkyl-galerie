@@ -2751,9 +2751,9 @@ function enterGallery() {
                 </div>` : '';
 
             const confirmBtn = es === 'expédiée' ? `
-                <button class="confirm-reception-btn" onclick="confirmReception('${order.server_id || order.id}')">
+                <button class="confirm-reception-btn" onclick="confirmerReception('${order.server_id || order.id}')">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-                    J'ai bien reçu mon œuvre — Libérer les fonds
+                    📦 Colis bien reçu
                 </button>` : '';
 
             const countdownHtml = (es === 'expédiée' && order.escrow_auto_release_date) ? (() => {
@@ -9237,15 +9237,18 @@ function enterGallery() {
                 const data = await response.json();
 
                 if (data.success) {
-                    alert("🎉 Merci ! La réception est confirmée. L'artiste va recevoir son argent.");
-                    // Si tu as une fonction qui recharge l'historique des commandes, appelle-la ici :
-                    // chargerHistoriqueCommandes(); 
-                    location.reload(); // En attendant, on recharge la page pour mettre à jour l'affichage
+                    showToast('🎉 Merci ! La réception est confirmée. L\'artiste va recevoir son argent.');
+                    // Recharger les commandes pour mettre à jour l'affichage
+                    if (typeof renderOrders === 'function') {
+                        await renderOrders();
+                    } else {
+                        location.reload();
+                    }
                 } else {
-                    alert("Erreur : " + data.message);
+                    showToast('❌ Erreur : ' + (data.message || 'Erreur inconnue'));
                 }
             } catch (error) {
-                console.error("Erreur lors de la confirmation :", error);
-                alert("Une erreur de connexion est survenue.");
+                console.error('Erreur lors de la confirmation :', error);
+                showToast('❌ Une erreur de connexion est survenue.');
             }
         }

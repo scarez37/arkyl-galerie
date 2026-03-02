@@ -29,10 +29,11 @@ try {
     }
 
     // Vérifier que l'œuvre appartient bien à cet artiste
-    $check = $db->prepare("SELECT id FROM artworks WHERE id = :id AND artist_id = :artist_id");
-    $check->execute([':id' => $artwork_id, ':artist_id' => $artist_id]);
+    // ⭐ FIX : artist_id::text pour compatibilité avec Google IDs (chaînes longues)
+    $check = $db->prepare("SELECT id FROM artworks WHERE id = :id AND artist_id::text = :artist_id");
+    $check->execute([':id' => $artwork_id, ':artist_id' => (string)$artist_id]);
     if (!$check->fetch()) {
-        throw new Exception("Œuvre introuvable ou accès refusé.");
+        throw new Exception("Œuvre introuvable ou accès refusé (artwork_id=$artwork_id, artist_id=$artist_id).");
     }
 
     // Construire le UPDATE dynamiquement selon si on a une nouvelle image
@@ -47,7 +48,7 @@ try {
         ':dimensions'  => $dimensions ? json_encode($dimensions) : null,
         ':photos'      => !empty($photos) ? json_encode($photos) : null,
         ':id'          => $artwork_id,
-        ':artist_id'   => $artist_id,
+        ':artist_id'   => (string)$artist_id,
     ];
 
     if ($image_url) {
@@ -55,7 +56,7 @@ try {
         $params[':image_url'] = $image_url;
     }
 
-    $stmt = $db->prepare("UPDATE artworks SET $setClause WHERE id = :id AND artist_id = :artist_id");
+    $stmt = $db->prepare("UPDATE artworks SET $setClause WHERE id = :id AND artist_id::text = :artist_id");
     $stmt->execute($params);
 
     echo json_encode([

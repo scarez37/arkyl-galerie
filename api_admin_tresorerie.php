@@ -1,5 +1,5 @@
 <?php
-// ==================== TRÉSORERIE ARKYL (ADMIN) ====================
+// ==================== TRÉSORERIE ARKYL ====================
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
@@ -8,26 +8,28 @@ require_once __DIR__ . '/db_config.php';
 try {
     $db = getDatabase();
 
-    // On récupère toutes les commandes avec leurs détails financiers
     $stmt = $db->prepare("
-        SELECT order_number, total, commission_amount, artist_payout, escrow_status, created_at, artist_id 
+        SELECT order_number, total, commission_amount, artist_payout, shipping_cost, escrow_status, created_at, artist_id 
         FROM orders 
         ORDER BY created_at DESC
     ");
     $stmt->execute();
     $commandes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $total_commission_arkyl = 0;
-    $total_a_payer_artistes = 0;
+    $total_commission_arkyl     = 0;
+    $total_a_payer_artistes     = 0;
     $liste_paiements_en_attente = [];
 
     foreach ($commandes as $cmd) {
-        // On additionne tous les gains de la plateforme (les 31%)
+        // Commission ARKYL : 35% du montant des œuvres (hors livraison)
         $total_commission_arkyl += floatval($cmd['commission_amount']);
 
-        // Si l'acheteur a cliqué sur "Colis bien reçu", on isole l'argent pour l'artiste
+        // Reversement artiste : 65% des œuvres + frais de port (non taxés)
+        $montant_complet_artiste = floatval($cmd['artist_payout']) + floatval($cmd['shipping_cost'] ?? 0);
+
         if ($cmd['escrow_status'] === 'fonds_debloques') {
-            $total_a_payer_artistes += floatval($cmd['artist_payout']);
+            $total_a_payer_artistes += $montant_complet_artiste;
+            $cmd['payout_total_with_shipping'] = $montant_complet_artiste;
             $liste_paiements_en_attente[] = $cmd;
         }
     }
@@ -35,11 +37,10 @@ try {
     echo json_encode([
         'success' => true,
         'stats' => [
-            'chiffre_affaire_arkyl' => $total_commission_arkyl,
-            'argent_a_verser_wave_orange' => $total_a_payer_artistes
+            'chiffre_affaire_arkyl'      => $total_commission_arkyl,   // 35% des œuvres
+            'argent_a_verser_wave_orange' => $total_a_payer_artistes    // 65% des œuvres + livraison
         ],
-        'paiements_urgents' => $liste_paiements_en_attente,
-        'toutes_les_commandes' => $commandes
+        'paiements_urgents' => $liste_paiements_en_attente
     ]);
 
 } catch (Exception $e) {

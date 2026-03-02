@@ -100,6 +100,7 @@ function enterGallery() {
         let favoritesCache = null;
         let lastRenderTime = {};
         let autoRefreshInterval = null;
+        let currentAdminFilter = 'all';
 
         function debounce(func, wait) {
             let timeout;
@@ -2403,6 +2404,9 @@ function enterGallery() {
                 if (btn) btn.disabled = false;
             }
         }
+
+        // Alias pour compatibilité avec les appels onclick="rafraichir()" dans le HTML
+        function rafraichir(event) { return rafraichirGalerie(event); }
 
         async function toggleFavorite(event, productId) {
             event.stopPropagation();
@@ -6854,7 +6858,6 @@ function enterGallery() {
             document.querySelectorAll('#artistNav .nav-link').forEach(l => l.classList.remove('active'));
 
             const map = { dashboard:'dashboardSection', artworks:'artworksSection', sales:'salesSection', gallery:'artistGallerySection' };
-            if (section === 'sales') setTimeout(() => renderArtistOrders(), 100);
             const navMap = { dashboard:'artNavDashboard', artworks:'artNavArtworks', sales:'artNavSales', gallery:'artNavGallery' };
 
             if (map[section]) {
@@ -6863,9 +6866,9 @@ function enterGallery() {
             }
 
             if (section === 'dashboard') updateDashboard();
-            if (section === 'artworks') renderArtworks();
-            if (section === 'sales')    renderSales();
-            if (section === 'gallery')  renderArtistGallery();
+            if (section === 'artworks')  renderArtworks();
+            if (section === 'sales')     setTimeout(() => renderArtistOrders(), 100);
+            if (section === 'gallery')   renderArtistGallery();
             window.scrollTo(0,0);
         }
 

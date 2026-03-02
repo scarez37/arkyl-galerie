@@ -131,8 +131,7 @@ try {
         $artistId = $_GET['artist_id'] ?? '';
         $isAdmin  = isset($_GET['admin']) && $_GET['admin'] == '1';
 
-        // ⭐ FIX : Retourner artist_id toujours en TEXT (évite === raté côté JS entre string et int)
-        //         Retourner BOTH 'artist' ET 'artist_name' (app.js lit les deux selon les endroits)
+        // ⭐ FIX : artist_id est VARCHAR(255) — pas besoin de ::text, utiliser COALESCE pour NULL
         $itemsJson = "
             json_build_object(
                 'id',          oi.id,
@@ -140,7 +139,7 @@ try {
                 'title',       oi.title,
                 'artist',      oi.artist_name,
                 'artist_name', oi.artist_name,
-                'artist_id',   oi.artist_id::text,
+                'artist_id',   COALESCE(oi.artist_id, ''),
                 'price',       oi.price,
                 'quantity',    oi.quantity,
                 'image',       oi.image_url,
@@ -157,12 +156,12 @@ try {
                 ORDER BY o.created_at DESC
             ");
         } elseif ($artistId) {
-            // ⭐ FIX : Comparer artist_id::text pour éviter les mismatch int/string
+            // Comparer directement VARCHAR = VARCHAR (pas besoin de cast)
             $stmt = $db->prepare("
                 SELECT DISTINCT o.*,
                     json_agg($itemsJson ORDER BY oi.id) as items
                 FROM orders o
-                INNER JOIN order_items oi ON oi.order_id = o.id AND oi.artist_id::text = :aid
+                INNER JOIN order_items oi ON oi.order_id = o.id AND COALESCE(oi.artist_id, '') = :aid
                 GROUP BY o.id
                 ORDER BY o.created_at DESC
             ");

@@ -2810,14 +2810,39 @@ function enterGallery() {
             const orderId = order.server_id || order.id;
             const trackUrl = order.tracking_url || getTrackingUrl(order.carrier, order.tracking_number);
             const { serverTimeline } = buildOrderTimeline(order);
+            const es = order.escrow_status || 'payée_en_attente';
 
             const carrierOptions = CARRIERS.map(c =>
-                `<option value="${c.id}">${c.name}</option>`
+                `<option value="${c.id}" ${order.carrier === c.id ? 'selected' : ''}>${c.name}</option>`
             ).join('');
 
             const statusOptions = DELIVERY_STATUSES.map(s =>
                 `<option value="${s.key}" ${order.status === s.key ? 'selected' : ''}>${s.icon} ${s.label}</option>`
             ).join('');
+
+            // ── Barre de progression escrow ──────────────────────────────────
+            const escrowSteps = [
+                { key: 'payée_en_attente', icon: '💳', label: 'Payée'        },
+                { key: 'expédiée',         icon: '🚚', label: 'Expédiée'     },
+                { key: 'livrée_confirmée', icon: '📬', label: 'Reçue'        },
+                { key: 'fonds_libérés',    icon: '✅', label: 'Fonds libérés' },
+            ];
+            const stepIdx = escrowSteps.map(s => s.key).indexOf(es);
+            const escrowBar = `
+                <div style="display:flex;align-items:flex-start;gap:0;padding:14px 16px;background:rgba(0,0,0,0.25);border-radius:12px;margin-bottom:16px;">
+                    ${escrowSteps.map((s, i) => `
+                        ${i > 0 ? `<div style="flex:1;height:2px;background:${i <= stepIdx ? 'var(--terre-cuite)' : 'rgba(255,255,255,0.12)'};margin-top:17px;"></div>` : ''}
+                        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:56px;">
+                            <div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;
+                                background:${i < stepIdx ? 'rgba(76,175,80,0.3)' : i === stepIdx ? 'rgba(196,106,75,0.35)' : 'rgba(255,255,255,0.07)'};
+                                border:2px solid ${i < stepIdx ? '#4caf50' : i === stepIdx ? 'var(--terre-cuite)' : 'rgba(255,255,255,0.18)'};
+                                transition:all 0.3s;">
+                                ${i < stepIdx ? '✓' : s.icon}
+                            </div>
+                            <div style="font-size:10px;opacity:${i <= stepIdx ? '1' : '0.35'};font-weight:${i === stepIdx ? '700' : '400'};text-align:center;white-space:nowrap;">${s.label}</div>
+                        </div>
+                    `).join('')}
+                </div>`;
 
             const shippingBlock = order.shipping_address ? `
                 <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 16px;margin-bottom:15px;font-size:13px;">
@@ -2840,7 +2865,7 @@ function enterGallery() {
 
             return `
             <div class="admin-order-card" id="order-card-${orderId}">
-                <div style="display:flex;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:15px;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:15px;">
                     <div>
                         <div style="font-size:18px;font-weight:700;color:var(--ocre);">📦 ${order.order_number || '#' + orderId}</div>
                         <div style="font-size:14px;opacity:0.8;margin-top:4px;">👤 ${order.user || order.user_name}${order.userEmail ? ` (${order.userEmail})` : ''}</div>
@@ -2853,6 +2878,9 @@ function enterGallery() {
                         </span>
                     </div>
                 </div>
+
+                <!-- Progression escrow -->
+                ${escrowBar}
 
                 <!-- Articles -->
                 <div style="background:rgba(0,0,0,0.2);border-radius:12px;padding:15px;margin-bottom:15px;">
@@ -3681,6 +3709,9 @@ function enterGallery() {
                 safeStorage.set('arkyl_cart', []);
                 updateBadges();
 
+                // ⭐ Marquer les œuvres achetées comme vendues → les retirer de la galerie
+                marquerOeuvresVendues(order.items || []);
+
                 // Sync avec le serveur en arrière-plan
                 syncOrderToServer(order).then(() => {
                     console.log('🌐 Commande synchronisée avec le serveur');
@@ -4097,7 +4128,7 @@ function enterGallery() {
                 const resp = await fetch(`${ORDERS_API}?action=list&artist_id=${encodeURIComponent(artistId)}&t=${Date.now()}`);
                 const data = await resp.json();
                 if (data.success) orders = data.orders;
-            } catch(e) { /* local fallback */ }
+            } catch(e) {}
 
             if (orders.length === 0) {
                 container.innerHTML = `
@@ -4110,7 +4141,11 @@ function enterGallery() {
             }
 
             const totalRevenue = orders.reduce((s, o) => {
-                const myItems = (o.items||[]).filter(i => String(i.artist_id) === String(artistId) || i.artist_name === currentUser?.artistName || i.artist === currentUser?.artistName);
+                const myItems = (o.items||[]).filter(i =>
+                    String(i.artist_id) === String(artistId) ||
+                    i.artist_name === currentUser?.artistName ||
+                    i.artist === currentUser?.artistName
+                );
                 return s + myItems.reduce((ss, i) => ss + (parseFloat(i.price)||0) * (i.quantity||1), 0);
             }, 0);
 
@@ -4119,68 +4154,139 @@ function enterGallery() {
                     <div class="orders-stat-card"><div class="orders-stat-icon">🛒</div><div class="orders-stat-value">${orders.length}</div><div class="orders-stat-label">Ventes</div></div>
                     <div class="orders-stat-card"><div class="orders-stat-icon">💰</div><div class="orders-stat-value">${formatPrice(totalRevenue)}</div><div class="orders-stat-label">Revenus</div></div>
                 </div>
-                ${orders.map(order => {
-                    const orderId = order.id || order.server_id;
-                    const myItems = (order.items||[]).filter(i => !i.artist_id || String(i.artist_id) === String(artistId) || (i.artist_name||i.artist) === currentUser?.artistName);
-                    const myRevenue = myItems.reduce((s,i) => s + (parseFloat(i.price)||0)*(i.quantity||1), 0);
-                    const carrierOptions = CARRIERS.map(c => `<option value="${c.id}" ${order.carrier===c.id?'selected':''}>${c.name}</option>`).join('');
-                    const statusOptions = DELIVERY_STATUSES.filter(s => !['Livrée'].includes(s.key) || order.status === 'Livrée').map(s =>
-                        `<option value="${s.key}" ${order.status===s.key?'selected':''}>${s.icon} ${s.label}</option>`
-                    ).join('');
+                ${orders.map(order => renderArtistOrderCard(order, artistId)).join('')}
+            `;
+        }
 
-                    return `
-                    <div class="admin-order-card">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
-                            <div>
-                                <div style="font-size:16px;font-weight:700;color:var(--ocre);">📦 ${order.order_number || '#'+orderId}</div>
-                                <div style="font-size:13px;opacity:0.7;margin-top:3px;">👤 ${order.user_name || 'Acheteur'}</div>
-                                <div style="font-size:12px;opacity:0.5;">📅 ${order.created_at ? new Date(order.created_at).toLocaleDateString('fr-FR') : ''}</div>
-                            </div>
-                            <div style="text-align:right;">
-                                <div style="font-size:18px;font-weight:800;color:var(--ocre);">${formatPrice(myRevenue)}</div>
-                                <span style="padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;background:${statusColor(order.status)}33;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}55;">
-                                    ${statusIcon(order.status)} ${order.status}
-                                </span>
-                            </div>
+        function renderArtistOrderCard(order, artistId) {
+            const orderId = order.id || order.server_id;
+            const es = order.escrow_status || 'payée_en_attente';
+
+            const myItems = (order.items||[]).filter(i =>
+                !i.artist_id ||
+                String(i.artist_id) === String(artistId) ||
+                (i.artist_name||i.artist) === currentUser?.artistName
+            );
+            const myRevenue = myItems.reduce((s,i) => s + (parseFloat(i.price)||0)*(i.quantity||1), 0);
+
+            // ── Étapes visuelles ──────────────────────────────────────────
+            const escrowSteps = [
+                { key: 'payée_en_attente', icon: '💳', label: 'Payée'        },
+                { key: 'expédiée',         icon: '🚚', label: 'Expédiée'     },
+                { key: 'livrée_confirmée', icon: '📬', label: 'Reçue'        },
+                { key: 'fonds_libérés',    icon: '✅', label: 'Fonds libérés' },
+            ];
+            const escrowOrder = escrowSteps.map(s => s.key);
+            const stepIdx = escrowOrder.indexOf(es);
+
+            const stepsHTML = escrowSteps.map((s, i) => `
+                ${i > 0 ? `<div style="flex:1;height:2px;background:${i <= stepIdx ? 'var(--terre-cuite)' : 'rgba(255,255,255,0.15)'};margin-top:18px;"></div>` : ''}
+                <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:60px;">
+                    <div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;
+                        background:${i < stepIdx ? 'rgba(76,175,80,0.3)' : i === stepIdx ? 'rgba(var(--terre-cuite-rgb, 196,106,75),0.4)' : 'rgba(255,255,255,0.08)'};
+                        border:2px solid ${i < stepIdx ? '#4caf50' : i === stepIdx ? 'var(--terre-cuite)' : 'rgba(255,255,255,0.2)'};
+                        transition:all 0.3s;">
+                        ${i < stepIdx ? '✓' : s.icon}
+                    </div>
+                    <div style="font-size:10px;opacity:${i <= stepIdx ? '1' : '0.4'};font-weight:${i === stepIdx ? '700' : '400'};text-align:center;">${s.label}</div>
+                </div>
+            `).join('');
+
+            // ── Bouton d'action artiste selon l'étape courante ────────────
+            let actionBtn = '';
+
+            if (es === 'payée_en_attente') {
+                // Étape 1 → 2 : artiste expédie
+                actionBtn = `
+                    <div style="background:rgba(33,150,243,0.1);border:1px solid rgba(33,150,243,0.35);border-radius:14px;padding:18px;margin-top:16px;">
+                        <div style="font-weight:700;font-size:14px;margin-bottom:14px;color:#90caf9;">📦 Marquer comme expédiée</div>
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                            <select id="art-carrier-${orderId}"
+                                style="padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;">
+                                <option value="">Transporteur...</option>
+                                ${CARRIERS.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                            </select>
+                            <input id="art-tracking-${orderId}" type="text" placeholder="N° de suivi (optionnel)"
+                                style="padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;">
                         </div>
 
-                        <!-- Mes œuvres dans cette commande -->
-                        <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:12px;margin-bottom:14px;">
-                            ${myItems.map(item => `
-                                <div style="display:flex;gap:10px;align-items:center;padding:6px 0;">
-                                    ${item.image_url||item.image ? `<img src="${item.image_url||item.image}" style="width:40px;height:40px;border-radius:6px;object-fit:cover;">` : '<div style="width:40px;height:40px;border-radius:6px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">🎨</div>'}
-                                    <div style="flex:1;font-size:13px;font-weight:600;">${item.title}</div>
-                                    <div style="font-weight:700;color:var(--ocre);font-size:13px;">${formatPrice((item.price||0)*(item.quantity||1))}</div>
-                                </div>`).join('')}
-                        </div>
+                        <input id="art-note-${orderId}" type="text" placeholder="Note pour l'acheteur (ex: Déposé à La Poste ce matin)"
+                            style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;margin-bottom:12px;box-sizing:border-box;">
 
-                        <!-- Mise à jour statut (artiste) -->
-                        ${order.status !== 'Livrée' && order.status !== 'fonds_libérés' ? `
-                        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px;">
-                            <div style="font-weight:700;font-size:13px;margin-bottom:12px;">📤 Mettre à jour l'expédition</div>
-                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-                                <select id="art-status-${orderId}" style="padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;">
-                                    ${statusOptions}
-                                </select>
-                                <select id="art-carrier-${orderId}" style="padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;">
-                                    <option value="">Transporteur...</option>
-                                    ${carrierOptions}
-                                </select>
-                            </div>
-                            <input id="art-tracking-${orderId}" type="text" placeholder="N° de suivi" value="${order.tracking_number||''}"
-                                style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
-                            <input id="art-note-${orderId}" type="text" placeholder="Note pour l'acheteur"
-                                style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
-                            <button onclick="artistUpdateOrderStatus('${orderId}')"
-                                style="width:100%;padding:12px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));color:white;">
-                                💾 Enregistrer
-                            </button>
-                        </div>` : `
-                        <div style="background:rgba(76,175,80,0.1);border:1px solid rgba(76,175,80,0.3);border-radius:10px;padding:12px;font-size:13px;">
-                            ✅ Commande livrée — fonds en cours de libération
-                        </div>`}
+                        <button onclick="artistMarquerExpediee('${orderId}')"
+                            style="width:100%;padding:14px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;
+                            background:linear-gradient(135deg,#2196f3,#1565c0);color:white;
+                            display:flex;align-items:center;justify-content:center;gap:10px;transition:opacity 0.2s;"
+                            onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                            🚚 Confirmer l'expédition
+                        </button>
                     </div>`;
-                }).join('')}`;
+
+            } else if (es === 'expédiée') {
+                // Étape 2 → en attente de confirmation client
+                const trackUrl = order.tracking_number
+                    ? getTrackingUrl(order.carrier, order.tracking_number) : null;
+                actionBtn = `
+                    <div style="background:rgba(255,193,7,0.1);border:1px solid rgba(255,193,7,0.35);border-radius:14px;padding:18px;margin-top:16px;">
+                        <div style="font-weight:700;font-size:14px;margin-bottom:8px;color:#ffe082;">⏳ En attente de confirmation du client</div>
+                        <div style="font-size:13px;opacity:0.75;line-height:1.6;">
+                            L'acheteur doit confirmer la réception pour que les fonds vous soient versés.<br>
+                            Libération automatique sous 21 jours si aucune action.
+                        </div>
+                        ${order.tracking_number ? `
+                        <div style="margin-top:12px;font-size:13px;opacity:0.8;">
+                            📦 ${order.carrier ? order.carrier.toUpperCase() + ' · ' : ''}${order.tracking_number}
+                            ${trackUrl ? `<a href="${trackUrl}" target="_blank" style="color:#90caf9;margin-left:8px;">Suivre →</a>` : ''}
+                        </div>` : ''}
+                    </div>`;
+
+            } else if (es === 'livrée_confirmée' || es === 'fonds_libérés') {
+                // Étape finale
+                actionBtn = `
+                    <div style="background:rgba(76,175,80,0.12);border:1px solid rgba(76,175,80,0.35);border-radius:14px;padding:18px;margin-top:16px;text-align:center;">
+                        <div style="font-size:32px;margin-bottom:8px;">🎉</div>
+                        <div style="font-weight:700;font-size:15px;color:#a5d6a7;">Transaction complète !</div>
+                        <div style="font-size:13px;opacity:0.7;margin-top:6px;">Les fonds ont été libérés. Merci pour cette belle vente !</div>
+                    </div>`;
+            }
+
+            return `
+                <div class="admin-order-card" style="margin-bottom:20px;">
+
+                    <!-- En-tête commande -->
+                    <div style="display:flex;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+                        <div>
+                            <div style="font-size:16px;font-weight:700;color:var(--ocre);">📦 ${order.order_number || '#' + orderId}</div>
+                            <div style="font-size:13px;opacity:0.7;margin-top:3px;">👤 ${order.user_name || 'Acheteur'}</div>
+                            <div style="font-size:12px;opacity:0.5;">📅 ${order.created_at ? new Date(order.created_at).toLocaleDateString('fr-FR') : ''}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:20px;font-weight:800;color:var(--ocre);">${formatPrice(myRevenue)}</div>
+                        </div>
+                    </div>
+
+                    <!-- Progression escrow -->
+                    <div style="display:flex;align-items:flex-start;gap:0;margin-bottom:20px;padding:16px;background:rgba(0,0,0,0.2);border-radius:12px;">
+                        ${stepsHTML}
+                    </div>
+
+                    <!-- Mes œuvres dans cette commande -->
+                    <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:12px;margin-bottom:4px;">
+                        ${myItems.map(item => `
+                            <div style="display:flex;gap:10px;align-items:center;padding:6px 0;">
+                                ${item.image_url||item.image
+                                    ? `<img src="${item.image_url||item.image}" style="width:44px;height:44px;border-radius:6px;object-fit:cover;">`
+                                    : '<div style="width:44px;height:44px;border-radius:6px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">🎨</div>'}
+                                <div style="flex:1;font-size:13px;font-weight:600;">${item.title}</div>
+                                <div style="font-weight:700;color:var(--ocre);font-size:13px;">${formatPrice((item.price||0)*(item.quantity||1))}</div>
+                            </div>`).join('')}
+                    </div>
+
+                    <!-- Bouton d'action artiste -->
+                    ${actionBtn}
+                </div>
+            `;
         }
 
         async function artistUpdateOrderStatus(orderId) {
@@ -4199,6 +4305,33 @@ function enterGallery() {
                 updated_by: currentUser?.name || currentUser?.artistName || 'artiste',
                 updated_by_role: 'artist',
             });
+            await renderArtistOrders();
+        }
+
+        async function artistMarquerExpediee(orderId) {
+            const carrier  = document.getElementById(`art-carrier-${orderId}`)?.value || null;
+            const tracking = document.getElementById(`art-tracking-${orderId}`)?.value?.trim() || null;
+            const note     = document.getElementById(`art-note-${orderId}`)?.value?.trim() || null;
+
+            const btn = document.querySelector(`[onclick="artistMarquerExpediee('${orderId}')"]`);
+            if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Envoi en cours...'; }
+
+            await sendStatusUpdate({
+                action: 'update_status',
+                order_id: orderId,
+                status: 'Expédiée',
+                escrow_status: 'expédiée',
+                tracking_number: tracking,
+                carrier: carrier,
+                note: note || 'Commande expédiée par l\'artiste',
+                updated_by: currentUser?.artistName || currentUser?.name || 'artiste',
+                updated_by_role: 'artist',
+            });
+
+            showToast('🚚 Expédition confirmée ! L\'acheteur a été notifié.');
+            addNotification('📦 Commande expédiée', `Commande #${orderId} marquée comme expédiée.`);
+
+            // Recharger la liste des ventes
             await renderArtistOrders();
         }
 
@@ -8380,6 +8513,50 @@ function enterGallery() {
             renderProfilePreview(previewContainer, imgSrc, style);
         }
 
+        // ==================== MARQUER ŒUVRES VENDUES APRÈS ACHAT ====================
+        async function marquerOeuvresVendues(items) {
+            if (!items || items.length === 0) return;
+
+            const artworkIds = items.map(i => i.id || i.artwork_id).filter(Boolean);
+            if (artworkIds.length === 0) return;
+
+            // 1. Mettre à jour le cache local immédiatement
+            if (window.toutesLesOeuvres && window.toutesLesOeuvres.length > 0) {
+                window.toutesLesOeuvres = window.toutesLesOeuvres.filter(
+                    o => !artworkIds.includes(String(o.id)) && !artworkIds.includes(o.id)
+                );
+                // Rafraîchir la galerie si elle est visible
+                const homePage = document.getElementById('homePage');
+                if (homePage && homePage.classList.contains('active')) {
+                    if (typeof window.afficherOeuvresFiltrees === 'function') {
+                        window.afficherOeuvresFiltrees();
+                    }
+                }
+            }
+
+            // 2. Mettre à jour le cache produits local (getProducts/saveProducts)
+            let products = getProducts();
+            products = products.filter(
+                p => !artworkIds.includes(String(p.id)) && !artworkIds.includes(p.id)
+            );
+            saveProducts(products);
+
+            // 3. Appel API pour marquer comme vendu côté serveur (is_sold = true)
+            for (const artworkId of artworkIds) {
+                try {
+                    await fetch('https://arkyl-galerie.onrender.com/api_marquer_vendu.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ artwork_id: artworkId })
+                    });
+                } catch(e) {
+                    console.warn('⚠️ Impossible de marquer vendue l\'œuvre', artworkId, e.message);
+                }
+            }
+
+            console.log(`✅ ${artworkIds.length} œuvre(s) marquée(s) vendue(s) et retirée(s) de la galerie`);
+        }
+
         // ==================== INIT ====================
         function init() {
             (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
@@ -9166,10 +9343,22 @@ function enterGallery() {
             const proofInput = document.getElementById(`proof-${orderId}`);
             const proofFile  = proofInput?.files?.[0];
 
+            // Synchroniser escrow_status selon le statut choisi par l'admin
+            const escrowMap = {
+                'En préparation': 'payée_en_attente',
+                'Préparée':       'payée_en_attente',
+                'Expédiée':       'expédiée',
+                'En transit':     'expédiée',
+                'Livrée':         'livrée_confirmée',
+                'Annulée':        'annulée',
+            };
+            const escrowStatus = escrowMap[status] || 'payée_en_attente';
+
             const payload = {
                 action: 'update_status',
                 order_id: orderId,
                 status,
+                escrow_status: escrowStatus,
                 tracking_number: tracking || null,
                 carrier: carrier || null,
                 note: note || null,
@@ -9238,6 +9427,9 @@ function enterGallery() {
 
                 if (data.success) {
                     showToast('🎉 Merci ! La réception est confirmée. L\'artiste va recevoir son argent.');
+                    // Retirer l'œuvre de la galerie locale
+                    const ordre = orderHistory.find(o => String(o.server_id || o.id) === String(orderId));
+                    if (ordre) marquerOeuvresVendues(ordre.items || []);
                     // Recharger les commandes pour mettre à jour l'affichage
                     if (typeof renderOrders === 'function') {
                         await renderOrders();

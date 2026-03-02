@@ -139,13 +139,29 @@ try {
 
     // ⭐ FIX Bug 1 : Vérifier/créer dans 'artists' (plus 'users')
     // ⭐ FIX Bug 4 : Comparer artist_id en text pour éviter mismatch int/string
-    $check = $db->prepare("SELECT id FROM artists WHERE id::text = :id");
-    $check->execute([':id' => (string)$artist_id]);
-    if (!$check->fetch()) {
-        // L'artiste devrait exister (créé à l'inscription) — insérer en fallback
-        $insert = $db->prepare("INSERT INTO artists (id, name, email) VALUES (:id, :name, :email)
-                                ON CONFLICT (id) DO NOTHING");
-        $insert->execute([':id' => $artist_id, ':name' => $name, ':email' => $email]);
+    $check = $db->prepare("SELECT id FROM artists WHERE id::text = :id OR email = :email");
+    $check->execute([':id' => (string)$artist_id, ':email' => $email]);
+    $existing = $check->fetch(PDO::FETCH_ASSOC);
+    if (!$existing) {
+        // L'artiste n'existe pas encore — créer l'entrée
+        // ⭐ FIX : Utiliser google_id séparé si la colonne id est SERIAL
+        try {
+            // Essayer d'abord avec id explicite (si la table accepte les IDs externes)
+            $insert = $db->prepare("INSERT INTO artists (id, name, email) VALUES (:id, :name, :email) ON CONFLICT (id) DO NOTHING");
+            $insert->execute([':id' => $artist_id, ':name' => $name, ':email' => $email]);
+        } catch (Exception $insertErr) {
+            // Si id est SERIAL, insérer sans id et stocker google_id ailleurs
+            $db->prepare("INSERT INTO artists (name, email) VALUES (:name, :email) ON CONFLICT (email) DO NOTHING")
+               ->execute([':name' => $name, ':email' => $email]);
+        }
+        // Re-récupérer l'artiste (peut avoir un id différent si SERIAL)
+        $check2 = $db->prepare("SELECT id FROM artists WHERE email = :email LIMIT 1");
+        $check2->execute([':email' => $email]);
+        $existing = $check2->fetch(PDO::FETCH_ASSOC);
+        if ($existing) $artist_id = (string)$existing['id'];
+    } else {
+        // Utiliser l'id réel de la BDD (pas forcément le Google ID)
+        $artist_id = (string)$existing['id'];
     }
 
     // ⭐ FIX Bug 2 : Stocker specialty en JSON array (pas en string plate)
@@ -177,8 +193,9 @@ try {
         $params[':avatar_style'] = $avatar_style;
     }
 
-    // ⭐ FIX Bug 4 : Comparer id::text pour compatibilité int/string
-    $stmt = $db->prepare("UPDATE artists SET $setClause WHERE id::text = :id");
+    // ⭐ FIX : Comparer id::text ou email pour compatibilité int/string/Google ID
+    $stmt = $db->prepare("UPDATE artists SET $setClause WHERE id::text = :id OR (id::text != :id AND email = :email_fb)");
+    $params[':email_fb'] = $email;
     $stmt->execute($params);
 
     // Synchroniser le nom dans les œuvres si changé

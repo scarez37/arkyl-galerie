@@ -7,7 +7,7 @@
 require_once __DIR__ . '/db_config.php';
 require_once __DIR__ . '/vendor/autoload.php';
 
-\Stripe\Stripe::setApiKey('après');
+\Stripe\Stripe::setApiKey('sk_test_51T2gpFF55lBdracChUzrVSa166Skh4ob49dtF3j0pa27zcWMk1YLnvt5Wz788K7O0CpIMJPMZcaKDqG241vgQ8tj00EY87nxyZ');
 
 // 🔐 Secret webhook — à copier depuis ton tableau de bord Stripe
 $endpoint_secret = 'whsec_yjPEMxUgwPmuDWvS48z4fFQz7PpqcLaP';
@@ -47,8 +47,8 @@ $artist_id         = $session->metadata->artist_id         ?? null;
 $shipping_cost     = floatval($session->metadata->shipping_cost     ?? 3000);
 $shipping_mode     = $session->metadata->shipping_mode     ?? 'La Poste';
 $shipping_address  = $session->metadata->shipping_address  ?? '';
-$commission_amount = floatval($session->metadata->commission_amount ?? 0);
-$artist_payout     = floatval($session->metadata->artist_payout     ?? 0);
+$commission_amount = floatval($session->metadata->commission_amount ?? 0); // Part ARKYL (35%)
+$artist_payout     = floatval($session->metadata->artist_payout     ?? 0); // Part artiste (65%)
 
 $payment_method = 'Carte bancaire (Stripe)';
 
@@ -127,6 +127,7 @@ try {
 
     // ─────────────────────────────────────────────────────────────────
     // ÉTAPE 6 — Créer la commande + items + marquer vendues + vider panier
+    // Répartition : Commission ARKYL 35% | Artiste 65% | Port non taxé
     // ─────────────────────────────────────────────────────────────────
     $db->beginTransaction();
 
@@ -164,8 +165,8 @@ try {
         ':shipping_address'  => $shipping_address,
         ':payment_method'    => $payment_method,
         ':total'             => $total_fcfa,
-        ':commission_amount' => $commission_amount,
-        ':artist_payout'     => $artist_payout,
+        ':commission_amount' => $commission_amount, // 35% — calculé dans api_stripe_checkout.php
+        ':artist_payout'     => $artist_payout,     // 65% — calculé dans api_stripe_checkout.php
         ':stripe_session_id' => $session->id,
     ]);
 
@@ -214,7 +215,9 @@ try {
 
     error_log("✅ Webhook ARKYL — Commande $order_id créée (db_id: $new_order_db_id) | "
         . count($cartItems) . " article(s) | "
-        . "Commission: {$commission_amount} FCFA | Artiste: {$artist_payout} FCFA");
+        . "Commission ARKYL (35%) : {$commission_amount} FCFA | "
+        . "Reversement artiste (65%) : {$artist_payout} FCFA | "
+        . "Livraison (non taxée) : {$shipping_cost} FCFA");
 
 } catch (Exception $e) {
     if (isset($db) && $db->inTransaction()) {

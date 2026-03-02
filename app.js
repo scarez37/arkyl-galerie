@@ -2560,6 +2560,7 @@ function enterGallery() {
                             image: product.image || product.image_url || (product.photos && product.photos[0]) || '',
                             quantity: 1
                         });
+                        console.log('🛒 Produit ajouté au panier — artist_id:', product.artist_id, '| id:', product.id, '| title:', product.title);
                     } else {
                         // Produit introuvable localement — on l'ajoute avec les infos minimales
                         cartItems.push({ id: String(productId), title: 'Œuvre', price: 0, quantity: 1 });
@@ -3593,7 +3594,15 @@ function enterGallery() {
                         savedAt: Date.now()
                     };
                     safeStorage.set('arkyl_pending_order', pendingOrder);
-                    console.log('💾 Commande sauvegardée en attente de retour Stripe');
+                    console.log('💾 pendingOrder sauvegardé — items:', pendingOrder.items.map(i => ({
+                        title: i.title,
+                        artwork_id: i.artwork_id,
+                        artist_id: i.artist_id,
+                        source_artist_id: cartItems.find(c => String(c.id) === String(i.id))?.artist_id
+                    })));
+                    console.log('🔍 cartItems complets au moment de la commande:', cartItems.map(c => ({
+                        id: c.id, title: c.title, artist_id: c.artist_id, artistId: c.artistId
+                    })));
                     window.location.href = data.url;
                 } else {
                     alert('❌ ' + (data.message || 'Erreur inconnue du serveur'));
@@ -3839,6 +3848,15 @@ function enterGallery() {
                     image: i.image || i.image_url || '',
                     image_url: i.image_url || i.image || ''
                 }));
+
+                // 🔍 DEBUG — vérifier que artist_id est bien présent
+                console.log('📦 syncOrderToServer — items envoyés:', items.map(i => ({
+                    title: i.title,
+                    artwork_id: i.artwork_id,
+                    artist_id: i.artist_id,
+                    artist_name: i.artist_name
+                })));
+                console.log('🔑 user_id envoyé:', currentUser?.id || currentUser?.googleId || currentUser?.email);
                 const resp = await fetch(ORDERS_API, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

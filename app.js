@@ -6700,20 +6700,25 @@ function enterGallery() {
                     console.log('🔍 artistServerId utilisé:', artistServerId);
                     console.log('🔍 Premier artwork:', result.data[0]);
 
-                    // ⭐ FIX BUG 1 & 2 : Filtre client UNIQUEMENT par artist_id (pas par nom)
-                    // Raison : art.artist_name = pseudonyme "Rockets"
-                    //          currentUser.name = vrai nom "Amela Go" → comparaison TOUJOURS fausse
-                    //          → filteredData = [] → skeleton infini
-                    // Le fallback par nom causait aussi le Bug 2 : œuvres d'autres artistes incluses
-                    //   si leur artist_name correspond au nom stocké dans currentUser.name
+                    // ⭐ FIX : L'API filtre déjà par artist_id côté serveur (WHERE artist_id::text = ?)
+                    // Le filtre client est un filet de sécurité uniquement — on accepte si artist_id
+                    // correspond à l'ID, au googleId, ou à l'email de l'artiste connecté
+                    const knownIds = [
+                        String(currentUser?.id || ''),
+                        String(currentUser?.googleId || ''),
+                        String(currentUser?.email || ''),
+                    ].filter(Boolean);
+
                     const filteredData = result.data.filter(art => {
-                        const apiArtistId = art.artist_id || art.user_id || art.created_by;
-                        const idMatches = apiArtistId && String(apiArtistId) === String(artistServerId);
-                        if (!idMatches) {
+                        const apiArtistId = String(art.artist_id || art.user_id || art.created_by || '');
+                        // Si pas d'artist_id dans la réponse, on fait confiance au filtre serveur
+                        if (!apiArtistId) return true;
+                        const matches = knownIds.some(id => id === apiArtistId);
+                        if (!matches) {
                             console.warn('⚠️ Artwork filtré (artist_id différent):', art.title,
-                                'artist_id retourné:', apiArtistId, 'attendu:', artistServerId);
+                                'artist_id retourné:', apiArtistId, 'attendus:', knownIds);
                         }
-                        return idMatches;
+                        return matches;
                     });
 
                     console.log(`📊 API: ${result.data.length} artworks → après filtre ID client: ${filteredData.length}`);
@@ -7358,6 +7363,8 @@ function enterGallery() {
                 showToast('✅ Œuvre publiée et visible par tous !');
 
                 // Recharger depuis le serveur pour avoir les vrais IDs et données
+                // ⭐ Reset le compteur de retry pour forcer un vrai rechargement
+                _artworksRetryCount = 0;
                 setTimeout(() => loadArtistArtworksFromServer(), 1500);
                 
                 // Rafraîchir la galerie publique

@@ -2004,8 +2004,9 @@ function enterGallery() {
             navigateTo('admin');
             loadAdminDataFromServer().then(() => {
                 // Désactiver tous les onglets, n'afficher que la trésorerie
+                // ⭐ FIX : utiliser '.admin-section' (cohérent avec switchAdminTab)
                 document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
-                document.querySelectorAll('.admin-tab-content').forEach(s => s.classList.remove('active'));
+                document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
                 switchAdminTab('tresorerie');
             });
         }
@@ -8261,15 +8262,8 @@ function enterGallery() {
             }).join('');
         }
 
-        window.openAddNewsModal = openAddNewsModal;
         function openAddNewsModal() {
-            const ids = ['newsModalTitle', 'newsIcon', 'newsImageUpload', 'newsGradient', 'newsText', 'newsEditIndex', 'newsImagePreview', 'newsModal'];
-            const missing = ids.filter(id => !document.getElementById(id));
-            if (missing.length > 0) {
-                console.error('openAddNewsModal : elements introuvables dans le DOM :', missing.join(', '));
-                return;
-            }
-            document.getElementById('newsModalTitle').textContent = 'Nouvelle Actualite';
+            document.getElementById('newsModalTitle').textContent = '➕ Nouvelle Actualité';
             document.getElementById('newsIcon').value = '';
             document.getElementById('newsImageUpload').value = '';
             document.getElementById('newsGradient').value = 'gradient-1';

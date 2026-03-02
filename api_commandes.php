@@ -284,6 +284,19 @@ try {
             ]);
         }
 
+        // ⭐ Marquer les œuvres comme vendues (is_sold + sold_at)
+        // Important si le webhook Stripe n'est pas encore actif
+        $markSold = $db->prepare("
+            UPDATE artworks SET is_sold = TRUE, sold_at = NOW()
+            WHERE id = ? AND (is_sold IS NULL OR is_sold = FALSE)
+        ");
+        foreach (($body['items'] ?? []) as $item) {
+            $artworkId = intval($item['artwork_id'] ?? $item['id'] ?? 0);
+            if ($artworkId > 0) {
+                $markSold->execute([$artworkId]);
+            }
+        }
+
         $db->prepare("
             INSERT INTO order_timeline (order_id, status, note, updated_by_role)
             VALUES (?, 'En préparation', 'Commande créée et paiement validé', 'system')

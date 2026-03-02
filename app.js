@@ -1451,6 +1451,9 @@ function enterGallery() {
             
             // Render recent activity
             renderRecentActivity();
+            
+            // Charger la trésorerie admin
+            chargerTresorerieAdmin();
         }
         
         function renderTopArtists() {
@@ -9505,5 +9508,56 @@ function enterGallery() {
             } catch (error) {
                 console.error('Erreur lors de la confirmation :', error);
                 showToast('❌ Une erreur de connexion est survenue.');
+            }
+        }
+
+
+        // ==========================================
+        // CHARGEMENT DE LA TRÉSORERIE ADMIN
+        // ==========================================
+        async function chargerTresorerieAdmin() {
+            try {
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_admin_tresorerie.php');
+                const data = await response.json();
+
+                if (data.success) {
+                    // 1. Mise à jour des gros compteurs (avec formatage des milliers)
+                    document.getElementById('treso-arkyl').textContent = parseFloat(data.stats.chiffre_affaire_arkyl).toLocaleString('fr-FR') + ' FCFA';
+                    document.getElementById('treso-artistes').textContent = parseFloat(data.stats.argent_a_verser_wave_orange).toLocaleString('fr-FR') + ' FCFA';
+
+                    // 2. Création du tableau des paiements urgents
+                    const conteneurPaiements = document.getElementById('liste-paiements-urgents');
+                    
+                    if (data.paiements_urgents.length === 0) {
+                        conteneurPaiements.innerHTML = '<p style="color: #28a745; margin: 0;">🎉 Aucun paiement en attente. Tous les artistes ont reçu leur argent !</p>';
+                    } else {
+                        let html = '<table style="width: 100%; text-align: left; border-collapse: collapse; color: white;">';
+                        html += '<tr style="border-bottom: 1px solid #555;"> <th style="padding: 10px;">Commande</th> <th>Date</th> <th>ID Artiste</th> <th>Montant à envoyer</th> <th>Action</th> </tr>';
+                        
+                        data.paiements_urgents.forEach(cmd => {
+                            const dateFR = new Date(cmd.created_at).toLocaleDateString('fr-FR');
+                            const montant = parseFloat(cmd.artist_payout).toLocaleString('fr-FR');
+                            
+                            html += `
+                                <tr style="border-bottom: 1px solid #333;">
+                                    <td style="padding: 10px;">${cmd.order_number}</td>
+                                    <td>${dateFR}</td>
+                                    <td>${cmd.artist_id}</td>
+                                    <td style="color: #ffc107; font-weight: bold;">${montant} FCFA</td>
+                                    <td>
+                                        <button onclick="alert('Le bouton pour marquer la commande comme payée sera bientôt actif !')" style="background: #d4af37; color: black; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                                            ✅ Marquer comme transféré
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        html += '</table>';
+                        conteneurPaiements.innerHTML = html;
+                    }
+                }
+            } catch (error) {
+                console.error("Erreur de chargement de la trésorerie :", error);
+                document.getElementById('liste-paiements-urgents').innerHTML = '<p style="color: #dc3545;">Erreur de connexion au serveur.</p>';
             }
         }

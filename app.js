@@ -7423,7 +7423,7 @@ function enterGallery() {
                     try {
                         const updateData = {
                             artwork_id: parseInt(editingArtworkId) || editingArtworkId,
-                            artist_id: currentUser.id,
+                            artist_id: currentUser.id || currentUser.googleId,
                             title: artwork.title,
                             category: artwork.category,
                             price: artwork.price,
@@ -7442,6 +7442,7 @@ function enterGallery() {
                         if (res.success) {
                             showToast('✅ Œuvre modifiée avec succès !');
                         } else {
+                            console.error('❌ api_modifier_oeuvre erreur:', res.message, res.debug);
                             showToast('⚠️ Sauvegarde locale OK, serveur : ' + res.message);
                         }
                     } catch (e) {

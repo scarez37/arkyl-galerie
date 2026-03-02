@@ -7,15 +7,13 @@
 require_once __DIR__ . '/db_config.php';
 require_once __DIR__ . '/vendor/autoload.php';
 
-\Stripe\Stripe::setApiKey('je vais mêttre après');
+\Stripe\Stripe::setApiKey('sk_test_51T2gpFF55lBdracChUzrVSa166Skh4ob49dtF3j0pa27zcWMk1YLnvt5Wz788K7O0CpIMJPMZcaKDqG241vgQ8tj00EY87nxyZ');
 
 // 🔐 Secret webhook — à copier depuis ton tableau de bord Stripe
-// Tableau de bord Stripe → Développeurs → Webhooks → Révéler le secret
 $endpoint_secret = 'whsec_yjPEMxUgwPmuDWvS48z4fFQz7PpqcLaP';
 
 // ─────────────────────────────────────────────────────────────────
 // ÉTAPE 1 — Lire et vérifier la signature cryptographique de Stripe
-// Sans ça, n'importe qui pourrait simuler un faux paiement réussi !
 // ─────────────────────────────────────────────────────────────────
 $payload    = @file_get_contents('php://input');
 $sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
@@ -23,11 +21,9 @@ $sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
 try {
     $event = \Stripe\Webhook::constructEvent($payload, $sig_header, $endpoint_secret);
 } catch (\UnexpectedValueException $e) {
-    // Payload illisible
     http_response_code(400);
     exit();
 } catch (\Stripe\Exception\SignatureVerificationException $e) {
-    // Signature invalide — tentative de fraude bloquée
     http_response_code(400);
     exit();
 }
@@ -36,21 +32,26 @@ try {
 // ÉTAPE 2 — On ne traite que l'événement "paiement réussi"
 // ─────────────────────────────────────────────────────────────────
 if ($event->type !== 'checkout.session.completed') {
-    http_response_code(200); // On ignore les autres événements sans erreur
+    http_response_code(200); 
     exit();
 }
 
 $session = $event->data->object;
 
-// Récupérer les données passées depuis api_stripe_checkout.php
-$order_id = $session->metadata->order_id        ?? '';
-$user_id  = $session->client_reference_id       ?? '';
+// 🆕 RÉCUPÉRATION DE TOUTES LES METADATA CRÉÉES DANS L'API CHECKOUT
+$order_id          = $session->metadata->order_id ?? '';
+$user_id           = $session->metadata->user_id ?? $session->client_reference_id ?? '';
+$artist_id         = $session->metadata->artist_id ?? null;
+$shipping_cost     = $session->metadata->shipping_cost ?? 3000;
+$shipping_mode     = $session->metadata->shipping_mode ?? 'La Poste';
+$commission_amount = $session->metadata->commission_amount ?? 0; // Ta part (31%)
+$artist_payout     = $session->metadata->artist_payout ?? 0;     // La part de l'artiste (69%)
+
 $payment_method = 'Carte bancaire (Stripe)';
 
-// Sécurité : on ne fait rien si les données essentielles manquent
 if (empty($order_id) || empty($user_id)) {
     error_log("⚠️ Webhook ARKYL — order_id ou user_id manquant. Session ID : " . $session->id);
-    http_response_code(200); // On répond 200 quand même pour que Stripe ne renvoie pas
+    http_response_code(200); 
     exit();
 }
 
@@ -58,20 +59,17 @@ try {
     $db = getDatabase();
 
     // ─────────────────────────────────────────────────────────────────
-    // ÉTAPE 3 — Vérifier si cette commande n'a pas déjà été traitée
-    // (Stripe peut envoyer le même webhook plusieurs fois — idempotence)
+    // ÉTAPE 3 — Vérifier l'idempotence (éviter les doublons)
     // ─────────────────────────────────────────────────────────────────
     $checkStmt = $db->prepare("SELECT id FROM orders WHERE order_number = :order_number LIMIT 1");
     $checkStmt->execute([':order_number' => $order_id]);
     if ($checkStmt->fetch()) {
-        // Commande déjà créée — on répond OK sans rien faire
         http_response_code(200);
         exit();
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // ÉTAPE 4 — Récupérer le contenu du panier depuis la BDD
-    // C'est la source de vérité — jamais les données du front
+    // ÉTAPE 4 — Récupérer le contenu du panier
     // ─────────────────────────────────────────────────────────────────
     $cartStmt = $db->prepare("
         SELECT c.quantity, c.artwork_id, a.title, a.price, a.image_url, a.artist_name
@@ -89,38 +87,32 @@ try {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // ÉTAPE 5 — Calculer les montants (FCFA)
+    // ÉTAPE 5 — Calculer les totaux de base
     // ─────────────────────────────────────────────────────────────────
-    define('FCFA_TO_EUR', 655.957);
-    $stripe_amount_eur = $session->amount_total / 100; // Stripe renvoie en centimes
-
-    // On reconvertit le montant Stripe en FCFA pour garder la cohérence
-    $total_fcfa    = round($stripe_amount_eur * FCFA_TO_EUR);
-    $shipping_fcfa = 3000; // Valeur par défaut (La Poste)
     $subtotal_fcfa = 0;
-
     foreach ($cartItems as $item) {
         $subtotal_fcfa += floatval($item['price']) * intval($item['quantity']);
     }
 
-    $tva_rate      = 0.18; // 18% TVA Côte d'Ivoire
+    $tva_rate      = 0.18; 
     $tax_fcfa      = round($subtotal_fcfa * $tva_rate);
+    $total_fcfa    = $subtotal_fcfa + $shipping_cost; 
 
-    // Date de livraison estimée (21 jours ouvrés par défaut)
     $delivery_date = new DateTime();
     $delivery_date->modify('+21 days');
     $auto_release_date = $delivery_date->format('Y-m-d H:i:s');
 
     // ─────────────────────────────────────────────────────────────────
-    // ÉTAPE 6 — Créer la commande en base PostgreSQL
+    // ÉTAPE 6 — Créer la commande en base avec la COMMISSION (31%)
     // ─────────────────────────────────────────────────────────────────
     $db->beginTransaction();
 
-    // 6a. Insérer la commande principale
+    // 🆕 AJOUT : artist_id, commission_amount et artist_payout dans la requête
     $insertOrder = $db->prepare("
         INSERT INTO orders (
             order_number,
             user_id,
+            artist_id,
             status,
             escrow_status,
             escrow_auto_release_date,
@@ -130,20 +122,25 @@ try {
             shipping_name,
             payment_method,
             total,
+            commission_amount,
+            artist_payout,
             stripe_session_id,
             created_at
         ) VALUES (
             :order_number,
             :user_id,
+            :artist_id,
             'En préparation',
             'payée_en_attente',
             :auto_release_date,
             :subtotal,
             :tax,
             :shipping,
-            'La Poste',
+            :shipping_name,
             :payment_method,
             :total,
+            :commission_amount,
+            :artist_payout,
             :stripe_session_id,
             CURRENT_TIMESTAMP
         )
@@ -153,12 +150,16 @@ try {
     $insertOrder->execute([
         ':order_number'       => $order_id,
         ':user_id'            => $user_id,
+        ':artist_id'          => $artist_id,
         ':auto_release_date'  => $auto_release_date,
         ':subtotal'           => $subtotal_fcfa,
         ':tax'                => $tax_fcfa,
-        ':shipping'           => $shipping_fcfa,
+        ':shipping'           => $shipping_cost,
+        ':shipping_name'      => $shipping_mode,
         ':payment_method'     => $payment_method,
         ':total'              => $total_fcfa,
+        ':commission_amount'  => $commission_amount, // 🆕 On sauvegarde ta part
+        ':artist_payout'      => $artist_payout,     // 🆕 On sauvegarde l'argent bloqué de l'artiste
         ':stripe_session_id'  => $session->id,
     ]);
 
@@ -189,25 +190,23 @@ try {
         $markSold->execute([':artwork_id' => $item['artwork_id']]);
     }
 
-    // 6d. Vider le panier de l'utilisateur
+    // 6d. Vider le panier
     $deleteCart = $db->prepare("DELETE FROM cart WHERE user_id = :user_id");
     $deleteCart->execute([':user_id' => $user_id]);
 
     $db->commit();
 
-    error_log("✅ Webhook ARKYL — Commande créée : $order_id pour user $user_id (total: $total_fcfa FCFA)");
+    error_log("✅ Webhook ARKYL — Commande $order_id créée. Commission ARKYL: $commission_amount, Artiste: $artist_payout");
 
 } catch (Exception $e) {
     if ($db->inTransaction()) {
         $db->rollBack();
     }
-    // On log l'erreur mais on répond 200 à Stripe pour qu'il ne spamme pas le webhook
     error_log("❌ Webhook ARKYL — Erreur BDD : " . $e->getMessage());
 }
 
 // ─────────────────────────────────────────────────────────────────
 // ÉTAPE 7 — Toujours répondre 200 à Stripe
-// Si on répond autre chose, Stripe va réessayer pendant 3 jours !
 // ─────────────────────────────────────────────────────────────────
 http_response_code(200);
 echo json_encode(['received' => true]);

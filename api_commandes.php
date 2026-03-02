@@ -45,6 +45,8 @@ function runMigrations($db) {
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS commission_amount NUMERIC(12,2) DEFAULT 0",
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS artist_payout NUMERIC(12,2) DEFAULT 0",
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS stripe_session_id VARCHAR(255)",
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(12,2) DEFAULT 0",
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_name VARCHAR(255)",
         "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS artist_id VARCHAR(255)",
         "ALTER TABLE artworks ADD COLUMN IF NOT EXISTS is_sold BOOLEAN DEFAULT FALSE",
         "ALTER TABLE artworks ADD COLUMN IF NOT EXISTS sold_at TIMESTAMPTZ",
@@ -242,28 +244,28 @@ try {
             INSERT INTO orders (
                 order_number, user_id, user_name, user_email,
                 status, escrow_status,
-                subtotal, tax, shipping_cost, total,
-                shipping_name, shipping_mode, shipping_address, payment_method
+                subtotal, tax, shipping_cost, shipping_name, total,
+                shipping_mode, shipping_address, payment_method
             ) VALUES (
                 :num, :uid, :uname, :uemail,
                 'En préparation', 'payée_en_attente',
-                :subtotal, :tax, :shipping_cost, :total,
-                :shipping_name, :shipping_mode, :shipping_address, :payment_method
+                :subtotal, :tax, :shipping_cost, :shipping_name, :total,
+                :shipping_mode, :shipping_address, :payment_method
             ) RETURNING id
         ");
         $stmt->execute([
             ':num'             => $orderNum,
-            ':uid'             => $body['user_id']        ?? '',
-            ':uname'           => $body['user_name']      ?? '',
-            ':uemail'          => $body['user_email']     ?? '',
-            ':subtotal'        => $body['subtotal']       ?? 0,
-            ':tax'             => $body['tax']            ?? 0,
-            ':shipping_cost'   => $body['shipping_cost']  ?? 0,
-            ':total'           => $body['total']          ?? 0,
-            ':shipping_name'   => $body['shipping_name']  ?? '',
-            ':shipping_mode'   => $body['shipping_mode']  ?? '',
+            ':uid'             => $body['user_id']          ?? '',
+            ':uname'           => $body['user_name']        ?? '',
+            ':uemail'          => $body['user_email']       ?? '',
+            ':subtotal'        => $body['subtotal']         ?? 0,
+            ':tax'             => $body['tax']              ?? 0,
+            ':shipping_cost'   => $body['shipping_cost']    ?? 0,
+            ':shipping_name'   => $body['shipping_name']    ?? '',
+            ':total'           => $body['total']            ?? 0,
+            ':shipping_mode'   => $body['shipping_mode']    ?? '',
             ':shipping_address'=> $body['shipping_address'] ?? '',
-            ':payment_method'  => $body['payment_method'] ?? '',
+            ':payment_method'  => $body['payment_method']   ?? '',
         ]);
         $orderId = $stmt->fetchColumn();
 

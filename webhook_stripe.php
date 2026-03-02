@@ -7,7 +7,7 @@
 require_once __DIR__ . '/db_config.php';
 require_once __DIR__ . '/vendor/autoload.php';
 
-\Stripe\Stripe::setApiKey('sk_test_51T2gpFF55lBdracChUzrVSa166Skh4ob49dtF3j0pa27zcWMk1YLnvt5Wz788K7O0CpIMJPMZcaKDqG241vgQ8tj00EY87nxyZ');
+\Stripe\Stripe::setApiKey('après je vais mettre');
 
 // 🔐 Secret webhook — à copier depuis ton tableau de bord Stripe
 $endpoint_secret = 'whsec_yjPEMxUgwPmuDWvS48z4fFQz7PpqcLaP';

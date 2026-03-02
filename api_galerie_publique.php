@@ -44,18 +44,19 @@ try {
         
     } else {
         // ===== MODE : TOUTES LES ŒUVRES (optionnellement filtrées par artist_id) =====
-        $sql = "SELECT * FROM artworks WHERE status = 'publiée' AND (is_sold = FALSE OR is_sold IS NULL)";
+        $sql = "SELECT * FROM artworks WHERE status = 'publiée'";
         $params = [];
         
         // 🔐 Filtrer par artist_id si fourni
         if (isset($_GET['artist_id']) && !empty($_GET['artist_id'])) {
-            $artistId = $_GET['artist_id']; // Peut être un ID ou un email
-            
-            // Vérifier si c'est un numérique (ID) ou une chaîne (email/nom)
+            $artistId = $_GET['artist_id']; // Peut être un ID interne, Google ID, ou email
+
+            // ⭐ FIX : Google ID = chaîne numérique > 10 chiffres (ex: 115436233287965666535)
+            // intval() déborde sur ces valeurs → comparer en TEXT
             if (is_numeric($artistId)) {
-                // C'est un ID numérique
-                $sql .= " AND artist_id = :artist_id";
-                $params[':artist_id'] = intval($artistId);
+                // Comparer en TEXT pour éviter l'overflow int sur les Google IDs
+                $sql .= " AND artist_id::text = :artist_id";
+                $params[':artist_id'] = $artistId;
             } else {
                 // C'est un email ou nom d'artiste (fallback)
                 $sql .= " AND (artist_name = :artist_name OR artist_email = :artist_email)";
@@ -135,9 +136,8 @@ function formatArtwork($oeuvre) {
         'techniqueCustom' => $oeuvre['technique_custom'] ?? null,
         'dimensions' => $dimensions,
         'description' => $oeuvre['description'] ?? null,
-        // ⭐ FIX : artist_id toujours en String pour éviter === raté côté JS
-        // (currentUser.id est une string, la comparaison === avec un int PHP échoue)
-        'artist_id' => !empty($oeuvre['artist_id']) ? (string) intval($oeuvre['artist_id']) : null,
+        // ⭐ FIX : artist_id retourné en String brut (pas intval → overflow sur Google IDs)
+        'artist_id' => !empty($oeuvre['artist_id']) ? (string) $oeuvre['artist_id'] : null,
         'artist' => $oeuvre['artist_name'] ?? null,
         'artist_name' => $oeuvre['artist_name'] ?? null,
         'artist_country' => $oeuvre['artist_country'] ?? null,
@@ -146,9 +146,7 @@ function formatArtwork($oeuvre) {
         'image' => !empty($photos) ? $photos[0] : null,
         'image_url' => !empty($photos) ? $photos[0] : null,
         'photos' => $photos,
-        'created_at' => $oeuvre['created_at'] ?? null,
-        'is_sold' => !empty($oeuvre['is_sold']) ? (bool) $oeuvre['is_sold'] : false,
-        'sold_at' => $oeuvre['sold_at'] ?? null
+        'created_at' => $oeuvre['created_at'] ?? null
     ];
 }
 ?>

@@ -1452,6 +1452,31 @@ function enterGallery() {
             // Render recent activity
             renderRecentActivity();
             
+            // Injecter le bloc trésorerie s'il n'existe pas encore
+            if (!document.getElementById('admin-tresorerie')) {
+                const adminOverview = document.getElementById('adminOverviewSection');
+                if (adminOverview) {
+                    const tresoHTML = `
+                        <div id="admin-tresorerie" style="margin-top: 30px; padding: 20px; background: #1a1a1a; border: 1px solid #d4af37; border-radius: 8px;">
+                            <h3 style="color: #d4af37; margin: 0 0 20px 0; font-size: 1.2rem;">💰 Trésorerie</h3>
+                            <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 25px;">
+                                <div style="flex: 1; min-width: 180px; background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center;">
+                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">Bénéfices ARKYL (31%)</div>
+                                    <div id="treso-arkyl" style="color: #28a745; font-size: 1.5rem; font-weight: bold;">—</div>
+                                </div>
+                                <div style="flex: 1; min-width: 180px; background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center;">
+                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">À verser aux artistes (69%)</div>
+                                    <div id="treso-artistes" style="color: #ffc107; font-size: 1.5rem; font-weight: bold;">—</div>
+                                </div>
+                            </div>
+                            <h4 style="color: #d4af37; margin: 0 0 12px 0;">⚡ Paiements urgents</h4>
+                            <div id="liste-paiements-urgents" style="color: #aaa; font-style: italic;">Chargement…</div>
+                        </div>
+                    `;
+                    adminOverview.insertAdjacentHTML('beforeend', tresoHTML);
+                }
+            }
+
             // Charger la trésorerie admin
             chargerTresorerieAdmin();
         }
@@ -9480,10 +9505,11 @@ function enterGallery() {
 
             try {
                 // 2. On envoie un signal au serveur PHP
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_confirm_reception.php', {
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_commandes.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
+                        action: 'confirm_reception',
                         order_id: orderId, 
                         user_id: currentUser.id // Sécurité : on vérifie que c'est bien l'acheteur
                     })

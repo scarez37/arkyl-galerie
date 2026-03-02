@@ -5698,7 +5698,7 @@ function enterGallery() {
             // Charger les œuvres depuis l'API et/ou local
             let allProducts = [];
             try {
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now());
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?include_sold=1&t=' + Date.now());
                 const contentType = response.headers.get('content-type');
                 
                 if (response.ok && contentType && contentType.includes('application/json')) {
@@ -5886,7 +5886,7 @@ function enterGallery() {
             // Charger les œuvres depuis le serveur
             let allProducts = [];
             try {
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now());
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?include_sold=1&t=' + Date.now());
                 const contentType = response.headers.get('content-type');
                 
                 if (response.ok && contentType && contentType.includes('application/json')) {
@@ -5902,7 +5902,9 @@ function enterGallery() {
                             photos: art.photos || [art.image_url],
                             emoji: '🎨',
                             description: art.description || '',
-                            created_at: art.created_at || ''
+                            created_at: art.created_at || '',
+                            is_sold: art.is_sold || art.badge === 'Vendu' || false,
+                            badge: art.badge || ''
                         }));
                     }
                 }
@@ -5997,6 +5999,10 @@ function enterGallery() {
                                    </div>`
                             }
                             <div class="loop-image-overlay">👁️</div>
+                            ${work.is_sold ? `
+                            <div style="position:absolute;top:12px;left:12px;background:rgba(0,0,0,0.75);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:1px;backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.2);">
+                                ✅ VENDU
+                            </div>` : ''}
                         </div>
 
                         <!-- Actions -->
@@ -6092,7 +6098,7 @@ function enterGallery() {
             // Charger les œuvres depuis le serveur
             let allProducts = [];
             try {
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now());
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?include_sold=1&t=' + Date.now());
                 const contentType = response.headers.get('content-type');
                 
                 if (response.ok && contentType && contentType.includes('application/json')) {
@@ -9207,58 +9213,74 @@ function enterGallery() {
 
         // ==================== TICKER NAVIGATION ====================
         (function() {
-            let tickerPaused = false;
-            let tickerOffset = 0;
             const STEP = 320;
 
-            function getScroll()   { return document.querySelector('.news-ticker-scroll'); }
-            function getContent()  { return document.querySelector('.news-ticker-content'); }
+            function getScroll()  { return document.querySelector('.news-ticker-scroll'); }
+            function getContent() { return document.querySelector('.news-ticker-content'); }
+
+            function pauseTicker(ms) {
+                const c = getContent();
+                if (!c) return;
+                c.style.animationPlayState = 'paused';
+                clearTimeout(window._tickerResumeTimer);
+                if (ms) {
+                    window._tickerResumeTimer = setTimeout(() => {
+                        c.style.animationPlayState = 'running';
+                    }, ms);
+                }
+            }
+
+            function resumeTicker() {
+                const c = getContent();
+                if (c) c.style.animationPlayState = 'running';
+            }
 
             function applyOffset(delta) {
                 const scroll = getScroll();
                 if (!scroll) return;
-
-                // Utiliser scrollLeft (fiable) plutôt que transform CSS
-                scroll.scrollBy({ left: delta, behavior: 'smooth' });
-
-                // Pause l'animation CSS pendant 5 s
-                const c = getContent();
-                if (c) {
-                    c.classList.add('paused');
-                    clearTimeout(window._tickerResumeTimer);
-                    window._tickerResumeTimer = setTimeout(() => {
-                        c.classList.remove('paused');
-                    }, 5000);
-                }
+                pauseTicker(4000);
+                scroll.scrollLeft += delta;
             }
 
-            document.addEventListener('DOMContentLoaded', function() {
+            // Attacher les events dès que le ticker est dans le DOM
+            function attachTickerEvents() {
                 const scroll = getScroll();
-                if (!scroll) return;
+                if (!scroll || scroll._tickerBound) return;
+                scroll._tickerBound = true;
 
-                scroll.addEventListener('mouseenter', () => {
-                    const c = getContent();
-                    if (c) c.classList.add('paused');
-                });
-                scroll.addEventListener('mouseleave', () => {
-                    const c = getContent();
-                    if (c && !tickerPaused) c.classList.remove('paused');
-                });
+                // Pause au survol
+                scroll.addEventListener('mouseenter', () => pauseTicker(0));
+                scroll.addEventListener('mouseleave', () => resumeTicker());
 
+                // ⭐ Scroll molette → avancer/reculer
                 scroll.addEventListener('wheel', (e) => {
                     e.preventDefault();
-                    applyOffset(e.deltaY * 0.8);
+                    e.stopPropagation();
+                    applyOffset(e.deltaY > 0 ? STEP : -STEP);
                 }, { passive: false });
 
-                scroll.addEventListener('touchstart', () => {
-                    const c = getContent();
-                    if (c) c.classList.add('paused');
+                // Touch mobile — scroll natif activé
+                scroll.style.overflowX = 'auto';
+                scroll.style.scrollBehavior = 'smooth';
+                let touchStartX = 0;
+                scroll.addEventListener('touchstart', (e) => {
+                    touchStartX = e.touches[0].clientX;
+                    pauseTicker(0);
                 }, { passive: true });
+                scroll.addEventListener('touchend', (e) => {
+                    const dx = touchStartX - e.changedTouches[0].clientX;
+                    applyOffset(dx);
+                    resumeTicker();
+                }, { passive: true });
+            }
 
-                scroll.addEventListener('touchend', () => {
-                    // scroll natif mobile — pas besoin de reprendre manuellement
-                }, { passive: true });
-            });
+            // Essayer immédiatement + après chargement + observer les mutations
+            attachTickerEvents();
+            document.addEventListener('DOMContentLoaded', attachTickerEvents);
+            window.addEventListener('load', attachTickerEvents);
+            // Re-attacher si le ticker est reconstruit dynamiquement
+            const _tickerObserver = new MutationObserver(() => attachTickerEvents());
+            _tickerObserver.observe(document.body, { childList: true, subtree: true });
 
             window.tickerNav = function(dir) {
                 applyOffset(dir * STEP);

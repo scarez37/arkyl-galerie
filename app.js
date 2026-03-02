@@ -9,6 +9,10 @@ function enterGallery() {
             }, 1000);
         }
 
+        // Expose globally so inline onclick attributes can reach it
+        window.enterGallery = enterGallery;
+
+        // Attach Enter key listener
         document.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && document.getElementById('intro-page').style.display !== 'none') {
                 enterGallery();

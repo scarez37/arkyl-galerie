@@ -8530,41 +8530,46 @@ function enterGallery() {
             const artworkIds = items.map(i => i.id || i.artwork_id).filter(Boolean);
             if (artworkIds.length === 0) return;
 
-            // 1. Mettre à jour le cache local immédiatement
+            // 1. Appel API serveur EN PREMIER — marquer is_sold = TRUE en base
+            //    → ainsi tous les appareils verront la suppression dès leur prochain chargement
+            let serverSuccess = false;
+            for (const artworkId of artworkIds) {
+                try {
+                    const resp = await fetch('https://arkyl-galerie.onrender.com/api_marquer_vendu.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ artwork_id: artworkId })
+                    });
+                    const data = await resp.json();
+                    if (data.success) serverSuccess = true;
+                } catch(e) {
+                    console.warn('⚠️ Impossible de marquer vendue l\'œuvre', artworkId, e.message);
+                }
+            }
+
+            // 2. Retirer du cache local immédiatement (appareil acheteur)
             if (window.toutesLesOeuvres && window.toutesLesOeuvres.length > 0) {
                 window.toutesLesOeuvres = window.toutesLesOeuvres.filter(
                     o => !artworkIds.includes(String(o.id)) && !artworkIds.includes(o.id)
                 );
-                // Rafraîchir la galerie si elle est visible
-                const homePage = document.getElementById('homePage');
-                if (homePage && homePage.classList.contains('active')) {
-                    if (typeof window.afficherOeuvresFiltrees === 'function') {
-                        window.afficherOeuvresFiltrees();
-                    }
-                }
             }
 
-            // 2. Mettre à jour le cache produits local (getProducts/saveProducts)
+            // 3. Retirer du cache produits local
             let products = getProducts();
             products = products.filter(
                 p => !artworkIds.includes(String(p.id)) && !artworkIds.includes(p.id)
             );
             saveProducts(products);
 
-            // 3. Appel API pour marquer comme vendu côté serveur (is_sold = true)
-            for (const artworkId of artworkIds) {
-                try {
-                    await fetch('https://arkyl-galerie.onrender.com/api_marquer_vendu.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ artwork_id: artworkId })
-                    });
-                } catch(e) {
-                    console.warn('⚠️ Impossible de marquer vendue l\'œuvre', artworkId, e.message);
-                }
+            // 4. Recharger la galerie depuis le serveur (source de vérité)
+            //    → garantit que l'œuvre ne réapparaît pas après rafraîchissement
+            if (typeof chargerLaVraieGalerie === 'function') {
+                await chargerLaVraieGalerie();
+            } else if (typeof afficherOeuvresFiltrees === 'function') {
+                afficherOeuvresFiltrees();
             }
 
-            console.log(`✅ ${artworkIds.length} œuvre(s) marquée(s) vendue(s) et retirée(s) de la galerie`);
+            console.log(`✅ ${artworkIds.length} œuvre(s) marquée(s) vendue(s)${serverSuccess ? ' ✓ serveur' : ' ⚠️ serveur indisponible'}`);
         }
 
         // ==================== INIT ====================

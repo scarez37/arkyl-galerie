@@ -33,7 +33,7 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
 }
 
 // 🔑 Clé secrète Stripe (test)
-\Stripe\Stripe::setApiKey('après');
+\Stripe\Stripe::setApiKey('sk_test_51T2gpFF55lBdracChUzrVSa166Skh4ob49dtF3j0pa27zcWMk1YLnvt5Wz788K7O0CpIMJPMZcaKDqG241vgQ8tj00EY87nxyZ');
 
 try {
     $db = getDatabase();
@@ -163,25 +163,24 @@ try {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // ÉTAPE 3.5 — 💰 CALCUL DE LA COMMISSION ARKYL (31%)
+    // ÉTAPE 3.5 — 💰 CALCUL DE LA NOUVELLE COMMISSION (35%)
     // ─────────────────────────────────────────────────────────────────
     $total_artworks_fcfa = 0;
-    $first_artist_id = null; 
+    $first_artist_id = null;
 
     foreach ($cartItems as $item) {
-        // On additionne uniquement le prix des œuvres (sans la livraison)
         $total_artworks_fcfa += (floatval($item['price']) * intval($item['quantity']));
-        
-        // On récupère l'ID de l'artiste concerné
         if (!$first_artist_id && isset($item['artist_id'])) {
             $first_artist_id = $item['artist_id'];
         }
     }
 
-    // Calcul de la répartition
-    $commission_rate = 0.31;
-    $commission_amount = $total_artworks_fcfa * $commission_rate; // 31% pour ARKYL
-    $artist_payout = $total_artworks_fcfa - $commission_amount;   // 69% pour l'artiste
+    // Nouvelle répartition : 35% / 65%
+    $commission_rate   = 0.35;
+    $commission_amount = $total_artworks_fcfa * $commission_rate; // Part du site (35%)
+    $artist_payout     = $total_artworks_fcfa * 0.65;             // Part de l'artiste (65%)
+    // ⚠️ Les frais de port ($shipping_cost) ne sont PAS inclus dans la base
+    // de calcul — ils sont reversés intégralement à l'artiste/transporteur.
 
     // ─────────────────────────────────────────────────────────────────
     // ÉTAPE 4 — Générer la session Stripe avec le "sac à dos" (metadata)
@@ -192,15 +191,15 @@ try {
         'payment_method_types' => ['card'],
         'line_items'           => $line_items,
         'mode'                 => 'payment',
-        'client_reference_id'  => $user_id,  
-        'metadata'             => [           
+        'client_reference_id'  => $user_id,
+        'metadata'             => [
             'order_id'          => $order_id,
             'user_id'           => $user_id,
             'artist_id'         => $first_artist_id,   // 🆕 ID de l'artiste
             'shipping_cost'     => $shipping_cost,
             'shipping_mode'     => $shipping_mode,
-            'commission_amount' => $commission_amount, // 🆕 Part ARKYL
-            'artist_payout'     => $artist_payout,     // 🆕 Part Artiste
+            'commission_amount' => $commission_amount, // Part ARKYL (35%)
+            'artist_payout'     => $artist_payout,     // Part Artiste (65%)
         ],
         // 🆕 IMPORTANT : Modification en index.php au lieu de index.html
         'success_url' => 'https://arkyl-galerie.onrender.com/index.php?order_id=' . $order_id . '&session_id={CHECKOUT_SESSION_ID}',
@@ -210,7 +209,7 @@ try {
     echo json_encode([
         'success'    => true,
         'url'        => $checkout_session->url,
-        'order_id'   => $order_id,  
+        'order_id'   => $order_id,
         'session_id' => $checkout_session->id,
     ]);
 

@@ -44,7 +44,7 @@ try {
         
     } else {
         // ===== MODE : TOUTES LES ŒUVRES (optionnellement filtrées par artist_id) =====
-        $sql = "SELECT * FROM artworks WHERE status = 'publiée'";
+        $sql = "SELECT * FROM artworks WHERE status = 'publiée' AND (is_sold = FALSE OR is_sold IS NULL)";
         $params = [];
         
         // 🔐 Filtrer par artist_id si fourni
@@ -146,7 +146,9 @@ function formatArtwork($oeuvre) {
         'image' => !empty($photos) ? $photos[0] : null,
         'image_url' => !empty($photos) ? $photos[0] : null,
         'photos' => $photos,
-        'created_at' => $oeuvre['created_at'] ?? null
+        'created_at' => $oeuvre['created_at'] ?? null,
+        'is_sold' => !empty($oeuvre['is_sold']) ? (bool) $oeuvre['is_sold'] : false,
+        'sold_at' => $oeuvre['sold_at'] ?? null
     ];
 }
 ?>

@@ -1166,6 +1166,50 @@ function enterGallery() {
                 document.getElementById('adminTabArtists').classList.add('active');
                 document.getElementById('adminArtistsSection').classList.add('active');
                 renderAdminArtists();
+            } else if (tab === 'tresorerie') {
+                // Injecter le bouton onglet si absent
+                if (!document.getElementById('adminTabTresorerie')) {
+                    const tabBar = document.querySelector('.admin-tabs') || document.getElementById('adminTabArtists')?.parentElement;
+                    if (tabBar) {
+                        const btn = document.createElement('button');
+                        btn.id = 'adminTabTresorerie';
+                        btn.className = 'admin-tab-btn';
+                        btn.textContent = '💰 Trésorerie';
+                        btn.onclick = () => switchAdminTab('tresorerie');
+                        tabBar.appendChild(btn);
+                    }
+                }
+                // Injecter la section si absente
+                if (!document.getElementById('adminTresorerieSection')) {
+                    const container = document.getElementById('adminOverviewSection')?.parentElement;
+                    if (container) {
+                        const section = document.createElement('div');
+                        section.id = 'adminTresorerieSection';
+                        section.className = 'admin-section';
+                        section.innerHTML = `
+                            <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 25px;">
+                                <div style="flex: 1; min-width: 180px; background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center;">
+                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">Total encaissé</div>
+                                    <div id="treso-total" style="color: #d4af37; font-size: 1.5rem; font-weight: bold;">—</div>
+                                </div>
+                                <div style="flex: 1; min-width: 180px; background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center;">
+                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">Bénéfices ARKYL (31%)</div>
+                                    <div id="treso-arkyl" style="color: #28a745; font-size: 1.5rem; font-weight: bold;">—</div>
+                                </div>
+                                <div style="flex: 1; min-width: 180px; background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center;">
+                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">À verser aux artistes (69%)</div>
+                                    <div id="treso-artistes" style="color: #ffc107; font-size: 1.5rem; font-weight: bold;">—</div>
+                                </div>
+                            </div>
+                            <h4 style="color: #d4af37; margin: 0 0 12px 0;">⚡ Paiements urgents</h4>
+                            <div id="liste-paiements-urgents" style="color: #aaa; font-style: italic;">Chargement…</div>
+                        `;
+                        container.appendChild(section);
+                    }
+                }
+                document.getElementById('adminTabTresorerie')?.classList.add('active');
+                document.getElementById('adminTresorerieSection')?.classList.add('active');
+                chargerTresorerieAdmin();
             }
         }
 
@@ -1484,33 +1528,7 @@ function enterGallery() {
             // Render recent activity
             renderRecentActivity();
             
-            // Injecter le bloc trésorerie s'il n'existe pas encore
-            if (!document.getElementById('admin-tresorerie')) {
-                const adminOverview = document.getElementById('adminOverviewSection');
-                if (adminOverview) {
-                    const tresoHTML = `
-                        <div id="admin-tresorerie" style="margin-top: 30px; padding: 20px; background: #1a1a1a; border: 1px solid #d4af37; border-radius: 8px;">
-                            <h3 style="color: #d4af37; margin: 0 0 20px 0; font-size: 1.2rem;">💰 Trésorerie</h3>
-                            <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 25px;">
-                                <div style="flex: 1; min-width: 180px; background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center;">
-                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">Bénéfices ARKYL (31%)</div>
-                                    <div id="treso-arkyl" style="color: #28a745; font-size: 1.5rem; font-weight: bold;">—</div>
-                                </div>
-                                <div style="flex: 1; min-width: 180px; background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center;">
-                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">À verser aux artistes (69%)</div>
-                                    <div id="treso-artistes" style="color: #ffc107; font-size: 1.5rem; font-weight: bold;">—</div>
-                                </div>
-                            </div>
-                            <h4 style="color: #d4af37; margin: 0 0 12px 0;">⚡ Paiements urgents</h4>
-                            <div id="liste-paiements-urgents" style="color: #aaa; font-style: italic;">Chargement…</div>
-                        </div>
-                    `;
-                    adminOverview.insertAdjacentHTML('beforeend', tresoHTML);
-                }
-            }
-
-            // Charger la trésorerie admin
-            chargerTresorerieAdmin();
+            // Trésorerie disponible via l'onglet dédié (switchAdminTab('tresorerie'))
         }
         
         function renderTopArtists() {
@@ -1980,15 +1998,9 @@ function enterGallery() {
         function goToAdminTreso() {
             document.getElementById('userMenuDropdown').classList.remove('show');
             goToAdmin();
-            // Après navigation, attendre que le DOM soit prêt et ouvrir l'onglet Vue d'ensemble
+            // Ouvrir directement l'onglet Trésorerie après navigation
             setTimeout(() => {
-                const overviewTab = document.getElementById('adminTabOverview');
-                if (overviewTab) overviewTab.click();
-                // Scroller vers la trésorerie
-                setTimeout(() => {
-                    const treso = document.getElementById('admin-tresorerie');
-                    if (treso) treso.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 500);
+                switchAdminTab('tresorerie');
             }, 300);
         }
 
@@ -9631,18 +9643,22 @@ function enterGallery() {
                 const commandes = data.orders.filter(o => o.status !== 'annulée');
 
                 // Calcul des totaux
-                let totalCA = 0, totalArtistes = 0;
+                let totalEncaisse = 0, totalArtistesAPayer = 0, totalCAarkyl = 0;
                 commandes.forEach(o => {
                     const total = parseFloat(o.total || 0);
-                    totalCA += total * 0.31;
+                    totalEncaisse += total;
+                    totalCAarkyl += total * 0.31;
                     if (o.escrow_status !== 'fonds_libérés') {
-                        totalArtistes += total * 0.69;
+                        totalArtistesAPayer += total * 0.69;
                     }
                 });
 
                 // Mise à jour des compteurs
-                document.getElementById('treso-arkyl').textContent = Math.round(totalCA).toLocaleString('fr-FR') + ' FCFA';
-                document.getElementById('treso-artistes').textContent = Math.round(totalArtistes).toLocaleString('fr-FR') + ' FCFA';
+                document.getElementById('treso-arkyl').textContent = Math.round(totalCAarkyl).toLocaleString('fr-FR') + ' FCFA';
+                document.getElementById('treso-artistes').textContent = Math.round(totalArtistesAPayer).toLocaleString('fr-FR') + ' FCFA';
+                // Total encaissé si l'élément existe
+                const elTotal = document.getElementById('treso-total');
+                if (elTotal) elTotal.textContent = Math.round(totalEncaisse).toLocaleString('fr-FR') + ' FCFA';
 
                 // Paiements urgents = commandes livrées et confirmées, fonds pas encore libérés
                 const urgents = commandes.filter(o => o.escrow_status === 'livrée_confirmée');

@@ -390,16 +390,39 @@ try {
         if ($dbOrderId) {
             $db->prepare("
                 INSERT INTO order_timeline (order_id, status, note, updated_by_role)
-                VALUES (?, 'Livrée', 'Réception confirmée par l''acheteur', 'buyer')
+                VALUES (?, 'Livrée', 'Réception confirmée par l''acheteur — en attente de virement artiste', 'buyer')
             ")->execute([$dbOrderId]);
-
-            // Libération immédiate des fonds
-            $db->prepare("
-                UPDATE orders SET escrow_status = 'fonds_libérés', escrow_released_at = NOW()
-                WHERE id = ?
-            ")->execute([$dbOrderId]);
+            // ⭐ Fonds NON libérés automatiquement — l'admin valide via action liberer_fonds
         }
 
+        echo json_encode(['success' => true]);
+        exit;
+    }
+
+    // ── POST liberer_fonds (admin) ──────────────────────────────────────────
+    if ($action === 'liberer_fonds') {
+        $orderId = $body['order_id'] ?? '';
+        if (!$orderId) {
+            echo json_encode(['success' => false, 'error' => 'order_id manquant']);
+            exit;
+        }
+        $db->prepare("
+            UPDATE orders SET
+                escrow_status = 'fonds_libérés',
+                escrow_released_at = NOW(),
+                updated_at = NOW()
+            WHERE id::text = ? OR order_number = ?
+        ")->execute([(string)$orderId, (string)$orderId]);
+
+        $row = $db->prepare("SELECT id FROM orders WHERE id::text = ? OR order_number = ? LIMIT 1");
+        $row->execute([(string)$orderId, (string)$orderId]);
+        $dbOrderId = $row->fetchColumn();
+        if ($dbOrderId) {
+            $db->prepare("
+                INSERT INTO order_timeline (order_id, status, note, updated_by_role)
+                VALUES (?, 'Fonds libérés', 'Virement artiste confirmé par l''admin', 'admin')
+            ")->execute([$dbOrderId]);
+        }
         echo json_encode(['success' => true]);
         exit;
     }

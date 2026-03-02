@@ -1193,11 +1193,11 @@ function enterGallery() {
                                     <div id="treso-total" style="color: #d4af37; font-size: 1.5rem; font-weight: bold;">—</div>
                                 </div>
                                 <div style="flex: 1; min-width: 180px; background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center;">
-                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">Bénéfices ARKYL (31%)</div>
+                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">Bénéfices ARKYL (35%)</div>
                                     <div id="treso-arkyl" style="color: #28a745; font-size: 1.5rem; font-weight: bold;">—</div>
                                 </div>
                                 <div style="flex: 1; min-width: 180px; background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center;">
-                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">À verser aux artistes (69%)</div>
+                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">À verser aux artistes (65%)</div>
                                     <div id="treso-artistes" style="color: #ffc107; font-size: 1.5rem; font-weight: bold;">—</div>
                                 </div>
                             </div>
@@ -1997,11 +1997,17 @@ function enterGallery() {
 
         function goToAdminTreso() {
             document.getElementById('userMenuDropdown').classList.remove('show');
-            goToAdmin();
-            // Ouvrir directement l'onglet Trésorerie après navigation
-            setTimeout(() => {
+            if (!currentUser || !currentUser.isAdmin) {
+                showToast('⚠️ Accès réservé aux administrateurs');
+                return;
+            }
+            navigateTo('admin');
+            loadAdminDataFromServer().then(() => {
+                // Désactiver tous les onglets, n'afficher que la trésorerie
+                document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.admin-tab-content').forEach(s => s.classList.remove('active'));
                 switchAdminTab('tresorerie');
-            }, 300);
+            });
         }
 
         function goToAdminOrders() {
@@ -7044,8 +7050,8 @@ function enterGallery() {
             // Calculer le revenu depuis les commandes serveur si disponibles, sinon local
             if (serverSales.length > 0) {
                 const rev = serverSales.reduce((sum, o) => {
-                    // Utiliser artist_payout si dispo, sinon 69% du total
-                    const payout = parseFloat(o.artist_payout || 0) || parseFloat(o.total || 0) * 0.69;
+                    // Utiliser artist_payout si dispo, sinon 65% du total (hors livraison)
+                    const payout = parseFloat(o.artist_payout || 0) || parseFloat(o.total || 0) * 0.65;
                     return sum + payout;
                 }, 0);
                 document.getElementById('totalRevenue').textContent = formatPrice(rev);
@@ -7077,7 +7083,7 @@ function enterGallery() {
 
                 if (serverSales.length > 0) {
                     serverSales.slice(0, 3).forEach(o => {
-                        const montant = parseFloat(o.artist_payout || 0) || parseFloat(o.total || 0) * 0.69;
+                        const montant = parseFloat(o.artist_payout || 0) || parseFloat(o.total || 0) * 0.65;
                         activities.push(`💰 Commande #${o.order_number} — ${formatPrice(montant)}`);
                     });
                 } else {
@@ -9667,13 +9673,18 @@ function enterGallery() {
                 const commandes = data.orders.filter(o => o.status !== 'annulée');
 
                 // Calcul des totaux
+                // Priorité : utiliser commission_amount / artist_payout depuis la BDD (valeurs exactes)
+                // Fallback : 35% ARKYL / 65% artiste sur le total (hors livraison idéalement)
                 let totalEncaisse = 0, totalArtistesAPayer = 0, totalCAarkyl = 0;
                 commandes.forEach(o => {
                     const total = parseFloat(o.total || 0);
                     totalEncaisse += total;
-                    totalCAarkyl += total * 0.31;
+                    totalCAarkyl += parseFloat(o.commission_amount || 0) || total * 0.35;
                     if (o.escrow_status !== 'fonds_libérés') {
-                        totalArtistesAPayer += total * 0.69;
+                        // artist_payout = 65% des oeuvres ; shipping_cost reversé en intégralité
+                        const payout   = parseFloat(o.artist_payout || 0) || total * 0.65;
+                        const shipping = parseFloat(o.shipping_cost  || 0);
+                        totalArtistesAPayer += payout + shipping;
                     }
                 });
 
@@ -9696,18 +9707,24 @@ function enterGallery() {
 
                     urgents.forEach(cmd => {
                         const dateFR = new Date(cmd.created_at).toLocaleDateString('fr-FR');
-                        const montant = Math.round(parseFloat(cmd.total || 0) * 0.69).toLocaleString('fr-FR');
-                        const artistId = cmd.items?.[0]?.artist_id || cmd.artist_id || '—';
+                        const montantTotal = parseFloat(cmd.payout_total_with_shipping || 0).toLocaleString('fr-FR');
+                        const partArt = parseFloat(cmd.artist_payout || 0).toLocaleString('fr-FR');
+                        const transport = parseFloat(cmd.shipping_cost || 0).toLocaleString('fr-FR');
 
                         html += `
                             <tr style="border-bottom: 1px solid #333;">
                                 <td style="padding: 10px;">${cmd.order_number}</td>
                                 <td>${dateFR}</td>
-                                <td>${artistId}</td>
-                                <td style="color: #ffc107; font-weight: bold;">${montant} FCFA</td>
+                                <td>${cmd.artist_id || '—'}</td>
+                                <td style="color: #ffc107; font-weight: bold;">
+                                    ${montantTotal} FCFA
+                                    <br><span style="font-size: 11px; color: #aaa; font-weight: normal;">
+                                        (Art: ${partArt} + Port: ${transport})
+                                    </span>
+                                </td>
                                 <td>
-                                    <button onclick="marquerFondsLiberes(${cmd.id})" style="background: #d4af37; color: black; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer;">
-                                        ✅ Marquer comme transféré
+                                    <button class="btn-pay-confirm" onclick="marquerFondsLiberes(${cmd.id})" style="background: #d4af37; color: black; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                                        ✅ Marqué payé
                                     </button>
                                 </td>
                             </tr>

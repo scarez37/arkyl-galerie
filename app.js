@@ -918,6 +918,21 @@ function enterGallery() {
             const adminMenuBtn = document.getElementById('adminMenuBtn');
             const adminNewsMenuBtn = document.getElementById('adminNewsMenuBtn');
             const adminOrdersMenuBtn = document.getElementById('adminOrdersMenuBtn');
+
+            // Injecter le bouton Trésorerie s'il n'existe pas encore
+            if (!document.getElementById('adminTresoMenuBtn') && adminOrdersMenuBtn) {
+                const tresoBtn = document.createElement('div');
+                tresoBtn.id = 'adminTresoMenuBtn';
+                tresoBtn.style.cssText = adminOrdersMenuBtn.style.cssText;
+                tresoBtn.style.display = 'none';
+                tresoBtn.innerHTML = `<span style="font-size:1.1rem;">💰</span><span>Trésorerie</span>`;
+                tresoBtn.style.cursor = 'pointer';
+                tresoBtn.setAttribute('onclick', 'goToAdminTreso()');
+                // Copier les styles hover du bouton voisin
+                tresoBtn.onmouseover = function() { this.style.background = 'rgba(212,175,55,0.15)'; };
+                tresoBtn.onmouseout  = function() { this.style.background = ''; };
+                adminOrdersMenuBtn.insertAdjacentElement('afterend', tresoBtn);
+            }
             const artistMenuBtn = document.getElementById('artistMenuBtn');
             const backToClientBtn = document.getElementById('backToClientBtn');
             const floatingGalleryBtn = document.getElementById('floatingGalleryBtn');
@@ -976,6 +991,7 @@ function enterGallery() {
                         adminMenuBtn.style.display = 'none';
                         adminNewsMenuBtn.style.display = 'none';
                         if (adminOrdersMenuBtn) adminOrdersMenuBtn.style.display = 'none';
+                        const t1 = document.getElementById('adminTresoMenuBtn'); if (t1) t1.style.display = 'none';
                         backToClientBtn.style.display = 'flex';
                         floatingGalleryBtn.classList.add('show');
                     } else {
@@ -983,6 +999,7 @@ function enterGallery() {
                         adminMenuBtn.style.display = 'flex';
                         adminNewsMenuBtn.style.display = 'flex';
                         if (adminOrdersMenuBtn) adminOrdersMenuBtn.style.display = 'flex';
+                        const t2 = document.getElementById('adminTresoMenuBtn'); if (t2) t2.style.display = 'flex';
                         backToClientBtn.style.display = 'none';
                         floatingGalleryBtn.classList.remove('show');
                     }
@@ -1437,14 +1454,29 @@ function enterGallery() {
             const artists = Object.keys(artistsData);
             // Utilise la variable globale newsItems (chargée depuis le serveur)
             
-            // Update statistics
+            // Update statistics (catalogue)
             document.getElementById('overviewArtworksCount').textContent = products.length;
             document.getElementById('overviewArtistsCount').textContent = artists.length;
             document.getElementById('overviewNewsCount').textContent = newsItems.length;
             
-            // Calculate total value
-            const totalValue = products.reduce((sum, p) => sum + (p.price || 0), 0);
-            document.getElementById('overviewTotalValue').textContent = formatPrice(totalValue).replace(' FCFA', '');
+            // ⭐ FIX : Chiffre d'affaires RÉEL depuis le serveur (pas les prix du catalogue)
+            try {
+                const resp = await fetch('https://arkyl-galerie.onrender.com/api_commandes.php?action=list&admin=1');
+                const json = await resp.json();
+                if (json.success && json.orders) {
+                    const commandes = json.orders.filter(o => o.status !== 'annulée');
+                    const totalCA = commandes.reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
+                    const nbVentes = commandes.length;
+                    document.getElementById('overviewTotalValue').textContent = totalCA.toLocaleString('fr-FR');
+                    // Mettre à jour le compteur de ventes si l'élément existe
+                    const elVentes = document.getElementById('overviewSalesCount');
+                    if (elVentes) elVentes.textContent = nbVentes;
+                }
+            } catch(e) {
+                // Fallback : somme des prix catalogue
+                const totalValue = products.reduce((sum, p) => sum + (p.price || 0), 0);
+                document.getElementById('overviewTotalValue').textContent = formatPrice(totalValue).replace(' FCFA', '');
+            }
             
             // Render top artists
             renderTopArtists();
@@ -1943,6 +1975,21 @@ function enterGallery() {
             
             // Navigate to orders page
             navigateTo('orders');
+        }
+
+        function goToAdminTreso() {
+            document.getElementById('userMenuDropdown').classList.remove('show');
+            goToAdmin();
+            // Après navigation, attendre que le DOM soit prêt et ouvrir l'onglet Vue d'ensemble
+            setTimeout(() => {
+                const overviewTab = document.getElementById('adminTabOverview');
+                if (overviewTab) overviewTab.click();
+                // Scroller vers la trésorerie
+                setTimeout(() => {
+                    const treso = document.getElementById('admin-tresorerie');
+                    if (treso) treso.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 500);
+            }, 300);
         }
 
         function goToAdminOrders() {
@@ -6954,21 +7001,49 @@ function enterGallery() {
         }
 
         // ==================== DASHBOARD ====================
-        function updateDashboard() {
-            // Ensure db.sales is an array
+        async function updateDashboard() {
+            // Ensure db.sales is an array (fallback local)
             if (!Array.isArray(db.sales)) {
                 db.sales = [];
                 db._save('artist_sales', db.sales);
             }
-            
+
             document.getElementById('totalArtworks').textContent = db.artworks.length;
-            const rev = db.sales.reduce((s,sale) => s + sale.price, 0);
-            document.getElementById('totalRevenue').textContent = formatPrice(rev);
-            document.getElementById('totalSales').textContent   = db.sales.length;
-            
-            // Display recent activity based on actual data
+
+            // ⭐ FIX : Charger les vraies ventes depuis le serveur
+            let serverSales = [];
+            try {
+                const artistId = currentUser?.id || db.artistId;
+                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_commandes.php?action=list&artist_id=${artistId}`);
+                const json = await resp.json();
+                if (json.success && Array.isArray(json.orders)) {
+                    serverSales = json.orders.filter(o => o.status !== 'annulée');
+                }
+            } catch(e) {
+                console.warn('⚠️ Impossible de charger les commandes serveur, fallback local');
+            }
+
+            // Calculer le revenu depuis les commandes serveur si disponibles, sinon local
+            if (serverSales.length > 0) {
+                const rev = serverSales.reduce((sum, o) => {
+                    // Utiliser artist_payout si dispo, sinon 69% du total
+                    const payout = parseFloat(o.artist_payout || 0) || parseFloat(o.total || 0) * 0.69;
+                    return sum + payout;
+                }, 0);
+                document.getElementById('totalRevenue').textContent = formatPrice(rev);
+                document.getElementById('totalSales').textContent = serverSales.length;
+            } else {
+                // Fallback local
+                const rev = db.sales.reduce((s, sale) => s + sale.price, 0);
+                document.getElementById('totalRevenue').textContent = formatPrice(rev);
+                document.getElementById('totalSales').textContent = db.sales.length;
+            }
+
+            // Activité récente
             const recentActivityEl = document.getElementById('recentActivity');
-            if (db.artworks.length === 0 && db.sales.length === 0) {
+            const salesSource = serverSales.length > 0 ? serverSales : db.sales;
+
+            if (db.artworks.length === 0 && salesSource.length === 0) {
                 recentActivityEl.innerHTML = `
                     <p style="opacity:0.6;line-height:1.8;text-align:center;">
                         🎨 Aucune activité pour le moment<br>
@@ -6976,19 +7051,23 @@ function enterGallery() {
                     </p>`;
             } else {
                 let activities = [];
-                
-                // Add recent artworks
+
                 const recentArtworks = db.artworks.slice(-3).reverse();
                 recentArtworks.forEach(a => {
                     activities.push(`✅ Œuvre "${a.title}" publiée`);
                 });
-                
-                // Add recent sales
-                const recentSales = db.sales.slice(-3).reverse();
-                recentSales.forEach(s => {
-                    activities.push(`💰 Vente : "${s.artwork}" — ${formatPrice(s.price)}`);
-                });
-                
+
+                if (serverSales.length > 0) {
+                    serverSales.slice(0, 3).forEach(o => {
+                        const montant = parseFloat(o.artist_payout || 0) || parseFloat(o.total || 0) * 0.69;
+                        activities.push(`💰 Commande #${o.order_number} — ${formatPrice(montant)}`);
+                    });
+                } else {
+                    db.sales.slice(-3).reverse().forEach(s => {
+                        activities.push(`💰 Vente : "${s.artwork}" — ${formatPrice(s.price)}`);
+                    });
+                }
+
                 recentActivityEl.innerHTML = `
                     <p style="opacity:0.8;line-height:1.8;">
                         ${activities.join('<br>')}
@@ -9543,47 +9622,84 @@ function enterGallery() {
         // ==========================================
         async function chargerTresorerieAdmin() {
             try {
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_admin_tresorerie.php');
+                // ⭐ Utilise api_commandes.php (qui existe) au lieu de api_admin_tresorerie.php (inexistant)
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_commandes.php?action=list&admin=1');
                 const data = await response.json();
 
-                if (data.success) {
-                    // 1. Mise à jour des gros compteurs (avec formatage des milliers)
-                    document.getElementById('treso-arkyl').textContent = parseFloat(data.stats.chiffre_affaire_arkyl).toLocaleString('fr-FR') + ' FCFA';
-                    document.getElementById('treso-artistes').textContent = parseFloat(data.stats.argent_a_verser_wave_orange).toLocaleString('fr-FR') + ' FCFA';
+                if (!data.success || !data.orders) throw new Error('Réponse invalide');
 
-                    // 2. Création du tableau des paiements urgents
-                    const conteneurPaiements = document.getElementById('liste-paiements-urgents');
-                    
-                    if (data.paiements_urgents.length === 0) {
-                        conteneurPaiements.innerHTML = '<p style="color: #28a745; margin: 0;">🎉 Aucun paiement en attente. Tous les artistes ont reçu leur argent !</p>';
-                    } else {
-                        let html = '<table style="width: 100%; text-align: left; border-collapse: collapse; color: white;">';
-                        html += '<tr style="border-bottom: 1px solid #555;"> <th style="padding: 10px;">Commande</th> <th>Date</th> <th>ID Artiste</th> <th>Montant à envoyer</th> <th>Action</th> </tr>';
-                        
-                        data.paiements_urgents.forEach(cmd => {
-                            const dateFR = new Date(cmd.created_at).toLocaleDateString('fr-FR');
-                            const montant = parseFloat(cmd.artist_payout).toLocaleString('fr-FR');
-                            
-                            html += `
-                                <tr style="border-bottom: 1px solid #333;">
-                                    <td style="padding: 10px;">${cmd.order_number}</td>
-                                    <td>${dateFR}</td>
-                                    <td>${cmd.artist_id}</td>
-                                    <td style="color: #ffc107; font-weight: bold;">${montant} FCFA</td>
-                                    <td>
-                                        <button onclick="alert('Le bouton pour marquer la commande comme payée sera bientôt actif !')" style="background: #d4af37; color: black; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer;">
-                                            ✅ Marquer comme transféré
-                                        </button>
-                                    </td>
-                                </tr>
-                            `;
-                        });
-                        html += '</table>';
-                        conteneurPaiements.innerHTML = html;
+                const commandes = data.orders.filter(o => o.status !== 'annulée');
+
+                // Calcul des totaux
+                let totalCA = 0, totalArtistes = 0;
+                commandes.forEach(o => {
+                    const total = parseFloat(o.total || 0);
+                    totalCA += total * 0.31;
+                    if (o.escrow_status !== 'fonds_libérés') {
+                        totalArtistes += total * 0.69;
                     }
+                });
+
+                // Mise à jour des compteurs
+                document.getElementById('treso-arkyl').textContent = Math.round(totalCA).toLocaleString('fr-FR') + ' FCFA';
+                document.getElementById('treso-artistes').textContent = Math.round(totalArtistes).toLocaleString('fr-FR') + ' FCFA';
+
+                // Paiements urgents = commandes livrées et confirmées, fonds pas encore libérés
+                const urgents = commandes.filter(o => o.escrow_status === 'livrée_confirmée');
+                const conteneurPaiements = document.getElementById('liste-paiements-urgents');
+
+                if (urgents.length === 0) {
+                    conteneurPaiements.innerHTML = '<p style="color: #28a745; margin: 0;">🎉 Aucun paiement en attente. Tous les artistes ont reçu leur argent !</p>';
+                } else {
+                    let html = '<table style="width: 100%; text-align: left; border-collapse: collapse; color: white;">';
+                    html += '<tr style="border-bottom: 1px solid #555;"><th style="padding: 10px;">Commande</th><th>Date</th><th>Artiste</th><th>Montant à envoyer</th><th>Action</th></tr>';
+
+                    urgents.forEach(cmd => {
+                        const dateFR = new Date(cmd.created_at).toLocaleDateString('fr-FR');
+                        const montant = Math.round(parseFloat(cmd.total || 0) * 0.69).toLocaleString('fr-FR');
+                        const artistId = cmd.items?.[0]?.artist_id || cmd.artist_id || '—';
+
+                        html += `
+                            <tr style="border-bottom: 1px solid #333;">
+                                <td style="padding: 10px;">${cmd.order_number}</td>
+                                <td>${dateFR}</td>
+                                <td>${artistId}</td>
+                                <td style="color: #ffc107; font-weight: bold;">${montant} FCFA</td>
+                                <td>
+                                    <button onclick="marquerFondsLiberes(${cmd.id})" style="background: #d4af37; color: black; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                                        ✅ Marquer comme transféré
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    html += '</table>';
+                    conteneurPaiements.innerHTML = html;
                 }
+
             } catch (error) {
                 console.error("Erreur de chargement de la trésorerie :", error);
-                document.getElementById('liste-paiements-urgents').innerHTML = '<p style="color: #dc3545;">Erreur de connexion au serveur.</p>';
+                const el = document.getElementById('liste-paiements-urgents');
+                if (el) el.innerHTML = '<p style="color: #dc3545;">Erreur de connexion au serveur.</p>';
+            }
+        }
+
+        async function marquerFondsLiberes(orderId) {
+            if (!confirm('Confirmer le virement à l\'artiste pour cette commande ?')) return;
+            try {
+                const resp = await fetch('https://arkyl-galerie.onrender.com/api_commandes.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'liberer_fonds', order_id: orderId })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('✅ Fonds marqués comme transférés !');
+                    chargerTresorerieAdmin();
+                } else {
+                    showToast('❌ Erreur : ' + (data.message || 'inconnue'));
+                }
+            } catch(e) {
+                showToast('❌ Erreur réseau');
             }
         }

@@ -9213,3 +9213,39 @@ function enterGallery() {
 
         // Note : la détection du retour Stripe est gérée en haut du fichier
         // via window._pendingStripeOrderId → processStripeReturn()
+
+        // ==========================================
+        // VALIDATION DE RÉCEPTION DU COLIS (ACHETEUR)
+        // ==========================================
+        async function confirmerReception(orderId) {
+            // 1. On demande confirmation pour éviter les clics par erreur
+            const confirmation = confirm("Confirmez-vous avoir reçu cette œuvre en parfait état ?\n\n⚠️ Cette action est définitive et va débloquer le paiement de l'artiste.");
+            
+            if (!confirmation) return;
+
+            try {
+                // 2. On envoie un signal au serveur PHP
+                const response = await fetch('https://arkyl-galerie.onrender.com/api_confirm_reception.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        order_id: orderId, 
+                        user_id: currentUser.id // Sécurité : on vérifie que c'est bien l'acheteur
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert("🎉 Merci ! La réception est confirmée. L'artiste va recevoir son argent.");
+                    // Si tu as une fonction qui recharge l'historique des commandes, appelle-la ici :
+                    // chargerHistoriqueCommandes(); 
+                    location.reload(); // En attendant, on recharge la page pour mettre à jour l'affichage
+                } else {
+                    alert("Erreur : " + data.message);
+                }
+            } catch (error) {
+                console.error("Erreur lors de la confirmation :", error);
+                alert("Une erreur de connexion est survenue.");
+            }
+        }

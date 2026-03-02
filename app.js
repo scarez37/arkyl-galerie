@@ -8093,7 +8093,7 @@ function enterGallery() {
                 // ⭐ ENVOI AU SERVEUR
                 try {
                     const profileData = {
-                        artist_id: currentUser.id,
+                        artist_id: currentUser.id || currentUser.googleId,
                         name: acc.name,
                         email: acc.email,
                         phone: acc.phone || '',
@@ -8114,7 +8114,8 @@ function enterGallery() {
                     if (res.success) {
                         showToast('✅ Profil mis à jour avec succès !');
                     } else {
-                        showToast('✅ Profil sauvegardé localement');
+                        console.error('❌ api_modifier_profil erreur:', res.message || res.error || JSON.stringify(res));
+                        showToast('⚠️ Profil sauvegardé localement — erreur serveur: ' + (res.message || 'inconnue'));
                     }
                 } catch (e) {
                     showToast('✅ Profil sauvegardé (hors ligne)');

@@ -9,10 +9,6 @@ function enterGallery() {
             }, 1000);
         }
 
-        // Expose globally so inline onclick attributes can reach it
-        window.enterGallery = enterGallery;
-
-        // Attach Enter key listener
         document.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && document.getElementById('intro-page').style.display !== 'none') {
                 enterGallery();
@@ -8265,8 +8261,15 @@ function enterGallery() {
             }).join('');
         }
 
+        window.openAddNewsModal = openAddNewsModal;
         function openAddNewsModal() {
-            document.getElementById('newsModalTitle').textContent = '➕ Nouvelle Actualité';
+            const ids = ['newsModalTitle', 'newsIcon', 'newsImageUpload', 'newsGradient', 'newsText', 'newsEditIndex', 'newsImagePreview', 'newsModal'];
+            const missing = ids.filter(id => !document.getElementById(id));
+            if (missing.length > 0) {
+                console.error('openAddNewsModal : elements introuvables dans le DOM :', missing.join(', '));
+                return;
+            }
+            document.getElementById('newsModalTitle').textContent = 'Nouvelle Actualite';
             document.getElementById('newsIcon').value = '';
             document.getElementById('newsImageUpload').value = '';
             document.getElementById('newsGradient').value = 'gradient-1';

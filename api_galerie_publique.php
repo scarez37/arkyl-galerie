@@ -44,7 +44,7 @@ try {
         
     } else {
         // ===== MODE : TOUTES LES ŒUVRES (optionnellement filtrées par artist_id) =====
-        $sql = "SELECT * FROM artworks WHERE status = 'publiée'";
+        $sql = "SELECT * FROM artworks WHERE status = 'publiée' AND (is_sold IS NULL OR is_sold = FALSE)";
         $params = [];
         
         // 🔐 Filtrer par artist_id si fourni

@@ -6456,18 +6456,25 @@ function enterGallery() {
             }
 
             // Render carousel d'avatars (Your Loop)
-            carousel.innerHTML = followed.map(artist => `
-                <div class="artist-avatar-item" onclick="scrollToArtistLoops('${artist.name}')">
-                    <div class="artist-avatar-ring">
-                        <div class="artist-avatar-inner" style="overflow: hidden; background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1)); display: flex; align-items: center; justify-content: center;">
-                            ${buildMiniAvatar(artist, 70, null)}
+            carousel.innerHTML = `
+                <style>
+                    .avatar-story-item { display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;flex-shrink:0;transition:transform 0.2s; }
+                    .avatar-story-item:hover { transform:scale(1.08); }
+                    .avatar-story-ring { width:72px;height:72px;border-radius:50%;padding:3px;background:linear-gradient(135deg,#d4af37,#a07820,#d4af37);box-shadow:0 0 12px rgba(212,175,55,0.4); }
+                    .avatar-story-inner { width:100%;height:100%;border-radius:50%;overflow:hidden;background:#1a1a2e;border:2px solid #0f0f1e;display:flex;align-items:center;justify-content:center;font-size:32px; }
+                    .avatar-story-inner img { width:100%;height:100%;object-fit:cover;border-radius:50%; }
+                    .avatar-story-name { font-size:11px;font-weight:600;color:#fff;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,0.5); }
+                </style>
+                \${followed.map(artist => \`
+                <div class="avatar-story-item" onclick="scrollToArtistLoops('\${artist.name}')">
+                    <div class="avatar-story-ring">
+                        <div class="avatar-story-inner">
+                            \${buildMiniAvatar(artist, 66, null)}
                         </div>
                     </div>
-                    <div style="font-size: 12px; font-weight: 600; color: #ffffff; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        ${artist.name.split(' ')[0]}
-                    </div>
+                    <div class="avatar-story-name">\${artist.name.split(' ')[0]}</div>
                 </div>
-            `).join('');
+                \`).join('')}`;
 
             // Afficher un indicateur de chargement pendant le chargement du feed
             loopsFeed.innerHTML = `
@@ -6722,71 +6729,71 @@ function enterGallery() {
 
             // Create grid view for followed artists
             const loopsFeed = document.getElementById('artistsLoopsFeed');
-            loopsFeed.innerHTML = `
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 20px; margin-top: 20px;">
-                    ${followed.map(artist => {
-                        // Comparaison robuste : ignorer la casse et les espaces
-                        const artistWorks = allProducts.filter(p => 
-                            p.artist && artist.name && 
-                            p.artist.trim().toLowerCase() === artist.name.trim().toLowerCase()
-                        );
-                        const totalLikes = 0; // Compteur de likes
-                        
-                        return `
-                            <div class="artist-profile-card" onclick="viewArtistDetail(event, '${artist.name}')" style="cursor: pointer;">
-                                <div class="artist-profile-header">
-                                    <div class="artist-profile-avatar" style="overflow: hidden; background: rgba(255,255,255,0.95); display: flex; align-items: center; justify-content: center;">
-                                        ${buildMiniAvatar(artist, 90, null)}
-                                    </div>
-                                    <div class="artist-profile-badge">✓</div>
-                                </div>
-                                
-                                <div class="artist-profile-info">
-                                    <h3 class="artist-profile-name">${artist.name}</h3>
-                                    <p class="artist-profile-specialty">${artist.specialty}</p>
-                                    
-                                    <div class="artist-profile-stats">
-                                        <div class="artist-profile-stat">
-                                            <span class="stat-value">${artistWorks.length}</span>
-                                            <span class="stat-label">Œuvres</span>
-                                        </div>
-                                        <div class="artist-profile-stat">
-                                            <span class="stat-value">${totalLikes}</span>
-                                            <span class="stat-label">Likes</span>
-                                        </div>
-                                        <div class="artist-profile-stat">
-                                            <span class="stat-value">0</span>
-                                            <span class="stat-label">Vues</span>
-                                        </div>
-                                    </div>
 
-                                    <p class="artist-profile-bio">${artist.bio}</p>
+            const artistCards = followed.map(artist => {
+                const artistWorks = allProducts.filter(p =>
+                    p.artist && artist.name &&
+                    p.artist.trim().toLowerCase() === artist.name.trim().toLowerCase()
+                );
+                const previewImgs = artistWorks.slice(0, 3).map(work =>
+                    work.image_url && work.image_url !== 'undefined'
+                        ? `<div style="flex:1;min-width:0;aspect-ratio:1/1;border-radius:10px;overflow:hidden;background:rgba(255,255,255,0.06);">
+                               <img src="${work.image_url}" alt="${work.title}" style="width:100%;height:100%;object-fit:cover;"
+                                   onerror="this.parentElement.innerHTML='<div style=\"width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px;\">🎨</div>'">
+                           </div>`
+                        : `<div style="flex:1;min-width:0;aspect-ratio:1/1;border-radius:10px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:24px;">🎨</div>`
+                ).join('');
 
-                                    <div class="artist-profile-preview">
-                                        ${artistWorks.slice(0, 3).map(work => `
-                                            <div class="preview-artwork" style="overflow: hidden; background: linear-gradient(135deg, #f8f9fa, #e8eaed); display: flex; align-items: center; justify-content: center;">
-                                                ${work.image_url && work.image_url !== 'undefined'
-                                                    ? `<img loading="lazy" src="${work.image_url}" alt="${work.title}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size: 32px;\\'>${work.emoji || '🎨'}</div>'">` 
-                                                    : `<div style="font-size: 32px;">${work.emoji || '🎨'}</div>`}
-                                            </div>
-                                        `).join('')}
-                                        ${artistWorks.length > 3 ? `<div class="preview-more">+${artistWorks.length - 3}</div>` : ''}
-                                    </div>
-                                </div>
-
-                                <div class="artist-profile-actions">
-                                    <button onclick="event.stopPropagation(); viewArtistDetail(event, '${artist.name}')" class="btn-view-profile">
-                                        👁️ Voir le profil
-                                    </button>
-                                    <button onclick="event.stopPropagation(); unfollowArtist('${artist.name}')" class="btn-unfollow">
-                                        ✓ Abonné
-                                    </button>
+                return `
+                <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:20px;overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;cursor:pointer;"
+                     onmouseover="this.style.transform='translateY(-4px)';this.style.boxShadow='0 16px 40px rgba(0,0,0,0.4)'"
+                     onmouseout="this.style.transform='';this.style.boxShadow=''"
+                     onclick="viewArtistDetail(event, '${artist.name}')">
+                    <div style="position:relative;height:72px;background:linear-gradient(135deg,rgba(212,175,55,0.2),rgba(160,120,32,0.1));">
+                        <div style="position:absolute;bottom:-33px;left:50%;transform:translateX(-50%);">
+                            <div style="width:66px;height:66px;border-radius:50%;padding:3px;background:linear-gradient(135deg,#d4af37,#a07820);box-shadow:0 4px 16px rgba(0,0,0,0.4);">
+                                <div style="width:100%;height:100%;border-radius:50%;overflow:hidden;background:#1a1a2e;border:2px solid #0f0f1e;display:flex;align-items:center;justify-content:center;font-size:28px;">
+                                    ${buildMiniAvatar(artist, 60, null)}
                                 </div>
                             </div>
-                        `;
-                    }).join('')}
-                </div>
-            `;
+                        </div>
+                    </div>
+                    <div style="padding:42px 14px 14px;text-align:center;">
+                        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:2px;">${artist.name}</div>
+                        <div style="font-size:11px;color:#d4af37;margin-bottom:10px;">${artist.specialty || ''}</div>
+                        <div style="display:flex;justify-content:center;gap:16px;margin-bottom:12px;">
+                            <div>
+                                <div style="font-size:17px;font-weight:800;color:#fff;">${artistWorks.length}</div>
+                                <div style="font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.5px;">Œuvres</div>
+                            </div>
+                        </div>
+                        ${artistWorks.length > 0
+                            ? `<div style="display:flex;gap:5px;margin-bottom:12px;">${previewImgs}${artistWorks.length > 3 ? `<div style="flex:0 0 30px;aspect-ratio:1/1;border-radius:8px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,0.5);font-weight:700;">+${artistWorks.length-3}</div>` : ''}</div>`
+                            : `<div style="font-size:11px;color:rgba(255,255,255,0.25);margin-bottom:12px;">Aucune œuvre publiée</div>`}
+                        <div style="display:flex;gap:7px;">
+                            <button onclick="event.stopPropagation();viewArtistDetail(event,'${artist.name}')"
+                                style="flex:1;padding:8px 4px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.3);border-radius:10px;color:#d4af37;font-size:11px;font-weight:600;cursor:pointer;transition:background 0.2s;"
+                                onmouseover="this.style.background='rgba(212,175,55,0.25)'" onmouseout="this.style.background='rgba(212,175,55,0.12)'">
+                                👁️ Profil
+                            </button>
+                            <button onclick="event.stopPropagation();unfollowArtist('${artist.name}')"
+                                style="flex:1;padding:8px 4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;cursor:pointer;transition:all 0.2s;"
+                                onmouseover="this.style.background='rgba(220,53,69,0.18)';this.style.color='#ff6b7a';this.style.borderColor='rgba(220,53,69,0.35)'"
+                                onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='rgba(255,255,255,0.6)';this.style.borderColor='rgba(255,255,255,0.12)'">
+                                ✓ Abonné
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            loopsFeed.innerHTML = `
+                <style>
+                    .following-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+                    @media(min-width:540px){.following-grid{grid-template-columns:repeat(3,1fr);}}
+                    @media(min-width:800px){.following-grid{grid-template-columns:repeat(4,1fr);}}
+                </style>
+                <div class="following-grid">${artistCards}</div>`;
         }
 
 
@@ -10395,6 +10402,17 @@ function enterGallery() {
             try {
                 // ⭐ Utilise api_commandes.php (qui existe) au lieu de api_admin_tresorerie.php (inexistant)
                 const response = await fetch('https://arkyl-galerie.onrender.com/api_commandes.php?action=list&admin=1');
+
+                // Vérifier que la réponse est bien du JSON avant de parser
+                const contentType = response.headers.get('content-type') || '';
+                if (!response.ok || !contentType.includes('application/json')) {
+                    const rawText = await response.text();
+                    // Extraire le message d'erreur PHP si présent
+                    const phpError = rawText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+                    console.error('⚠️ Réponse non-JSON du serveur:', phpError);
+                    throw new Error('Serveur: ' + (phpError || 'réponse invalide (HTTP ' + response.status + ')'));
+                }
+
                 const data = await response.json();
 
                 if (!data.success || !data.orders) throw new Error('Réponse invalide');
@@ -10486,6 +10504,12 @@ function enterGallery() {
             if (!container) return;
             try {
                 const resp = await fetch(`${ORDERS_API}?action=list_transactions&limit=30`);
+                const ct = resp.headers.get('content-type') || '';
+                if (!resp.ok || !ct.includes('application/json')) {
+                    const txt = await resp.text();
+                    const phpErr = txt.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+                    throw new Error('Serveur historique: ' + phpErr);
+                }
                 const data = await resp.json();
                 if (!data.success || !data.transactions?.length) {
                     container.innerHTML = '<p style="color:#555;font-style:italic;margin:0;">Aucun virement enregistré pour l\'instant.</p>';

@@ -714,7 +714,7 @@ try {
         $orderId    = $body['order_id']    ?? '';
         $artistId   = $body['artist_id']   ?? '';
         $artistName = $body['artist_name'] ?? 'L'artiste';
-        $raison     = $body['raison']      ?? 'Commande refusée par l'artiste';
+        $raison     = $body['raison']      ?? 'Commande refusée par l\'artiste';
 
         if (!$orderId) { echo json_encode(['success' => false, 'error' => 'order_id manquant']); exit; }
 
@@ -748,7 +748,7 @@ try {
         $dbOrderId   = $cmd['id'];
         $orderNumber = $cmd['order_number'];
         $buyerId     = $cmd['user_id']    ?? '';
-        $buyerName   = $cmd['user_name']  ?? 'l'acheteur';
+        $buyerName   = $cmd['user_name']  ?? 'l\'acheteur';
         $buyerEmail  = $cmd['user_email'] ?? '';
 
         // 1. Mettre à jour le statut

@@ -3391,16 +3391,7 @@ function enterGallery() {
             } catch(e) {}
         }
 
-        // renderTransportList — remplacé par input libre dans la modale"
-                     onclick="selectionnerCompagnie('${c.nom.replace(/'/g, "\'")}')">
-                    <div class="transport-item-radio"></div>
-                    <div class="transport-item-info">
-                        <div class="transport-item-name">${c.nom}</div>
-                        <div class="transport-item-desc">${c.desc}</div>
-                    </div>
-                </div>
-            `).join('');
-        }
+        // renderTransportList — remplacé par input libre dans la modale ouvrirModeLivraison()
 
         // selectionnerCompagnie — géré par la modale ouvrirModeLivraison()
 
@@ -4629,7 +4620,7 @@ function enterGallery() {
 
             const raison = detail ? `${motif} — ${detail}` : motif;
             const artistId   = currentUser?.id || currentUser?.googleId || currentUser?.email;
-            const artistName = currentUser?.artistName || currentUser?.name || 'L'artiste';
+            const artistName = currentUser?.artistName || currentUser?.name || "L'artiste";
 
             document.getElementById('modaleRefusCommande')?.remove();
 
@@ -4647,7 +4638,7 @@ function enterGallery() {
                 });
                 const data = await resp.json();
                 if (data.success) {
-                    showToast('✅ Commande refusée. Le client et l'admin ont été notifiés.');
+                    showToast("✅ Commande refusée. Le client et l'admin ont été notifiés.");
                     await renderArtistOrders();
                 } else {
                     showToast('❌ Erreur : ' + (data.error || 'Inconnue'));
@@ -6110,6 +6101,305 @@ function enterGallery() {
             // square / fallback
             return `<img loading="lazy" src="${img}" alt="${artist.name}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='${artist.avatar || '🎨'}'">`;
         }
+        // ═══════════════════════════════════════════════════════
+        // SYSTÈME DE POSTS ARTISTE (images/vidéos hors galerie)
+        // ═══════════════════════════════════════════════════════
+
+        // Stocker les posts en local + sync serveur
+        function getArtistPosts() {
+            return safeStorage.get('arkyl_artist_posts', []);
+        }
+        function saveArtistPostsLocal(posts) {
+            safeStorage.set('arkyl_artist_posts', posts);
+        }
+
+        async function fetchArtistPostsFromServer() {
+            try {
+                const res = await fetch(POSTS_API + '?action=get&t=' + Date.now());
+                if (!res.ok) return null;
+                const data = await res.json();
+                if (data.success && Array.isArray(data.posts)) {
+                    saveArtistPostsLocal(data.posts);
+                    return data.posts;
+                }
+            } catch(e) {
+                console.warn('⚠️ Posts: utilisation du cache local');
+            }
+            return getArtistPosts();
+        }
+
+        async function savePostToServer(post) {
+            try {
+                const res = await fetch(POSTS_API + '?action=add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(post)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    await fetchArtistPostsFromServer();
+                    return data;
+                }
+            } catch(e) {
+                console.warn('Post sauvegardé localement seulement');
+            }
+            // Fallback local
+            const posts = getArtistPosts();
+            posts.unshift(post);
+            saveArtistPostsLocal(posts);
+            return { success: true, local: true };
+        }
+
+        async function deletePostFromServer(postId) {
+            try {
+                await fetch(POSTS_API + '?action=delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: postId, artist_id: currentUser?.id || currentUser?.email })
+                });
+            } catch(e) {}
+            const posts = getArtistPosts().filter(p => p.id !== postId);
+            saveArtistPostsLocal(posts);
+        }
+
+        async function togglePostLike(postId, btn) {
+            const key = 'arkyl_post_likes';
+            const liked = safeStorage.get(key, []);
+            const isLiked = liked.includes(postId);
+            let newLiked;
+            if (isLiked) {
+                newLiked = liked.filter(id => id !== postId);
+            } else {
+                newLiked = [...liked, postId];
+            }
+            safeStorage.set(key, newLiked);
+            // Mettre à jour le compteur visuellement
+            const posts = getArtistPosts();
+            const post = posts.find(p => p.id === postId);
+            if (post) {
+                post.likes = Math.max(0, (post.likes || 0) + (isLiked ? -1 : 1));
+                saveArtistPostsLocal(posts);
+            }
+            if (btn) {
+                const count = (post?.likes || 0);
+                btn.innerHTML = (newLiked.includes(postId) ? '❤️' : '🤍') +
+                    (count > 0 ? `<span style="font-size:11px;color:rgba(255,255,255,0.6);margin-left:2px;">${count}</span>` : '');
+            }
+        }
+
+        function isPostLiked(postId) {
+            return safeStorage.get('arkyl_post_likes', []).includes(postId);
+        }
+
+        // Ouvre la modale de création de post
+        function openCreatePostModal() {
+            let modal = document.getElementById('createPostModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'createPostModal';
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+                document.body.appendChild(modal);
+            }
+            modal.innerHTML = `
+                <div style="background:#1a1a2e;border:1px solid rgba(212,175,55,0.35);border-radius:20px;padding:28px;max-width:480px;width:100%;color:white;font-family:'Inter',sans-serif;max-height:90vh;overflow-y:auto;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+                        <h3 style="margin:0;font-size:18px;color:#d4af37;">📸 Nouvelle publication</h3>
+                        <button onclick="document.getElementById('createPostModal').remove()"
+                            style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:22px;cursor:pointer;line-height:1;">×</button>
+                    </div>
+
+                    <!-- Aperçu média -->
+                    <div id="postMediaPreview" style="width:100%;min-height:160px;background:rgba(255,255,255,0.05);border:2px dashed rgba(255,255,255,0.2);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;margin-bottom:16px;cursor:pointer;transition:border-color 0.2s;"
+                         onclick="document.getElementById('postFileInput').click()"
+                         ondragover="event.preventDefault();this.style.borderColor='#d4af37'"
+                         ondragleave="this.style.borderColor='rgba(255,255,255,0.2)'"
+                         ondrop="handlePostFileDrop(event)">
+                        <div style="font-size:36px;">📁</div>
+                        <div style="font-size:13px;color:rgba(255,255,255,0.5);">Clique ou glisse une image / vidéo</div>
+                        <div style="font-size:11px;color:rgba(255,255,255,0.3);">JPG, PNG, GIF, MP4, MOV — max 20 Mo</div>
+                    </div>
+                    <input type="file" id="postFileInput" accept="image/*,video/*" style="display:none;" onchange="previewPostFile(this)">
+
+                    <!-- Légende -->
+                    <div style="margin-bottom:14px;">
+                        <label style="font-size:12px;opacity:0.6;display:block;margin-bottom:5px;">✍️ Légende (optionnelle)</label>
+                        <textarea id="postCaption" rows="3" placeholder="Parlez de cette création..."
+                            style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:10px 14px;color:white;font-size:13px;resize:none;box-sizing:border-box;font-family:inherit;outline:none;"
+                            onfocus="this.style.borderColor='rgba(212,175,55,0.5)'"
+                            onblur="this.style.borderColor='rgba(255,255,255,0.15)'"></textarea>
+                    </div>
+
+                    <!-- Boutons -->
+                    <div style="display:flex;gap:10px;">
+                        <button onclick="document.getElementById('createPostModal').remove()"
+                            style="flex:1;padding:11px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:13px;cursor:pointer;">
+                            Annuler
+                        </button>
+                        <button onclick="submitArtistPost()"
+                            style="flex:2;padding:11px;background:linear-gradient(135deg,#d4af37,#a07820);border:none;border-radius:10px;color:#000;font-size:13px;font-weight:700;cursor:pointer;">
+                            📤 Publier
+                        </button>
+                    </div>
+                </div>`;
+            modal.style.display = 'flex';
+        }
+
+        function previewPostFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const preview = document.getElementById('postMediaPreview');
+            const url = URL.createObjectURL(file);
+            if (file.type.startsWith('video/')) {
+                preview.innerHTML = `<video src="${url}" style="width:100%;border-radius:12px;max-height:260px;" controls muted></video>`;
+            } else {
+                preview.innerHTML = `<img src="${url}" style="width:100%;border-radius:12px;max-height:260px;object-fit:contain;" alt="Aperçu">`;
+            }
+            preview.dataset.fileUrl = url;
+            preview.dataset.fileType = file.type.startsWith('video/') ? 'video' : 'image';
+            preview.dataset.fileName = file.name;
+        }
+
+        function handlePostFileDrop(event) {
+            event.preventDefault();
+            const file = event.dataTransfer.files[0];
+            if (!file) return;
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            const input = document.getElementById('postFileInput');
+            input.files = dt.files;
+            previewPostFile(input);
+            document.getElementById('postMediaPreview').style.borderColor = 'rgba(255,255,255,0.2)';
+        }
+
+        async function submitArtistPost() {
+            const preview = document.getElementById('postMediaPreview');
+            const caption = document.getElementById('postCaption')?.value?.trim() || '';
+            const mediaUrl = preview?.dataset?.fileUrl || '';
+            const mediaType = preview?.dataset?.fileType || 'image';
+
+            if (!mediaUrl) {
+                showToast('⚠️ Ajoutez une image ou vidéo avant de publier');
+                return;
+            }
+
+            const post = {
+                id: 'post_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+                artist_id: currentUser?.id || currentUser?.googleId || currentUser?.email,
+                artist_name: currentUser?.artistName || currentUser?.name || 'Artiste',
+                artist_avatar: currentUser?.avatar || '',
+                media_url: mediaUrl,
+                media_type: mediaType,
+                caption: caption,
+                likes: 0,
+                comments: [],
+                created_at: new Date().toISOString()
+            };
+
+            const btn = document.querySelector('#createPostModal button[onclick="submitArtistPost()"]');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Publication...'; }
+
+            await savePostToServer(post);
+            document.getElementById('createPostModal')?.remove();
+            showToast('✅ Publication partagée !');
+            await renderMyArtistsPage();
+        }
+
+        async function deleteArtistPost(postId) {
+            if (!confirm('Supprimer cette publication ?')) return;
+            await deletePostFromServer(postId);
+            showToast('🗑️ Publication supprimée');
+            await renderMyArtistsPage();
+        }
+
+        async function submitPostComment(postId) {
+            const input = document.getElementById('post-comment-' + postId);
+            const text = input?.value?.trim();
+            if (!text) return;
+            const posts = getArtistPosts();
+            const post = posts.find(p => p.id === postId);
+            if (post) {
+                if (!post.comments) post.comments = [];
+                post.comments.push({
+                    author: currentUser?.name || 'Visiteur',
+                    text,
+                    at: new Date().toISOString()
+                });
+                saveArtistPostsLocal(posts);
+            }
+            input.value = '';
+            showToast('💬 Commentaire ajouté');
+            await renderMyArtistsPage();
+        }
+
+        // Construit une pin-card pour un POST artiste (pas d'achat)
+        function buildPostPinCard(post) {
+            const liked = isPostLiked(post.id);
+            const isOwner = currentUser?.isArtist &&
+                (currentUser?.id === post.artist_id ||
+                 currentUser?.googleId === post.artist_id ||
+                 currentUser?.email === post.artist_id);
+
+            const mediaBlock = post.media_type === 'video'
+                ? `<video src="${post.media_url}" style="width:100%;display:block;border-radius:16px 16px 0 0;max-height:340px;object-fit:cover;" controls muted playsinline></video>`
+                : `<img loading="lazy" src="${post.media_url}" alt="Post"
+                        style="width:100%;display:block;border-radius:16px 16px 0 0;"
+                        onerror="this.parentElement.innerHTML='<div style=\'min-height:160px;display:flex;align-items:center;justify-content:center;font-size:60px;background:rgba(255,255,255,0.06);border-radius:16px 16px 0 0;\'>🎨</div>'">`;
+
+            return `
+            <div style="break-inside:avoid;margin-bottom:14px;background:rgba(212,175,55,0.06);border-radius:16px;border:1.5px solid rgba(212,175,55,0.2);overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;"
+                 onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 12px 32px rgba(0,0,0,0.4)'"
+                 onmouseout="this.style.transform='';this.style.boxShadow=''">
+
+                <!-- Badge "Post" -->
+                <div style="position:relative;">
+                    ${mediaBlock}
+                    <div style="position:absolute;top:10px;right:10px;background:rgba(212,175,55,0.9);color:#000;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;letter-spacing:0.5px;">
+                        ✨ POST
+                    </div>
+                    ${isOwner ? `
+                    <button onclick="deleteArtistPost('${post.id}')"
+                        style="position:absolute;top:10px;left:10px;background:rgba(220,53,69,0.85);border:none;border-radius:50%;width:28px;height:28px;color:white;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;"
+                        title="Supprimer">🗑️</button>` : ''}
+                </div>
+
+                <div style="padding:10px 12px 12px;">
+                    <!-- Artiste -->
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                        <div style="width:26px;height:26px;border-radius:50%;background:rgba(212,175,55,0.2);display:flex;align-items:center;justify-content:center;font-size:14px;overflow:hidden;flex-shrink:0;">
+                            ${post.artist_avatar ? `<img src="${post.artist_avatar}" style="width:100%;height:100%;object-fit:cover;">` : '🎨'}
+                        </div>
+                        <span style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.85);">${post.artist_name}</span>
+                        <span style="font-size:11px;color:rgba(255,255,255,0.3);margin-left:auto;">${new Date(post.created_at).toLocaleDateString('fr-FR')}</span>
+                    </div>
+
+                    ${post.caption ? `<div style="font-size:13px;color:rgba(255,255,255,0.8);margin-bottom:8px;line-height:1.4;">${post.caption}</div>` : ''}
+
+                    <!-- Like only (pas d'achat) -->
+                    <div style="display:flex;align-items:center;gap:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);">
+                        <button id="post-like-btn-${post.id}" onclick="togglePostLike('${post.id}', this)"
+                            style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;transition:transform 0.15s;"
+                            onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">
+                            ${liked ? '❤️' : '🤍'}${(post.likes||0) > 0 ? `<span style="font-size:11px;color:rgba(255,255,255,0.6);margin-left:2px;">${post.likes}</span>` : ''}
+                        </button>
+                        <button onclick="this.closest('div').nextElementSibling.style.display=this.closest('div').nextElementSibling.style.display==='none'?'flex':'none'"
+                            style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;transition:transform 0.15s;"
+                            onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">
+                            💬 ${post.comments?.length > 0 ? `<span style="font-size:11px;color:rgba(255,255,255,0.6);">${post.comments.length}</span>` : ''}
+                        </button>
+                    </div>
+
+                    <!-- Zone commentaire -->
+                    <div style="display:none;gap:8px;align-items:center;margin-top:8px;">
+                        <input type="text" id="post-comment-${post.id}" placeholder="Commenter..."
+                            style="flex:1;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;color:white;font-size:12px;outline:none;"
+                            onkeydown="if(event.key==='Enter')submitPostComment('${post.id}')">
+                        <button onclick="submitPostComment('${post.id}')"
+                            style="background:rgba(212,175,55,0.2);border:1px solid rgba(212,175,55,0.4);border-radius:20px;padding:6px 12px;color:#d4af37;font-size:12px;font-weight:600;cursor:pointer;">OK</button>
+                    </div>
+                </div>
+            </div>`;
+        }
+
         async function renderMyArtistsPage() {
             const followed = getFollowedArtists();
             const emptyState = document.getElementById('emptyArtistsState');
@@ -6187,124 +6477,184 @@ function enterGallery() {
                 </div>
             `;
 
-            // Render feed de loops (posts des artistes)
-            loopsFeed.innerHTML = followed.map(artist => {
-                const artistWorks = allProducts.filter(p => 
-                    p.artist && artist.name && 
+            // Render feed — grille Pinterest (masonry columns)
+            const favorites = safeStorage.get('arkyl_favorites', []);
+            const allSocialLikes = getSocialLikes();
+
+            // Aplatir toutes les oeuvres des artistes suivis
+            const allFollowedWorks = [];
+            followed.forEach(artist => {
+                const artistWorks = allProducts.filter(p =>
+                    p.artist && artist.name &&
                     p.artist.trim().toLowerCase() === artist.name.trim().toLowerCase()
                 );
-                
-                if (artistWorks.length === 0) {
-                    return `<div style="text-align:center;padding:30px 20px;background:rgba(255,255,255,0.1);border-radius:16px;margin-bottom:16px;">
-                        <div style="font-size:40px;margin-bottom:10px;">🎨</div>
-                        <div style="color:rgba(255,255,255,0.9);font-weight:700;">${artist.name}</div>
-                        <div style="color:rgba(255,255,255,0.6);font-size:13px;margin-top:6px;">Aucune œuvre publiée pour le moment</div>
+                artistWorks.forEach(work => allFollowedWorks.push({ work, artist }));
+            });
+
+            if (allFollowedWorks.length === 0) {
+                loopsFeed.innerHTML = `
+                    <div style="text-align:center;padding:60px 20px;">
+                        <div style="font-size:48px;margin-bottom:16px;">🎨</div>
+                        <div style="color:rgba(255,255,255,0.9);font-weight:700;font-size:16px;">Aucune oeuvre publiée pour le moment</div>
+                        <div style="color:rgba(255,255,255,0.5);font-size:13px;margin-top:8px;">Les artistes que vous suivez n'ont pas encore publié d'oeuvres.</div>
                     </div>`;
-                }
-                
-                return artistWorks.map((work, index) => {
-                    // Utiliser uniquement les vraies données
-                    const isSocialLiked = isSociallyLiked(work.id);
-                    
-                    // Compter les likes réels pour cette œuvre
-                    const allSocialLikes = getSocialLikes();
-                    const realLikesCount = allSocialLikes.filter(id => id === work.id).length;
-                    
-                    // Utiliser la date de création si disponible, sinon rien
-                    const timeAgo = work.created_at || work.date || '';
-                    
-                    return `
-                    <div class="artist-loop-card" id="loop-${artist.name}-${index}" data-artist="${artist.name}">
-                        <!-- Header -->
-                        <div class="loop-header">
-                            <div class="loop-avatar" onclick="viewArtistDetail(event, '${artist.name}')" style="cursor: pointer; overflow: hidden; background: linear-gradient(135deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1)); display: flex; align-items: center; justify-content: center;">
-                                ${buildMiniAvatar(artist, 50, null)}
-                            </div>
-                            <div class="loop-info" onclick="viewArtistDetail(event, '${artist.name}')" style="cursor: pointer;">
-                                <div class="loop-artist-name">${artist.name}</div>
-                                <div class="loop-metadata">${timeAgo} • ${work.category}</div>
-                            </div>
-                            <button class="loop-menu-btn" onclick="toggleArtistMenu(event, '${artist.name}')" title="Plus d'options">
-                                ⋯
-                            </button>
-                        </div>
+                return;
+            }
 
-                        <!-- Image de l'œuvre -->
-                        <div class="loop-image" onclick="viewProductDetailFromAPI(${work.id})" style="position: relative; background: linear-gradient(135deg, #f8f9fa 0%, #e8eaed 100%);">
-                            ${work.image_url && work.image_url !== 'undefined' 
-                                ? `<img loading="lazy" src="${work.image_url}" 
-                                       alt="${work.title}" 
-                                       style="width: 100%; height: 100%; object-fit: cover;"
-                                       onerror="this.style.display='none'; this.parentElement.querySelector('.loop-image-placeholder').style.display='flex';">
-                                   <div class="loop-image-placeholder" style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; flex-direction: column; font-size: 96px;">
-                                       ${work.emoji || '🎨'}
-                                   </div>`
-                                : `<div class="loop-image-placeholder" style="display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; flex-direction: column;">
-                                       <div style="font-size: 96px; margin-bottom: 16px;">${work.emoji || '🎨'}</div>
-                                       <div style="font-size: 14px; color: rgba(0,0,0,0.4); font-weight: 600;">Image à venir</div>
-                                   </div>`
-                            }
-                            <div class="loop-image-overlay">👁️</div>
-                            ${work.is_sold ? `
-                            <div style="position:absolute;top:12px;left:12px;background:rgba(0,0,0,0.75);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:1px;backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.2);">
-                                ✅ VENDU
-                            </div>` : ''}
-                        </div>
+            const pinCards = allFollowedWorks.map(({ work, artist }) => {
+                const isSocialLiked = isSociallyLiked(work.id);
+                const realLikesCount = allSocialLikes.filter(id => id === work.id).length;
+                const isFav = favorites.includes(work.id);
 
-                        <!-- Actions -->
-                        <div class="loop-actions">
-                            <button class="loop-action-btn ${isSocialLiked ? 'liked' : ''}" onclick="toggleSocialLike(event, ${work.id}, this)" title="J'aime cette création">
-                                ${isSocialLiked ? '❤️' : '🤍'}
-                                ${realLikesCount > 0 ? `<span class="action-count" id="like-count-${work.id}">${realLikesCount}</span>` : ''}
-                            </button>
-                            <button class="loop-action-btn" onclick="focusComment(${work.id})" title="Commenter">
-                                💬
-                            </button>
-                            <button class="loop-action-btn" onclick="shareArtwork(${work.id})" title="Partager">
-                                📤
-                            </button>
-                            <div style="flex: 1;"></div>
-                            <button class="loop-action-btn ${favorites.includes(work.id) ? 'favorited' : ''}" onclick="toggleFavorite(event, ${work.id}); this.classList.toggle('favorited'); this.childNodes[0].textContent = favorites.includes(${work.id}) ? '⭐' : '☆'" title="Ajouter aux favoris">
-                                ${favorites.includes(work.id) ? '⭐' : '☆'}
-                            </button>
-                            <button class="loop-action-btn" onclick="addToCart(event, ${work.id})" title="Ajouter au panier">
-                                🛒
-                            </button>
-                        </div>
+                const imgBlock = work.image_url && work.image_url !== 'undefined'
+                    ? `<img loading="lazy" src="${work.image_url}" alt="${work.title}"
+                            style="width:100%;display:block;border-radius:16px 16px 0 0;"
+                            onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                       <div style="display:none;width:100%;min-height:160px;align-items:center;justify-content:center;font-size:72px;border-radius:16px 16px 0 0;background:rgba(255,255,255,0.06);">
+                           ${work.emoji || '🎨'}
+                       </div>`
+                    : `<div style="display:flex;width:100%;min-height:200px;align-items:center;justify-content:center;font-size:72px;border-radius:16px 16px 0 0;background:rgba(255,255,255,0.06);">
+                           ${work.emoji || '🎨'}
+                       </div>`;
 
-                        <!-- Détails -->
-                        <div class="loop-details">
-                            ${realLikesCount > 0 ? `<div class="loop-likes">${realLikesCount} j'aime</div>` : ''}
-                            <div class="loop-title">
-                                <span class="artist-tag" onclick="viewArtistDetail(event, '${artist.name}')">${artist.name}</span> 
-                                ${work.title}
+                return `
+                <div style="break-inside:avoid;margin-bottom:14px;background:rgba(255,255,255,0.05);border-radius:16px;border:1px solid rgba(255,255,255,0.09);overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;"
+                     onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 12px 32px rgba(0,0,0,0.4)'"
+                     onmouseout="this.style.transform='';this.style.boxShadow=''">
+                    <div onclick="viewProductDetailFromAPI(${work.id})" style="position:relative;cursor:pointer;">
+                        ${imgBlock}
+                        ${work.is_sold ? `<div style="position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.75);color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:1px;backdrop-filter:blur(4px);">✅ VENDU</div>` : ''}
+                    </div>
+                    <div style="padding:10px 12px 12px;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;" onclick="viewArtistDetail(event, '${artist.name}')">
+                            <div style="width:26px;height:26px;border-radius:50%;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">
+                                ${buildMiniAvatar(artist, 26, null)}
                             </div>
-                            <div class="loop-description">
-                                ${work.description || ''}
-                            </div>
-                            <div class="loop-price" style="color: #D4A574; text-shadow: 0 2px 5px rgba(212, 165, 116, 0.3); margin-top: 8px;">
-                                ${formatPrice(work.price)}
-                            </div>
-                            
-                            <!-- Section commentaires -->
-                            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.15);">
-                                <div style="display: flex; gap: 10px; align-items: center;">
-                                    <input type="text" 
-                                           id="comment-${work.id}"
-                                           placeholder="Ajouter un commentaire..." 
-                                           style="flex: 1; background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 8px 16px; color: white; font-size: 13px; outline: none;"
-                                           onfocus="this.style.background='rgba(255, 255, 255, 0.2)'"
-                                           onblur="this.style.background='rgba(255, 255, 255, 0.15)'"
-                                    />
-                                    <button onclick="postComment(${work.id})" style="background: none; border: none; color: rgba(212, 165, 116, 0.8); font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.color='rgb(212, 165, 116)'" onmouseout="this.style.color='rgba(212, 165, 116, 0.8)'">
-                                        Publier
-                                    </button>
-                                </div>
-                            </div>
+                            <span style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${artist.name}</span>
+                        </div>
+                        <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:3px;line-height:1.3;cursor:pointer;" onclick="viewProductDetailFromAPI(${work.id})">${work.title}</div>
+                        <div style="font-size:12px;color:#D4A574;font-weight:700;margin-bottom:8px;">${formatPrice(work.price)}</div>
+                        <div style="display:flex;align-items:center;gap:4px;">
+                            <button onclick="toggleSocialLike(event,${work.id},this)" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">
+                                ${isSocialLiked ? '❤️' : '🤍'}${realLikesCount > 0 ? `<span style="font-size:11px;color:rgba(255,255,255,0.6);margin-left:2px;">${realLikesCount}</span>` : ''}
+                            </button>
+                            <button onclick="focusComment(${work.id})" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">💬</button>
+                            <button onclick="shareArtwork(${work.id})" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">📤</button>
+                            <div style="flex:1;"></div>
+                            <button onclick="toggleFavorite(event,${work.id});this.textContent='${isFav ? '☆' : '⭐'}'" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">${isFav ? '⭐' : '☆'}</button>
+                            <button onclick="addToCart(event,${work.id})" style="background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.3);border-radius:20px;cursor:pointer;font-size:12px;padding:4px 10px;color:#d4af37;font-weight:600;transition:background 0.2s;" onmouseover="this.style.background='rgba(212,175,55,0.3)'" onmouseout="this.style.background='rgba(212,175,55,0.15)'">🛒</button>
                         </div>
                     </div>
-                `}).join('');
+                </div>`;
             }).join('');
+
+            // Charger les posts artiste et les mélanger avec les oeuvres
+            const artistPostsRaw = await fetchArtistPostsFromServer();
+            // Filtrer les posts des artistes suivis
+            const followedNames = followed.map(a => a.name.trim().toLowerCase());
+            const relevantPosts = artistPostsRaw.filter(p =>
+                followedNames.includes((p.artist_name || '').trim().toLowerCase()) ||
+                (currentUser?.isArtist && (
+                    p.artist_id === currentUser?.id ||
+                    p.artist_id === currentUser?.googleId ||
+                    p.artist_id === currentUser?.email
+                ))
+            );
+
+            // Construire les pin-cards de posts (badge doré, pas de bouton achat)
+            const postCards = relevantPosts.map(post => ({ html: buildPostPinCard(post), date: new Date(post.created_at).getTime() }));
+            const workCards = pinCards ? [{ html: pinCards, date: 0 }] : [];
+
+            // Mélanger posts et oeuvres ensemble (posts récents en premier dans leurs colonnes)
+            const allPinItems = [
+                ...postCards,
+                ...shuffled.map((_, i) => ({ html: '', _idx: i }))
+            ];
+
+            // Reconstruire pinCards en array pour intercaler avec posts
+            const pinCardsArr = shuffled.map(({ work, artist }) => {
+                const isSocialLiked = isSociallyLiked(work.id);
+                const realLikesCount = allSocialLikes.filter(id => id === work.id).length;
+                const isFav = favorites.includes(work.id);
+                const imgBlock = work.image_url && work.image_url !== 'undefined'
+                    ? `<img loading="lazy" src="${work.image_url}" alt="${work.title}"
+                            style="width:100%;display:block;border-radius:16px 16px 0 0;"
+                            onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                       <div style="display:none;width:100%;min-height:160px;align-items:center;justify-content:center;font-size:72px;border-radius:16px 16px 0 0;background:rgba(255,255,255,0.06);">
+                           ${work.emoji || '🎨'}
+                       </div>`
+                    : `<div style="display:flex;width:100%;min-height:200px;align-items:center;justify-content:center;font-size:72px;border-radius:16px 16px 0 0;background:rgba(255,255,255,0.06);">
+                           ${work.emoji || '🎨'}
+                       </div>`;
+                return `
+                <div style="break-inside:avoid;margin-bottom:14px;background:rgba(255,255,255,0.05);border-radius:16px;border:1px solid rgba(255,255,255,0.09);overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;"
+                     onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 12px 32px rgba(0,0,0,0.4)'"
+                     onmouseout="this.style.transform='';this.style.boxShadow=''">
+                    <div onclick="viewProductDetailFromAPI(${work.id})" style="position:relative;cursor:pointer;">
+                        ${imgBlock}
+                        ${work.is_sold ? `<div style="position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.75);color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:1px;backdrop-filter:blur(4px);">✅ VENDU</div>` : ''}
+                    </div>
+                    <div style="padding:10px 12px 12px;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;" onclick="viewArtistDetail(event, '${artist.name}')">
+                            <div style="width:26px;height:26px;border-radius:50%;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">
+                                ${buildMiniAvatar(artist, 26, null)}
+                            </div>
+                            <span style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${artist.name}</span>
+                        </div>
+                        <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:3px;line-height:1.3;cursor:pointer;" onclick="viewProductDetailFromAPI(${work.id})">${work.title}</div>
+                        <div style="font-size:12px;color:#D4A574;font-weight:700;margin-bottom:8px;">${formatPrice(work.price)}</div>
+                        <div style="display:flex;align-items:center;gap:4px;">
+                            <button onclick="toggleSocialLike(event,${work.id},this)" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">
+                                ${isSocialLiked ? '❤️' : '🤍'}${realLikesCount > 0 ? `<span style="font-size:11px;color:rgba(255,255,255,0.6);margin-left:2px;">${realLikesCount}</span>` : ''}
+                            </button>
+                            <button onclick="focusComment(${work.id})" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">💬</button>
+                            <button onclick="shareArtwork(${work.id})" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">📤</button>
+                            <div style="flex:1;"></div>
+                            <button onclick="toggleFavorite(event,${work.id});this.textContent='${isFav ? '☆' : '⭐'}'" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">${isFav ? '⭐' : '☆'}</button>
+                            <button onclick="addToCart(event,${work.id})" style="background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.3);border-radius:20px;cursor:pointer;font-size:12px;padding:4px 10px;color:#d4af37;font-weight:600;" onmouseover="this.style.background='rgba(212,175,55,0.3)'" onmouseout="this.style.background='rgba(212,175,55,0.15)'">🛒</button>
+                        </div>
+                    </div>
+                </div>`;
+            });
+
+            // Intercaler: 1 post toutes les 4 oeuvres
+            const mixedCards = [];
+            let postIdx = 0;
+            pinCardsArr.forEach((card, i) => {
+                if (postIdx < relevantPosts.length && i % 4 === 0) {
+                    mixedCards.push(buildPostPinCard(relevantPosts[postIdx++]));
+                }
+                mixedCards.push(card);
+            });
+            // Ajouter les posts restants à la fin
+            while (postIdx < relevantPosts.length) {
+                mixedCards.push(buildPostPinCard(relevantPosts[postIdx++]));
+            }
+
+            // Bouton "Publier" visible uniquement pour les artistes connectés
+            const publishBtn = currentUser?.isArtist ? `
+                <div style="margin-bottom:18px;">
+                    <button onclick="openCreatePostModal()"
+                        style="display:flex;align-items:center;gap:10px;width:100%;padding:14px 18px;background:rgba(212,175,55,0.1);border:1.5px dashed rgba(212,175,55,0.45);border-radius:16px;color:#d4af37;font-size:14px;font-weight:600;cursor:pointer;transition:background 0.2s;"
+                        onmouseover="this.style.background='rgba(212,175,55,0.18)'"
+                        onmouseout="this.style.background='rgba(212,175,55,0.1)'">
+                        <span style="font-size:22px;">📸</span>
+                        <div style="text-align:left;">
+                            <div>Partager une création</div>
+                            <div style="font-size:11px;opacity:0.6;font-weight:400;">Image ou vidéo visible ici, pas dans la galerie</div>
+                        </div>
+                        <span style="margin-left:auto;font-size:20px;">＋</span>
+                    </button>
+                </div>` : '';
+
+            loopsFeed.innerHTML = `
+                <style>
+                    .pinterest-grid { column-count:2; column-gap:12px; }
+                    @media(min-width:600px){ .pinterest-grid{ column-count:3; } }
+                    @media(min-width:900px){ .pinterest-grid{ column-count:4; } }
+                </style>
+                ${publishBtn}
+                <div class="pinterest-grid">${mixedCards.join('')}</div>`;
         }
 
         async function switchArtistTab(tab) {
@@ -7050,6 +7400,7 @@ function enterGallery() {
         // 🔔 SYSTÈME DE NOTIFICATIONS ARTISTE
         // ═══════════════════════════════════════════════════════════════
         const NOTIF_API = `${API_BASE}/api_commandes.php`;
+        const POSTS_API = `${API_BASE}/api_artist_posts.php`;
         let _notifPollInterval = null;
 
         async function loadArtistNotifications() {
@@ -10198,10 +10549,10 @@ function enterGallery() {
                 modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;';
                 document.body.appendChild(modal);
             }
-            modal.innerHTML = \`
+            modal.innerHTML = `
                 <div style="background:#1a1a2e;border:1px solid rgba(212,175,55,0.4);border-radius:20px;padding:32px;max-width:480px;width:90%;color:white;font-family:'Inter',sans-serif;">
                     <h3 style="margin:0 0 6px;font-size:20px;color:#d4af37;">💸 Confirmer le virement</h3>
-                    <p style="margin:0 0 22px;opacity:0.7;font-size:13px;">Artiste : <strong style="color:white;">\${artistName}</strong> — <strong style="color:#d4af37;">\${montantTotal} FCFA</strong></p>
+                    <p style="margin:0 0 22px;opacity:0.7;font-size:13px;">Artiste : <strong style="color:white;">${artistName}</strong> — <strong style="color:#d4af37;">${montantTotal} FCFA</strong></p>
 
                     <div style="display:flex;flex-direction:column;gap:12px;">
                         <div>
@@ -10230,13 +10581,13 @@ function enterGallery() {
                             style="flex:1;padding:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:14px;cursor:pointer;">
                             Annuler
                         </button>
-                        <button onclick="confirmerPaiementArtiste('\${orderId}')"
+                        <button onclick="confirmerPaiementArtiste('${orderId}')"
                             style="flex:2;padding:12px;background:linear-gradient(135deg,#d4af37,#a07820);border:none;border-radius:10px;color:black;font-size:14px;font-weight:700;cursor:pointer;">
                             ✅ Confirmer le virement
                         </button>
                     </div>
                 </div>
-            \`;
+            `;
             modal.style.display = 'flex';
         }
 
@@ -10277,7 +10628,7 @@ function enterGallery() {
         // Alias conservé pour rétrocompatibilité (anciens appels éventuels)
         async function marquerFondsLiberes(orderId) {
             // Récupérer le nom artiste et montant depuis le DOM pour la modale
-            const row = document.querySelector(\`[onclick*="marquerFondsLiberes(\${orderId})"]\`)?.closest('tr');
+            const row = document.querySelector(`[onclick*="marquerFondsLiberes(${orderId})"]`)?.closest('tr');
             const artistName  = row?.cells?.[2]?.textContent?.trim() || '—';
             const montantText = row?.cells?.[3]?.textContent?.trim()?.split(' ')[0] || '?';
             ouvrirModalePaiement(orderId, artistName, montantText);

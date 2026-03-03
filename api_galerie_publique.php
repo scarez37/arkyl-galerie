@@ -43,8 +43,18 @@ try {
         ], JSON_UNESCAPED_UNICODE);
         
     } else {
-        // ===== MODE : TOUTES LES ŒUVRES (optionnellement filtrées par artist_id) =====
-        $sql = "SELECT * FROM artworks WHERE status = 'publiée' AND (is_sold IS NULL OR is_sold = FALSE)";
+        // ===== MODE : TOUTES LES ŒUVRES =====
+
+        // ⭐ FIX : admin=1 → aucun filtre sur le statut ni is_sold
+        //          (le panneau admin doit voir TOUTES les œuvres)
+        $isAdmin = isset($_GET['admin']) && $_GET['admin'] === '1';
+
+        if ($isAdmin) {
+            $sql = "SELECT * FROM artworks WHERE 1=1";
+        } else {
+            $sql = "SELECT * FROM artworks WHERE status = 'publiée' AND (is_sold IS NULL OR is_sold = FALSE)";
+        }
+
         $params = [];
         
         // 🔐 Filtrer par artist_id si fourni
@@ -84,6 +94,9 @@ try {
         // 🔍 Debug: Ajouter info si filtrage appliqué
         if (isset($_GET['artist_id']) && !empty($_GET['artist_id'])) {
             $response['filtered_by'] = 'artist_id: ' . $_GET['artist_id'];
+        }
+        if ($isAdmin) {
+            $response['mode'] = 'admin (tous statuts)';
         }
         
         echo json_encode($response, JSON_UNESCAPED_UNICODE);

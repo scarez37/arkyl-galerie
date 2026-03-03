@@ -115,6 +115,30 @@ function runMigrations($db) {
         is_read BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMPTZ DEFAULT NOW()
     )");
+
+    // ⭐ Table des transactions de paiement artistes
+    $db->exec("CREATE TABLE IF NOT EXISTS payment_transactions (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+        order_number VARCHAR(20),
+        artist_id VARCHAR(255),
+        artist_name VARCHAR(255),
+        artist_email VARCHAR(255),
+        amount_artwork NUMERIC(12,2) DEFAULT 0,
+        amount_shipping NUMERIC(12,2) DEFAULT 0,
+        amount_total NUMERIC(12,2) DEFAULT 0,
+        payment_method VARCHAR(100),
+        payment_reference VARCHAR(255),
+        payment_note TEXT,
+        paid_by VARCHAR(255),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    )");
+    foreach ([
+        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(100)",
+        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255)",
+        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS payment_note TEXT",
+        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS paid_by VARCHAR(255)",
+    ] as $sql) { try { $db->exec($sql); } catch (Exception $e) {} }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -149,7 +173,7 @@ function notifyArtists($db, $orderId, $orderNumber, $items, $buyerName, $total) 
     // Regrouper les items par artist_id
     $byArtist = [];
     foreach ($items as $item) {
-        $aid = COALESCE_str($item['artist_id'] ?? $item['artist_id'] ?? '');
+        $aid = COALESCE_str($item['artist_id'] ?? '');
         if (!$aid) continue;
         if (!isset($byArtist[$aid])) $byArtist[$aid] = [];
         $byArtist[$aid][] = $item;
@@ -333,17 +357,19 @@ try {
         exit;
     }
 
-    // ── GET notifications artiste ─────────────────────────────────
+    // ── GET notifications artiste (ou admin) ─────────────────────
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'get_notifications') {
         $artistId = $_GET['artist_id'] ?? '';
-        if (!$artistId) { echo json_encode(['success' => false, 'error' => 'artist_id manquant']); exit; }
+        $isAdmin  = ($artistId === 'admin') || (isset($_GET['admin']) && $_GET['admin'] == '1');
+        if (!$artistId && !$isAdmin) { echo json_encode(['success' => false, 'error' => 'artist_id manquant']); exit; }
+        $targetId = $isAdmin ? 'admin' : $artistId;
         $stmt = $db->prepare("
             SELECT * FROM artist_notifications
             WHERE artist_id = ?
             ORDER BY created_at DESC
             LIMIT 50
         ");
-        $stmt->execute([$artistId]);
+        $stmt->execute([$targetId]);
         $notifs = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $unread = array_filter($notifs, fn($n) => !$n['is_read']);
         echo json_encode(['success' => true, 'notifications' => $notifs, 'unread_count' => count($unread)], JSON_UNESCAPED_UNICODE);
@@ -493,6 +519,20 @@ try {
     // ── POST confirm_reception ────────────────────────────────────
     if ($action === 'confirm_reception') {
         $orderId = $body['order_id'] ?? '';
+        $userId  = $body['user_id']  ?? '';
+
+        if (!$orderId) { echo json_encode(['success' => false, 'error' => 'order_id manquant']); exit; }
+
+        // Vérifier que l'utilisateur est bien l'acheteur de cette commande
+        if ($userId) {
+            $check = $db->prepare("SELECT id FROM orders WHERE (order_number = ? OR id::text = ?) AND user_id = ? LIMIT 1");
+            $check->execute([$orderId, (string)$orderId, $userId]);
+            if (!$check->fetch()) {
+                echo json_encode(['success' => false, 'error' => 'Non autorisé : vous n\'êtes pas l\'acheteur de cette commande']);
+                exit;
+            }
+        }
+
         $db->prepare("
             UPDATE orders SET status = 'Livrée', escrow_status = 'livrée_confirmée',
             confirmed_at = NOW(), updated_at = NOW()
@@ -514,23 +554,244 @@ try {
 
     // ── POST liberer_fonds ────────────────────────────────────────
     if ($action === 'liberer_fonds') {
-        $orderId = $body['order_id'] ?? '';
+        $orderId          = $body['order_id']          ?? '';
+        $paymentMethod    = $body['payment_method']    ?? 'Virement manuel';
+        $paymentReference = $body['payment_reference'] ?? null;
+        $paymentNote      = $body['payment_note']      ?? null;
+        $paidBy           = $body['paid_by']           ?? 'admin';
+
         if (!$orderId) { echo json_encode(['success' => false, 'error' => 'order_id manquant']); exit; }
+
+        // 1. Mettre à jour le statut de la commande
         $db->prepare("
             UPDATE orders SET escrow_status = 'fonds_libérés', escrow_released_at = NOW(), updated_at = NOW()
             WHERE id::text = ? OR order_number = ?
         ")->execute([(string)$orderId, (string)$orderId]);
 
-        $row = $db->prepare("SELECT id FROM orders WHERE id::text = ? OR order_number = ? LIMIT 1");
+        // 2. Récupérer les données complètes de la commande pour la trace
+        $row = $db->prepare("
+            SELECT o.id, o.order_number, o.artist_payout, o.shipping_cost,
+                   oi.artist_id, oi.artist_name,
+                   a.email AS artist_email, a.artist_name AS artist_display_name
+            FROM orders o
+            LEFT JOIN order_items oi ON oi.order_id = o.id
+            LEFT JOIN artists a ON a.id::text = oi.artist_id
+            WHERE o.id::text = ? OR o.order_number = ?
+            LIMIT 1
+        ");
         $row->execute([(string)$orderId, (string)$orderId]);
-        $dbOrderId = $row->fetchColumn();
-        if ($dbOrderId) {
+        $cmd = $row->fetch(PDO::FETCH_ASSOC);
+
+        if ($cmd) {
+            $dbOrderId     = $cmd['id'];
+            $artistId      = $cmd['artist_id']            ?? '';
+            $artistName    = $cmd['artist_display_name']  ?? $cmd['artist_name'] ?? 'Inconnu';
+            $artistEmail   = $cmd['artist_email']         ?? '';
+            $amountArtwork = (float)($cmd['artist_payout']  ?? 0);
+            $amountShip    = (float)($cmd['shipping_cost']  ?? 0);
+            $amountTotal   = $amountArtwork + $amountShip;
+            $refNote       = trim(($paymentNote ?? '') . ($paymentReference ? " | Réf: $paymentReference" : ''));
+
+            // 3. Insérer dans l'historique de la commande
             $db->prepare("
-                INSERT INTO order_timeline (order_id, status, note, updated_by_role)
-                VALUES (?, 'Fonds libérés', 'Virement artiste confirmé par l''admin', 'admin')
-            ")->execute([$dbOrderId]);
+                INSERT INTO order_timeline (order_id, status, note, updated_by, updated_by_role)
+                VALUES (?, 'Fonds libérés', ?, ?, 'admin')
+            ")->execute([
+                $dbOrderId,
+                'Virement artiste confirmé par admin' . ($refNote ? " — $refNote" : ''),
+                $paidBy
+            ]);
+
+            // 4. Insérer la trace dans payment_transactions
+            $db->prepare("
+                INSERT INTO payment_transactions
+                    (order_id, order_number, artist_id, artist_name, artist_email,
+                     amount_artwork, amount_shipping, amount_total,
+                     payment_method, payment_reference, payment_note, paid_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ")->execute([
+                $dbOrderId,
+                $cmd['order_number'],
+                $artistId,
+                $artistName,
+                $artistEmail,
+                $amountArtwork,
+                $amountShip,
+                $amountTotal,
+                $paymentMethod,
+                $paymentReference,
+                $paymentNote,
+                $paidBy
+            ]);
+
+            // 5. Notifier l'artiste
+            try {
+                $db->prepare("
+                    INSERT INTO artist_notifications (artist_id, type, title, message, order_id, order_number)
+                    VALUES (?, 'payment_released', ?, ?, ?, ?)
+                ")->execute([
+                    $artistId,
+                    '💸 Paiement reçu — ' . $cmd['order_number'],
+                    'Votre virement de ' . number_format($amountTotal, 0, ',', ' ') . ' FCFA pour la commande ' . $cmd['order_number'] . ' a été effectué.',
+                    $dbOrderId,
+                    $cmd['order_number']
+                ]);
+            } catch (Exception $e) {}
         }
-        echo json_encode(['success' => true]);
+
+        echo json_encode(['success' => true, 'message' => 'Fonds libérés et transaction enregistrée']);
+        exit;
+    }
+
+    // ── POST update_shipping (artiste uniquement) ─────────────────
+    if ($action === 'update_shipping') {
+        $orderId   = $body['order_id']        ?? '';
+        $artistId  = $body['artist_id']       ?? '';
+        $tracking  = $body['tracking_number'] ?? null;
+        $carrier   = $body['carrier']         ?? null;
+        $note      = $body['note']            ?? null;
+        $proofUrl  = $body['shipping_proof_url'] ?? null;
+
+        if (!$orderId)  { echo json_encode(['success' => false, 'error' => 'order_id manquant']); exit; }
+        if (!$artistId) { echo json_encode(['success' => false, 'error' => 'artist_id manquant']); exit; }
+
+        // Vérifier que l'artiste a bien une œuvre dans cette commande
+        $check = $db->prepare("
+            SELECT COUNT(*) FROM order_items oi
+            JOIN orders o ON o.id = oi.order_id
+            WHERE (o.order_number = ? OR o.id::text = ?)
+            AND COALESCE(oi.artist_id, '') = ?
+        ");
+        $check->execute([$orderId, $orderId, $artistId]);
+        if ((int)$check->fetchColumn() === 0) {
+            echo json_encode(['success' => false, 'error' => 'Non autorisé : aucune de vos œuvres dans cette commande']);
+            exit;
+        }
+
+        // Vérifier que la commande est bien en état "payée_en_attente" (pas encore expédiée)
+        $stateCheck = $db->prepare("SELECT escrow_status FROM orders WHERE order_number = ? OR id::text = ? LIMIT 1");
+        $stateCheck->execute([$orderId, $orderId]);
+        $currentEscrow = $stateCheck->fetchColumn();
+        if ($currentEscrow && $currentEscrow !== 'payée_en_attente') {
+            echo json_encode(['success' => false, 'error' => 'Cette commande a déjà été expédiée ou traitée']);
+            exit;
+        }
+
+        $setFields = "status = 'Expédiée', escrow_status = 'expédiée', shipped_at = NOW(), updated_at = NOW(), updated_by = 'artist'";
+        $params    = [];
+
+        if ($tracking) { $setFields .= ", tracking_number = :tn"; $params[':tn'] = $tracking; }
+        if ($carrier)  { $setFields .= ", carrier = :carrier";     $params[':carrier'] = $carrier; }
+        if ($proofUrl) { $setFields .= ", shipping_proof_url = :proof"; $params[':proof'] = $proofUrl; }
+
+        $autoRelease = date('Y-m-d H:i:s', strtotime('+21 days'));
+        $setFields .= ", escrow_auto_release_date = '$autoRelease'";
+
+        $params[':id'] = $orderId;
+        $db->prepare("UPDATE orders SET $setFields WHERE order_number = :id OR id::text = :id")->execute($params);
+
+        // Récupérer l'id numérique pour la timeline
+        $row = $db->prepare("SELECT id FROM orders WHERE order_number = ? OR id::text = ? LIMIT 1");
+        $row->execute([$orderId, $orderId]);
+        $dbOrderId = $row->fetchColumn();
+
+        if ($dbOrderId) {
+            $tlNote = $note ?: 'Commande expédiée par l\'artiste';
+            if ($tracking) $tlNote .= " | Tracking: $tracking";
+            if ($carrier)  $tlNote .= " ($carrier)";
+            $db->prepare("
+                INSERT INTO order_timeline (order_id, status, note, updated_by, updated_by_role)
+                VALUES (?, 'Expédiée', ?, ?, 'artist')
+            ")->execute([$dbOrderId, $tlNote, $artistId]);
+        }
+
+        echo json_encode(['success' => true, 'message' => 'Expédition enregistrée']);
+        exit;
+    }
+
+    // ── POST refuser_commande (artiste) ──────────────────────────
+    if ($action === 'refuser_commande') {
+        $orderId    = $body['order_id']    ?? '';
+        $artistId   = $body['artist_id']   ?? '';
+        $artistName = $body['artist_name'] ?? 'L'artiste';
+        $raison     = $body['raison']      ?? 'Commande refusée par l'artiste';
+
+        if (!$orderId) { echo json_encode(['success' => false, 'error' => 'order_id manquant']); exit; }
+
+        // Vérifier que l'artiste a bien une œuvre dans cette commande
+        if ($artistId) {
+            $check = $db->prepare("
+                SELECT COUNT(*) FROM order_items oi
+                JOIN orders o ON o.id = oi.order_id
+                WHERE (o.order_number = ? OR o.id::text = ?)
+                AND COALESCE(oi.artist_id,'') = ?
+            ");
+            $check->execute([$orderId, $orderId, $artistId]);
+            if ((int)$check->fetchColumn() === 0) {
+                echo json_encode(['success' => false, 'error' => 'Non autorisé']);
+                exit;
+            }
+        }
+
+        // Récupérer les infos de la commande
+        $row = $db->prepare("
+            SELECT o.id, o.order_number, o.user_id, o.user_name, o.user_email
+            FROM orders o
+            WHERE o.order_number = ? OR o.id::text = ?
+            LIMIT 1
+        ");
+        $row->execute([$orderId, $orderId]);
+        $cmd = $row->fetch(PDO::FETCH_ASSOC);
+
+        if (!$cmd) { echo json_encode(['success' => false, 'error' => 'Commande introuvable']); exit; }
+
+        $dbOrderId   = $cmd['id'];
+        $orderNumber = $cmd['order_number'];
+        $buyerId     = $cmd['user_id']    ?? '';
+        $buyerName   = $cmd['user_name']  ?? 'l'acheteur';
+        $buyerEmail  = $cmd['user_email'] ?? '';
+
+        // 1. Mettre à jour le statut
+        $db->prepare("
+            UPDATE orders SET status = 'Refusée', escrow_status = 'refusée',
+            updated_at = NOW(), updated_by = 'artist'
+            WHERE id = ?
+        ")->execute([$dbOrderId]);
+
+        // 2. Timeline
+        $db->prepare("
+            INSERT INTO order_timeline (order_id, status, note, updated_by, updated_by_role)
+            VALUES (?, 'Refusée', ?, ?, 'artist')
+        ")->execute([$dbOrderId, "Commande refusée par l'artiste $artistName : $raison", $artistId]);
+
+        // 3. Notifier l'acheteur
+        try {
+            $db->prepare("
+                INSERT INTO artist_notifications (artist_id, type, title, message, order_id, order_number)
+                VALUES (?, 'order_refused', ?, ?, ?, ?)
+            ")->execute([
+                $buyerId,
+                "❌ Commande refusée — $orderNumber",
+                "Votre commande $orderNumber a été refusée par l'artiste. Motif : $raison. L'administrateur prendra contact pour votre remboursement.",
+                $dbOrderId,
+                $orderNumber
+            ]);
+        } catch (Exception $e) {}
+
+        // 4. Notifier l'admin (artist_id = 'admin' comme convention)
+        try {
+            $db->prepare("
+                INSERT INTO artist_notifications (artist_id, type, title, message, order_id, order_number)
+                VALUES ('admin', 'order_refused', ?, ?, ?, ?)
+            ")->execute([
+                "⚠️ Commande refusée à rembourser — $orderNumber",
+                "L'artiste $artistName a refusé la commande $orderNumber de $buyerName. Motif : $raison. Action requise : déclencher le remboursement.",
+                $dbOrderId,
+                $orderNumber
+            ]);
+        } catch (Exception $e) {}
+
+        echo json_encode(['success' => true, 'message' => 'Commande refusée, notifications envoyées']);
         exit;
     }
 
@@ -540,6 +801,28 @@ try {
         if (!$orderId) { echo json_encode(['success' => false, 'error' => 'order_id manquant']); exit; }
         $db->prepare("DELETE FROM orders WHERE id::text = ? OR order_number = ?")->execute([$orderId, $orderId]);
         echo json_encode(['success' => true]);
+        exit;
+    }
+
+    // ── GET list_transactions ─────────────────────────────────────
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'list_transactions') {
+        $artistId = $_GET['artist_id'] ?? '';
+        $limit    = min((int)($_GET['limit'] ?? 50), 200);
+
+        if ($artistId) {
+            $stmt = $db->prepare("
+                SELECT * FROM payment_transactions
+                WHERE artist_id = ?
+                ORDER BY created_at DESC LIMIT ?
+            ");
+            $stmt->execute([$artistId, $limit]);
+        } else {
+            // Admin : toutes les transactions
+            $stmt = $db->prepare("SELECT * FROM payment_transactions ORDER BY created_at DESC LIMIT ?");
+            $stmt->execute([$limit]);
+        }
+        $transactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode(['success' => true, 'transactions' => $transactions], JSON_UNESCAPED_UNICODE);
         exit;
     }
 

@@ -6852,30 +6852,9 @@ function enterGallery() {
                     // ⭐ FIX : L'API filtre déjà par artist_id côté serveur (WHERE artist_id::text = ?)
                     // Le filtre client est un filet de sécurité uniquement — on accepte si artist_id
                     // correspond à l'ID, au googleId, ou à l'email de l'artiste connecté
-                    const knownIds = [
-                        String(currentUser?.id || ''),
-                        String(currentUser?.googleId || ''),
-                        String(currentUser?.email || ''),
-                    ].filter(Boolean);
-
-                    const filteredData = result.data.filter(art => {
-                        const apiArtistId = String(art.artist_id || art.user_id || art.created_by || '');
-                        // Si pas d'artist_id dans la réponse, on fait confiance au filtre serveur
-                        if (!apiArtistId) return true;
-                        const matches = knownIds.some(id => id === apiArtistId);
-                        if (!matches) {
-                            console.warn('⚠️ Artwork filtré (artist_id différent):', art.title,
-                                'artist_id retourné:', apiArtistId, 'attendus:', knownIds);
-                        }
-                        return matches;
-                    });
-
-                    console.log(`📊 API: ${result.data.length} artworks → après filtre ID client: ${filteredData.length}`);
-                    _artworksRetryCount = 0; // ⭐ Reset retry — le serveur répond correctement
-                    
-                    // L'API est déjà filtrée par artist_id côté serveur — pas besoin de refiltrer
-                    // Le filtre client causait un dashboard vide si les noms de champs ne correspondaient pas
-                    db.artworks = filteredData.map(art => ({
+                    _artworksRetryCount = 0; // Reset retry — le serveur répond correctement
+                    // L'API filtre déjà par artist_id côté serveur — filtre client supprimé
+                    db.artworks = result.data.map(art => ({
                         id: art.id,
                         server_id: art.id,
                         title: art.title,
@@ -8267,7 +8246,6 @@ function enterGallery() {
             document.getElementById('newsModalTitle').textContent = '➕ Nouvelle Actualité';
             document.getElementById('newsIcon').value = '';
             document.getElementById('newsImageUpload').value = '';
-            document.getElementById('newsGradient').value = 'gradient-1';
             document.getElementById('newsText').value = '';
             document.getElementById('newsEditIndex').value = '';
             document.getElementById('newsImagePreview').style.display = 'none';
@@ -8320,7 +8298,6 @@ function enterGallery() {
             document.getElementById('newsModalTitle').textContent = '✏️ Modifier l\'Actualité';
             document.getElementById('newsIcon').value = news.icon;
             document.getElementById('newsImageUpload').value = ''; // Reset file input
-            document.getElementById('newsGradient').value = news.gradient;
             document.getElementById('newsText').value = news.text;
             document.getElementById('newsEditIndex').value = id; // ID serveur
             
@@ -8343,7 +8320,7 @@ function enterGallery() {
 
         async function saveNews() {
             const icon = document.getElementById('newsIcon').value.trim();
-            const gradient = document.getElementById('newsGradient').value;
+            const gradient = 'gradient-1'; // gradient fixe (champ supprimé du formulaire)
             const text = document.getElementById('newsText').value.trim();
             const editId = document.getElementById('newsEditIndex').value; // contient l'ID serveur ou ''
 

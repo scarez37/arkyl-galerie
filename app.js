@@ -300,22 +300,6 @@ function enterGallery() {
                     // Charger le panier depuis la BDD
                     const uid = savedUser.id || savedUser.googleId || savedUser.email;
                     if (typeof chargerPanierUtilisateur === 'function') chargerPanierUtilisateur(uid);
-                    // Load artist payment notifications
-                    if (savedUser.isArtist || savedUser.artistName) {
-                        const nKey = 'arkyl_notifications_artist_' + (savedUser.id || savedUser.googleId || savedUser.email);
-                        try {
-                            const aN = JSON.parse(localStorage.getItem(nKey) || '[]');
-                            if (aN.length > 0) {
-                                const ids = new Set(notifications.map(function(n){return n.id;}));
-                                const fresh = aN.filter(function(n){return !ids.has(n.id);});
-                                if (fresh.length > 0) {
-                                    fresh.forEach(function(n){notifications.unshift(n);});
-                                    safeStorage.set('arkyl_notifications', notifications);
-                                }
-                                localStorage.removeItem(nKey);
-                            }
-                        } catch(e) {}
-                    }
                     if (typeof chargerAdresseUtilisateur === 'function') chargerAdresseUtilisateur(uid);
                     // Charger la ville La Poste
                     try {
@@ -482,8 +466,9 @@ function enterGallery() {
         // ⭐ FIX : Charger artistes ET œuvres depuis le serveur pour le panneau admin
         async function loadAdminDataFromServer() {
             try {
+                safeStorage.remove("arkyl_products"); safeStorage.remove("arkyl_artists_data"); artistsData = {};
                 // 1. Charger TOUTES les œuvres (sans filtre artist_id)
-                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=${Date.now()}`);
+                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?admin=1&t=${Date.now()}`);
                 const result = await resp.json();
 
                 if (!result.success || !result.data) return;
@@ -510,7 +495,7 @@ function enterGallery() {
                 const artistNames = [...new Set(artworks.map(a => a.artist_name || a.artist).filter(Boolean))];
 
                 for (const name of artistNames) {
-                    if (artistsData[name]) continue; // Déjà chargé
+                    // (rebuilt each time) // Déjà chargé
                     const works = artworks.filter(a => (a.artist_name || a.artist) === name);
 
                     // Essayer de charger le profil complet depuis l'API
@@ -1135,9 +1120,7 @@ function enterGallery() {
             document.getElementById('userMenuDropdown').classList.remove('show');
             navigateTo('admin');
             // ⭐ FIX : Charger les vraies données depuis le serveur avant d'afficher le panneau
-            loadAdminDataFromServer().then(() => {
-                switchAdminTab('overview');
-            });
+            switchAdminTab('overview'); // renderAdminOverview reloads itself
         }
 
         function goToAdminNews() {
@@ -1507,16 +1490,14 @@ function enterGallery() {
         
         async function renderAdminOverview() {
             // ⭐ FIX : S'assurer que les données sont chargées avant d'afficher
-            if (getProducts().length === 0 || Object.keys(artistsData).length === 0) {
-                await loadAdminDataFromServer();
-            }
+            await loadAdminDataFromServer(); // always reload
             const products = getProducts();
             const artists = Object.keys(artistsData);
             // Utilise la variable globale newsItems (chargée depuis le serveur)
             
             // Update statistics (catalogue)
-            document.getElementById('overviewArtworksCount').textContent = products.length;
-            document.getElementById('overviewArtistsCount').textContent = artists.length;
+            var _x=document.getElementById('overviewArtworksCount'); if(_x) _x.textContent=products.length;
+            var _y=document.getElementById('overviewArtistsCount'); if(_y) _y.textContent=artists.length;
             document.getElementById('overviewNewsCount').textContent = newsItems.length;
             
             // ⭐ FIX : Chiffre d'affaires RÉEL depuis le serveur (pas les prix du catalogue)
@@ -1547,6 +1528,10 @@ function enterGallery() {
             // Trésorerie disponible via l'onglet dédié (switchAdminTab('tresorerie'))
         }
         
+
+        async function clearAdminCache() { Object.keys(localStorage).filter(function(k){return k.startsWith("arkyl_products")||k.startsWith("arkyl_artists");}).forEach(function(k){localStorage.removeItem(k);}); artistsData={}; showToast("Cache vide!"); await renderAdminOverview(); }
+        window.clearAdminCache = clearAdminCache;
+
         function renderTopArtists() {
             const container = document.getElementById('topArtistsList');
             const products = getProducts();
@@ -4403,41 +4388,16 @@ function enterGallery() {
                         </div>` : ''}
                     </div>`;
 
-
-            } else if (es === 'livrée_confirmée') {
-                // ⭐ Livraison confirmée → virement en cours
+            } else if (es === 'livrée_confirmée' || es === 'fonds_libérés') {
+                // Étape finale
                 actionBtn = `
-                    <div style="background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);border-radius:14px;padding:18px;margin-top:16px;text-align:center;">
-                        <div style="font-size:32px;margin-bottom:8px;">⏳</div>
-                        <div style="font-weight:700;font-size:15px;color:#ffe082;">Virement en cours de traitement</div>
-                        <div style="font-size:13px;opacity:0.75;margin-top:6px;line-height:1.6;">
-                            L'acheteur a confirmé la réception. ARKYL va procéder au virement.<br>
-                            Vous recevrez une notification dès que le virement est effectué.
-                        </div>
+                    <div style="background:rgba(76,175,80,0.12);border:1px solid rgba(76,175,80,0.35);border-radius:14px;padding:18px;margin-top:16px;text-align:center;">
+                        <div style="font-size:32px;margin-bottom:8px;">🎉</div>
+                        <div style="font-weight:700;font-size:15px;color:#a5d6a7;">Transaction complète !</div>
+                        <div style="font-size:13px;opacity:0.7;margin-top:6px;">Les fonds ont été libérés. Merci pour cette belle vente !</div>
                     </div>`;
-
-            } else if (es === 'fonds_libérés') {
-                // ⭐ Fonds libérés → artiste doit confirmer réception du virement
-                const alreadyConfirmed = order.virement_confirme_artiste === true || order.virement_confirme_artiste === 1;
-                actionBtn = alreadyConfirmed
-                    ? `<div style="background:rgba(76,175,80,0.12);border:1px solid rgba(76,175,80,0.35);border-radius:14px;padding:18px;margin-top:16px;text-align:center;">
-                            <div style="font-size:32px;margin-bottom:8px;">🎉</div>
-                            <div style="font-weight:700;font-size:15px;color:#a5d6a7;">Virement confirmé — Transaction complète !</div>
-                            <div style="font-size:13px;opacity:0.7;margin-top:6px;">Merci pour cette belle vente !</div>
-                        </div>`
-                    : `<div style="background:rgba(76,175,80,0.12);border:2px solid rgba(76,175,80,0.5);border-radius:14px;padding:18px;margin-top:16px;text-align:center;">
-                            <div style="font-size:32px;margin-bottom:8px;">💰</div>
-                            <div style="font-weight:700;font-size:16px;color:#a5d6a7;margin-bottom:8px;">Virement effectué par ARKYL !</div>
-                            <div style="font-size:13px;opacity:0.8;margin-bottom:16px;line-height:1.6;">
-                                ARKYL a effectué un virement sur votre compte.<br>
-                                Avez-vous bien reçu le paiement ?
-                            </div>
-                            <button onclick="confirmerReceptionVirement('${orderId}')"
-                                style="background:linear-gradient(135deg,#4caf50,#2e7d32);color:white;border:none;padding:14px 28px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;width:100%;">
-                                ✅ Oui, j'ai bien reçu mon virement
-                            </button>
-                        </div>`;
             }
+
             return `
                 <div class="admin-order-card" style="margin-bottom:20px;">
 
@@ -4494,31 +4454,6 @@ function enterGallery() {
             });
             await renderArtistOrders();
         }
-
-        // Artiste confirme reception du virement
-        async function confirmerReceptionVirement(orderId) {
-            if (!confirm('Confirmez-vous avoir bien recu votre virement ARKYL ?')) return;
-            try {
-                const resp = await fetch('https://arkyl-galerie.onrender.com/api_commandes.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'confirmer_virement_artiste',
-                        order_id: orderId,
-                        artist_id: currentUser?.id || currentUser?.googleId || currentUser?.email
-                    })
-                });
-                const data = await resp.json();
-                if (data.success) {
-                    showToast('Merci ! Reception du virement confirmee.');
-                    addNotification('Virement confirme', 'Vous avez confirme la reception de votre paiement ARKYL.');
-                    if (typeof renderArtistOrders === 'function') renderArtistOrders();
-                } else {
-                    showToast('Erreur : ' + (data.message || 'inconnue'));
-                }
-            } catch(e) { showToast('Erreur reseau'); }
-        }
-        window.confirmerReceptionVirement = confirmerReceptionVirement;
 
         async function artistMarquerExpediee(orderId) {
             const carrier  = document.getElementById(`art-carrier-${orderId}`)?.value || null;
@@ -9773,34 +9708,25 @@ function enterGallery() {
                     html += '<tr style="border-bottom: 1px solid #555;"><th style="padding: 10px;">Commande</th><th>Date</th><th>Artiste</th><th>Montant à envoyer</th><th>Action</th></tr>';
 
                     urgents.forEach(cmd => {
-                        const dateFR   = new Date(cmd.created_at).toLocaleDateString("fr-FR");
-                        const shipping = parseFloat(cmd.shipping_cost || 0);
-                        const total    = parseFloat(cmd.total || cmd.amount || 0);
-                        const artwork  = total - shipping;
-                        const partArt  = parseFloat(cmd.artist_payout || 0) || artwork * 0.65;
-                        const montantTotal = Math.round(partArt + shipping).toLocaleString("fr-FR");
-                        const partArtFmt   = Math.round(partArt).toLocaleString("fr-FR");
-                        const transportFmt = Math.round(shipping).toLocaleString("fr-FR");
-                        const artistLabel  = cmd.artist_name || cmd.user_name || cmd.artist_id || "—";
-                        const artistId     = String(cmd.artist_id || "");
-                        const montantBrut  = Math.round(partArt + shipping);
+                        const dateFR = new Date(cmd.created_at).toLocaleDateString('fr-FR');
+                        const montantTotal = parseFloat(cmd.payout_total_with_shipping || 0).toLocaleString('fr-FR');
+                        const partArt = parseFloat(cmd.artist_payout || 0).toLocaleString('fr-FR');
+                        const transport = parseFloat(cmd.shipping_cost || 0).toLocaleString('fr-FR');
 
                         html += `
                             <tr style="border-bottom: 1px solid #333;">
-                                <td style="padding: 10px; font-weight:600;">${cmd.order_number || "#"+cmd.id}</td>
+                                <td style="padding: 10px;">${cmd.order_number}</td>
                                 <td>${dateFR}</td>
-                                <td style="font-weight:600; color:#d4af37;">${artistLabel}</td>
+                                <td>${cmd.artist_id || '—'}</td>
                                 <td style="color: #ffc107; font-weight: bold;">
                                     ${montantTotal} FCFA
                                     <br><span style="font-size: 11px; color: #aaa; font-weight: normal;">
-                                        (Art: ${partArtFmt} + Port: ${transportFmt})
+                                        (Art: ${partArt} + Port: ${transport})
                                     </span>
                                 </td>
                                 <td>
-                                    <button class="btn-pay-confirm"
-                                        onclick="marquerFondsLiberes(${cmd.id}, '${artistId}', '${artistLabel.replace(/'/g, \"\\'\") }', ${montantBrut})"
-                                        style="background: #d4af37; color: black; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; white-space:nowrap;">
-                                        💸 Confirmer virement
+                                    <button class="btn-pay-confirm" onclick="marquerFondsLiberes(${cmd.id})" style="background: #d4af37; color: black; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                                        ✅ Marqué payé
                                     </button>
                                 </td>
                             </tr>
@@ -9817,12 +9743,8 @@ function enterGallery() {
             }
         }
 
-        // ⭐ FIX : accepte artistId, artistLabel, montant pour notifier l'artiste
-        async function marquerFondsLiberes(orderId, artistId, artistLabel, montant) {
-            const msg = artistLabel
-                ? 'Confirmer le virement de ' + (montant||'?').toLocaleString('fr-FR') + ' FCFA vers ' + artistLabel + ' ?'
-                : 'Confirmer le virement vers l'artiste pour cette commande ?';
-            if (!confirm(msg)) return;
+        async function marquerFondsLiberes(orderId) {
+            if (!confirm('Confirmer le virement à l\'artiste pour cette commande ?')) return;
             try {
                 const resp = await fetch('https://arkyl-galerie.onrender.com/api_commandes.php', {
                     method: 'POST',
@@ -9831,28 +9753,7 @@ function enterGallery() {
                 });
                 const data = await resp.json();
                 if (data.success) {
-                    showToast('✅ Virement confirmé pour ' + (artistLabel || 'l'artiste') + ' !');
-
-                    // ⭐ Stocker une notification dans la clé propre à l'artiste
-                    // (elle sera lue par l'artiste à sa prochaine connexion)
-                    if (artistId) {
-                        const notifKey = 'arkyl_notifications_artist_' + artistId;
-                        let artistNotifs = [];
-                        try { artistNotifs = JSON.parse(localStorage.getItem(notifKey) || '[]'); } catch(e) {}
-                        artistNotifs.unshift({
-                            id: Date.now(),
-                            title: '💰 Virement reçu',
-                            text: 'ARKYL a effectué un virement de ' + (montant ? montant.toLocaleString('fr-FR') + ' FCFA' : '') + ' sur votre compte. Merci pour votre confiance !',
-                            time: 'À l'instant',
-                            unread: true,
-                            type: 'virement',
-                            timestamp: Date.now()
-                        });
-                        // Garder max 50 notifs artiste
-                        if (artistNotifs.length > 50) artistNotifs.length = 50;
-                        localStorage.setItem(notifKey, JSON.stringify(artistNotifs));
-                    }
-
+                    showToast('✅ Fonds marqués comme transférés !');
                     chargerTresorerieAdmin();
                 } else {
                     showToast('❌ Erreur : ' + (data.message || 'inconnue'));

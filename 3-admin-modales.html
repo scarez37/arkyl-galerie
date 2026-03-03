@@ -134,7 +134,7 @@
             <div id="adminArtworksSection" class="admin-section">
                 <!-- Search Bar for Artworks -->
                 <div style="max-width: 700px; margin: 0 auto 20px; background: rgba(255,255,255,0.08); backdrop-filter: blur(20px); border-radius: 20px; padding: 10px 20px; display: flex; align-items: center; gap: 15px; border: 2px solid rgba(255,255,255,0.15); box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-srch" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="11" cy="11" r="7" stroke="url(#g-srch)" stroke-width="2.2" fill="none"/><path d="M16.5 16.5L21 21" stroke="url(#g-srch)" stroke-width="2.2" stroke-linecap="round"/></svg>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-srch-artworks" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="11" cy="11" r="7" stroke="url(#g-srch-artworks)" stroke-width="2.2" fill="none"/><path d="M16.5 16.5L21 21" stroke="url(#g-srch-artworks)" stroke-width="2.2" stroke-linecap="round"/></svg>
                     <input 
                         type="text" 
                         id="artworksSearchInput" 
@@ -164,7 +164,7 @@
             <div id="adminArtistsSection" class="admin-section">
                 <!-- Search Bar for Artists -->
                 <div style="max-width: 700px; margin: 0 auto 20px; background: rgba(255,255,255,0.08); backdrop-filter: blur(20px); border-radius: 20px; padding: 10px 20px; display: flex; align-items: center; gap: 15px; border: 2px solid rgba(255,255,255,0.15); box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-srch" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="11" cy="11" r="7" stroke="url(#g-srch)" stroke-width="2.2" fill="none"/><path d="M16.5 16.5L21 21" stroke="url(#g-srch)" stroke-width="2.2" stroke-linecap="round"/></svg>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-srch-artists" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="11" cy="11" r="7" stroke="url(#g-srch-artists)" stroke-width="2.2" fill="none"/><path d="M16.5 16.5L21 21" stroke="url(#g-srch-artists)" stroke-width="2.2" stroke-linecap="round"/></svg>
                     <input 
                         type="text" 
                         id="artistsSearchInput" 
@@ -207,7 +207,6 @@
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; font-size: 13px; margin-bottom: 8px; opacity: 0.9;">📤 Importer une image depuis votre appareil</label>
                     <input type="file" id="newsImageUpload" accept="image/*" style="width: 100%; padding: 12px; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: white; font-family: 'Montserrat', sans-serif; cursor: pointer;">
-                    <input type="hidden" id="newsIcon" value="">
                     <p style="font-size: 11px; opacity: 0.6; margin-top: 5px;">Formats acceptés: JPG, PNG, GIF, WebP</p>
                 </div>
 
@@ -246,13 +245,13 @@
             </div>
 
             <div class="edit-form-group">
-                <label> Titre de l'œuvre</label>
-                <input type="text" id="artworkTitle" placeholder="Ex: Coucher de Soleil Africain" style="width: 100%; padding: 14px 18px; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: white; font-size: 15px;">
+                <label> Titre de l'œuvre *</label>
+                <input type="text" id="artworkTitle" placeholder="Ex: Coucher de Soleil Africain" required style="width: 100%; padding: 14px 18px; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: white; font-size: 15px;">
             </div>
 
             <div class="edit-form-group">
-                <label>👨‍ Artiste</label>
-                <select id="artworkArtist" style="width: 100%; padding: 14px 18px; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: white; font-size: 15px;">
+                <label>👨‍ Artiste *</label>
+                <select id="artworkArtist" required style="width: 100%; padding: 14px 18px; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: white; font-size: 15px;">
                     <option value="">-- Sélectionner un artiste --</option>
                 </select>
             </div>
@@ -264,17 +263,22 @@
                     <option value="Sculpture">🗿 Sculpture</option>
                     <option value="Abstrait">✨ Abstrait</option>
                     <option value="Plastique">🎭 Art Plastique</option>
+                    <option value="Photographie">📸 Photographie</option>
+                    <option value="Dessin">✏️ Dessin</option>
+                    <option value="Textile">🧵 Textile</option>
+                    <option value="Céramique">🏺 Céramique</option>
+                    <option value="Autre">🎨 Autre</option>
                 </select>
             </div>
 
             <div class="edit-form-group">
-                <label>💰 Prix (FCFA)</label>
-                <input type="number" id="artworkPrice" placeholder="Ex: 150000" min="0" style="width: 100%; padding: 14px 18px; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: white; font-size: 15px;">
+                <label>💰 Prix (FCFA) *</label>
+                <input type="number" id="artworkPrice" placeholder="Ex: 150000" min="1" required style="width: 100%; padding: 14px 18px; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: white; font-size: 15px;">
             </div>
 
             <div class="edit-form-group">
-                <label>🖼️ URL de l'image</label>
-                <input type="text" id="artworkImage" placeholder="https://..." style="width: 100%; padding: 14px 18px; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: white; font-size: 15px;">
+                <label>🖼️ URL de l'image *</label>
+                <input type="url" id="artworkImage" placeholder="https://..." required style="width: 100%; padding: 14px 18px; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: white; font-size: 15px;">
                 <p style="font-size: 11px; opacity: 0.6; margin-top: 5px;">Utilisez une URL d'image (Unsplash recommandé)</p>
             </div>
 
@@ -307,13 +311,13 @@
             </div>
 
             <div class="edit-form-group">
-                <label>👤 Nom de l'artiste</label>
-                <input type="text" id="artistName" placeholder="Ex: Kofi Mensah" style="width: 100%; padding: 14px 18px; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: white; font-size: 15px;">
+                <label>👤 Nom de l'artiste *</label>
+                <input type="text" id="artistName" placeholder="Ex: Kofi Mensah" required style="width: 100%; padding: 14px 18px; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: white; font-size: 15px;">
             </div>
 
             <div class="edit-form-group">
-                <label>📧 Email</label>
-                <input type="email" id="artistEmail" placeholder="artiste@arkyl.art" style="width: 100%; padding: 14px 18px; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: white; font-size: 15px;">
+                <label>📧 Email *</label>
+                <input type="email" id="artistEmail" placeholder="artiste@arkyl.art" required style="width: 100%; padding: 14px 18px; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: white; font-size: 15px;">
             </div>
 
             <div class="edit-form-group">
@@ -658,7 +662,10 @@
                             <input type="number" id="artwork-height" placeholder="Hauteur" min="0" step="0.1" style="width: 100%;">
                             <p style="font-size: 11px; opacity: 0.6; margin-top: 4px;">Hauteur (cm)</p>
                         </div>
-
+                        <div>
+                            <input type="number" id="artwork-depth" placeholder="Profondeur" min="0" step="0.1" style="width: 100%;">
+                            <p style="font-size: 11px; opacity: 0.6; margin-top: 4px;">Profondeur (cm)</p>
+                        </div>
                     </div>
                 </div>
                 

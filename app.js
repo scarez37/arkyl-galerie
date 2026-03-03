@@ -60,6 +60,29 @@ function enterGallery() {
                 .skeleton-row .sk-info  { flex: 1; display: flex; flex-direction: column; gap: 8px; }
                 .skeleton-row .sk-line1 { height: 13px; width: 55%; }
                 .skeleton-row .sk-line2 { height: 11px; width: 35%; }
+
+                /* Bouton mode de livraison */
+                .shipping-mode-btn {
+                    width: 100%;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 13px 16px;
+                    background: rgba(255,255,255,0.06);
+                    border: 1.5px solid rgba(255,255,255,0.15);
+                    border-radius: 14px;
+                    color: white;
+                    font-size: 14px;
+                    font-family: inherit;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    text-align: left;
+                    margin-top: 6px;
+                }
+                .shipping-mode-btn:hover {
+                    background: rgba(255,255,255,0.1);
+                    border-color: rgba(212,175,55,0.4);
+                }
             `;
             document.head.appendChild(style);
         })();
@@ -123,9 +146,17 @@ function enterGallery() {
                 const now = Date.now();
                 const lastRender = lastRenderTime[pageId] || 0;
                 if (now - lastRender > 30000) {
-                    if (pageId === 'homePage' && typeof renderProducts === 'function') (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
-                    else if (pageId === 'favoritesPage' && typeof renderFavorites === 'function') renderFavorites();
-                    else if (pageId === 'cartPage' && typeof renderCart === 'function') renderCart();
+                    if (pageId === 'homePage') {
+                        if (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) {
+                            afficherOeuvresFiltrees();
+                        } else if (typeof chargerLaVraieGalerie === 'function') {
+                            chargerLaVraieGalerie();
+                        }
+                    } else if (pageId === 'favoritesPage' && typeof renderFavorites === 'function') {
+                        renderFavorites();
+                    } else if (pageId === 'cartPage' && typeof renderCart === 'function') {
+                        renderCart();
+                    }
                     lastRenderTime[pageId] = now;
                 }
             }, 30000);
@@ -150,9 +181,17 @@ function enterGallery() {
             const currentPage = document.querySelector('.page.active');
             if (!currentPage) return;
             const pageId = currentPage.id;
-            if (pageId === 'homePage' && typeof renderProducts === 'function') (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
-            else if (pageId === 'favoritesPage' && typeof renderFavorites === 'function') renderFavorites();
-            else if (pageId === 'cartPage' && typeof renderCart === 'function') renderCart();
+            if (pageId === 'homePage') {
+                if (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) {
+                    afficherOeuvresFiltrees();
+                } else if (typeof chargerLaVraieGalerie === 'function') {
+                    chargerLaVraieGalerie();
+                }
+            } else if (pageId === 'favoritesPage' && typeof renderFavorites === 'function') {
+                renderFavorites();
+            } else if (pageId === 'cartPage' && typeof renderCart === 'function') {
+                renderCart();
+            }
             if (typeof updateBadges === 'function') updateBadges();
             if (typeof renderNotifications === 'function') renderNotifications();
             showUpdateIndicator();
@@ -887,6 +926,8 @@ function enterGallery() {
             db.switchArtist('default');
             db.artworks = [];
             db.sales = [];
+            // 🔔 Arrêter le polling des notifications
+            stopNotifPolling();
 
             updateBadges();
             
@@ -1186,22 +1227,44 @@ function enterGallery() {
                         section.id = 'adminTresorerieSection';
                         section.className = 'admin-section';
                         section.innerHTML = `
-                            <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 25px;">
-                                <div style="flex: 1; min-width: 180px; background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center;">
-                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">Total encaissé</div>
-                                    <div id="treso-total" style="color: #d4af37; font-size: 1.5rem; font-weight: bold;">—</div>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px;">
+
+                                <div style="background: #1e1e1e; padding: 18px; border-radius: 12px; text-align: center; border: 1px solid rgba(212,175,55,0.2);">
+                                    <div style="color: #888; font-size: 0.8rem; margin-bottom: 6px; letter-spacing: 0.5px;">TOTAL ENCAISSÉ</div>
+                                    <div id="treso-total" style="color: #d4af37; font-size: 1.5rem; font-weight: 800;">—</div>
+                                    <div style="color:#555;font-size:11px;margin-top:4px;">Toutes commandes confondues</div>
                                 </div>
-                                <div style="flex: 1; min-width: 180px; background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center;">
-                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">Bénéfices ARKYL (35%)</div>
-                                    <div id="treso-arkyl" style="color: #28a745; font-size: 1.5rem; font-weight: bold;">—</div>
+
+                                <div style="background: #1e1e1e; padding: 18px; border-radius: 12px; text-align: center; border: 1px solid rgba(40,167,69,0.2);">
+                                    <div style="color: #888; font-size: 0.8rem; margin-bottom: 6px; letter-spacing: 0.5px;">BÉNÉFICES ARKYL (35%)</div>
+                                    <div id="treso-arkyl" style="color: #28a745; font-size: 1.5rem; font-weight: 800;">—</div>
+                                    <div style="color:#555;font-size:11px;margin-top:4px;">Commission sur ventes</div>
                                 </div>
-                                <div style="flex: 1; min-width: 180px; background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center;">
-                                    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">À verser aux artistes (65%)</div>
-                                    <div id="treso-artistes" style="color: #ffc107; font-size: 1.5rem; font-weight: bold;">—</div>
+
+                                <div style="background: #1e1e1e; padding: 18px; border-radius: 12px; text-align: center; border: 1px solid rgba(255,193,7,0.25);">
+                                    <div style="color: #888; font-size: 0.8rem; margin-bottom: 6px; letter-spacing: 0.5px;">⏳ EN ATTENTE DE VERSEMENT</div>
+                                    <div id="treso-artistes" style="color: #ffc107; font-size: 1.5rem; font-weight: 800;">—</div>
+                                    <div style="color:#555;font-size:11px;margin-top:4px;">Commandes livrées non virées</div>
                                 </div>
+
+                                <div style="background: #1e1e1e; padding: 18px; border-radius: 12px; text-align: center; border: 1px solid rgba(76,175,80,0.2);">
+                                    <div style="color: #888; font-size: 0.8rem; margin-bottom: 6px; letter-spacing: 0.5px;">✅ DÉJÀ VERSÉ AUX ARTISTES</div>
+                                    <div id="treso-artistes-verses" style="color: #4caf50; font-size: 1.5rem; font-weight: 800;">—</div>
+                                    <div style="color:#555;font-size:11px;margin-top:4px;">Fonds libérés confirmés</div>
+                                </div>
+
                             </div>
                             <h4 style="color: #d4af37; margin: 0 0 12px 0;">⚡ Paiements urgents</h4>
                             <div id="liste-paiements-urgents" style="color: #aaa; font-style: italic;">Chargement…</div>
+                            <h4 style="color: #a0a0b0; margin: 30px 0 12px 0; border-top: 1px solid #333; padding-top: 20px;">
+                                🧾 Historique des virements effectués
+                            </h4>
+                            <div id="liste-transactions-historique" style="color: #aaa; font-style: italic;">Chargement…</div>
+
+                            <h4 style="color: #a0a0b0; margin: 30px 0 12px 0; border-top: 1px solid #333; padding-top: 20px;">
+                                🧾 Historique des virements effectués
+                            </h4>
+                            <div id="liste-transactions-historique" style="color: #aaa; font-style: italic;">Chargement…</div>
                         `;
                         container.appendChild(section);
                     }
@@ -2990,41 +3053,18 @@ function enterGallery() {
                 ${shippingBlock}
                 ${trackingBlock}
 
-                <!-- Zone mise à jour statut -->
+                <!-- Zone mise à jour statut (Admin : lecture seule — l'artiste gère l'expédition) -->
                 <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:18px;margin-bottom:12px;">
-                    <div style="font-weight:700;margin-bottom:14px;font-size:14px;">🔄 Mettre à jour la commande</div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-                        <div>
-                            <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:4px;">Statut</label>
-                            <select id="status-${orderId}" style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;">
-                                ${statusOptions}
-                            </select>
-                        </div>
-                        <div>
-                            <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:4px;">Transporteur</label>
-                            <select id="carrier-${orderId}" style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;">
-                                <option value="">Choisir...</option>
-                                ${carrierOptions}
-                            </select>
-                        </div>
+                    <div style="font-weight:700;margin-bottom:14px;font-size:14px;">ℹ️ Informations d'expédition</div>
+                    <div style="font-size:13px;opacity:0.75;line-height:1.8;">
+                        <div>📦 <strong>Statut :</strong> ${order.status}</div>
+                        ${order.carrier ? `<div>🚚 <strong>Transporteur :</strong> ${order.carrier}</div>` : ''}
+                        ${order.tracking_number ? `<div>🔢 <strong>Numéro de suivi :</strong> ${order.tracking_number}${trackUrl ? ` · <a href="${trackUrl}" target="_blank" style="color:#90caf9;">Suivre →</a>` : ''}</div>` : ''}
+                        ${order.shipping_proof_url ? `<div>📎 <strong>Preuve d'expédition :</strong> <a href="${order.shipping_proof_url}" target="_blank" style="color:#90caf9;">Voir le document →</a></div>` : ''}
                     </div>
-                    <input id="tracking-${orderId}" type="text" placeholder="N° de suivi (ex: 1Z999AA10123456784)" value="${order.tracking_number || ''}"
-                        style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
-                    <input id="note-${orderId}" type="text" placeholder="Note (optionnelle) — ex: Colis déposé à La Poste de Plateau"
-                        style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
-
-                    <div class="proof-upload-zone" onclick="document.getElementById('proof-${orderId}').click()" id="proof-zone-${orderId}" style="margin-bottom:10px;">
-                        <input type="file" id="proof-${orderId}" accept="image/*,.pdf" style="display:none"
-                            onchange="document.getElementById('proof-zone-${orderId}').innerHTML='✅ ' + this.files[0].name">
-                        <div style="font-size:20px;margin-bottom:4px;">📎</div>
-                        <div style="font-size:13px;font-weight:600;">Joindre preuve d'expédition (optionnel)</div>
-                        <div style="font-size:11px;opacity:0.5;margin-top:3px;">JPG, PNG ou PDF</div>
-                    </div>
-
-                    <button onclick="adminUpdateOrderStatus('${orderId}')"
-                        style="width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));color:white;transition:all 0.3s;">
-                        💾 Enregistrer la mise à jour
-                    </button>
+                    <p style="font-size:11px;opacity:0.45;margin-top:14px;border-top:1px solid rgba(255,255,255,0.08);padding-top:10px;">
+                        ⚙️ L'expédition est gérée directement par l'artiste depuis son espace ventes.
+                    </p>
                 </div>
 
                 ${historyBlock}
@@ -3248,67 +3288,29 @@ function enterGallery() {
                             </div>
                             <div class="shipping-section">
                                 <div class="shipping-label">🚚 Livraison</div>
-                                <div class="shipping-options">
-                                    <div>
-                                        <div class="shipping-option selected" data-cost="3000" data-mode="poste" onclick="selectShipping(this)">
-                                            <div class="shipping-radio"></div>
-                                            <div class="shipping-info-col">
-                                                <div class="shipping-name">📮 La Poste</div>
-                                                <div class="shipping-detail">3-5 jours · estimée le ${datePoste}${posteVille ? ' · ' + posteVille : ''}</div>
-                                            </div>
-                                            <span class="shipping-price-tag">3 000 FCFA</span>
-                                        </div>
-                                        <div class="poste-city-panel ${posteVille ? '' : 'open'}" id="poste-city-panel">
-                                            <div class="poste-city-inner">
-                                                <div class="poste-city-label">📌 Ville de destination pour La Poste</div>
-                                                <div class="poste-city-row">
-                                                    <input class="poste-city-input" id="poste-city-input" placeholder="Ex : Abidjan, Bouaké, Yamoussoukro…" value="${posteVille || ''}">
-                                                    <button class="poste-city-confirm" onclick="confirmerVillePoste()">✓ OK</button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="shipping-option" data-cost="1500" data-mode="transport" onclick="selectShipping(this)">
-                                            <div class="shipping-radio"></div>
-                                            <div class="shipping-info-col">
-                                                <div class="shipping-name">🚌 Transport en commun</div>
-                                                <div class="shipping-detail">4-7 jours · estimée le ${dateBus}${transportCompagnie ? ' · ' + transportCompagnie : ''}</div>
-                                            </div>
-                                            <span class="shipping-price-tag">1 500 FCFA</span>
-                                        </div>
-                                        <div class="transport-panel ${transportCompagnie ? '' : 'open'}" id="transport-panel">
-                                            <div class="transport-inner">
-                                                <div class="transport-label">🚌 Choisir la compagnie de transport</div>
-                                                <div class="transport-list" id="transport-list">
-                                                    ${renderTransportList()}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="shipping-option" data-cost="0" data-mode="mainpropre" onclick="selectShipping(this)">
-                                            <div class="shipping-radio"></div>
-                                            <div class="shipping-info-col">
-                                                <div class="shipping-name">🤝 Main propre</div>
-                                                <div class="shipping-detail">Sur rendez-vous · dès le ${dateMainPropre}${mainPropreLieu ? ' · ' + mainPropreLieu : ''}</div>
-                                            </div>
-                                            <span class="shipping-price-tag shipping-free">Gratuit</span>
-                                        </div>
-                                        <div class="mainpropre-panel ${mainPropreLieu ? '' : 'open'}" id="mainpropre-panel">
-                                            <div class="mainpropre-inner">
-                                                <div class="mainpropre-warning">
-                                                    <span class="mainpropre-warning-icon">⚠️</span>
-                                                    <span>Choisissez un <strong>lieu public et ouvert</strong> (marché, centre commercial, devant une banque…). Tout lieu isolé ou privé pourra entraîner un <strong>refus de livraison</strong>.</span>
-                                                </div>
-                                                <div class="poste-city-row">
-                                                    <input class="poste-city-input" id="mainpropre-lieu-input" placeholder="Ex : Marché Cocody, Mall Playtime, Devant SGBCI…" value="${mainPropreLieu || ''}">
-                                                    <button class="poste-city-confirm" onclick="confirmerLieuMainPropre()">✓ OK</button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                                <button class="shipping-mode-btn" onclick="ouvrirModeLivraison()" id="shipping-mode-btn">
+                                    <span id="shipping-mode-icon">🚚</span>
+                                    <span id="shipping-mode-label">${
+                                        (() => {
+                                            if (posteVille) return 'La Poste · ' + posteVille;
+                                            if (transportCompagnie) return 'Transport · ' + transportCompagnie;
+                                            if (mainPropreLieu) return 'Main propre · ' + mainPropreLieu;
+                                            return 'Choisir le mode de livraison';
+                                        })()
+                                    }</span>
+                                    <span id="shipping-mode-price" style="margin-left:auto;font-weight:700;color:var(--ocre);">${
+                                        (() => {
+                                            if (posteVille) return '3 000 FCFA';
+                                            if (transportCompagnie) return '1 500 FCFA';
+                                            if (mainPropreLieu) return 'Gratuit';
+                                            return '';
+                                        })()
+                                    }</span>
+                                    <span style="opacity:0.5;font-size:12px;">›</span>
+                                </button>
+                                <!-- Champ caché pour stocker le mode et coût sélectionnés -->
+                                <input type="hidden" id="selected-shipping-mode" value="${posteVille ? 'poste' : transportCompagnie ? 'transport' : mainPropreLieu ? 'mainpropre' : 'poste'}">
+                                <input type="hidden" id="selected-shipping-cost" value="${posteVille ? '3000' : transportCompagnie ? '1500' : mainPropreLieu ? '0' : '3000'}">
                             </div>
                             <div class="address-section">
                                 <div class="shipping-label">📍 Adresse de livraison</div>
@@ -3389,9 +3391,7 @@ function enterGallery() {
             } catch(e) {}
         }
 
-        function renderTransportList() {
-            return COMPAGNIES_TRANSPORT_CI.map(c => `
-                <div class="transport-item ${transportCompagnie === c.nom ? 'selected' : ''}"
+        // renderTransportList — remplacé par input libre dans la modale"
                      onclick="selectionnerCompagnie('${c.nom.replace(/'/g, "\'")}')">
                     <div class="transport-item-radio"></div>
                     <div class="transport-item-info">
@@ -3402,19 +3402,7 @@ function enterGallery() {
             `).join('');
         }
 
-        function selectionnerCompagnie(nom) {
-            _saveTransportCompagnie(nom);
-            // Mettre à jour visuellement sans re-render complet
-            document.querySelectorAll('.transport-item').forEach(el => el.classList.remove('selected'));
-            event.currentTarget.classList.add('selected');
-            // Mettre à jour le détail de l'option
-            const detail = document.querySelector('.shipping-option[data-mode="transport"] .shipping-detail');
-            if (detail) detail.textContent = `4-7 jours · estimée le ${getDeliveryDate(7)} · ${nom}`;
-            // Fermer le panneau
-            const panel = document.getElementById('transport-panel');
-            if (panel) panel.classList.remove('open');
-            showToast('✅ Compagnie sélectionnée : ' + nom);
-        }
+        // selectionnerCompagnie — géré par la modale ouvrirModeLivraison()
 
         // ── Lieu Main propre — persisté par compte ─────────────────────
         let mainPropreLieu = (function() {
@@ -3433,16 +3421,7 @@ function enterGallery() {
             } catch(e) {}
         }
 
-        function confirmerLieuMainPropre() {
-            const val = document.getElementById('mainpropre-lieu-input')?.value.trim();
-            if (!val) { showToast('⚠️ Veuillez indiquer un lieu de rendez-vous'); return; }
-            _saveMainPropreLieu(val);
-            const detail = document.querySelector('.shipping-option[data-mode="mainpropre"] .shipping-detail');
-            if (detail) detail.textContent = `Sur rendez-vous · dès le ${getDeliveryDate(1)} · ${val}`;
-            const panel = document.getElementById('mainpropre-panel');
-            if (panel) panel.classList.remove('open');
-            showToast('✅ Lieu enregistré : ' + val);
-        }
+        // confirmerLieuMainPropre — géré par la modale ouvrirModeLivraison()
 
         // Ville La Poste — persistée par compte
         let posteVille = (function() {
@@ -3461,44 +3440,171 @@ function enterGallery() {
             } catch(e) {}
         }
 
-        function confirmerVillePoste() {
-            const val = document.getElementById('poste-city-input')?.value.trim();
-            if (!val) { showToast('⚠️ Veuillez indiquer une ville'); return; }
-            _savePosteVille(val);
-            // Mettre à jour l'affichage dans le détail sans re-render complet
-            const detail = document.querySelector('.shipping-option[data-mode="poste"] .shipping-detail');
-            if (detail) detail.textContent = `3-5 jours · estimée le ${getDeliveryDate(5)} · ${val}`;
-            // Fermer le panneau
-            const panel = document.getElementById('poste-city-panel');
-            if (panel) panel.classList.remove('open');
-            showToast('✅ Ville enregistrée : ' + val);
+        // confirmerVillePoste — géré par la modale ouvrirModeLivraison()
+
+        // ─── NOUVELLE MODALE MODE DE LIVRAISON ──────────────────────────
+        function ouvrirModeLivraison() {
+            let modal = document.getElementById('modaleLivraison');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'modaleLivraison';
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
+                modal.onclick = e => { if (e.target === modal) fermerModeLivraison(); };
+                document.body.appendChild(modal);
+            }
+            const modeActuel = document.getElementById('selected-shipping-mode')?.value || 'poste';
+            modal.innerHTML = `
+                <div style="background:#1a1a2e;border-radius:24px 24px 0 0;width:100%;max-width:520px;padding:28px 24px 36px;border-top:1px solid rgba(212,175,55,0.25);animation:slideUp 0.3s ease;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;">
+                        <h3 style="margin:0;font-size:18px;font-weight:700;color:white;">🚚 Mode de livraison</h3>
+                        <button onclick="fermerModeLivraison()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:30px;height:30px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
+                    </div>
+
+                    <!-- Option La Poste -->
+                    <div class="liv-option ${modeActuel === 'poste' ? 'liv-active' : ''}" onclick="selectionnerModeLivraison('poste', this)" style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;margin-bottom:10px;cursor:pointer;border:2px solid ${modeActuel === 'poste' ? 'rgba(212,175,55,0.6)' : 'rgba(255,255,255,0.1)'};background:${modeActuel === 'poste' ? 'rgba(212,175,55,0.1)' : 'rgba(255,255,255,0.04)'};">
+                        <span style="font-size:26px;">📮</span>
+                        <div style="flex:1;">
+                            <div style="font-weight:700;color:white;font-size:15px;">La Poste</div>
+                            <div style="font-size:12px;opacity:0.6;margin-top:2px;">3–5 jours · Livraison à domicile</div>
+                            <div id="poste-detail-modal" style="margin-top:${modeActuel === 'poste' ? '12px' : '0'};display:${modeActuel === 'poste' ? 'block' : 'none'};">
+                                <input id="modal-poste-ville" type="text" placeholder="Ville de destination (ex: Abidjan, Bouaké…)" value="${posteVille || ''}"
+                                    style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;" onclick="event.stopPropagation()">
+                            </div>
+                        </div>
+                        <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;">3 000 FCFA</span>
+                    </div>
+
+                    <!-- Option Transport -->
+                    <div class="liv-option ${modeActuel === 'transport' ? 'liv-active' : ''}" onclick="selectionnerModeLivraison('transport', this)" style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;margin-bottom:10px;cursor:pointer;border:2px solid ${modeActuel === 'transport' ? 'rgba(212,175,55,0.6)' : 'rgba(255,255,255,0.1)'};background:${modeActuel === 'transport' ? 'rgba(212,175,55,0.1)' : 'rgba(255,255,255,0.04)'};">
+                        <span style="font-size:26px;">🚌</span>
+                        <div style="flex:1;">
+                            <div style="font-weight:700;color:white;font-size:15px;">Transport en commun</div>
+                            <div style="font-size:12px;opacity:0.6;margin-top:2px;">4–7 jours · Récupération en gare routière</div>
+                            <div id="transport-detail-modal" style="margin-top:${modeActuel === 'transport' ? '12px' : '0'};display:${modeActuel === 'transport' ? 'block' : 'none'};">
+                                <input id="modal-transport-cie" type="text" placeholder="Compagnie (ex: Océan, UTB, STIF, SOTRA…)" value="${transportCompagnie || ''}"
+                                    style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;" onclick="event.stopPropagation()">
+                            </div>
+                        </div>
+                        <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;">1 500 FCFA</span>
+                    </div>
+
+                    <!-- Option Main propre -->
+                    <div class="liv-option ${modeActuel === 'mainpropre' ? 'liv-active' : ''}" onclick="selectionnerModeLivraison('mainpropre', this)" style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;margin-bottom:22px;cursor:pointer;border:2px solid ${modeActuel === 'mainpropre' ? 'rgba(212,175,55,0.6)' : 'rgba(255,255,255,0.1)'};background:${modeActuel === 'mainpropre' ? 'rgba(212,175,55,0.1)' : 'rgba(255,255,255,0.04)'};">
+                        <span style="font-size:26px;">🤝</span>
+                        <div style="flex:1;">
+                            <div style="font-weight:700;color:white;font-size:15px;">Main propre</div>
+                            <div style="font-size:12px;opacity:0.6;margin-top:2px;">Sur rendez-vous · Lieu public uniquement</div>
+                            <div id="mainpropre-detail-modal" style="margin-top:${modeActuel === 'mainpropre' ? '12px' : '0'};display:${modeActuel === 'mainpropre' ? 'block' : 'none'};">
+                                <input id="modal-mainpropre-lieu" type="text" placeholder="Lieu public (ex: Marché Cocody, Mall Playtime…)" value="${mainPropreLieu || ''}"
+                                    style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;" onclick="event.stopPropagation()">
+                                <p style="font-size:11px;color:#f59e0b;margin:6px 0 0;">⚠️ Lieu isolé ou privé = refus de livraison</p>
+                            </div>
+                        </div>
+                        <span style="font-weight:700;color:#4caf50;white-space:nowrap;">Gratuit</span>
+                    </div>
+
+                    <button onclick="confirmerModeLivraison()"
+                        style="width:100%;padding:15px;background:linear-gradient(135deg,var(--terre-cuite,#c46a4b),var(--terre-sombre,#8b3a20));border:none;border-radius:14px;color:white;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:0.5px;">
+                        ✓ Confirmer ce mode
+                    </button>
+                </div>
+            `;
+            modal.style.display = 'flex';
+            // Ajouter animation CSS si pas encore présente
+            if (!document.getElementById('liv-modal-anim')) {
+                const s = document.createElement('style');
+                s.id = 'liv-modal-anim';
+                s.textContent = '@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}';
+                document.head.appendChild(s);
+            }
         }
 
-        function selectShipping(el) {
-            document.querySelectorAll('.shipping-option').forEach(o => o.classList.remove('selected'));
-            el.classList.add('selected');
-            // Gérer les panneaux selon le mode sélectionné
-            const postePanel      = document.getElementById('poste-city-panel');
-            const transportPanel  = document.getElementById('transport-panel');
-            const mainproprePanel = document.getElementById('mainpropre-panel');
-            // Fermer tous les panneaux d'abord
-            [postePanel, transportPanel, mainproprePanel].forEach(p => p?.classList.remove('open'));
-            if (el.dataset.mode === 'poste') {
-                if (postePanel) postePanel.classList.add('open');
-                setTimeout(() => document.getElementById('poste-city-input')?.focus(), 350);
-            } else if (el.dataset.mode === 'transport') {
-                if (transportPanel) transportPanel.classList.add('open');
-            } else if (el.dataset.mode === 'mainpropre') {
-                if (mainproprePanel) mainproprePanel.classList.add('open');
-                setTimeout(() => document.getElementById('mainpropre-lieu-input')?.focus(), 350);
+        let _modeEnCours = null;
+
+        function selectionnerModeLivraison(mode, el) {
+            _modeEnCours = mode;
+            // Mettre à jour le style de toutes les options
+            document.querySelectorAll('.liv-option').forEach(o => {
+                o.style.border = '2px solid rgba(255,255,255,0.1)';
+                o.style.background = 'rgba(255,255,255,0.04)';
+            });
+            el.style.border = '2px solid rgba(212,175,55,0.6)';
+            el.style.background = 'rgba(212,175,55,0.1)';
+
+            // Afficher/masquer les détails
+            ['poste', 'transport', 'mainpropre'].forEach(m => {
+                const d = document.getElementById(m + '-detail-modal');
+                if (d) { d.style.display = m === mode ? 'block' : 'none'; d.style.marginTop = m === mode ? '12px' : '0'; }
+            });
+
+            // Focus sur l'input correspondant
+            setTimeout(() => {
+                const inputs = { poste: 'modal-poste-ville', transport: 'modal-transport-cie', mainpropre: 'modal-mainpropre-lieu' };
+                document.getElementById(inputs[mode])?.focus();
+            }, 100);
+        }
+
+        function confirmerModeLivraison() {
+            const mode = _modeEnCours || document.getElementById('selected-shipping-mode')?.value || 'poste';
+            const costs = { poste: 3000, transport: 1500, mainpropre: 0 };
+            const icons = { poste: '📮', transport: '🚌', mainpropre: '🤝' };
+            const cost = costs[mode];
+
+            // Récupérer la valeur de l'input associé
+            if (mode === 'poste') {
+                const val = document.getElementById('modal-poste-ville')?.value.trim();
+                if (!val) { showToast('⚠️ Indiquez une ville pour La Poste'); return; }
+                _savePosteVille(val);
+            } else if (mode === 'transport') {
+                const val = document.getElementById('modal-transport-cie')?.value.trim();
+                if (!val) { showToast('⚠️ Indiquez la compagnie de transport'); return; }
+                _saveTransportCompagnie(val);
+            } else if (mode === 'mainpropre') {
+                const val = document.getElementById('modal-mainpropre-lieu')?.value.trim();
+                if (!val) { showToast('⚠️ Indiquez le lieu de rendez-vous'); return; }
+                _saveMainPropreLieu(val);
             }
+
+            // Mettre à jour les champs cachés dans le panier
+            const modeInput = document.getElementById('selected-shipping-mode');
+            const costInput = document.getElementById('selected-shipping-cost');
+            if (modeInput) modeInput.value = mode;
+            if (costInput) costInput.value = cost;
+
+            // Mettre à jour le bouton résumé
+            const labels = {
+                poste:      '📮 La Poste · ' + (posteVille || ''),
+                transport:  '🚌 Transport · ' + (transportCompagnie || ''),
+                mainpropre: '🤝 Main propre · ' + (mainPropreLieu || '')
+            };
+            const priceLabels = { poste: '3 000 FCFA', transport: '1 500 FCFA', mainpropre: 'Gratuit' };
+            const btn = document.getElementById('shipping-mode-btn');
+            if (btn) {
+                document.getElementById('shipping-mode-icon').textContent = icons[mode];
+                document.getElementById('shipping-mode-label').textContent = labels[mode];
+                document.getElementById('shipping-mode-price').textContent = priceLabels[mode];
+            }
+
             updateCartTotal();
+            fermerModeLivraison();
+            showToast('✅ Mode de livraison enregistré !');
+        }
+
+        function fermerModeLivraison() {
+            const modal = document.getElementById('modaleLivraison');
+            if (modal) modal.remove();
+            _modeEnCours = null;
+        }
+
+        // Compatibilité — ancien selectShipping toujours lisible si appelé ailleurs
+        function selectShipping(el) {
+            ouvrirModeLivraison();
         }
 
         function updateCartTotal() {
             const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const sel = document.querySelector('.shipping-option.selected');
-            const shipping = sel ? parseInt(sel.dataset.cost) : 3000;
+            const costInput = document.getElementById('selected-shipping-cost');
+            const shipping = costInput ? parseInt(costInput.value) || 0 : 3000;
             const total = subtotal + shipping;
             const elS = document.getElementById('shippingCost');
             const elT = document.getElementById('totalCost');
@@ -3611,13 +3717,12 @@ function enterGallery() {
                 }));
 
                 // Récupérer le mode et coût de livraison sélectionnés
-                const selShipping = document.querySelector('.shipping-option.selected');
-                const shippingCost = selShipping ? parseInt(selShipping.dataset.cost) : 3000;
-                const shippingMode = selShipping ? (selShipping.dataset.mode || 'poste') : 'poste';
+                const shippingMode = document.getElementById('selected-shipping-mode')?.value || 'poste';
+                const shippingCost = parseInt(document.getElementById('selected-shipping-cost')?.value || '3000');
                 const shippingNames = {
                     'poste':       'La Poste — Livraison à domicile',
-                    'transport':   'Compagnie de transport',
-                    'mainpropre':  'Remise en main propre'
+                    'transport':   'Transport en commun — ' + (transportCompagnie || 'compagnie'),
+                    'mainpropre':  'Main propre — ' + (mainPropreLieu || 'lieu à confirmer')
                 };
                 const shippingLabel = shippingNames[shippingMode] || 'Frais de livraison';
 
@@ -3650,8 +3755,7 @@ function enterGallery() {
 
                 if (data.success && data.url) {
                     // Sauvegarder la commande AVANT la redirection (Stripe peut échouer)
-                    const selShippingEl = document.querySelector('.shipping-option.selected');
-                    const shippingCostVal = selShippingEl ? parseInt(selShippingEl.dataset.cost) : 3000;
+                    const shippingCostVal = parseInt(document.getElementById('selected-shipping-cost')?.value || '3000');
                     const subtotal = cartItems.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
                     const tax = Math.round(subtotal * 0.18);
                     const total = subtotal + tax + shippingCostVal;
@@ -3891,7 +3995,8 @@ function enterGallery() {
             document.body.appendChild(modal);
         }
 
-        const ORDERS_API = 'https://arkyl-galerie.onrender.com/api_commandes.php';
+        const API_BASE   = 'https://arkyl-galerie.onrender.com';
+        const ORDERS_API = `${API_BASE}/api_commandes.php`;
 
         const DELIVERY_STATUSES = [
             { key: 'En préparation', icon: '📦', label: 'En préparation', color: '#ff9800' },
@@ -4343,30 +4448,51 @@ function enterGallery() {
             let actionBtn = '';
 
             if (es === 'payée_en_attente') {
-                // Étape 1 → 2 : artiste expédie
+                const isPoste = (order.shipping_mode || order.shippingMode || '').toLowerCase() === 'poste';
                 actionBtn = `
-                    <div style="background:rgba(33,150,243,0.1);border:1px solid rgba(33,150,243,0.35);border-radius:14px;padding:18px;margin-top:16px;">
-                        <div style="font-weight:700;font-size:14px;margin-bottom:14px;color:#90caf9;">📦 Marquer comme expédiée</div>
+                    <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px;">
 
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-                            <select id="art-carrier-${orderId}"
-                                style="padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;">
-                                <option value="">Transporteur...</option>
-                                ${CARRIERS.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
-                            </select>
-                            <input id="art-tracking-${orderId}" type="text" placeholder="N° de suivi (optionnel)"
-                                style="padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;">
+                        <!-- Confirmer expédition -->
+                        <div style="background:rgba(33,150,243,0.08);border:1px solid rgba(33,150,243,0.3);border-radius:14px;padding:16px;">
+                            <div style="font-weight:700;font-size:14px;margin-bottom:12px;color:#90caf9;">📦 Confirmer l'expédition</div>
+
+                            ${isPoste ? `
+                            <div style="margin-bottom:10px;">
+                                <label style="font-size:12px;color:#fbbf24;font-weight:600;display:block;margin-bottom:5px;">
+                                    📮 N° de suivi La Poste <span style="color:#ef4444;">*</span>
+                                </label>
+                                <input id="art-tracking-${orderId}" type="text" placeholder="Ex : 0507780s, CP123456CI…" required
+                                    style="width:100%;padding:10px 12px;background:rgba(251,191,36,0.07);border:1.5px solid rgba(251,191,36,0.4);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;"
+                                    oninput="this.style.borderColor=this.value.trim()?'rgba(34,197,94,0.5)':'rgba(251,191,36,0.4)'">
+                                <p style="font-size:11px;color:#fbbf24;margin:4px 0 0;opacity:0.85;">Obligatoire pour La Poste — permet au client de suivre son colis</p>
+                            </div>` : ''}
+
+                            <input id="art-note-${orderId}" type="text" placeholder="Note pour l'acheteur (ex: Déposé à La Poste ce matin)"
+                                style="width:100%;padding:10px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:white;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+
+                            <div class="proof-upload-zone" onclick="document.getElementById('art-proof-${orderId}').click()" id="art-proof-zone-${orderId}"
+                                style="margin-bottom:12px;border:1.5px dashed rgba(33,150,243,0.35);border-radius:10px;padding:12px;text-align:center;cursor:pointer;">
+                                <input type="file" id="art-proof-${orderId}" accept="image/*,.pdf" style="display:none"
+                                    onchange="document.getElementById('art-proof-zone-${orderId}').innerHTML='✅ ' + this.files[0].name + '<br><span style=\\'font-size:11px;opacity:0.5;\\'>Cliquer pour changer</span>'">
+                                <div style="font-size:18px;margin-bottom:3px;">📎</div>
+                                <div style="font-size:12px;font-weight:600;">Joindre une preuve d'expédition (optionnel)</div>
+                                <div style="font-size:11px;opacity:0.45;margin-top:2px;">JPG, PNG ou PDF</div>
+                            </div>
+
+                            <button onclick="artistMarquerExpediee('${orderId}', ${isPoste})"
+                                style="width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;
+                                background:linear-gradient(135deg,#2196f3,#1565c0);color:white;transition:opacity 0.2s;"
+                                onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                                🚚 Confirmer l'expédition
+                            </button>
                         </div>
 
-                        <input id="art-note-${orderId}" type="text" placeholder="Note pour l'acheteur (ex: Déposé à La Poste ce matin)"
-                            style="width:100%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;margin-bottom:12px;box-sizing:border-box;">
-
-                        <button onclick="artistMarquerExpediee('${orderId}')"
-                            style="width:100%;padding:14px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;
-                            background:linear-gradient(135deg,#2196f3,#1565c0);color:white;
-                            display:flex;align-items:center;justify-content:center;gap:10px;transition:opacity 0.2s;"
-                            onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
-                            🚚 Confirmer l'expédition
+                        <!-- Refuser la commande -->
+                        <button onclick="ouvrirModaleRefus('${orderId}', '${(order.order_number||'').replace(/'/g,'')}')"
+                            style="width:100%;padding:11px;border:1px solid rgba(239,68,68,0.4);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;
+                            background:rgba(239,68,68,0.08);color:#f87171;transition:all 0.2s;"
+                            onmouseover="this.style.background='rgba(239,68,68,0.18)'" onmouseout="this.style.background='rgba(239,68,68,0.08)'">
+                            ✕ Refuser cette commande
                         </button>
                     </div>`;
 
@@ -4389,12 +4515,18 @@ function enterGallery() {
                     </div>`;
 
             } else if (es === 'livrée_confirmée' || es === 'fonds_libérés') {
-                // Étape finale
                 actionBtn = `
                     <div style="background:rgba(76,175,80,0.12);border:1px solid rgba(76,175,80,0.35);border-radius:14px;padding:18px;margin-top:16px;text-align:center;">
                         <div style="font-size:32px;margin-bottom:8px;">🎉</div>
                         <div style="font-weight:700;font-size:15px;color:#a5d6a7;">Transaction complète !</div>
                         <div style="font-size:13px;opacity:0.7;margin-top:6px;">Les fonds ont été libérés. Merci pour cette belle vente !</div>
+                    </div>`;
+            } else if (es === 'refusée') {
+                actionBtn = `
+                    <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:14px;padding:18px;margin-top:16px;text-align:center;">
+                        <div style="font-size:30px;margin-bottom:8px;">❌</div>
+                        <div style="font-weight:700;font-size:15px;color:#f87171;">Commande refusée</div>
+                        <div style="font-size:13px;opacity:0.6;margin-top:6px;">L'admin gère le remboursement de l'acheteur.</div>
                     </div>`;
             }
 
@@ -4436,49 +4568,155 @@ function enterGallery() {
             `;
         }
 
-        async function artistUpdateOrderStatus(orderId) {
-            const status   = document.getElementById(`art-status-${orderId}`)?.value;
-            const tracking = document.getElementById(`art-tracking-${orderId}`)?.value?.trim();
-            const carrier  = document.getElementById(`art-carrier-${orderId}`)?.value;
-            const note     = document.getElementById(`art-note-${orderId}`)?.value?.trim();
+        // artistUpdateOrderStatus — remplacé par artistMarquerExpediee
 
-            await sendStatusUpdate({
-                action: 'update_status',
-                order_id: orderId,
-                status,
-                tracking_number: tracking || null,
-                carrier: carrier || null,
-                note: note || null,
-                updated_by: currentUser?.name || currentUser?.artistName || 'artiste',
-                updated_by_role: 'artist',
-            });
-            await renderArtistOrders();
+        // ── Modale de refus de commande (artiste) ───────────────────────
+        function ouvrirModaleRefus(orderId, orderNumber) {
+            let modal = document.getElementById('modaleRefusCommande');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'modaleRefusCommande';
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+                modal.onclick = e => { if (e.target === modal) modal.remove(); };
+                document.body.appendChild(modal);
+            }
+            modal.innerHTML = `
+                <div style="background:#1a1a2e;border:1px solid rgba(239,68,68,0.35);border-radius:20px;padding:28px;max-width:440px;width:100%;color:white;font-family:'Inter',sans-serif;">
+                    <div style="text-align:center;margin-bottom:18px;">
+                        <div style="font-size:40px;margin-bottom:8px;">⚠️</div>
+                        <h3 style="margin:0 0 6px;font-size:18px;font-weight:700;color:#f87171;">Refuser la commande</h3>
+                        <p style="margin:0;opacity:0.65;font-size:13px;">Commande <strong style="color:white;">${orderNumber}</strong></p>
+                    </div>
+
+                    <div style="margin-bottom:16px;">
+                        <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:6px;">Motif du refus <span style="color:#f87171;">*</span></label>
+                        <select id="refus-motif" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:14px;margin-bottom:10px;">
+                            <option value="">-- Choisir un motif --</option>
+                            <option value="Œuvre endommagée ou indisponible">Œuvre endommagée ou indisponible</option>
+                            <option value="Erreur de prix ou de description">Erreur de prix ou de description</option>
+                            <option value="Rupture de stock">Rupture de stock</option>
+                            <option value="Délai de livraison impossible">Délai de livraison impossible</option>
+                            <option value="Autre">Autre (préciser ci-dessous)</option>
+                        </select>
+                        <input id="refus-detail" type="text" placeholder="Détail supplémentaire (optionnel)"
+                            style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:13px;box-sizing:border-box;">
+                    </div>
+
+                    <p style="font-size:12px;color:#fbbf24;background:rgba(251,191,36,0.1);border-radius:8px;padding:10px 12px;margin:0 0 18px;">
+                        📣 Le client et l'administrateur seront notifiés immédiatement. Le remboursement sera déclenché par l'admin.
+                    </p>
+
+                    <div style="display:flex;gap:10px;">
+                        <button onclick="document.getElementById('modaleRefusCommande').remove()"
+                            style="flex:1;padding:12px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:14px;cursor:pointer;">
+                            Annuler
+                        </button>
+                        <button onclick="artistRefuserCommande('${orderId}')"
+                            style="flex:2;padding:12px;background:linear-gradient(135deg,#dc2626,#991b1b);border:none;border-radius:10px;color:white;font-size:14px;font-weight:700;cursor:pointer;">
+                            ✕ Confirmer le refus
+                        </button>
+                    </div>
+                </div>
+            `;
+            modal.style.display = 'flex';
         }
 
-        async function artistMarquerExpediee(orderId) {
-            const carrier  = document.getElementById(`art-carrier-${orderId}`)?.value || null;
-            const tracking = document.getElementById(`art-tracking-${orderId}`)?.value?.trim() || null;
+        async function artistRefuserCommande(orderId) {
+            const motif  = document.getElementById('refus-motif')?.value?.trim();
+            const detail = document.getElementById('refus-detail')?.value?.trim();
+
+            if (!motif) { showToast('⚠️ Veuillez choisir un motif de refus'); return; }
+
+            const raison = detail ? `${motif} — ${detail}` : motif;
+            const artistId   = currentUser?.id || currentUser?.googleId || currentUser?.email;
+            const artistName = currentUser?.artistName || currentUser?.name || 'L'artiste';
+
+            document.getElementById('modaleRefusCommande')?.remove();
+
+            try {
+                const resp = await fetch(ORDERS_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'refuser_commande',
+                        order_id: orderId,
+                        artist_id: artistId,
+                        artist_name: artistName,
+                        raison,
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('✅ Commande refusée. Le client et l'admin ont été notifiés.');
+                    await renderArtistOrders();
+                } else {
+                    showToast('❌ Erreur : ' + (data.error || 'Inconnue'));
+                }
+            } catch(e) {
+                showToast('❌ Erreur réseau');
+            }
+        }
+
+        async function artistMarquerExpediee(orderId, isPoste = false) {
             const note     = document.getElementById(`art-note-${orderId}`)?.value?.trim() || null;
+            const tracking = isPoste ? (document.getElementById(`art-tracking-${orderId}`)?.value?.trim() || null) : null;
+
+            // Validation : tracking obligatoire pour La Poste
+            if (isPoste && !tracking) {
+                showToast('⚠️ Le numéro de suivi La Poste est obligatoire');
+                document.getElementById(`art-tracking-${orderId}`)?.focus();
+                document.getElementById(`art-tracking-${orderId}`).style.borderColor = 'rgba(239,68,68,0.8)';
+                return;
+            }
+            const proofInput = document.getElementById(`art-proof-${orderId}`);
+            const proofFile  = proofInput?.files?.[0] || null;
 
             const btn = document.querySelector(`[onclick="artistMarquerExpediee('${orderId}')"]`);
             if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Envoi en cours...'; }
 
-            await sendStatusUpdate({
-                action: 'update_status',
-                order_id: orderId,
-                status: 'Expédiée',
-                escrow_status: 'expédiée',
-                tracking_number: tracking,
-                carrier: carrier,
-                note: note || 'Commande expédiée par l\'artiste',
-                updated_by: currentUser?.artistName || currentUser?.name || 'artiste',
-                updated_by_role: 'artist',
-            });
+            const artistId = currentUser?.id || currentUser?.googleId || currentUser?.email;
 
-            showToast('🚚 Expédition confirmée ! L\'acheteur a été notifié.');
-            addNotification('📦 Commande expédiée', `Commande #${orderId} marquée comme expédiée.`);
+            // Lire le fichier preuve en base64 si fourni
+            let proofUrl = null;
+            if (proofFile) {
+                proofUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target.result);
+                    reader.onerror = () => resolve(null);
+                    reader.readAsDataURL(proofFile);
+                });
+            }
 
-            // Recharger la liste des ventes
+            try {
+                const resp = await fetch(ORDERS_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'update_shipping',
+                        order_id: orderId,
+                        artist_id: artistId,
+                        status: 'Expédiée',
+                        tracking_number: tracking || null,
+                        carrier: isPoste ? 'LAPOSTE_CI' : null,
+                        note: note || 'Commande expédiée par l\'artiste',
+                        shipping_proof_url: proofUrl,
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('🚚 Expédition confirmée ! L\'acheteur a été notifié.');
+                    addNotification('📦 Commande expédiée', `Commande #${orderId} marquée comme expédiée.`);
+                } else {
+                    showToast('❌ Erreur : ' + (data.error || 'Inconnue'));
+                    if (btn) { btn.disabled = false; btn.innerHTML = '🚚 Confirmer l\'expédition'; }
+                    return;
+                }
+            } catch(e) {
+                showToast('❌ Erreur réseau lors de l\'envoi');
+                if (btn) { btn.disabled = false; btn.innerHTML = '🚚 Confirmer l\'expédition'; }
+                return;
+            }
+
             await renderArtistOrders();
         }
 
@@ -6807,6 +7045,168 @@ function enterGallery() {
         let currentGalleryFilter = 'all';
 
         // ==================== MODE SWITCHING ====================
+
+        // ═══════════════════════════════════════════════════════════════
+        // 🔔 SYSTÈME DE NOTIFICATIONS ARTISTE
+        // ═══════════════════════════════════════════════════════════════
+        const NOTIF_API = `${API_BASE}/api_commandes.php`;
+        let _notifPollInterval = null;
+
+        async function loadArtistNotifications() {
+            const artistId = currentUser?.id || currentUser?.artist_id;
+            if (!artistId) return;
+            try {
+                const resp = await fetch(`${NOTIF_API}?action=get_notifications&artist_id=${encodeURIComponent(artistId)}&t=${Date.now()}`);
+                const result = await resp.json();
+                if (!result.success) return;
+                const count = result.unread_count || 0;
+                updateNotifBadge(count);
+                if (count > 0) renderNotifDropdown(result.notifications);
+            } catch (e) {
+                console.warn('⚠️ Notifications non disponibles:', e.message);
+            }
+        }
+
+        function updateNotifBadge(count) {
+            const badge = document.getElementById('notifBadge');
+            if (!badge) return;
+            if (count > 0) {
+                badge.textContent = count > 99 ? '99+' : count;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        async function markNotifsRead() {
+            const artistId = currentUser?.id || currentUser?.artist_id;
+            if (!artistId) return;
+            try {
+                await fetch(NOTIF_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'mark_notifications_read', artist_id: String(artistId) })
+                });
+                updateNotifBadge(0);
+            } catch (e) {}
+        }
+
+        function renderNotifDropdown(notifications) {
+            const dropdown = document.getElementById('notifDropdown');
+            if (!dropdown) return;
+            const recent = notifications.slice(0, 10);
+            if (recent.length === 0) {
+                dropdown.innerHTML = '<p style="color:#888;text-align:center;padding:20px;font-size:13px;">Aucune notification</p>';
+                return;
+            }
+            dropdown.innerHTML = recent.map(n => {
+                const date = new Date(n.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                const unread = !n.is_read ? 'background:rgba(147,51,234,0.12);border-left:3px solid #9333ea;' : 'border-left:3px solid transparent;';
+                return `<div style="${unread}padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="openNotifOrder('${n.order_number}')">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                        <span style="font-size:13px;font-weight:600;color:#fff;line-height:1.4;">${n.title}</span>
+                        <span style="font-size:11px;color:#666;white-space:nowrap;">${date}</span>
+                    </div>
+                    <p style="margin:4px 0 0;font-size:12px;color:#aaa;line-height:1.4;">${n.message}</p>
+                </div>`;
+            }).join('');
+        }
+
+        function openNotifOrder(orderNumber) {
+            toggleNotifDropdown(false);
+            showArtistSection('orders');
+        }
+
+        function toggleNotifDropdown(forceClose = false) {
+            const dropdown = document.getElementById('notifDropdown');
+            if (!dropdown) return;
+            const isVisible = dropdown.style.display === 'block';
+            if (forceClose || isVisible) {
+                dropdown.style.display = 'none';
+            } else {
+                dropdown.style.display = 'block';
+                markNotifsRead();
+                setTimeout(() => {
+                    document.addEventListener('click', function closeOnClick(e) {
+                        if (!dropdown.contains(e.target) && e.target.id !== 'notifBell') {
+                            dropdown.style.display = 'none';
+                            document.removeEventListener('click', closeOnClick);
+                        }
+                    });
+                }, 50);
+            }
+        }
+
+        function injectNotifBell() {
+            if (document.getElementById('notifBell')) return;
+            const navBar = document.getElementById('artistNav');
+            if (navBar) {
+                navBar.insertAdjacentHTML('beforeend', buildBellHTML());
+            } else {
+                const wrapper = document.createElement('div');
+                wrapper.id = 'notifBellWrapper';
+                wrapper.style.cssText = 'position:fixed;top:80px;right:16px;z-index:9999;';
+                wrapper.innerHTML = buildBellHTML();
+                document.body.appendChild(wrapper);
+            }
+        }
+
+        function buildBellHTML() {
+            return `<div style="position:relative;display:inline-block;">
+                <button id="notifBell" onclick="toggleNotifDropdown()"
+                    style="position:relative;background:rgba(147,51,234,0.15);border:1.5px solid rgba(147,51,234,0.4);
+                           color:#fff;width:44px;height:44px;border-radius:50%;cursor:pointer;
+                           display:flex;align-items:center;justify-content:center;font-size:20px;
+                           transition:all 0.2s;backdrop-filter:blur(10px);"
+                    onmouseover="this.style.background='rgba(147,51,234,0.3)'"
+                    onmouseout="this.style.background='rgba(147,51,234,0.15)'">
+                    🔔
+                    <span id="notifBadge"
+                        style="display:none;position:absolute;top:-4px;right:-4px;
+                               background:#e11d48;color:#fff;font-size:10px;font-weight:700;
+                               min-width:18px;height:18px;border-radius:9px;padding:0 4px;
+                               align-items:center;justify-content:center;border:2px solid #0f0f0f;">
+                        0
+                    </span>
+                </button>
+                <div id="notifDropdown"
+                    style="display:none;position:absolute;top:52px;right:0;width:320px;
+                           background:#1a1a1a;border:1px solid rgba(147,51,234,0.3);
+                           border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,0.6);
+                           overflow:hidden;z-index:10000;">
+                    <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.08);
+                                display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-size:14px;font-weight:700;color:#fff;">🔔 Notifications</span>
+                        <button onclick="markNotifsRead();toggleNotifDropdown(true);"
+                            style="background:none;border:none;color:#9333ea;font-size:12px;cursor:pointer;font-weight:600;">
+                            Tout marquer lu
+                        </button>
+                    </div>
+                    <div style="max-height:360px;overflow-y:auto;scrollbar-width:thin;">
+                        <p style="color:#888;text-align:center;padding:20px;font-size:13px;">Chargement...</p>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        function startNotifPolling() {
+            loadArtistNotifications();
+            if (_notifPollInterval) clearInterval(_notifPollInterval);
+            _notifPollInterval = setInterval(loadArtistNotifications, 60000);
+        }
+
+        function stopNotifPolling() {
+            if (_notifPollInterval) {
+                clearInterval(_notifPollInterval);
+                _notifPollInterval = null;
+            }
+            // Retirer la cloche du DOM
+            const bell = document.getElementById('notifBellWrapper');
+            if (bell) bell.remove();
+            const bellInNav = document.getElementById('notifBell');
+            if (bellInNav) bellInNav.closest('div').remove();
+        }
+
         function switchToArtistMode() {
             document.getElementById('clientNav').style.display  = 'none';
             document.getElementById('artistNav').style.display  = 'flex';
@@ -6822,6 +7222,9 @@ function enterGallery() {
             window.scrollTo(0,0);
             // Charger les œuvres depuis le serveur (source de vérité)
             loadArtistArtworksFromServer();
+            // 🔔 Notifications commandes
+            injectNotifBell();
+            startNotifPolling();
         }
 
         // ⭐ FIX : Compteur de tentatives pour le cold start Render.com
@@ -8130,7 +8533,7 @@ function enterGallery() {
         // ==================== NEWS MANAGEMENT (ADMIN) ====================
         
         // ========== ACTUALITÉS : stockage côté serveur (partagé entre tous les utilisateurs) ==========
-        const NEWS_API = 'https://arkyl-galerie.onrender.com/api_news.php';
+        const NEWS_API = `${API_BASE}/api_news.php`;
         let newsItems = [];
 
         async function fetchNewsFromServer() {
@@ -9645,30 +10048,38 @@ function enterGallery() {
 
                 if (!data.success || !data.orders) throw new Error('Réponse invalide');
 
-                const commandes = data.orders.filter(o => o.status !== 'annulée');
+                // Exclure annulées ET refusées du calcul
+                const commandes = data.orders.filter(o =>
+                    o.status !== 'annulée' && o.status !== 'Refusée' && o.escrow_status !== 'refusée'
+                );
 
-                // Calcul des totaux
-                // Priorité : utiliser commission_amount / artist_payout depuis la BDD (valeurs exactes)
-                // Fallback : 35% ARKYL / 65% artiste sur le total (hors livraison idéalement)
-                let totalEncaisse = 0, totalArtistesAPayer = 0, totalCAarkyl = 0;
+                let totalEncaisse = 0, totalArtistesEnAttente = 0, totalArtistesVerses = 0, totalCAarkyl = 0;
                 commandes.forEach(o => {
-                    const total = parseFloat(o.total || 0);
+                    const total    = parseFloat(o.total || 0);
+                    const payout   = parseFloat(o.artist_payout  || 0) || total * 0.65;
+                    const shipping = parseFloat(o.shipping_cost   || 0);
+                    const commission = parseFloat(o.commission_amount || 0) || total * 0.35;
+
                     totalEncaisse += total;
-                    totalCAarkyl += parseFloat(o.commission_amount || 0) || total * 0.35;
-                    if (o.escrow_status !== 'fonds_libérés') {
-                        // artist_payout = 65% des oeuvres ; shipping_cost reversé en intégralité
-                        const payout   = parseFloat(o.artist_payout || 0) || total * 0.65;
-                        const shipping = parseFloat(o.shipping_cost  || 0);
-                        totalArtistesAPayer += payout + shipping;
+                    totalCAarkyl  += commission;
+
+                    if (o.escrow_status === 'fonds_libérés') {
+                        // Déjà versé à l'artiste
+                        totalArtistesVerses += payout + shipping;
+                    } else {
+                        // Pas encore versé (en attente ou en transit)
+                        totalArtistesEnAttente += payout + shipping;
                     }
                 });
 
-                // Mise à jour des compteurs
-                document.getElementById('treso-arkyl').textContent = Math.round(totalCAarkyl).toLocaleString('fr-FR') + ' FCFA';
-                document.getElementById('treso-artistes').textContent = Math.round(totalArtistesAPayer).toLocaleString('fr-FR') + ' FCFA';
-                // Total encaissé si l'élément existe
+                // Mise à jour des 4 compteurs
+                const fmt = v => Math.round(v).toLocaleString('fr-FR') + ' FCFA';
                 const elTotal = document.getElementById('treso-total');
-                if (elTotal) elTotal.textContent = Math.round(totalEncaisse).toLocaleString('fr-FR') + ' FCFA';
+                if (elTotal) elTotal.textContent = fmt(totalEncaisse);
+                document.getElementById('treso-arkyl').textContent           = fmt(totalCAarkyl);
+                document.getElementById('treso-artistes').textContent        = fmt(totalArtistesEnAttente);
+                const elVerses = document.getElementById('treso-artistes-verses');
+                if (elVerses) elVerses.textContent = fmt(totalArtistesVerses);
 
                 // Paiements urgents = commandes livrées et confirmées, fonds pas encore libérés
                 const urgents = commandes.filter(o => o.escrow_status === 'livrée_confirmée');
@@ -9698,8 +10109,8 @@ function enterGallery() {
                                     </span>
                                 </td>
                                 <td>
-                                    <button class="btn-pay-confirm" onclick="marquerFondsLiberes(${cmd.id})" style="background: #d4af37; color: black; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer;">
-                                        ✅ Marqué payé
+                                    <button class="btn-pay-confirm" onclick="ouvrirModalePaiement(${cmd.id}, encodeURIComponent(cmd.artist_id || '—'), '${montantTotal}')" style="background: #d4af37; color: black; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                                        💸 Virer l'artiste
                                     </button>
                                 </td>
                             </tr>
@@ -9709,6 +10120,9 @@ function enterGallery() {
                     conteneurPaiements.innerHTML = html;
                 }
 
+                // Charger l'historique des transactions
+                await chargerHistoriqueTransactions();
+
             } catch (error) {
                 console.error("Erreur de chargement de la trésorerie :", error);
                 const el = document.getElementById('liste-paiements-urgents');
@@ -9716,17 +10130,141 @@ function enterGallery() {
             }
         }
 
-        async function marquerFondsLiberes(orderId) {
-            if (!confirm('Confirmer le virement à l\'artiste pour cette commande ?')) return;
+        async function chargerHistoriqueTransactions() {
+            const container = document.getElementById('liste-transactions-historique');
+            if (!container) return;
             try {
-                const resp = await fetch('https://arkyl-galerie.onrender.com/api_commandes.php', {
+                const resp = await fetch(`${ORDERS_API}?action=list_transactions&limit=30`);
+                const data = await resp.json();
+                if (!data.success || !data.transactions?.length) {
+                    container.innerHTML = '<p style="color:#555;font-style:italic;margin:0;">Aucun virement enregistré pour l\'instant.</p>';
+                    return;
+                }
+                const rows = data.transactions.map(tx => {
+                    const date     = new Date(tx.created_at).toLocaleString('fr-FR');
+                    const montant  = parseFloat(tx.amount_total || 0).toLocaleString('fr-FR');
+                    const oeuvre   = parseFloat(tx.amount_artwork || 0).toLocaleString('fr-FR');
+                    const port     = parseFloat(tx.amount_shipping || 0).toLocaleString('fr-FR');
+                    const method   = tx.payment_method   || '—';
+                    const ref      = tx.payment_reference || '—';
+                    const note     = tx.payment_note      || '';
+                    const by       = tx.paid_by           || 'admin';
+                    return `
+                        <tr style="border-bottom:1px solid #2a2a2a;font-size:13px;">
+                            <td style="padding:10px 8px;color:#d4af37;font-weight:600;">${tx.order_number || '#' + tx.order_id}</td>
+                            <td style="padding:10px 8px;">${date}</td>
+                            <td style="padding:10px 8px;">${tx.artist_name || tx.artist_id || '—'}</td>
+                            <td style="padding:10px 8px;color:#ffc107;font-weight:700;">
+                                ${montant} FCFA
+                                <br><span style="font-size:11px;color:#777;font-weight:normal;">(Art: ${oeuvre} + Port: ${port})</span>
+                            </td>
+                            <td style="padding:10px 8px;">
+                                <span style="background:rgba(255,255,255,0.08);padding:3px 8px;border-radius:6px;font-size:12px;">${method}</span>
+                            </td>
+                            <td style="padding:10px 8px;font-family:monospace;color:#90caf9;">${ref}</td>
+                            <td style="padding:10px 8px;opacity:0.6;font-size:12px;">${note || by}</td>
+                        </tr>`;
+                }).join('');
+
+                container.innerHTML = `
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;color:white;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #444;font-size:12px;opacity:0.6;">
+                                    <th style="padding:8px;text-align:left;">Commande</th>
+                                    <th style="padding:8px;text-align:left;">Date</th>
+                                    <th style="padding:8px;text-align:left;">Artiste</th>
+                                    <th style="padding:8px;text-align:left;">Montant versé</th>
+                                    <th style="padding:8px;text-align:left;">Moyen</th>
+                                    <th style="padding:8px;text-align:left;">Référence</th>
+                                    <th style="padding:8px;text-align:left;">Note / Par</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>`;
+            } catch(e) {
+                container.innerHTML = '<p style="color:#dc3545;">Erreur de chargement de l\'historique.</p>';
+            }
+        }
+
+        // ── Modale de confirmation de paiement artiste ──────────────
+        function ouvrirModalePaiement(orderId, artistName, montantTotal) {
+            // Créer ou réutiliser la modale
+            let modal = document.getElementById('modalePaiementArtiste');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'modalePaiementArtiste';
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;';
+                document.body.appendChild(modal);
+            }
+            modal.innerHTML = \`
+                <div style="background:#1a1a2e;border:1px solid rgba(212,175,55,0.4);border-radius:20px;padding:32px;max-width:480px;width:90%;color:white;font-family:'Inter',sans-serif;">
+                    <h3 style="margin:0 0 6px;font-size:20px;color:#d4af37;">💸 Confirmer le virement</h3>
+                    <p style="margin:0 0 22px;opacity:0.7;font-size:13px;">Artiste : <strong style="color:white;">\${artistName}</strong> — <strong style="color:#d4af37;">\${montantTotal} FCFA</strong></p>
+
+                    <div style="display:flex;flex-direction:column;gap:12px;">
+                        <div>
+                            <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:5px;">💳 Moyen de paiement *</label>
+                            <select id="mp-method" style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:14px;">
+                                <option value="Virement bancaire">🏦 Virement bancaire</option>
+                                <option value="Mobile Money">📱 Mobile Money (Orange/MTN/Wave)</option>
+                                <option value="Espèces">💵 Espèces</option>
+                                <option value="Autre">🔧 Autre</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:5px;">🔢 Référence / N° de transaction</label>
+                            <input id="mp-reference" type="text" placeholder="Ex: TXN-2024-00123 ou numéro de reçu"
+                                style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:14px;box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:5px;">📝 Note (optionnelle)</label>
+                            <input id="mp-note" type="text" placeholder="Ex: Virement effectué le 03/03/2026 via BNI"
+                                style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:14px;box-sizing:border-box;">
+                        </div>
+                    </div>
+
+                    <div style="display:flex;gap:12px;margin-top:24px;">
+                        <button onclick="document.getElementById('modalePaiementArtiste').remove()"
+                            style="flex:1;padding:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:14px;cursor:pointer;">
+                            Annuler
+                        </button>
+                        <button onclick="confirmerPaiementArtiste('\${orderId}')"
+                            style="flex:2;padding:12px;background:linear-gradient(135deg,#d4af37,#a07820);border:none;border-radius:10px;color:black;font-size:14px;font-weight:700;cursor:pointer;">
+                            ✅ Confirmer le virement
+                        </button>
+                    </div>
+                </div>
+            \`;
+            modal.style.display = 'flex';
+        }
+
+        async function confirmerPaiementArtiste(orderId) {
+            const method    = document.getElementById('mp-method')?.value || 'Virement manuel';
+            const reference = document.getElementById('mp-reference')?.value?.trim() || null;
+            const note      = document.getElementById('mp-note')?.value?.trim() || null;
+            const adminName = currentUser?.name || currentUser?.email || 'admin';
+
+            const modal = document.getElementById('modalePaiementArtiste');
+            if (modal) modal.remove();
+
+            try {
+                const resp = await fetch(ORDERS_API, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'liberer_fonds', order_id: orderId })
+                    body: JSON.stringify({
+                        action: 'liberer_fonds',
+                        order_id: orderId,
+                        payment_method: method,
+                        payment_reference: reference,
+                        payment_note: note,
+                        paid_by: adminName,
+                    })
                 });
                 const data = await resp.json();
                 if (data.success) {
-                    showToast('✅ Fonds marqués comme transférés !');
+                    showToast('✅ Virement enregistré et trace conservée !');
                     chargerTresorerieAdmin();
                 } else {
                     showToast('❌ Erreur : ' + (data.message || 'inconnue'));
@@ -9734,4 +10272,13 @@ function enterGallery() {
             } catch(e) {
                 showToast('❌ Erreur réseau');
             }
+        }
+
+        // Alias conservé pour rétrocompatibilité (anciens appels éventuels)
+        async function marquerFondsLiberes(orderId) {
+            // Récupérer le nom artiste et montant depuis le DOM pour la modale
+            const row = document.querySelector(\`[onclick*="marquerFondsLiberes(\${orderId})"]\`)?.closest('tr');
+            const artistName  = row?.cells?.[2]?.textContent?.trim() || '—';
+            const montantText = row?.cells?.[3]?.textContent?.trim()?.split(' ')[0] || '?';
+            ouvrirModalePaiement(orderId, artistName, montantText);
         }

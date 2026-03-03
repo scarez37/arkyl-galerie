@@ -6849,11 +6849,7 @@ function enterGallery() {
                     console.log('🔍 artistServerId utilisé:', artistServerId);
                     console.log('🔍 Premier artwork:', result.data[0]);
 
-                    // ⭐ FIX : L'API filtre déjà par artist_id côté serveur (WHERE artist_id::text = ?)
-                    // Le filtre client est un filet de sécurité uniquement — on accepte si artist_id
-                    // correspond à l'ID, au googleId, ou à l'email de l'artiste connecté
-                    _artworksRetryCount = 0; // Reset retry — le serveur répond correctement
-                    // L'API filtre déjà par artist_id côté serveur — filtre client supprimé
+                    _artworksRetryCount = 0;
                     db.artworks = result.data.map(art => ({
                         id: art.id,
                         server_id: art.id,
@@ -8320,7 +8316,7 @@ function enterGallery() {
 
         async function saveNews() {
             const icon = document.getElementById('newsIcon').value.trim();
-            const gradient = 'gradient-1'; // gradient fixe (champ supprimé du formulaire)
+            const gradient = 'gradient-1';
             const text = document.getElementById('newsText').value.trim();
             const editId = document.getElementById('newsEditIndex').value; // contient l'ID serveur ou ''
 

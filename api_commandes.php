@@ -713,7 +713,7 @@ try {
     if ($action === 'refuser_commande') {
         $orderId    = $body['order_id']    ?? '';
         $artistId   = $body['artist_id']   ?? '';
-        $artistName = $body['artist_name'] ?? 'L'artiste';
+        $artistName = $body['artist_name'] ?? "L'artiste";
         $raison     = $body['raison']      ?? 'Commande refusée par l\'artiste';
 
         if (!$orderId) { echo json_encode(['success' => false, 'error' => 'order_id manquant']); exit; }

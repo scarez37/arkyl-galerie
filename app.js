@@ -8918,6 +8918,7 @@ function enterGallery() {
         }
 
         async function saveNewsToServer(action, payload) {
+            // L'API PHP lit l'action depuis ?action= dans l'URL
             try {
                 const res = await fetch(NEWS_API + '?action=' + action, {
                     method: 'POST',
@@ -8926,7 +8927,7 @@ function enterGallery() {
                 });
                 const data = await res.json();
                 if (data.success) {
-                    // Recharger la liste depuis le serveur — rendu géré par l'appelant
+                    // Recharger la liste complète depuis le serveur pour rester en sync
                     await fetchNewsFromServer();
                 }
                 return data;
@@ -9014,43 +9015,48 @@ function enterGallery() {
             set('newsText', 'value', '');
             set('newsEditIndex', 'value', '');
             setStyle('newsImagePreview', 'display', 'none');
-            initNewsImageUploadEvents();
             modal.classList.add('show');
         }
 
-        // Gestion de l'upload d'image — attaché à l'ouverture du modal (le modal est dans le DOM dès le chargement)
-        function initNewsImageUploadEvents() {
+        // Gestion de l'upload d'image
+        document.addEventListener('DOMContentLoaded', function() {
             const imageUpload = document.getElementById('newsImageUpload');
             const urlInput = document.getElementById('newsIcon');
             const previewContainer = document.getElementById('newsImagePreview');
             const previewImg = document.getElementById('newsPreviewImg');
-            if (!imageUpload || imageUpload._newsBound) return; // éviter double-bind
-            imageUpload._newsBound = true;
 
-            imageUpload.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (file && file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        const base64Image = event.target.result;
-                        urlInput.value = base64Image;
-                        previewImg.src = base64Image;
+            // Quand on upload une image
+            if (imageUpload) {
+                imageUpload.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file && file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = function(event) {
+                            const base64Image = event.target.result;
+                            // Mettre l'image en base64 dans le champ URL
+                            urlInput.value = base64Image;
+                            // Afficher la prévisualisation
+                            previewImg.src = base64Image;
+                            previewContainer.style.display = 'block';
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+
+            // Prévisualisation pour URL
+            if (urlInput) {
+                urlInput.addEventListener('input', function() {
+                    const value = this.value.trim();
+                    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:image')) {
+                        previewImg.src = value;
                         previewContainer.style.display = 'block';
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
-
-            urlInput.addEventListener('input', function() {
-                const value = this.value.trim();
-                if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:image')) {
-                    previewImg.src = value;
-                    previewContainer.style.display = 'block';
-                } else {
-                    previewContainer.style.display = 'none';
-                }
-            });
-        }
+                    } else {
+                        previewContainer.style.display = 'none';
+                    }
+                });
+            }
+        });
 
         function editNews(id) {
             const news = newsItems.find(n => n.id === id);
@@ -9959,13 +9965,95 @@ function enterGallery() {
    ============================ */
 
 
-        // ==================== TICKER NAVIGATION ====================
+        // ==================== TICKER NAVIGATION (style Jumia) ====================
         (function() {
-            const STEP = 320;
+            const STEP = 300;        // px par clic bouton
+            const RESUME_DELAY = 5000; // ms avant reprise auto-scroll après nav manuelle
 
-            function getScroll()  { return document.querySelector('.news-ticker-scroll'); }
-            function getContent() { return document.querySelector('.news-ticker-content'); }
+            function getContainer() { return document.querySelector('.news-ticker-container'); }
+            function getScroll()    { return document.querySelector('.news-ticker-scroll'); }
+            function getContent()   { return document.querySelector('.news-ticker-content'); }
 
+            /* --- CSS injecté une seule fois --- */
+            function injectTickerStyles() {
+                if (document.getElementById('_tickerNavStyles')) return;
+                const s = document.createElement('style');
+                s.id = '_tickerNavStyles';
+                s.textContent = `
+                    .news-ticker-container {
+                        position: relative;
+                    }
+                    /* Cache la scrollbar native */
+                    .news-ticker-scroll {
+                        scrollbar-width: none;
+                        -ms-overflow-style: none;
+                        scroll-behavior: smooth;
+                        overflow-x: auto;
+                    }
+                    .news-ticker-scroll::-webkit-scrollbar { display: none; }
+
+                    /* Boutons Jumia */
+                    .ticker-arrow-btn {
+                        position: absolute;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        z-index: 10;
+                        width: 36px;
+                        height: 36px;
+                        border-radius: 50%;
+                        border: none;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 16px;
+                        background: rgba(255,255,255,0.15);
+                        backdrop-filter: blur(8px);
+                        color: #fff;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                        transition: background 0.2s, transform 0.15s;
+                        opacity: 0;
+                        pointer-events: none;
+                    }
+                    /* Visible seulement au survol du container */
+                    .news-ticker-container:hover .ticker-arrow-btn,
+                    .news-ticker-container:focus-within .ticker-arrow-btn {
+                        opacity: 1;
+                        pointer-events: auto;
+                    }
+                    .ticker-arrow-btn:hover {
+                        background: rgba(212,175,55,0.85);
+                        transform: translateY(-50%) scale(1.1);
+                    }
+                    .ticker-arrow-btn:active {
+                        transform: translateY(-50%) scale(0.95);
+                    }
+                    .ticker-arrow-btn.prev { left: 6px; }
+                    .ticker-arrow-btn.next { right: 6px; }
+
+                    /* Masque fondu sur les bords */
+                    .news-ticker-container::before,
+                    .news-ticker-container::after {
+                        content: '';
+                        position: absolute;
+                        top: 0; bottom: 0;
+                        width: 48px;
+                        z-index: 5;
+                        pointer-events: none;
+                    }
+                    .news-ticker-container::before {
+                        left: 0;
+                        background: linear-gradient(to right, var(--bg-primary, #1a1a2e), transparent);
+                    }
+                    .news-ticker-container::after {
+                        right: 0;
+                        background: linear-gradient(to left, var(--bg-primary, #1a1a2e), transparent);
+                    }
+                `;
+                document.head.appendChild(s);
+            }
+
+            /* --- Pause/reprise animation CSS auto-scroll --- */
             function pauseTicker(ms) {
                 const c = getContent();
                 if (!c) return;
@@ -9973,43 +10061,67 @@ function enterGallery() {
                 clearTimeout(window._tickerResumeTimer);
                 if (ms) {
                     window._tickerResumeTimer = setTimeout(() => {
-                        c.style.animationPlayState = 'running';
+                        if (c) c.style.animationPlayState = 'running';
                     }, ms);
                 }
             }
-
             function resumeTicker() {
                 const c = getContent();
                 if (c) c.style.animationPlayState = 'running';
             }
 
-            function applyOffset(delta) {
+            /* --- Scroll fluide vers la direction donnée --- */
+            function scrollTicker(dir) {
                 const scroll = getScroll();
                 if (!scroll) return;
-                pauseTicker(4000);
-                scroll.scrollLeft += delta;
+                pauseTicker(RESUME_DELAY);
+                scroll.scrollBy({ left: dir * STEP, behavior: 'smooth' });
             }
 
-            // Attacher les events dès que le ticker est dans le DOM
+            /* --- Injection des boutons dans le container --- */
+            function injectButtons(container) {
+                if (container.querySelector('.ticker-arrow-btn')) return; // déjà présents
+
+                const prev = document.createElement('button');
+                prev.className = 'ticker-arrow-btn prev';
+                prev.setAttribute('aria-label', 'Précédent');
+                prev.innerHTML = '&#8249;'; // ‹
+                prev.addEventListener('click', (e) => { e.stopPropagation(); scrollTicker(-1); });
+
+                const next = document.createElement('button');
+                next.className = 'ticker-arrow-btn next';
+                next.setAttribute('aria-label', 'Suivant');
+                next.innerHTML = '&#8250;'; // ›
+                next.addEventListener('click', (e) => { e.stopPropagation(); scrollTicker(1); });
+
+                container.appendChild(prev);
+                container.appendChild(next);
+            }
+
+            /* --- Bind des events sur le scroll --- */
             function attachTickerEvents() {
-                const scroll = getScroll();
-                if (!scroll || scroll._tickerBound) return;
+                const container = getContainer();
+                const scroll    = getScroll();
+                if (!container || !scroll) return;
+
+                injectTickerStyles();
+                injectButtons(container);
+
+                if (scroll._tickerBound) return;
                 scroll._tickerBound = true;
 
-                // Pause au survol
+                // Pause au survol souris
                 scroll.addEventListener('mouseenter', () => pauseTicker(0));
                 scroll.addEventListener('mouseleave', () => resumeTicker());
 
-                // ⭐ Scroll molette → avancer/reculer
+                // Molette → scroll horizontal
                 scroll.addEventListener('wheel', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    applyOffset(e.deltaY > 0 ? STEP : -STEP);
+                    scrollTicker(e.deltaY > 0 ? 1 : -1);
                 }, { passive: false });
 
-                // Touch mobile — scroll natif activé
-                scroll.style.overflowX = 'auto';
-                scroll.style.scrollBehavior = 'smooth';
+                // Swipe tactile
                 let touchStartX = 0;
                 scroll.addEventListener('touchstart', (e) => {
                     touchStartX = e.touches[0].clientX;
@@ -10017,19 +10129,27 @@ function enterGallery() {
                 }, { passive: true });
                 scroll.addEventListener('touchend', (e) => {
                     const dx = touchStartX - e.changedTouches[0].clientX;
-                    applyOffset(dx);
-                    resumeTicker();
+                    if (Math.abs(dx) > 30) scrollTicker(dx > 0 ? 1 : -1);
+                    else resumeTicker();
                 }, { passive: true });
             }
 
-            // Attacher les events une seule fois après chargement du DOM
+            // Init après DOM prêt + re-attache si le ticker est recréé par renderNewsTicker()
             document.addEventListener('DOMContentLoaded', attachTickerEvents);
-            // Fallback si DOMContentLoaded déjà passé (script chargé en différé)
             if (document.readyState !== 'loading') attachTickerEvents();
 
-            window.tickerNav = function(dir) {
-                applyOffset(dir * STEP);
-            };
+            // Re-attache propre après chaque renderNewsTicker() (scroll._tickerBound est reset)
+            const _tickerObserver = new MutationObserver(() => {
+                const scroll = getScroll();
+                if (scroll && !scroll._tickerBound) attachTickerEvents();
+            });
+            document.addEventListener('DOMContentLoaded', () => {
+                const container = getContainer();
+                if (container) _tickerObserver.observe(container, { childList: true, subtree: true });
+            });
+
+            // API publique
+            window.tickerNav = (dir) => scrollTicker(dir);
         })();
 
 

@@ -8073,6 +8073,12 @@ function enterGallery() {
                     document.getElementById('artwork-width').value  = a.dimensions?.width || '';
                     document.getElementById('artwork-height').value = a.dimensions?.height || '';
 
+                    // Pays / Ville
+                    const countryEl = document.getElementById('artwork-country');
+                    const cityEl    = document.getElementById('artwork-city');
+                    if (countryEl) countryEl.value = a.country || a.artistCountry || '';
+                    if (cityEl)    cityEl.value    = a.city    || '';
+
                     
                     // Technique
                     document.getElementById('artwork-technique').value = a.technique || '';
@@ -8098,6 +8104,11 @@ function enterGallery() {
                 document.getElementById('artwork-description').value = '';
                 document.getElementById('artwork-width').value       = '';
                 document.getElementById('artwork-height').value      = '';
+
+                const countryEl = document.getElementById('artwork-country');
+                const cityEl    = document.getElementById('artwork-city');
+                if (countryEl) countryEl.value = '';
+                if (cityEl)    cityEl.value    = '';
 
                 document.getElementById('artwork-technique').value   = '';
                 document.getElementById('artwork-technique-custom').value = '';
@@ -8145,8 +8156,12 @@ function enterGallery() {
             }
 
             // Get dimensions
-            const width = parseFloat(document.getElementById('artwork-width').value) || null;
+            const width  = parseFloat(document.getElementById('artwork-width').value)  || null;
             const height = parseFloat(document.getElementById('artwork-height').value) || null;
+
+            // Get country / city
+            const artworkCountry = (document.getElementById('artwork-country')?.value || '').trim();
+            const artworkCity    = (document.getElementById('artwork-city')?.value    || '').trim();
             
             // Get technique
             const technique = document.getElementById('artwork-technique').value;
@@ -8164,8 +8179,10 @@ function enterGallery() {
                 technique: technique || null,
                 techniqueCustom: (technique === 'Autre' || techniqueCustom) ? techniqueCustom : null,
                 emoji: '🎨',
+                country: artworkCountry || '',
+                city: artworkCity || '',
                 artistName: artistAccount.name || 'Artiste',
-                artistCountry: artistAccount.country || '',
+                artistCountry: artworkCountry || artistAccount.country || '',
                 artistAvatar: artistAccount.avatar || ''
             };
 
@@ -8190,7 +8207,9 @@ function enterGallery() {
                             image_url: artwork.photo || null,
                             photos: artwork.photos || [],
                             technique: artwork.technique || '',
-                            dimensions: artwork.dimensions || null
+                            dimensions: artwork.dimensions || null,
+                            country: artwork.country || '',
+                            city: artwork.city || ''
                         };
                         const resp = await fetch('https://arkyl-galerie.onrender.com/api_modifier_oeuvre.php', {
                             method: 'POST',
@@ -8224,7 +8243,9 @@ function enterGallery() {
                             artist_id: currentUser.id,
                             artist_name: addedArtwork.artistName,
                             artist_country: addedArtwork.artistCountry || '',
-                            image_url: addedArtwork.photo, // Photo principale en base64
+                            country: addedArtwork.country || '',
+                            city: addedArtwork.city || '',
+                            image_url: addedArtwork.photo,
                             photos: addedArtwork.photos || [],
                             technique: addedArtwork.technique || '',
                             dimensions: addedArtwork.dimensions || null,

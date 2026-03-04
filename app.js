@@ -7628,9 +7628,13 @@ function enterGallery() {
                         price: art.price,
                         description: art.description || '',
                         photo: art.image_url,
+                        image_url: art.image_url,
                         photos: art.photos || [art.image_url],
                         technique: art.technique || '',
                         dimensions: art.dimensions || null,
+                        country: art.country || art.artist_country || '',
+                        city: art.city || '',
+                        artist_country: art.artist_country || art.country || '',
                         status: 'published',
                         createdAt: art.created_at || new Date().toISOString()
                     }));
@@ -9659,27 +9663,30 @@ function enterGallery() {
             
             let techniqueText = product.technique || product.techniqueCustom || 'Non spécifiée';
             
-            // Pays de l'artiste avec drapeau
+            // Pays et ville de l'œuvre
+            const countryRaw = product.country || product.artist_country || '';
+            const cityRaw    = product.city || '';
             let artistCountryText = '';
-            if (product.artist_country) {
+            if (countryRaw) {
                 const countryFlags = {
-                    'CI': '🇨🇮',
-                    'SN': '🇸🇳', 
-                    'ML': '🇲🇱',
-                    'BJ': '🇧🇯',
-                    'BF': '🇧🇫',
-                    'TG': '🇹🇬',
-                    'GH': '🇬🇭',
-                    'NG': '🇳🇬',
-                    'CM': '🇨🇲',
-                    'CD': '🇨🇩',
-                    'FR': '🇫🇷'
+                    'CI': '🇨🇮', "Côte d'Ivoire": '🇨🇮',
+                    'SN': '🇸🇳', 'Sénégal': '🇸🇳',
+                    'ML': '🇲🇱', 'Mali': '🇲🇱',
+                    'BJ': '🇧🇯', 'Bénin': '🇧🇯',
+                    'BF': '🇧🇫', 'Burkina Faso': '🇧🇫',
+                    'TG': '🇹🇬', 'Togo': '🇹🇬',
+                    'GH': '🇬🇭', 'Ghana': '🇬🇭',
+                    'NG': '🇳🇬', 'Nigeria': '🇳🇬',
+                    'CM': '🇨🇲', 'Cameroun': '🇨🇲',
+                    'CD': '🇨🇩', 'Congo': '🇨🇩',
+                    'FR': '🇫🇷', 'France': '🇫🇷'
                 };
-                const flag = countryFlags[product.artist_country] || '🌍';
-                artistCountryText = `${flag} ${product.artist_country}`;
+                const flag = countryFlags[countryRaw] || '🌍';
+                artistCountryText = `${flag} ${countryRaw}`;
             } else {
                 artistCountryText = 'Non spécifié';
             }
+            const locationText = [cityRaw, artistCountryText].filter(v => v && v !== 'Non spécifié').join(', ') || 'Non spécifié';
             
             // Gérer les valeurs undefined
             const artistName = product.artist_name || product.artist || 'Artiste inconnu';
@@ -9751,7 +9758,7 @@ function enterGallery() {
                             </div>` : ''}
                             <div class="jm-meta-item">
                                 <span class="jm-meta-icon">🌍</span>
-                                <div><div class="jm-meta-label">Localisation</div><div class="jm-meta-val">${[product.city, artistCountryText].filter(Boolean).join(', ') || 'N/A'}</div></div>
+                                <div><div class="jm-meta-label">Localisation</div><div class="jm-meta-val">${locationText}</div></div>
                             </div>
                         </div>
 

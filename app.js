@@ -6456,25 +6456,30 @@ function enterGallery() {
             }
 
             // Render carousel d'avatars (Your Loop)
-            carousel.innerHTML = `
-                <style>
-                    .avatar-story-item { display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;flex-shrink:0;transition:transform 0.2s; }
-                    .avatar-story-item:hover { transform:scale(1.08); }
-                    .avatar-story-ring { width:72px;height:72px;border-radius:50%;padding:3px;background:linear-gradient(135deg,#d4af37,#a07820,#d4af37);box-shadow:0 0 12px rgba(212,175,55,0.4); }
-                    .avatar-story-inner { width:100%;height:100%;border-radius:50%;overflow:hidden;background:#1a1a2e;border:2px solid #0f0f1e;display:flex;align-items:center;justify-content:center;font-size:32px; }
-                    .avatar-story-inner img { width:100%;height:100%;object-fit:cover;border-radius:50%; }
-                    .avatar-story-name { font-size:11px;font-weight:600;color:#fff;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,0.5); }
-                </style>
-                \${followed.map(artist => \`
-                <div class="avatar-story-item" onclick="scrollToArtistLoops('\${artist.name}')">
+            // Inject styles once
+            if (!document.getElementById('avatar-story-styles')) {
+                const s = document.createElement('style');
+                s.id = 'avatar-story-styles';
+                s.textContent = `
+                    .avatar-story-item{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;flex-shrink:0;transition:transform 0.2s;}
+                    .avatar-story-item:hover{transform:scale(1.08);}
+                    .avatar-story-ring{width:72px;height:72px;border-radius:50%;padding:3px;background:linear-gradient(135deg,#d4af37,#a07820,#d4af37);box-shadow:0 0 12px rgba(212,175,55,0.4);}
+                    .avatar-story-inner{width:100%;height:100%;border-radius:50%;overflow:hidden;background:#1a1a2e;border:2px solid #0f0f1e;display:flex;align-items:center;justify-content:center;font-size:32px;}
+                    .avatar-story-inner img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
+                    .avatar-story-name{font-size:11px;font-weight:600;color:#fff;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,0.5);}
+                `;
+                document.head.appendChild(s);
+            }
+            carousel.innerHTML = followed.map(artist => `
+                <div class="avatar-story-item" onclick="scrollToArtistLoops('${artist.name}')">
                     <div class="avatar-story-ring">
                         <div class="avatar-story-inner">
-                            \${buildMiniAvatar(artist, 66, null)}
+                            ${buildMiniAvatar(artist, 66, null)}
                         </div>
                     </div>
-                    <div class="avatar-story-name">\${artist.name.split(' ')[0]}</div>
+                    <div class="avatar-story-name">${artist.name.split(' ')[0]}</div>
                 </div>
-                \`).join('')}`;
+            `).join('');
 
             // Afficher un indicateur de chargement pendant le chargement du feed
             loopsFeed.innerHTML = `

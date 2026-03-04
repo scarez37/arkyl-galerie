@@ -7606,11 +7606,15 @@ function enterGallery() {
             }
             // Afficher le skeleton pendant le chargement
             _artworksLoading = true;
-            showSkeletonLoader('artworksGrid', 6, 'masonry');
+            showSkeletonLoader('artworksGrid', 6, 'grid');
             try {
-                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(artistServerId)}&include_sold=1&t=${Date.now()}`);
+                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(artistServerId)}&t=${Date.now()}`);
                 const result = await resp.json();
                 if (result.success && result.data && result.data.length > 0) {
+                    console.log('🔍 Champs API galerie:', Object.keys(result.data[0]));
+                    console.log('🔍 artistServerId utilisé:', artistServerId);
+                    console.log('🔍 Premier artwork:', result.data[0]);
+
                     _artworksRetryCount = 0;
                     db.artworks = result.data.map(art => ({
                         id: art.id,
@@ -7623,7 +7627,6 @@ function enterGallery() {
                         photos: art.photos || [art.image_url],
                         technique: art.technique || '',
                         dimensions: art.dimensions || null,
-                        is_sold: art.is_sold || art.badge === 'Vendu' || false,
                         status: 'published',
                         createdAt: art.created_at || new Date().toISOString()
                     }));
@@ -7633,32 +7636,32 @@ function enterGallery() {
                     const dashSection = document.getElementById('dashboardSection');
                     if (dashSection && dashSection.classList.contains('active')) updateDashboard();
                 } else {
-                    // API vide → serveur Render.com en cold start ou artist_id non reconnu
-                    // Réessayer dans tous les cas (avec ou sans données en cache)
-                    if (_artworksRetryCount < _ARTWORKS_MAX_RETRY) {
-                        _artworksRetryCount++;
-                        const delai = _artworksRetryCount * 4000; // 4s, 8s, 12s
-                        console.log(`🔄 API vide — retry ${_artworksRetryCount}/${_ARTWORKS_MAX_RETRY} dans ${delai/1000}s`);
-                        // Conserver les données existantes pendant le retry
-                        if (db.artworks.length > 0) {
-                            console.log('📦 Données existantes conservées pendant le retry');
+                    // ⭐ FIX : L'API retourne data:[] mais NE PAS effacer les œuvres existantes
+                    // Cause : Render.com (hébergement gratuit) se met en veille → répond vide
+                    // Si db.artworks est déjà rempli (session en cours), on conserve les données
+                    if (db.artworks.length === 0) {
+                        // Tenter un rechargement automatique (cold start Render.com)
+                        if (_artworksRetryCount < _ARTWORKS_MAX_RETRY) {
+                            _artworksRetryCount++;
+                            const delai = _artworksRetryCount * 4000; // 4s, 8s, 12s
+                            console.log(`🔄 Aucune œuvre reçue — retry ${_artworksRetryCount}/${_ARTWORKS_MAX_RETRY} dans ${delai/1000}s (serveur en cours de réveil)`);
+                            setTimeout(() => loadArtistArtworksFromServer(), delai);
+                        } else {
+                            // Vraiment aucune œuvre après plusieurs tentatives
+                            _artworksRetryCount = 0;
+                            renderArtworks();
                         }
-                        setTimeout(() => loadArtistArtworksFromServer(), delai);
-                        return; // Ne pas tomber dans le finally→renderArtworks avant le retry
                     } else {
-                        // Toutes les tentatives épuisées
-                        _artworksRetryCount = 0;
-                        if (db.artworks.length === 0) {
-                            console.warn('⚠️ Aucune œuvre trouvée après plusieurs tentatives');
-                        }
+                        // On a déjà des œuvres en mémoire — conserver, ne pas écraser
+                        console.warn('⚠️ API retourne 0 artwork mais db.artworks a des données — conservation des données existantes');
                     }
                 }
             } catch(e) {
-                // Serveur injoignable — NE PAS effacer db.artworks
+                // ⭐ FIX : Serveur injoignable (Render.com en veille, réseau coupé...)
+                // NE JAMAIS effacer db.artworks sur une erreur réseau !
+                // Avant : db.artworks = [] → effaçait toutes les œuvres du dashboard
                 console.error('❌ Erreur loadArtistArtworksFromServer (données conservées):', e);
-                if (db.artworks.length === 0) {
-                    showToast('⚠️ Serveur momentanément indisponible');
-                }
+                showToast('⚠️ Serveur momentanément indisponible — données conservées en mémoire');
             } finally {
                 _artworksLoading = false;
                 renderArtworks();
@@ -9002,13 +9005,17 @@ function enterGallery() {
         }
 
         function openAddNewsModal() {
+            const modal = document.getElementById('newsModal');
+            if (!modal) { console.warn('newsModal introuvable dans le DOM'); return; }
+            const set = (id, prop, val) => { const el = document.getElementById(id); if (el) el[prop] = val; };
+            const setStyle = (id, prop, val) => { const el = document.getElementById(id); if (el) el.style[prop] = val; };
             document.getElementById('newsModalTitle').textContent = '➕ Nouvelle Actualité';
-            document.getElementById('newsIcon').value = '';
-            document.getElementById('newsImageUpload').value = '';
-            document.getElementById('newsText').value = '';
-            document.getElementById('newsEditIndex').value = '';
-            document.getElementById('newsImagePreview').style.display = 'none';
-            document.getElementById('newsModal').classList.add('show');
+            set('newsIcon', 'value', '');
+            set('newsImageUpload', 'value', '');
+            set('newsText', 'value', '');
+            set('newsEditIndex', 'value', '');
+            setStyle('newsImagePreview', 'display', 'none');
+            modal.classList.add('show');
         }
 
         // Gestion de l'upload d'image
@@ -9054,23 +9061,26 @@ function enterGallery() {
         function editNews(id) {
             const news = newsItems.find(n => n.id === id);
             if (!news) return;
+            const modal = document.getElementById('newsModal');
+            if (!modal) { console.warn('newsModal introuvable dans le DOM'); return; }
+            const set = (elId, prop, val) => { const el = document.getElementById(elId); if (el) el[prop] = val; };
             document.getElementById('newsModalTitle').textContent = '✏️ Modifier l\'Actualité';
-            document.getElementById('newsIcon').value = news.icon;
-            document.getElementById('newsImageUpload').value = ''; // Reset file input
-            document.getElementById('newsText').value = news.text;
-            document.getElementById('newsEditIndex').value = id; // ID serveur
+            set('newsIcon', 'value', news.icon);
+            set('newsImageUpload', 'value', '');
+            set('newsText', 'value', news.text);
+            set('newsEditIndex', 'value', id);
             
             // Afficher la prévisualisation si c'est une image
             const previewContainer = document.getElementById('newsImagePreview');
             const previewImg = document.getElementById('newsPreviewImg');
             if (news.isImage) {
-                previewImg.src = news.icon;
-                previewContainer.style.display = 'block';
+                if (previewImg) previewImg.src = news.icon;
+                if (previewContainer) previewContainer.style.display = 'block';
             } else {
-                previewContainer.style.display = 'none';
+                if (previewContainer) previewContainer.style.display = 'none';
             }
             
-            document.getElementById('newsModal').classList.add('show');
+            modal.classList.add('show');
         }
 
         function closeNewsModal() {

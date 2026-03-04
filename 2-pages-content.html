@@ -1,4 +1,4 @@
-    <!-- ==================== HOME PAGE ==================== -->
+<!-- ==================== HOME PAGE ==================== -->
     <div id="homePage" class="page active">
         <h1 class="page-title"> d'Art Africaine</h1>
         <p class="page-subtitle">Découvrez des œuvres authentiques créées par les meilleurs artistes africains</p>
@@ -206,30 +206,27 @@
 
     <!-- ==================== ADMIN MANAGEMENT PAGE ==================== -->
     <!-- ==================== MES ARTISTES PAGE ==================== -->
-    <div id="myArtistsPage" class="page" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%); min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif; position: relative;">
+    <div id="myArtistsPage" class="page" style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #1a1a1a 100%); min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif; position: relative;">
         
-        <!-- Effet glassmorphism background -->
-        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(100px); -webkit-backdrop-filter: blur(100px);"></div>
-        
-        <!-- Content wrapper avec glassmorphism -->
+        <!-- Content wrapper -->
         <div style="position: relative; z-index: 1;">
         
         <!-- Header avec tabs -->
-        <div style="position: sticky; top: 90px; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 100; border-bottom: 1px solid rgba(255, 255, 255, 0.3); padding: 20px 0; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);">
+        <div style="position: sticky; top: 90px; background: rgba(10, 10, 10, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 100; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 20px 0; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);">
             <div style="max-width: 680px; margin: 0 auto; padding: 0 16px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
-                    <h1 style="font-size: 32px; font-weight: 800; color: #ffffff; margin: 0; letter-spacing: -0.5px; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);">Mes Artistes</h1>
-                    <button onclick="navigateTo('home')" style="background: rgba(255, 255, 255, 0.25); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.3); color: white; padding: 10px 20px; border-radius: 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); white-space: nowrap;" onmouseover="this.style.transform='translateY(-2px)'; this.style.background='rgba(255, 255, 255, 0.35)'; this.style.boxShadow='0 6px 20px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.background='rgba(255, 255, 255, 0.25)'; this.style.boxShadow='0 4px 15px rgba(0, 0, 0, 0.1)'">
+                    <h1 style="font-size: 32px; font-weight: 800; color: #ffffff; margin: 0; letter-spacing: -0.5px; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;">Mes Artistes</h1>
+                    <button onclick="navigateTo('home')" style="background: rgba(212,175,55,0.12); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(212,175,55,0.35); color: #d4af37; padding: 10px 20px; border-radius: 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; white-space: nowrap;" onmouseover="this.style.transform='translateY(-2px)'; this.style.background='rgba(212,175,55,0.22)'" onmouseout="this.style.transform='translateY(0)'; this.style.background='rgba(212,175,55,0.12)'">
                         ✨ Découvrir
                     </button>
                 </div>
                 
                 <!-- Tabs -->
-                <div style="display: flex; gap: 0; border-bottom: 2px solid rgba(255, 255, 255, 0.2);">
-                    <button class="artist-tab active" onclick="switchArtistTab('all')" data-tab="all" style="flex: 1; background: none; border: none; padding: 14px 0; font-size: 15px; font-weight: 700; color: rgba(255, 255, 255, 0.7); border-bottom: 3px solid transparent; cursor: pointer; transition: all 0.3s ease; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+                <div style="display: flex; gap: 0; border-bottom: 2px solid rgba(255, 255, 255, 0.08);">
+                    <button class="artist-tab active" onclick="switchArtistTab('all')" data-tab="all" style="flex: 1; background: none; border: none; padding: 14px 0; font-size: 15px; font-weight: 700; color: rgba(255, 255, 255, 0.5); border-bottom: 3px solid transparent; cursor: pointer; transition: all 0.3s ease; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
                         Tous
                     </button>
-                    <button class="artist-tab" onclick="switchArtistTab('following')" data-tab="following" style="flex: 1; background: none; border: none; padding: 14px 0; font-size: 15px; font-weight: 700; color: rgba(255, 255, 255, 0.7); border-bottom: 3px solid transparent; cursor: pointer; transition: all 0.3s ease; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+                    <button class="artist-tab" onclick="switchArtistTab('following')" data-tab="following" style="flex: 1; background: none; border: none; padding: 14px 0; font-size: 15px; font-weight: 700; color: rgba(255, 255, 255, 0.5); border-bottom: 3px solid transparent; cursor: pointer; transition: all 0.3s ease; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
                         Abonnements
                     </button>
                 </div>
@@ -241,7 +238,7 @@
             
             <!-- Section: Artistes suivis en haut (Your Loop) -->
             <div id="followedArtistsSection" style="margin: 32px 0;">
-                <div style="font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.9); margin-bottom: 18px; text-transform: uppercase; letter-spacing: 1.2px; font-family: 'Segoe UI', sans-serif; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">Vos Artistes Préférés</div>
+                <div style="font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.4); margin-bottom: 18px; text-transform: uppercase; letter-spacing: 1.2px; font-family: 'Segoe UI', sans-serif;">Vos Artistes Préférés</div>
                 
                 <!-- Carousel horizontal d'avatars -->
                 <div id="followedArtistsCarousel" style="display: flex; gap: 20px; overflow-x: auto; padding: 12px 0; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
@@ -250,18 +247,18 @@
             </div>
 
             <!-- Empty State -->
-            <div id="emptyArtistsState" style="display: none; text-align: center; padding: 80px 24px; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 24px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15); border: 1px solid rgba(255, 255, 255, 0.3);">
-                <div style="font-size: 96px; margin-bottom: 24px; opacity: 0.8; filter: grayscale(0);"></div>
-                <h2 style="font-size: 26px; font-weight: 800; color: #ffffff; margin-bottom: 12px; letter-spacing: -0.5px; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);">Aucun artiste suivi</h2>
-                <p style="font-size: 16px; color: rgba(255, 255, 255, 0.9); margin-bottom: 32px; line-height: 1.5; max-width: 400px; margin-left: auto; margin-right: auto;">Découvrez des artistes talentueux et suivez leurs créations pour les retrouver ici</p>
-                <button onclick="navigateTo('home')" style="background: rgba(255, 255, 255, 0.3); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.4); color: white; padding: 14px 32px; border-radius: 28px; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-3px)'; this.style.background='rgba(255, 255, 255, 0.4)'; this.style.boxShadow='0 6px 20px rgba(0, 0, 0, 0.25)'" onmouseout="this.style.transform='translateY(0)'; this.style.background='rgba(255, 255, 255, 0.3)'; this.style.boxShadow='0 4px 16px rgba(0, 0, 0, 0.2)'">
+            <div id="emptyArtistsState" style="display: none; text-align: center; padding: 80px 24px; background: rgba(255, 255, 255, 0.04); border-radius: 24px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.08);">
+                <div style="font-size: 96px; margin-bottom: 24px; opacity: 0.8;"></div>
+                <h2 style="font-size: 26px; font-weight: 800; color: #ffffff; margin-bottom: 12px; letter-spacing: -0.5px;">Aucun artiste suivi</h2>
+                <p style="font-size: 16px; color: rgba(255, 255, 255, 0.5); margin-bottom: 32px; line-height: 1.5; max-width: 400px; margin-left: auto; margin-right: auto;">Découvrez des artistes talentueux et suivez leurs créations pour les retrouver ici</p>
+                <button onclick="navigateTo('home')" style="background: rgba(212,175,55,0.15); border: 1px solid rgba(212,175,55,0.4); color: #d4af37; padding: 14px 32px; border-radius: 28px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-3px)'; this.style.background='rgba(212,175,55,0.25)'" onmouseout="this.style.transform='translateY(0)'; this.style.background='rgba(212,175,55,0.15)'">
                     Découvrir les artistes
                 </button>
             </div>
 
             <!-- Section: Loops des artistes (feed style) -->
             <div id="artistsLoopsSection" style="margin-top: 36px;">
-                <div style="font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.9); margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1.2px; font-family: 'Segoe UI', sans-serif; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">Créations Récentes</div>
+                <div style="font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.4); margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1.2px; font-family: 'Segoe UI', sans-serif;">Créations Récentes</div>
                 <div id="artistsLoopsFeed">
                     <!-- Sera rempli dynamiquement avec les posts/œuvres -->
                 </div>
@@ -269,7 +266,7 @@
 
         </div>
         </div>
-        <!-- Fin content wrapper glassmorphism -->
+        <!-- Fin content wrapper -->
 
         
     </div>

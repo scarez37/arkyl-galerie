@@ -6463,3 +6463,15 @@
             .jm-price { font-size: 28px; }
             .jm-btn-cart { font-size: 15px; padding: 14px; }
         }
+
+        /* ============ MES ARTISTES PAGE — STYLE NOIR ============ */
+        #myArtistsPage .artist-tab {
+            color: rgba(255, 255, 255, 0.45);
+        }
+        #myArtistsPage .artist-tab.active {
+            color: #d4af37 !important;
+            border-bottom-color: #d4af37 !important;
+        }
+        #myArtistsPage .artist-tab:hover {
+            color: rgba(255, 255, 255, 0.85);
+        }

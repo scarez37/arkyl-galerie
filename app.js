@@ -3159,7 +3159,20 @@ function enterGallery() {
             clientAddress = { nom, tel, quartier, ville, pays: pays || "Côte d'Ivoire", detail };
             const _uid = currentUser?.id || currentUser?.googleId || currentUser?.email;
             try { localStorage.setItem(_addressKey(_uid), JSON.stringify(clientAddress)); } catch(e) {}
-            showToast('✅ Adresse enregistrée');
+
+            // Sauvegarde en base de données
+            fetch('https://arkyl-galerie.onrender.com/api_save_address.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: _uid, ...clientAddress })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) showToast('✅ Adresse enregistrée');
+                else showToast('❌ Erreur sauvegarde : ' + (data.error || 'inconnue'));
+            })
+            .catch(() => showToast('⚠️ Adresse sauvegardée localement seulement'));
+
             renderCart();
         }
 
@@ -7320,23 +7333,35 @@ function enterGallery() {
 
             _save(k, v) {
                 try {
-                    const json = JSON.stringify(v);
-                    // Vérifier approximativement la taille avant de sauvegarder
-                    if (json.length > 1000000) { // > 1MB - trop volumineux
-                        console.warn('⚠️ Données trop volumineuses (' + (json.length/1024/1024).toFixed(2) + 'MB), fallback mémoire:', k);
-                        _memStore[this._key(k)] = v;
-                        return true;
-                    }
-                    localStorage.setItem(this._key(k), json);
+                    // Garder la version complète en mémoire (avec base64 pour affichage immédiat)
                     _memStore[this._key(k)] = v;
+
+                    // Pour localStorage : supprimer les base64 pour éviter QuotaExceededError
+                    let vToStore = v;
+                    if (k === 'artist_artworks' && Array.isArray(v)) {
+                        vToStore = v.map(artwork => {
+                            const cleaned = { ...artwork };
+                            if (cleaned.photo && cleaned.photo.startsWith('data:')) {
+                                cleaned.photo = cleaned.image_url || null;
+                            }
+                            if (Array.isArray(cleaned.photos)) {
+                                cleaned.photos = cleaned.photos
+                                    .map(p => (typeof p === 'string' && p.startsWith('data:')) ? (cleaned.image_url || null) : p)
+                                    .filter(Boolean);
+                            }
+                            return cleaned;
+                        });
+                    }
+
+                    const json = JSON.stringify(vToStore);
+                    localStorage.setItem(this._key(k), json);
                     return true;
                 } catch(e) {
                     console.error('Erreur de sauvegarde:', k, e.name);
                     if (e.name === 'QuotaExceededError') {
-                        console.warn('⚠️ localStorage saturé (' + (JSON.stringify(v).length/1024/1024).toFixed(2) + 'MB), fallback mémoire');
-                        showToast('⚠️ Espace disque plein. Les données restent en mémoire mais ne seront pas sauvegardées.');
+                        console.warn('⚠️ localStorage saturé malgré le nettoyage des base64');
+                        showToast("⚠️ Stockage local plein. Rafraîchissez la page si des œuvres n'apparaissent plus.");
                     }
-                    try { _memStore[this._key(k)] = v; return true; } catch(_) {}
                     return false;
                 }
             }
@@ -7620,20 +7645,32 @@ function enterGallery() {
                     console.log('🔍 Premier artwork:', result.data[0]);
 
                     _artworksRetryCount = 0;
-                    db.artworks = result.data.map(art => ({
-                        id: art.id,
-                        server_id: art.id,
-                        title: art.title,
-                        category: art.category,
-                        price: art.price,
-                        description: art.description || '',
-                        photo: art.image_url,
-                        photos: art.photos || [art.image_url],
-                        technique: art.technique || '',
-                        dimensions: art.dimensions || null,
-                        status: 'published',
-                        createdAt: art.created_at || new Date().toISOString()
-                    }));
+                    db.artworks = result.data.map(art => {
+                        // Parser les dimensions si c'est une string JSON
+                        let dims = art.dimensions;
+                        if (dims && typeof dims === 'string') {
+                            try { dims = JSON.parse(dims); } catch(e) { dims = null; }
+                        }
+                        return {
+                            id: art.id,
+                            server_id: art.id,
+                            title: art.title,
+                            category: art.category,
+                            price: art.price,
+                            description: art.description || '',
+                            photo: art.image_url,
+                            image_url: art.image_url,
+                            photos: art.photos || [art.image_url],
+                            technique: art.technique || '',
+                            techniqueCustom: art.techniqueCustom || null,
+                            dimensions: dims || null,
+                            country: art.country || art.artist_country || '',
+                            city: art.city || '',
+                            artist_country: art.artist_country || art.country || '',
+                            status: 'published',
+                            createdAt: art.created_at || new Date().toISOString()
+                        };
+                    });
                     // Rafraîchir si déjà sur la section œuvres
                     const artSection = document.getElementById('artworksSection');
                     if (artSection && artSection.classList.contains('active')) renderArtworks();
@@ -8251,8 +8288,8 @@ function enterGallery() {
                             artist_country: addedArtwork.artistCountry || '',
                             country: addedArtwork.country || '',
                             city: addedArtwork.city || '',
-                            image_url: addedArtwork.photo,
-                            photos: addedArtwork.photos || [],
+                            image_url: (addedArtwork.photo && !addedArtwork.photo.startsWith('data:')) ? addedArtwork.photo : '',
+                            photos: (addedArtwork.photos || []).filter(p => typeof p === 'string' && !p.startsWith('data:')),
                             technique: addedArtwork.technique || '',
                             dimensions: addedArtwork.dimensions || null,
                             status: 'publiée'
@@ -9665,27 +9702,30 @@ function enterGallery() {
             
             let techniqueText = product.technique || product.techniqueCustom || 'Non spécifiée';
             
-            // Pays de l'artiste avec drapeau
+            // Pays et ville de l'œuvre
+            const countryRaw = product.country || product.artist_country || '';
+            const cityRaw    = product.city || '';
             let artistCountryText = '';
-            if (product.artist_country) {
+            if (countryRaw) {
                 const countryFlags = {
-                    'CI': '🇨🇮',
-                    'SN': '🇸🇳', 
-                    'ML': '🇲🇱',
-                    'BJ': '🇧🇯',
-                    'BF': '🇧🇫',
-                    'TG': '🇹🇬',
-                    'GH': '🇬🇭',
-                    'NG': '🇳🇬',
-                    'CM': '🇨🇲',
-                    'CD': '🇨🇩',
-                    'FR': '🇫🇷'
+                    'CI': '🇨🇮', "Côte d'Ivoire": '🇨🇮',
+                    'SN': '🇸🇳', 'Sénégal': '🇸🇳',
+                    'ML': '🇲🇱', 'Mali': '🇲🇱',
+                    'BJ': '🇧🇯', 'Bénin': '🇧🇯',
+                    'BF': '🇧🇫', 'Burkina Faso': '🇧🇫',
+                    'TG': '🇹🇬', 'Togo': '🇹🇬',
+                    'GH': '🇬🇭', 'Ghana': '🇬🇭',
+                    'NG': '🇳🇬', 'Nigeria': '🇳🇬',
+                    'CM': '🇨🇲', 'Cameroun': '🇨🇲',
+                    'CD': '🇨🇩', 'Congo': '🇨🇩',
+                    'FR': '🇫🇷', 'France': '🇫🇷'
                 };
-                const flag = countryFlags[product.artist_country] || '🌍';
-                artistCountryText = `${flag} ${product.artist_country}`;
+                const flag = countryFlags[countryRaw] || '🌍';
+                artistCountryText = `${flag} ${countryRaw}`;
             } else {
                 artistCountryText = 'Non spécifié';
             }
+            const locationText = [cityRaw, artistCountryText].filter(v => v && v !== 'Non spécifié').join(', ') || 'Non spécifié';
             
             // Gérer les valeurs undefined
             const artistName = product.artist_name || product.artist || 'Artiste inconnu';
@@ -9757,7 +9797,7 @@ function enterGallery() {
                             </div>` : ''}
                             <div class="jm-meta-item">
                                 <span class="jm-meta-icon">🌍</span>
-                                <div><div class="jm-meta-label">Pays</div><div class="jm-meta-val">${artistCountryText || 'N/A'}</div></div>
+                                <div><div class="jm-meta-label">Localisation</div><div class="jm-meta-val">${locationText}</div></div>
                             </div>
                         </div>
 

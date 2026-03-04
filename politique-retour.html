@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Politique de Retours — ARKYL</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --gold: #d4af37;
+            --gold-light: #f0d060;
+            --gold-dim: rgba(212,175,55,0.15);
+            --bg: #0f0f0f;
+            --bg2: #161616;
+            --bg3: #1e1e1e;
+            --text: #f0ece4;
+            --text-dim: rgba(240,236,228,0.55);
+            --border: rgba(255,255,255,0.07);
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 15px;
+            line-height: 1.75;
+            min-height: 100vh;
+        }
+
+        /* ── HERO ── */
+        .hero {
+            position: relative;
+            padding: 80px 24px 60px;
+            text-align: center;
+            overflow: hidden;
+            background: linear-gradient(160deg, #1a1400 0%, #0f0f0f 60%);
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -60px; left: 50%;
+            transform: translateX(-50%);
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(212,175,55,0.12) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .hero-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--gold);
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            letter-spacing: 0.5px;
+            margin-bottom: 32px;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+            cursor: pointer;
+        }
+        .hero-back:hover { opacity: 1; }
+        .hero-eyebrow {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: var(--gold);
+            margin-bottom: 16px;
+        }
+        .hero h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(32px, 6vw, 58px);
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 18px;
+            background: linear-gradient(135deg, #fff 30%, var(--gold-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero-sub {
+            color: var(--text-dim);
+            font-size: 15px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        .hero-divider {
+            width: 60px; height: 2px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+            margin: 32px auto 0;
+            border-radius: 2px;
+        }
+
+        /* ── LAYOUT ── */
+        .container {
+            max-width: 780px;
+            margin: 0 auto;
+            padding: 56px 24px 100px;
+        }
+
+        /* ── SECTIONS ── */
+        .policy-section {
+            margin-bottom: 48px;
+            padding: 36px;
+            background: var(--bg2);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.3s;
+        }
+        .policy-section:hover {
+            border-color: rgba(212,175,55,0.2);
+        }
+        .policy-section::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 3px; height: 100%;
+            background: linear-gradient(180deg, var(--gold), transparent);
+            border-radius: 3px 0 0 3px;
+        }
+
+        .section-num {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--gold);
+            margin-bottom: 10px;
+            opacity: 0.7;
+        }
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 22px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 18px;
+            line-height: 1.3;
+        }
+        .section-body {
+            color: var(--text-dim);
+            font-size: 14.5px;
+            line-height: 1.8;
+        }
+        .section-body p { margin-bottom: 14px; }
+        .section-body p:last-child { margin-bottom: 0; }
+
+        /* ── BADGE GARANTI ── */
+        .guarantee-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--gold-dim);
+            border: 1px solid rgba(212,175,55,0.35);
+            border-radius: 12px;
+            padding: 12px 18px;
+            margin-bottom: 18px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gold);
+        }
+
+        /* ── LISTE ── */
+        .policy-list {
+            list-style: none;
+            padding: 0;
+            margin: 14px 0;
+        }
+        .policy-list li {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            color: var(--text-dim);
+            font-size: 14.5px;
+            line-height: 1.7;
+            margin-bottom: 10px;
+        }
+        .policy-list li::before {
+            content: '—';
+            color: var(--gold);
+            font-weight: 700;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        /* ── ÉTAPES ── */
+        .steps {
+            counter-reset: steps;
+            margin: 14px 0;
+        }
+        .step {
+            display: flex;
+            gap: 18px;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+        .step-num {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: var(--gold-dim);
+            border: 1px solid rgba(212,175,55,0.4);
+            color: var(--gold);
+            font-weight: 700;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .step-content { flex: 1; }
+        .step-label {
+            font-weight: 600;
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .step-desc {
+            color: var(--text-dim);
+            font-size: 13.5px;
+            line-height: 1.7;
+        }
+
+        /* ── ALERTE ── */
+        .alert-box {
+            background: rgba(255,193,7,0.07);
+            border: 1px solid rgba(255,193,7,0.25);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin: 18px 0;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            font-size: 13.5px;
+            color: rgba(255,220,100,0.9);
+            line-height: 1.6;
+        }
+        .alert-icon { font-size: 18px; flex-shrink: 0; }
+
+        /* ── EXCEPTION ── */
+        .exception-box {
+            background: rgba(220,53,69,0.07);
+            border: 1px solid rgba(220,53,69,0.2);
+            border-radius: 12px;
+            padding: 14px 18px;
+            margin-top: 16px;
+            font-size: 13px;
+            color: rgba(255,150,150,0.85);
+            line-height: 1.6;
+        }
+
+        /* ── HIGHLIGHT ── */
+        strong {
+            color: #fff;
+            font-weight: 600;
+        }
+        .gold { color: var(--gold); }
+
+        /* ── FOOTER CTA ── */
+        .policy-cta {
+            text-align: center;
+            padding: 48px 32px;
+            background: linear-gradient(135deg, rgba(212,175,55,0.08), rgba(212,175,55,0.03));
+            border: 1px solid rgba(212,175,55,0.2);
+            border-radius: 24px;
+            margin-top: 16px;
+        }
+        .policy-cta p {
+            color: var(--text-dim);
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        .btn-contact {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, var(--gold), #a07820);
+            color: #000;
+            font-weight: 700;
+            font-size: 14px;
+            padding: 14px 28px;
+            border-radius: 50px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: none;
+        }
+        .btn-contact:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(212,175,55,0.35);
+        }
+
+        /* ── SCROLL REVEAL ── */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .policy-section {
+            animation: fadeUp 0.5s ease both;
+        }
+        .policy-section:nth-child(1) { animation-delay: 0.05s; }
+        .policy-section:nth-child(2) { animation-delay: 0.10s; }
+        .policy-section:nth-child(3) { animation-delay: 0.15s; }
+        .policy-section:nth-child(4) { animation-delay: 0.20s; }
+        .policy-section:nth-child(5) { animation-delay: 0.25s; }
+        .policy-section:nth-child(6) { animation-delay: 0.30s; }
+
+        @media (max-width: 600px) {
+            .policy-section { padding: 24px 20px; }
+            .hero { padding: 60px 20px 44px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HERO -->
+    <div class="hero">
+        <div>
+            <a class="hero-back" onclick="history.back()">← Retour</a>
+        </div>
+        <div class="hero-eyebrow">ARKYL Marketplace</div>
+        <h1>Politique de Retours<br>& Remboursements</h1>
+        <p class="hero-sub">Nous protégeons chaque transaction grâce à notre système de paiement séquestre. Votre satisfaction est notre priorité.</p>
+        <div class="hero-divider"></div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="container">
+
+        <!-- 1 -->
+        <div class="policy-section">
+            <div class="section-num">Article 1</div>
+            <div class="section-title">La Garantie ARKYL — Paiement Séquestre</div>
+            <div class="guarantee-badge">
+                🔒 Fonds sécurisés jusqu'à confirmation de réception
+            </div>
+            <!-- ============================================================
+                 TEXTE ARTICLE 1 — modifiez uniquement entre ces balises <p>
+                 ============================================================ -->
+            <div class="section-body">
+                <p>Lorsque vous effectuez un achat sur notre plateforme, le montant de votre commande est conservé en toute sécurité par ARKYL. L'artiste n'est payé que lorsque vous avez reçu l'œuvre et confirmé votre satisfaction.</p>
+                <p>Cette garantie vous assure une <strong>protection totale</strong> en cas de litige ou de retour.</p>
+            </div>
+        </div>
+
+        <!-- 2 -->
+        <div class="policy-section">
+            <div class="section-num">Article 2</div>
+            <div class="section-title">Délai de Rétractation — 14 jours</div>
+            <!-- ============================================================
+                 TEXTE ARTICLE 2 — modifiez uniquement entre ces balises
+                 ============================================================ -->
+            <div class="section-body">
+                <p>Vous disposez d'un délai de <strong class="gold">14 jours calendaires</strong> suivant la réception physique de l'œuvre pour nous faire part de votre volonté de la retourner.</p>
+            </div>
+            <div class="alert-box">
+                <span class="alert-icon">⚠️</span>
+                <span><strong>Important :</strong> Pour initier un retour, ne cliquez pas sur le bouton <strong>"Colis bien reçu"</strong> dans votre espace client, car cette action débloque irrévocablement les fonds au profit de l'artiste.</span>
+            </div>
+        </div>
+
+        <!-- 3 -->
+        <div class="policy-section">
+            <div class="section-num">Article 3</div>
+            <div class="section-title">Conditions d'Éligibilité au Retour</div>
+            <!-- ============================================================
+                 TEXTE ARTICLE 3 — modifiez uniquement entre ces balises
+                 ============================================================ -->
+            <div class="section-body">
+                <p>Pour que le retour soit accepté, l'œuvre doit respecter les conditions suivantes :</p>
+                <ul class="policy-list">
+                    <li>Être dans son état d'origine, sans aucune altération, rayure ou dommage.</li>
+                    <li>Être renvoyée dans son emballage d'origine ou un emballage équivalent garantissant le même niveau de sécurité pour le transport.</li>
+                    <li>Être accompagnée de tous les documents originaux (Certificat d'authenticité, facture de l'artiste, etc.).</li>
+                </ul>
+            </div>
+            <div class="exception-box">
+                ❌ <strong>Exception :</strong> Les œuvres réalisées sur commande ou personnalisées à la demande de l'acheteur ne sont ni reprises, ni échangées, ni remboursées.
+            </div>
+        </div>
+
+        <!-- 4 -->
+        <div class="policy-section">
+            <div class="section-num">Article 4</div>
+            <div class="section-title">Procédure de Retour Pas-à-Pas</div>
+            <!-- ============================================================
+                 TEXTE ARTICLE 4 — modifiez uniquement entre ces balises
+                 ============================================================ -->
+            <div class="steps">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <div class="step-label">Signalement</div>
+                        <div class="step-desc">Contactez notre support client en précisant votre numéro de commande (ex: ARK-XXXXXXXX) et le motif du retour.</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <div class="step-label">Gel des fonds</div>
+                        <div class="step-desc">Dès réception de votre demande, ARKYL suspend le compte à rebours de sécurité (qui libère normalement les fonds à l'artiste après 21 jours d'expédition).</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <div class="step-label">Expédition</div>
+                        <div class="step-desc">Après validation de notre équipe, vous recevrez l'adresse postale exacte de l'artiste. Vous devrez expédier l'œuvre avec un service de livraison avec <strong>numéro de suivi obligatoire</strong> et assurance à hauteur de la valeur de l'œuvre.</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <div class="step-label">Frais de port</div>
+                        <div class="step-desc">Dans le cas d'un changement d'avis, les frais de retour (ainsi que les éventuels frais de douane) sont à la charge exclusive de l'acheteur.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5 -->
+        <div class="policy-section">
+            <div class="section-num">Article 5</div>
+            <div class="section-title">Que faire si l'œuvre arrive endommagée ?</div>
+            <!-- ============================================================
+                 TEXTE ARTICLE 5 — modifiez uniquement entre ces balises
+                 ============================================================ -->
+            <div class="section-body">
+                <p>Malgré les précautions prises par nos artistes, si votre colis arrive endommagé :</p>
+                <ul class="policy-list">
+                    <li><strong>Refusez le colis</strong> si les dommages extérieurs sont évidents, ou émettez des réserves écrites auprès du livreur.</li>
+                    <li><strong>Signalez le problème sous 48 heures</strong> à notre support avec des photos claires de l'emballage (extérieur et intérieur) et des dommages sur l'œuvre.</li>
+                    <li>ARKYL maintiendra le blocage de vos fonds et vous accompagnera pour trouver la meilleure solution (remboursement intégral ou restauration).</li>
+                    <li>Les frais de retour d'une œuvre endommagée lors du transit initial <strong>ne seront pas à votre charge</strong>.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 6 -->
+        <div class="policy-section">
+            <div class="section-num">Article 6</div>
+            <div class="section-title">Processus de Remboursement</div>
+            <!-- ============================================================
+                 TEXTE ARTICLE 6 — modifiez uniquement entre ces balises
+                 ============================================================ -->
+            <div class="section-body">
+                <p>Dès que l'œuvre est réceptionnée et inspectée par l'artiste pour confirmer qu'elle est dans son état d'origine, ARKYL procède au remboursement.</p>
+                <p>Le <strong>montant intégral de l'œuvre</strong> (hors frais de port initiaux) sera recrédité sur la carte bancaire ayant servi au paiement.</p>
+                <p>Le délai d'apparition des fonds sur votre compte bancaire dépend de votre établissement financier — généralement <strong class="gold">5 à 10 jours ouvrés</strong>.</p>
+            </div>
+        </div>
+
+        <!-- CTA -->
+        <div class="policy-cta">
+            <p>Une question sur votre retour ou votre commande ? Notre équipe est disponible pour vous accompagner.</p>
+            <a class="btn-contact" href="mailto:contact@arkyl.com">
+                ✉️ Contacter le support
+            </a>
+        </div>
+
+    </div>
+
+</body>
+</html>

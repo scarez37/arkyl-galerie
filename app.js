@@ -376,6 +376,32 @@ function enterGallery() {
                     if (keysToRemove.length > 0) {
                         console.log('🧹 Nettoyage localStorage:', keysToRemove.length, 'clés supprimées');
                     }
+
+                    // 🧹 Nettoyer les base64 déjà stockés dans artist_artworks existants
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && key.includes('_artist_artworks')) {
+                            try {
+                                const artworks = JSON.parse(localStorage.getItem(key));
+                                if (Array.isArray(artworks)) {
+                                    let changed = false;
+                                    const cleaned = artworks.map(a => {
+                                        const c = { ...a };
+                                        if (c.photo && c.photo.startsWith('data:')) { c.photo = c.image_url || null; changed = true; }
+                                        if (Array.isArray(c.photos)) {
+                                            c.photos = c.photos.map(p => (typeof p === 'string' && p.startsWith('data:')) ? (c.image_url || null) : p).filter(Boolean);
+                                            if (c.photos.length !== a.photos?.length) changed = true;
+                                        }
+                                        return c;
+                                    });
+                                    if (changed) {
+                                        localStorage.setItem(key, JSON.stringify(cleaned));
+                                        console.log('🧹 Base64 retirés de', key);
+                                    }
+                                }
+                            } catch(_) {}
+                        }
+                    }
                 } catch(e) {
                     console.warn('Erreur cleanup localStorage:', e);
                 }
@@ -3158,23 +3184,8 @@ function enterGallery() {
 
             clientAddress = { nom, tel, quartier, ville, pays: pays || "Côte d'Ivoire", detail };
             const _uid = currentUser?.id || currentUser?.googleId || currentUser?.email;
-
-            // Sauvegarde locale (cache)
             try { localStorage.setItem(_addressKey(_uid), JSON.stringify(clientAddress)); } catch(e) {}
-
-            // Sauvegarde en base de données
-            fetch('https://arkyl-galerie.onrender.com/api_save_address.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: _uid, ...clientAddress })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) showToast('✅ Adresse enregistrée');
-                else showToast('❌ Erreur sauvegarde : ' + (data.error || 'inconnue'));
-            })
-            .catch(() => showToast('⚠️ Adresse sauvegardée localement seulement'));
-
+            showToast('✅ Adresse enregistrée');
             renderCart();
         }
 
@@ -7335,23 +7346,37 @@ function enterGallery() {
 
             _save(k, v) {
                 try {
-                    const json = JSON.stringify(v);
-                    // Vérifier approximativement la taille avant de sauvegarder
-                    if (json.length > 1000000) { // > 1MB - trop volumineux
-                        console.warn('⚠️ Données trop volumineuses (' + (json.length/1024/1024).toFixed(2) + 'MB), fallback mémoire:', k);
-                        _memStore[this._key(k)] = v;
-                        return true;
-                    }
-                    localStorage.setItem(this._key(k), json);
+                    // Garder la version complète (avec base64) en mémoire
                     _memStore[this._key(k)] = v;
+
+                    // Pour localStorage : supprimer les base64 pour éviter QuotaExceededError
+                    // On ne garde que les URLs serveur (image_url / photos avec http)
+                    let vToStore = v;
+                    if (k === 'artist_artworks' && Array.isArray(v)) {
+                        vToStore = v.map(artwork => {
+                            const cleaned = { ...artwork };
+                            // Supprimer les base64 — garder uniquement les URLs serveur
+                            if (cleaned.photo && cleaned.photo.startsWith('data:')) {
+                                cleaned.photo = cleaned.image_url || null;
+                            }
+                            if (Array.isArray(cleaned.photos)) {
+                                cleaned.photos = cleaned.photos
+                                    .map(p => (typeof p === 'string' && p.startsWith('data:')) ? (cleaned.image_url || null) : p)
+                                    .filter(Boolean);
+                            }
+                            return cleaned;
+                        });
+                    }
+
+                    const json = JSON.stringify(vToStore);
+                    localStorage.setItem(this._key(k), json);
                     return true;
                 } catch(e) {
                     console.error('Erreur de sauvegarde:', k, e.name);
                     if (e.name === 'QuotaExceededError') {
-                        console.warn('⚠️ localStorage saturé (' + (JSON.stringify(v).length/1024/1024).toFixed(2) + 'MB), fallback mémoire');
-                        showToast('⚠️ Espace disque plein. Les données restent en mémoire mais ne seront pas sauvegardées.');
+                        console.warn('⚠️ localStorage saturé malgré le nettoyage des base64 — données en mémoire uniquement');
+                        showToast('⚠️ Stockage local plein. Rafraîchissez la page si des œuvres n\'apparaissent plus.');
                     }
-                    try { _memStore[this._key(k)] = v; return true; } catch(_) {}
                     return false;
                 }
             }

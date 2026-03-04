@@ -7628,13 +7628,9 @@ function enterGallery() {
                         price: art.price,
                         description: art.description || '',
                         photo: art.image_url,
-                        image_url: art.image_url,
                         photos: art.photos || [art.image_url],
                         technique: art.technique || '',
                         dimensions: art.dimensions || null,
-                        country: art.country || art.artist_country || '',
-                        city: art.city || '',
-                        artist_country: art.artist_country || art.country || '',
                         status: 'published',
                         createdAt: art.created_at || new Date().toISOString()
                     }));
@@ -7866,53 +7862,59 @@ function enterGallery() {
 
         // ==================== PHOTO UPLOAD MANAGEMENT ====================
         let currentImageMode = 'photo'; // Mode photo uniquement
-        let currentPhotosData = []; // Store multiple base64 photo data (max 5)
+        let currentPhotosData = []; // Stocke les URLs Cloudinary (plus de base64)
 
+        // Upload une image vers Cloudinary, retourne l'URL
+        async function uploadToCloudinary(file) {
+            const CLOUD_NAME    = 'ddah64j2a';
+            const UPLOAD_PRESET = 'arkyl_preset';
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', UPLOAD_PRESET);
+            formData.append('folder', 'arkyl');
+            const resp = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            if (!resp.ok) throw new Error('Cloudinary HTTP ' + resp.status);
+            const data = await resp.json();
+            if (!data.secure_url) throw new Error("Pas d'URL retournée par Cloudinary");
+            return data.secure_url;
+        }
 
         // Nouvelle fonction pour gérer plusieurs photos
-        function handleMultiplePhotosUpload(event) {
+        async function handleMultiplePhotosUpload(event) {
             const files = Array.from(event.target.files);
             if (!files.length) return;
 
-            // Vérifier qu'on ne dépasse pas 5 photos au total
             const remainingSlots = 5 - currentPhotosData.length;
             if (files.length > remainingSlots) {
                 showToast(`⚠️ Vous ne pouvez ajouter que ${remainingSlots} photo(s) supplémentaire(s)`);
+                event.target.value = '';
                 return;
             }
 
-            let filesProcessed = 0;
-            files.forEach(file => {
-                // Validate file type
+            for (const file of files) {
                 if (!file.type.startsWith('image/')) {
                     showToast('⚠️ Veuillez sélectionner des images uniquement');
-                    return;
+                    continue;
                 }
-
-                // Validate file size (5MB max)
-                const maxSize = 5 * 1024 * 1024;
-                if (file.size > maxSize) {
+                if (file.size > 5 * 1024 * 1024) {
                     showToast(`⚠️ ${file.name} dépasse 5 MB`);
-                    return;
+                    continue;
                 }
+                showToast('📤 Upload en cours...');
+                try {
+                    const url = await uploadToCloudinary(file);
+                    currentPhotosData.push(url);
+                    updatePhotosPreview();
+                    showToast('✅ Photo uploadée !');
+                } catch(err) {
+                    console.error('Erreur Cloudinary:', err);
+                    showToast('❌ Échec upload : ' + err.message);
+                }
+            }
 
-                // Read and store the image
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    currentPhotosData.push(e.target.result);
-                    filesProcessed++;
-                    
-                    if (filesProcessed === files.length) {
-                        updatePhotosPreview();
-                        showToast(`✅ ${files.length} photo(s) ajoutée(s)`);
-                    }
-                };
-                reader.onerror = function() {
-                    showToast('⚠️ Erreur lors du chargement d\'une photo');
-                };
-                reader.readAsDataURL(file);
-            });
-            
             // Reset input
             event.target.value = '';
         }
@@ -9663,30 +9665,27 @@ function enterGallery() {
             
             let techniqueText = product.technique || product.techniqueCustom || 'Non spécifiée';
             
-            // Pays et ville de l'œuvre
-            const countryRaw = product.country || product.artist_country || '';
-            const cityRaw    = product.city || '';
+            // Pays de l'artiste avec drapeau
             let artistCountryText = '';
-            if (countryRaw) {
+            if (product.artist_country) {
                 const countryFlags = {
-                    'CI': '🇨🇮', "Côte d'Ivoire": '🇨🇮',
-                    'SN': '🇸🇳', 'Sénégal': '🇸🇳',
-                    'ML': '🇲🇱', 'Mali': '🇲🇱',
-                    'BJ': '🇧🇯', 'Bénin': '🇧🇯',
-                    'BF': '🇧🇫', 'Burkina Faso': '🇧🇫',
-                    'TG': '🇹🇬', 'Togo': '🇹🇬',
-                    'GH': '🇬🇭', 'Ghana': '🇬🇭',
-                    'NG': '🇳🇬', 'Nigeria': '🇳🇬',
-                    'CM': '🇨🇲', 'Cameroun': '🇨🇲',
-                    'CD': '🇨🇩', 'Congo': '🇨🇩',
-                    'FR': '🇫🇷', 'France': '🇫🇷'
+                    'CI': '🇨🇮',
+                    'SN': '🇸🇳', 
+                    'ML': '🇲🇱',
+                    'BJ': '🇧🇯',
+                    'BF': '🇧🇫',
+                    'TG': '🇹🇬',
+                    'GH': '🇬🇭',
+                    'NG': '🇳🇬',
+                    'CM': '🇨🇲',
+                    'CD': '🇨🇩',
+                    'FR': '🇫🇷'
                 };
-                const flag = countryFlags[countryRaw] || '🌍';
-                artistCountryText = `${flag} ${countryRaw}`;
+                const flag = countryFlags[product.artist_country] || '🌍';
+                artistCountryText = `${flag} ${product.artist_country}`;
             } else {
                 artistCountryText = 'Non spécifié';
             }
-            const locationText = [cityRaw, artistCountryText].filter(v => v && v !== 'Non spécifié').join(', ') || 'Non spécifié';
             
             // Gérer les valeurs undefined
             const artistName = product.artist_name || product.artist || 'Artiste inconnu';
@@ -9758,7 +9757,7 @@ function enterGallery() {
                             </div>` : ''}
                             <div class="jm-meta-item">
                                 <span class="jm-meta-icon">🌍</span>
-                                <div><div class="jm-meta-label">Localisation</div><div class="jm-meta-val">${locationText}</div></div>
+                                <div><div class="jm-meta-label">Pays</div><div class="jm-meta-val">${artistCountryText || 'N/A'}</div></div>
                             </div>
                         </div>
 

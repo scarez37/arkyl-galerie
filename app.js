@@ -20,84 +20,46 @@ function enterGallery() {
             const style = document.createElement('style');
             style.textContent = `
                 @keyframes skeleton-shimmer {
-                    0%   { background-position: -800px 0; }
-                    100% { background-position:  800px 0; }
+                    0%   { background-position: -600px 0; }
+                    100% { background-position:  600px 0; }
                 }
                 .skeleton-base {
                     background: linear-gradient(90deg,
-                        #e8e5de 25%,
-                        #f0ede6 50%,
-                        #e8e5de 75%);
-                    background-size: 800px 100%;
-                    animation: skeleton-shimmer 1.8s infinite linear;
-                    border-radius: 50px;
+                        rgba(255,255,255,0.06) 25%,
+                        rgba(255,255,255,0.14) 50%,
+                        rgba(255,255,255,0.06) 75%);
+                    background-size: 600px 100%;
+                    animation: skeleton-shimmer 1.5s infinite linear;
+                    border-radius: 8px;
                 }
                 /* Carte grille (dashboard artiste / galerie artiste) */
                 .skeleton-card {
-                    background: transparent;
-                    border-radius: 18px;
+                    background: rgba(255,255,255,0.04);
+                    border-radius: 16px;
                     overflow: hidden;
+                    border: 1px solid rgba(255,255,255,0.08);
                 }
                 .skeleton-card .sk-img {
-                    width: 100%;
-                    aspect-ratio: 1/1;
-                    border-radius: 18px;
-                    background: linear-gradient(90deg, #e8e5de 25%, #f0ede6 50%, #e8e5de 75%);
-                    background-size: 800px 100%;
-                    animation: skeleton-shimmer 1.8s infinite linear;
+                    width: 100%; aspect-ratio: 1/1;
                 }
                 .skeleton-card .sk-body {
-                    padding: 12px 4px;
-                    display: flex; flex-direction: column; gap: 10px;
+                    padding: 12px;
+                    display: flex; flex-direction: column; gap: 8px;
                 }
-                .skeleton-card .sk-title  { height: 14px; width: 72%; border-radius: 50px; }
-                .skeleton-card .sk-sub    { height: 11px; width: 48%; border-radius: 50px; }
-                .skeleton-card .sk-price  { height: 13px; width: 32%; border-radius: 50px; margin-top: 2px; }
+                .skeleton-card .sk-title  { height: 14px; width: 70%; }
+                .skeleton-card .sk-sub    { height: 11px; width: 45%; }
+                .skeleton-card .sk-price  { height: 16px; width: 35%; margin-top: 4px; }
                 /* Ligne liste (admin) */
                 .skeleton-row {
                     display: flex; align-items: center; gap: 14px;
-                    padding: 14px 4px;
+                    background: rgba(255,255,255,0.04);
+                    border-radius: 14px; padding: 14px;
+                    border: 1px solid rgba(255,255,255,0.07);
                 }
-                .skeleton-row .sk-thumb {
-                    width: 60px; height: 60px; flex-shrink: 0;
-                    border-radius: 14px;
-                    background: linear-gradient(90deg, #e8e5de 25%, #f0ede6 50%, #e8e5de 75%);
-                    background-size: 800px 100%;
-                    animation: skeleton-shimmer 1.8s infinite linear;
-                }
-                .skeleton-row .sk-info  { flex: 1; display: flex; flex-direction: column; gap: 10px; }
-                .skeleton-row .sk-line1 { height: 13px; width: 58%; border-radius: 50px; }
-                .skeleton-row .sk-line2 { height: 11px; width: 36%; border-radius: 50px; }
-                /* Skeleton masonry (mes artistes feed & galerie principale) */
-                .skeleton-masonry {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-                    gap: 14px;
-                }
-                .skeleton-pin {
-                    border-radius: 18px;
-                    overflow: hidden;
-                    background: transparent;
-                    display: flex; flex-direction: column; gap: 10px;
-                }
-                .skeleton-pin .sk-pin-img {
-                    width: 100%;
-                    border-radius: 18px;
-                    background: linear-gradient(90deg, #e8e5de 25%, #f0ede6 50%, #e8e5de 75%);
-                    background-size: 800px 100%;
-                    animation: skeleton-shimmer 1.8s infinite linear;
-                }
-                .skeleton-pin .sk-pin-body { display: flex; flex-direction: column; gap: 8px; padding: 0 2px 8px; }
-                .skeleton-pin .sk-pin-title { height: 13px; width: 80%; border-radius: 50px; }
-                .skeleton-pin .sk-pin-sub   { height: 11px; width: 50%; border-radius: 50px; }
-                /* Skeleton header (lignes de texte en haut) */
-                .skeleton-header {
-                    display: flex; flex-direction: column; gap: 10px;
-                    margin-bottom: 28px;
-                }
-                .skeleton-header .sk-h1 { height: 20px; width: 38%; border-radius: 50px; }
-                .skeleton-header .sk-h2 { height: 15px; width: 28%; border-radius: 50px; }
-                .skeleton-header .sk-h3 { height: 13px; width: 18%; border-radius: 50px; }
+                .skeleton-row .sk-thumb { width: 60px; height: 60px; flex-shrink: 0; border-radius: 10px; }
+                .skeleton-row .sk-info  { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+                .skeleton-row .sk-line1 { height: 13px; width: 55%; }
+                .skeleton-row .sk-line2 { height: 11px; width: 35%; }
 
                 /* Bouton mode de livraison */
                 .shipping-mode-btn {
@@ -129,7 +91,7 @@ function enterGallery() {
          * Affiche un skeleton loader dans un conteneur.
          * @param {string} containerId  - id du conteneur cible
          * @param {number} count        - nombre de placeholders (défaut 6)
-         * @param {'grid'|'list'|'masonry'} type  - style (défaut 'grid')
+         * @param {'grid'|'list'} type  - style grille ou liste (défaut 'grid')
          */
         function showSkeletonLoader(containerId, count = 6, type = 'grid') {
             const c = document.getElementById(containerId);
@@ -137,33 +99,12 @@ function enterGallery() {
             if (type === 'list') {
                 c.innerHTML = Array.from({ length: count }, () => `
                     <div class="skeleton-row">
-                        <div class="sk-thumb"></div>
+                        <div class="sk-thumb skeleton-base"></div>
                         <div class="sk-info">
                             <div class="sk-line1 skeleton-base"></div>
                             <div class="sk-line2 skeleton-base"></div>
                         </div>
                     </div>`).join('');
-            } else if (type === 'masonry') {
-                // Header lignes + grille masonry style image de référence
-                const heights = [220, 280, 240, 200, 260, 300, 210, 250];
-                const pins = Array.from({ length: count }, (_, i) => {
-                    const h = heights[i % heights.length];
-                    return `
-                    <div class="skeleton-pin">
-                        <div class="sk-pin-img" style="height:${h}px;"></div>
-                        <div class="sk-pin-body">
-                            <div class="sk-pin-title skeleton-base"></div>
-                            <div class="sk-pin-sub skeleton-base"></div>
-                        </div>
-                    </div>`;
-                }).join('');
-                c.innerHTML = `
-                    <div class="skeleton-header">
-                        <div class="sk-h1 skeleton-base"></div>
-                        <div class="sk-h2 skeleton-base"></div>
-                        <div class="sk-h3 skeleton-base"></div>
-                    </div>
-                    <div class="skeleton-masonry">${pins}</div>`;
             } else {
                 c.innerHTML = Array.from({ length: count }, () => `
                     <div class="skeleton-card">
@@ -6540,8 +6481,13 @@ function enterGallery() {
                 </div>
             `).join('');
 
-            // Afficher un skeleton pendant le chargement du feed
-            showSkeletonLoader('artistsLoopsFeed', 8, 'masonry');
+            // Afficher un indicateur de chargement pendant le chargement du feed
+            loopsFeed.innerHTML = `
+                <div style="text-align: center; padding: 60px 20px;">
+                    <div style="font-size: 48px; margin-bottom: 20px; animation: pulse 1.5s ease-in-out infinite;">⏳</div>
+                    <div style="color: rgba(255, 255, 255, 0.9); font-size: 16px; font-weight: 600;">Chargement des créations...</div>
+                </div>
+            `;
 
             // Render feed — grille Pinterest (masonry columns)
             const favorites = safeStorage.get('arkyl_favorites', []);
@@ -7660,7 +7606,7 @@ function enterGallery() {
             }
             // Afficher le skeleton pendant le chargement
             _artworksLoading = true;
-            showSkeletonLoader('artworksGrid', 6, 'masonry');
+            showSkeletonLoader('artworksGrid', 6, 'grid');
             try {
                 const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(artistServerId)}&t=${Date.now()}`);
                 const result = await resp.json();
@@ -8362,7 +8308,7 @@ function enterGallery() {
                 // ⭐ FIX : Skeleton UNIQUEMENT si le chargement est en cours
                 // Avant : skeleton permanent si user connecté → boucle infinie
                 if (_artworksLoading) {
-                    showSkeletonLoader('artworksGrid', 6, 'masonry');
+                    showSkeletonLoader('artworksGrid', 6, 'grid');
                 } else {
                     c.innerHTML = '<p style="text-align:center;opacity:0.7;grid-column:1/-1;padding:40px;">Aucune œuvre. Commencez à créer votre portfolio ! 🎨</p>';
                 }
@@ -8450,7 +8396,7 @@ function enterGallery() {
             const filtered = currentGalleryFilter === 'all' ? artistProducts : artistProducts.filter(p => p.category === currentGalleryFilter);
             const grid = document.getElementById('artistGalleryGrid');
             if (!filtered.length) {
-                showSkeletonLoader('artistGalleryGrid', 6, 'masonry');
+                showSkeletonLoader('artistGalleryGrid', 6, 'grid');
                 return;
             }
             grid.innerHTML = filtered.map(p => `
@@ -8996,25 +8942,33 @@ function enterGallery() {
             const container = document.querySelector('.news-ticker-content');
             if (!container) return;
 
-            // Duplicate items for seamless loop
-            const duplicatedNews = [...newsItems, ...newsItems];
-            
-            container.innerHTML = duplicatedNews.map((news, index) => {
-                const originalIndex = index % newsItems.length;
-                const iconHTML = news.isImage 
-                    ? `<img loading="lazy" src="${news.icon}" alt="Affiche" onerror="this.style.display='none'; this.parentElement.innerHTML='📰';">`
-                    : news.icon;
-                
+            container.innerHTML = newsItems.map((news, index) => {
+                const iconHTML = news.isImage
+                    ? `<img loading="lazy" src="${news.icon}" alt="${news.text}" onerror="this.style.display='none';">`
+                    : `<span style="font-size:100px;">${news.icon}</span>`;
+
                 return `
-                    <div class="news-ticker-item" onclick="openNewsLightbox(${originalIndex})">
+                    <div class="news-ticker-item" onclick="openNewsLightbox(${index})" data-slide="${index}">
                         <div class="news-ticker-icon ${news.gradient}">
                             ${iconHTML}
                         </div>
-                        <span class="news-ticker-text">${news.text}</span>
+                        <div class="banner-overlay">
+                            <span class="news-ticker-text">${news.text}</span>
+                        </div>
                     </div>
                 `;
             }).join('');
-        }
+
+            // Créer les dots
+            const dotsContainer = document.getElementById('tickerDots');
+            if (dotsContainer) {
+                dotsContainer.innerHTML = newsItems.map((_, i) =>
+                    `<button class="ticker-dot ${i === 0 ? 'active' : ''}" onclick="tickerGoTo(${i})"></button>`
+                ).join('');
+            }
+
+            // Lancer l'autoplay
+            startBannerAutoplay();
 
         function renderNewsList() {
             const container = document.getElementById('newsListContainer');
@@ -9827,10 +9781,7 @@ function enterGallery() {
 
     async function chargerLaVraieGalerie() {
         const grille = document.getElementById('productsContainer'); 
-        if (!grille) return;
-
-        // Afficher le skeleton pendant le chargement
-        showSkeletonLoader('productsContainer', 10, 'masonry');
+        if (!grille) return; 
 
         try {
             // L'adresse COMPLÈTE et ABSOLUE de ton serveur API
@@ -10015,80 +9966,91 @@ function enterGallery() {
    ============================ */
 
 
-        // ==================== TICKER NAVIGATION ====================
+        // ==================== BANNER CAROUSEL NAVIGATION ====================
         (function() {
-            const STEP = 320;
+            let currentSlide = 0;
+            let autoplayTimer = null;
+            let total = 0;
 
-            function getScroll()  { return document.querySelector('.news-ticker-scroll'); }
-            function getContent() { return document.querySelector('.news-ticker-content'); }
+            function getSlides() {
+                return document.querySelectorAll('.news-ticker-item');
+            }
+            function getTrack() {
+                return document.querySelector('.news-ticker-content');
+            }
+            function getDots() {
+                return document.querySelectorAll('.ticker-dot');
+            }
 
-            function pauseTicker(ms) {
-                const c = getContent();
-                if (!c) return;
-                c.style.animationPlayState = 'paused';
-                clearTimeout(window._tickerResumeTimer);
-                if (ms) {
-                    window._tickerResumeTimer = setTimeout(() => {
-                        c.style.animationPlayState = 'running';
-                    }, ms);
+            function goTo(index) {
+                const slides = getSlides();
+                total = slides.length;
+                if (total === 0) return;
+
+                currentSlide = ((index % total) + total) % total;
+
+                const track = getTrack();
+                if (track) {
+                    track.style.transform = `translateX(-${currentSlide * 100}%)`;
                 }
+
+                getDots().forEach((dot, i) => {
+                    dot.classList.toggle('active', i === currentSlide);
+                });
             }
 
-            function resumeTicker() {
-                const c = getContent();
-                if (c) c.style.animationPlayState = 'running';
+            function next() { goTo(currentSlide + 1); }
+            function prev() { goTo(currentSlide - 1); }
+
+            function startAutoplay() {
+                stopAutoplay();
+                autoplayTimer = setInterval(next, 4000);
             }
 
-            function applyOffset(delta) {
-                const scroll = getScroll();
-                if (!scroll) return;
-                pauseTicker(4000);
-                scroll.scrollLeft += delta;
+            function stopAutoplay() {
+                if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
             }
 
-            // Attacher les events dès que le ticker est dans le DOM
-            function attachTickerEvents() {
-                const scroll = getScroll();
-                if (!scroll || scroll._tickerBound) return;
-                scroll._tickerBound = true;
+            // Touch / swipe
+            let touchStartX = 0;
+            document.addEventListener('touchstart', (e) => {
+                const wrap = e.target.closest('.news-ticker-scroll-wrap');
+                if (!wrap) return;
+                touchStartX = e.touches[0].clientX;
+                stopAutoplay();
+            }, { passive: true });
 
-                // Pause au survol
-                scroll.addEventListener('mouseenter', () => pauseTicker(0));
-                scroll.addEventListener('mouseleave', () => resumeTicker());
+            document.addEventListener('touchend', (e) => {
+                const wrap = e.target.closest('.news-ticker-scroll-wrap');
+                if (!wrap) return;
+                const dx = touchStartX - e.changedTouches[0].clientX;
+                if (Math.abs(dx) > 40) dx > 0 ? next() : prev();
+                startAutoplay();
+            }, { passive: true });
 
-                // ⭐ Scroll molette → avancer/reculer
-                scroll.addEventListener('wheel', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    applyOffset(e.deltaY > 0 ? STEP : -STEP);
-                }, { passive: false });
+            // Pause au survol
+            document.addEventListener('mouseenter', (e) => {
+                if (e.target.closest('.news-ticker-scroll-wrap')) stopAutoplay();
+            }, true);
+            document.addEventListener('mouseleave', (e) => {
+                if (e.target.closest('.news-ticker-scroll-wrap')) startAutoplay();
+            }, true);
 
-                // Touch mobile — scroll natif activé
-                scroll.style.overflowX = 'auto';
-                scroll.style.scrollBehavior = 'smooth';
-                let touchStartX = 0;
-                scroll.addEventListener('touchstart', (e) => {
-                    touchStartX = e.touches[0].clientX;
-                    pauseTicker(0);
-                }, { passive: true });
-                scroll.addEventListener('touchend', (e) => {
-                    const dx = touchStartX - e.changedTouches[0].clientX;
-                    applyOffset(dx);
-                    resumeTicker();
-                }, { passive: true });
-            }
-
-            // Essayer immédiatement + après chargement + observer les mutations
-            attachTickerEvents();
-            document.addEventListener('DOMContentLoaded', attachTickerEvents);
-            window.addEventListener('load', attachTickerEvents);
-            // Re-attacher si le ticker est reconstruit dynamiquement
-            const _tickerObserver = new MutationObserver(() => attachTickerEvents());
-            _tickerObserver.observe(document.body, { childList: true, subtree: true });
-
+            // Exposer les fonctions globales
             window.tickerNav = function(dir) {
-                applyOffset(dir * STEP);
+                dir > 0 ? next() : prev();
+                stopAutoplay();
+                startAutoplay();
             };
+            window.tickerGoTo = function(i) {
+                goTo(i);
+                stopAutoplay();
+                startAutoplay();
+            };
+            window.startBannerAutoplay = startAutoplay;
+
+            // Démarrer quand le DOM est prêt
+            document.addEventListener('DOMContentLoaded', () => setTimeout(startAutoplay, 800));
         })();
 
 

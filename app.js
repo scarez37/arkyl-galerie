@@ -7597,6 +7597,38 @@ function enterGallery() {
         // ⭐ Flag global : true pendant le chargement serveur, false après
         let _artworksLoading = false;
 
+        // Mappe un objet artwork brut (API) vers le format interne
+        function _mapArtwork(art) {
+            return {
+                id: art.id,
+                server_id: art.id,
+                title: art.title,
+                category: art.category,
+                price: art.price,
+                description: art.description || '',
+                photo: art.image_url,
+                photos: art.photos || [art.image_url],
+                technique: art.technique || '',
+                dimensions: art.dimensions || null,
+                status: 'published',
+                createdAt: art.created_at || new Date().toISOString()
+            };
+        }
+
+        // Tente de charger les œuvres avec un artist_id donné.
+        // Retourne le tableau mappé, ou null si aucun résultat.
+        async function _fetchArtworksByArtistId(artistId) {
+            const resp = await fetch(
+                `https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(artistId)}&t=${Date.now()}`
+            );
+            const result = await resp.json();
+            if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+                console.log(`✅ ${result.data.length} œuvre(s) chargée(s) pour artist_id="${artistId}"`);
+                return result.data.map(_mapArtwork);
+            }
+            return null;
+        }
+
         async function loadArtistArtworksFromServer() {
             // Vérifier que l'ID artiste est bien défini (jamais charger sans filtre)
             const artistServerId = currentUser?.id || currentUser?.googleId;
@@ -7604,63 +7636,58 @@ function enterGallery() {
                 console.warn('⚠️ loadArtistArtworksFromServer: artist_id manquant, chargement annulé');
                 return;
             }
-            // Afficher le skeleton pendant le chargement
             _artworksLoading = true;
             showSkeletonLoader('artworksGrid', 6, 'grid');
             try {
-                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(artistServerId)}&t=${Date.now()}`);
-                const result = await resp.json();
-                if (result.success && result.data && result.data.length > 0) {
-                    console.log('🔍 Champs API galerie:', Object.keys(result.data[0]));
-                    console.log('🔍 artistServerId utilisé:', artistServerId);
-                    console.log('🔍 Premier artwork:', result.data[0]);
+                // ⭐ Essai 1 : par ID Google (sub) — cas normal
+                let mapped = await _fetchArtworksByArtistId(artistServerId);
 
+                // ⭐ Essai 2 : fallback par email (œuvres sauvegardées avec un ancien artist_id email)
+                if (!mapped && currentUser.email && currentUser.email !== artistServerId) {
+                    console.log('🔄 Aucun résultat par ID — tentative par email:', currentUser.email);
+                    mapped = await _fetchArtworksByArtistId(currentUser.email);
+                }
+
+                if (mapped) {
                     _artworksRetryCount = 0;
-                    db.artworks = result.data.map(art => ({
-                        id: art.id,
-                        server_id: art.id,
-                        title: art.title,
-                        category: art.category,
-                        price: art.price,
-                        description: art.description || '',
-                        photo: art.image_url,
-                        photos: art.photos || [art.image_url],
-                        technique: art.technique || '',
-                        dimensions: art.dimensions || null,
-                        status: 'published',
-                        createdAt: art.created_at || new Date().toISOString()
-                    }));
-                    // Rafraîchir si déjà sur la section œuvres
+                    db.artworks = mapped;
                     const artSection = document.getElementById('artworksSection');
                     if (artSection && artSection.classList.contains('active')) renderArtworks();
                     const dashSection = document.getElementById('dashboardSection');
                     if (dashSection && dashSection.classList.contains('active')) updateDashboard();
                 } else {
-                    // ⭐ FIX : L'API retourne data:[] mais NE PAS effacer les œuvres existantes
-                    // Cause : Render.com (hébergement gratuit) se met en veille → répond vide
-                    // Si db.artworks est déjà rempli (session en cours), on conserve les données
-                    if (db.artworks.length === 0) {
-                        // Tenter un rechargement automatique (cold start Render.com)
-                        if (_artworksRetryCount < _ARTWORKS_MAX_RETRY) {
-                            _artworksRetryCount++;
-                            const delai = _artworksRetryCount * 4000; // 4s, 8s, 12s
-                            console.log(`🔄 Aucune œuvre reçue — retry ${_artworksRetryCount}/${_ARTWORKS_MAX_RETRY} dans ${delai/1000}s (serveur en cours de réveil)`);
-                            setTimeout(() => loadArtistArtworksFromServer(), delai);
-                        } else {
-                            // Vraiment aucune œuvre après plusieurs tentatives
-                            _artworksRetryCount = 0;
-                            renderArtworks();
+                    // ⭐ API retourne 0 résultat (cold start Render.com ou vraiment vide)
+                    // Retry dans tous les cas (db plein ou vide) — on ne sait pas si c'est un cold start
+                    if (_artworksRetryCount < _ARTWORKS_MAX_RETRY) {
+                        _artworksRetryCount++;
+                        const delai = _artworksRetryCount * 4000; // 4s, 8s, 12s
+                        console.log(`🔄 Aucune œuvre reçue — retry ${_artworksRetryCount}/${_ARTWORKS_MAX_RETRY} dans ${delai / 1000}s (cold start Render.com ?)`);
+                        if (db.artworks.length > 0) {
+                            console.log('ℹ️ Données existantes conservées en mémoire pendant le retry');
                         }
+                        setTimeout(() => loadArtistArtworksFromServer(), delai);
+                        return; // Ne pas appeler renderArtworks() avant le retry
                     } else {
-                        // On a déjà des œuvres en mémoire — conserver, ne pas écraser
-                        console.warn('⚠️ API retourne 0 artwork mais db.artworks a des données — conservation des données existantes');
+                        // Vraiment aucune œuvre après plusieurs tentatives
+                        _artworksRetryCount = 0;
+                        if (db.artworks.length === 0) {
+                            console.log('ℹ️ Aucune œuvre trouvée pour cet artiste après plusieurs tentatives');
+                        } else {
+                            console.warn('⚠️ Serveur inaccessible après plusieurs tentatives — données mémoire conservées');
+                        }
                     }
                 }
             } catch(e) {
-                // ⭐ FIX : Serveur injoignable (Render.com en veille, réseau coupé...)
+                // Serveur injoignable (Render.com en veille, réseau coupé…)
                 // NE JAMAIS effacer db.artworks sur une erreur réseau !
-                // Avant : db.artworks = [] → effaçait toutes les œuvres du dashboard
                 console.error('❌ Erreur loadArtistArtworksFromServer (données conservées):', e);
+                if (db.artworks.length === 0 && _artworksRetryCount < _ARTWORKS_MAX_RETRY) {
+                    _artworksRetryCount++;
+                    const delai = _artworksRetryCount * 4000;
+                    console.log(`🔄 Erreur réseau — retry ${_artworksRetryCount}/${_ARTWORKS_MAX_RETRY} dans ${delai / 1000}s`);
+                    setTimeout(() => loadArtistArtworksFromServer(), delai);
+                    return;
+                }
                 showToast('⚠️ Serveur momentanément indisponible — données conservées en mémoire');
             } finally {
                 _artworksLoading = false;
@@ -9088,10 +9115,20 @@ function enterGallery() {
         }
 
         async function saveNews() {
-            const icon = document.getElementById('newsIcon').value.trim();
+            const newsIconEl     = document.getElementById('newsIcon');
+            const newsTextEl     = document.getElementById('newsText');
+            const newsEditIndexEl = document.getElementById('newsEditIndex');
+
+            if (!newsIconEl || !newsTextEl || !newsEditIndexEl) {
+                console.error('saveNews: newsModal introuvable dans le DOM — vérifiez que le HTML du modal est bien présent dans index.html');
+                showToast('❌ Erreur : le formulaire d\'actualité est introuvable');
+                return;
+            }
+
+            const icon = newsIconEl.value.trim();
             const gradient = 'gradient-1';
-            const text = document.getElementById('newsText').value.trim();
-            const editId = document.getElementById('newsEditIndex').value; // contient l'ID serveur ou ''
+            const text = newsTextEl.value.trim();
+            const editId = newsEditIndexEl.value; // contient l'ID serveur ou ''
 
             if (!icon || !text) {
                 showToast('⚠️ Veuillez remplir tous les champs');

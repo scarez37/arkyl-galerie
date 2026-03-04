@@ -1,40 +1,86 @@
 <?php
-// Script de mise à jour de la base de données PostgreSQL
-require_once __DIR__ . '/db_config.php';
+header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
 
-echo "<!DOCTYPE html><html lang='fr'><body style='font-family: Arial; padding: 40px; background: #1a1a1a; color: #fff;'>";
-
-try {
-    $db = getDatabase();
-    
-    // 1. Correction des IDs (Ce que tu avais déjà fait)
-    $db->exec("ALTER TABLE users ALTER COLUMN id TYPE VARCHAR(255) USING id::VARCHAR;");
-    $db->exec("ALTER TABLE artworks ALTER COLUMN artist_id TYPE VARCHAR(255) USING artist_id::VARCHAR;");
-    
-    // 2. Système de livraison (Pour La Poste de Côte d'Ivoire)
-    $db->exec("ALTER TABLE orders 
-               ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(100),
-               ADD COLUMN IF NOT EXISTS shipping_status VARCHAR(50) DEFAULT 'en_preparation';");
-
-    // 3. NOUVEAU : Création de la table des abonnements
-    $db->exec("CREATE TABLE IF NOT EXISTS followers (
-        user_id VARCHAR(255) NOT NULL,
-        artist_id VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (user_id, artist_id)
-    );");
-    
-    echo "<h2 style='color: #0f0;'>✅ Mise à jour réussie !</h2>";
-    echo "<ul>";
-    echo "<li>Table 'followers' prête pour sauvegarder les abonnements.</li>";
-    echo "<li>Colonnes de livraison prêtes.</li>";
-    echo "<li>Format des IDs vérifié.</li>";
-    echo "</ul>";
-    
-} catch (Exception $e) {
-    echo "<h2 style='color: #f00;'>❌ Erreur SQL</h2>";
-    echo "<p>" . htmlspecialchars($e->getMessage()) . "</p>";
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
 }
 
-echo "</body></html>";
+require_once __DIR__ . '/db_config.php';
+
+try {
+    $json = file_get_contents('php://input');
+    $data = json_decode($json, true);
+    if (empty($data)) $data = $_POST;
+
+    if (empty($data['title'])) throw new Exception("Le titre de l'œuvre est manquant.");
+
+    $db = getDatabase();
+
+    $artist_id   = !empty($data['artist_id'])   ? $data['artist_id']   : 1;
+    $artist_name = !empty($data['artist_name']) ? $data['artist_name'] : "Artiste Inconnu";
+    $technique   = !empty($data['technique'])   ? $data['technique']   : 'Non spécifiée';
+
+    // Gérer l'image (accepte 'image_url', 'image' ou 'photo')
+    $imageUrlFinal = '';
+    if (!empty($data['image_url'])) {
+        $imageUrlFinal = $data['image_url'];
+    } elseif (!empty($data['image'])) {
+        $imageUrlFinal = $data['image'];
+    } elseif (!empty($data['photo'])) {
+        $imageUrlFinal = $data['photo'];
+    }
+
+    // Gérer les dimensions
+    $dimBrut    = !empty($data['dimensions']) ? $data['dimensions'] : (!empty($data['dimension']) ? $data['dimension'] : 'Non spécifiées');
+    $dimensions = is_array($dimBrut) ? json_encode($dimBrut) : $dimBrut;
+
+    // Gérer les photos multiples
+    $photos = !empty($data['photos']) ? (is_array($data['photos']) ? json_encode($data['photos']) : $data['photos']) : '[]';
+
+    $status = !empty($data['status']) ? $data['status'] : 'publiée';
+
+    // ✅ Récupérer country, city et artist_country
+    $country        = !empty($data['country'])        ? $data['country']        : '';
+    $city           = !empty($data['city'])           ? $data['city']           : '';
+    $artist_country = !empty($data['artist_country']) ? $data['artist_country'] : $country;
+
+    $sql = "INSERT INTO artworks 
+                (title, price, image_url, artist_id, artist_name, description, category, technique, dimensions, photos, status, country, city, artist_country) 
+            VALUES 
+                (:title, :price, :image_url, :artist_id, :artist_name, :description, :category, :technique, :dimensions, :photos, :status, :country, :city, :artist_country)";
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute([
+        ':title'          => $data['title'],
+        ':price'          => $data['price'] ?? 0,
+        ':image_url'      => $imageUrlFinal,
+        ':artist_id'      => $artist_id,
+        ':artist_name'    => $artist_name,
+        ':description'    => $data['description'] ?? '',
+        ':category'       => $data['category'] ?? 'Art',
+        ':technique'      => $technique,
+        ':dimensions'     => $dimensions,
+        ':photos'         => $photos,
+        ':status'         => $status,
+        ':country'        => $country,
+        ':city'           => $city,
+        ':artist_country' => $artist_country,
+    ]);
+
+    $newId = $db->lastInsertId();
+
+    echo json_encode([
+        'success'    => true,
+        'message'    => "L'œuvre a été publiée avec succès !",
+        'id'         => $newId,
+        'artwork_id' => $newId
+    ]);
+
+} catch (Exception $e) {
+    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+}
 ?>

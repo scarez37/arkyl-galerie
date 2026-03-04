@@ -5712,12 +5712,16 @@ function enterGallery() {
                 if (result.success && result.data) {
                     artistWorks = result.data.filter(a =>
                         a.artist_name && a.artist_name.trim().toLowerCase() === artistName.trim().toLowerCase()
+                        && !a.is_sold && a.badge !== 'Vendu'
                     );
                 }
             } catch(e) {}
 
-            // Compléter avec les produits locaux
-            const localWorks = getProducts().filter(p => p.artist && p.artist.toLowerCase() === artistName.toLowerCase());
+            // Compléter avec les produits locaux (non vendus uniquement)
+            const localWorks = getProducts().filter(p =>
+                p.artist && p.artist.toLowerCase() === artistName.toLowerCase()
+                && !p.is_sold && p.badge !== 'Vendu'
+            );
             localWorks.forEach(p => {
                 if (!artistWorks.find(o => String(o.id) === String(p.id))) {
                     artistWorks.push({ id: p.id, title: p.title, artist_name: p.artist, price: p.price, image_url: p.image, badge: p.badge, category: p.category });
@@ -9005,17 +9009,13 @@ function enterGallery() {
         }
 
         function openAddNewsModal() {
-            const modal = document.getElementById('newsModal');
-            if (!modal) { console.warn('newsModal introuvable dans le DOM'); return; }
-            const set = (id, prop, val) => { const el = document.getElementById(id); if (el) el[prop] = val; };
-            const setStyle = (id, prop, val) => { const el = document.getElementById(id); if (el) el.style[prop] = val; };
             document.getElementById('newsModalTitle').textContent = '➕ Nouvelle Actualité';
-            set('newsIcon', 'value', '');
-            set('newsImageUpload', 'value', '');
-            set('newsText', 'value', '');
-            set('newsEditIndex', 'value', '');
-            setStyle('newsImagePreview', 'display', 'none');
-            modal.classList.add('show');
+            document.getElementById('newsIcon').value = '';
+            document.getElementById('newsImageUpload').value = '';
+            document.getElementById('newsText').value = '';
+            document.getElementById('newsEditIndex').value = '';
+            document.getElementById('newsImagePreview').style.display = 'none';
+            document.getElementById('newsModal').classList.add('show');
         }
 
         // Gestion de l'upload d'image
@@ -9061,26 +9061,23 @@ function enterGallery() {
         function editNews(id) {
             const news = newsItems.find(n => n.id === id);
             if (!news) return;
-            const modal = document.getElementById('newsModal');
-            if (!modal) { console.warn('newsModal introuvable dans le DOM'); return; }
-            const set = (elId, prop, val) => { const el = document.getElementById(elId); if (el) el[prop] = val; };
             document.getElementById('newsModalTitle').textContent = '✏️ Modifier l\'Actualité';
-            set('newsIcon', 'value', news.icon);
-            set('newsImageUpload', 'value', '');
-            set('newsText', 'value', news.text);
-            set('newsEditIndex', 'value', id);
+            document.getElementById('newsIcon').value = news.icon;
+            document.getElementById('newsImageUpload').value = ''; // Reset file input
+            document.getElementById('newsText').value = news.text;
+            document.getElementById('newsEditIndex').value = id; // ID serveur
             
             // Afficher la prévisualisation si c'est une image
             const previewContainer = document.getElementById('newsImagePreview');
             const previewImg = document.getElementById('newsPreviewImg');
             if (news.isImage) {
-                if (previewImg) previewImg.src = news.icon;
-                if (previewContainer) previewContainer.style.display = 'block';
+                previewImg.src = news.icon;
+                previewContainer.style.display = 'block';
             } else {
-                if (previewContainer) previewContainer.style.display = 'none';
+                previewContainer.style.display = 'none';
             }
             
-            modal.classList.add('show');
+            document.getElementById('newsModal').classList.add('show');
         }
 
         function closeNewsModal() {
@@ -9965,95 +9962,13 @@ function enterGallery() {
    ============================ */
 
 
-        // ==================== TICKER NAVIGATION (style Jumia) ====================
+        // ==================== TICKER NAVIGATION ====================
         (function() {
-            const STEP = 300;        // px par clic bouton
-            const RESUME_DELAY = 5000; // ms avant reprise auto-scroll après nav manuelle
+            const STEP = 320;
 
-            function getContainer() { return document.querySelector('.news-ticker-container'); }
-            function getScroll()    { return document.querySelector('.news-ticker-scroll'); }
-            function getContent()   { return document.querySelector('.news-ticker-content'); }
+            function getScroll()  { return document.querySelector('.news-ticker-scroll'); }
+            function getContent() { return document.querySelector('.news-ticker-content'); }
 
-            /* --- CSS injecté une seule fois --- */
-            function injectTickerStyles() {
-                if (document.getElementById('_tickerNavStyles')) return;
-                const s = document.createElement('style');
-                s.id = '_tickerNavStyles';
-                s.textContent = `
-                    .news-ticker-container {
-                        position: relative;
-                    }
-                    /* Cache la scrollbar native */
-                    .news-ticker-scroll {
-                        scrollbar-width: none;
-                        -ms-overflow-style: none;
-                        scroll-behavior: smooth;
-                        overflow-x: auto;
-                    }
-                    .news-ticker-scroll::-webkit-scrollbar { display: none; }
-
-                    /* Boutons Jumia */
-                    .ticker-arrow-btn {
-                        position: absolute;
-                        top: 50%;
-                        transform: translateY(-50%);
-                        z-index: 10;
-                        width: 36px;
-                        height: 36px;
-                        border-radius: 50%;
-                        border: none;
-                        cursor: pointer;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        font-size: 16px;
-                        background: rgba(255,255,255,0.15);
-                        backdrop-filter: blur(8px);
-                        color: #fff;
-                        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-                        transition: background 0.2s, transform 0.15s;
-                        opacity: 0;
-                        pointer-events: none;
-                    }
-                    /* Visible seulement au survol du container */
-                    .news-ticker-container:hover .ticker-arrow-btn,
-                    .news-ticker-container:focus-within .ticker-arrow-btn {
-                        opacity: 1;
-                        pointer-events: auto;
-                    }
-                    .ticker-arrow-btn:hover {
-                        background: rgba(212,175,55,0.85);
-                        transform: translateY(-50%) scale(1.1);
-                    }
-                    .ticker-arrow-btn:active {
-                        transform: translateY(-50%) scale(0.95);
-                    }
-                    .ticker-arrow-btn.prev { left: 6px; }
-                    .ticker-arrow-btn.next { right: 6px; }
-
-                    /* Masque fondu sur les bords */
-                    .news-ticker-container::before,
-                    .news-ticker-container::after {
-                        content: '';
-                        position: absolute;
-                        top: 0; bottom: 0;
-                        width: 48px;
-                        z-index: 5;
-                        pointer-events: none;
-                    }
-                    .news-ticker-container::before {
-                        left: 0;
-                        background: linear-gradient(to right, var(--bg-primary, #1a1a2e), transparent);
-                    }
-                    .news-ticker-container::after {
-                        right: 0;
-                        background: linear-gradient(to left, var(--bg-primary, #1a1a2e), transparent);
-                    }
-                `;
-                document.head.appendChild(s);
-            }
-
-            /* --- Pause/reprise animation CSS auto-scroll --- */
             function pauseTicker(ms) {
                 const c = getContent();
                 if (!c) return;
@@ -10061,67 +9976,43 @@ function enterGallery() {
                 clearTimeout(window._tickerResumeTimer);
                 if (ms) {
                     window._tickerResumeTimer = setTimeout(() => {
-                        if (c) c.style.animationPlayState = 'running';
+                        c.style.animationPlayState = 'running';
                     }, ms);
                 }
             }
+
             function resumeTicker() {
                 const c = getContent();
                 if (c) c.style.animationPlayState = 'running';
             }
 
-            /* --- Scroll fluide vers la direction donnée --- */
-            function scrollTicker(dir) {
+            function applyOffset(delta) {
                 const scroll = getScroll();
                 if (!scroll) return;
-                pauseTicker(RESUME_DELAY);
-                scroll.scrollBy({ left: dir * STEP, behavior: 'smooth' });
+                pauseTicker(4000);
+                scroll.scrollLeft += delta;
             }
 
-            /* --- Injection des boutons dans le container --- */
-            function injectButtons(container) {
-                if (container.querySelector('.ticker-arrow-btn')) return; // déjà présents
-
-                const prev = document.createElement('button');
-                prev.className = 'ticker-arrow-btn prev';
-                prev.setAttribute('aria-label', 'Précédent');
-                prev.innerHTML = '&#8249;'; // ‹
-                prev.addEventListener('click', (e) => { e.stopPropagation(); scrollTicker(-1); });
-
-                const next = document.createElement('button');
-                next.className = 'ticker-arrow-btn next';
-                next.setAttribute('aria-label', 'Suivant');
-                next.innerHTML = '&#8250;'; // ›
-                next.addEventListener('click', (e) => { e.stopPropagation(); scrollTicker(1); });
-
-                container.appendChild(prev);
-                container.appendChild(next);
-            }
-
-            /* --- Bind des events sur le scroll --- */
+            // Attacher les events dès que le ticker est dans le DOM
             function attachTickerEvents() {
-                const container = getContainer();
-                const scroll    = getScroll();
-                if (!container || !scroll) return;
-
-                injectTickerStyles();
-                injectButtons(container);
-
-                if (scroll._tickerBound) return;
+                const scroll = getScroll();
+                if (!scroll || scroll._tickerBound) return;
                 scroll._tickerBound = true;
 
-                // Pause au survol souris
+                // Pause au survol
                 scroll.addEventListener('mouseenter', () => pauseTicker(0));
                 scroll.addEventListener('mouseleave', () => resumeTicker());
 
-                // Molette → scroll horizontal
+                // ⭐ Scroll molette → avancer/reculer
                 scroll.addEventListener('wheel', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    scrollTicker(e.deltaY > 0 ? 1 : -1);
+                    applyOffset(e.deltaY > 0 ? STEP : -STEP);
                 }, { passive: false });
 
-                // Swipe tactile
+                // Touch mobile — scroll natif activé
+                scroll.style.overflowX = 'auto';
+                scroll.style.scrollBehavior = 'smooth';
                 let touchStartX = 0;
                 scroll.addEventListener('touchstart', (e) => {
                     touchStartX = e.touches[0].clientX;
@@ -10129,27 +10020,22 @@ function enterGallery() {
                 }, { passive: true });
                 scroll.addEventListener('touchend', (e) => {
                     const dx = touchStartX - e.changedTouches[0].clientX;
-                    if (Math.abs(dx) > 30) scrollTicker(dx > 0 ? 1 : -1);
-                    else resumeTicker();
+                    applyOffset(dx);
+                    resumeTicker();
                 }, { passive: true });
             }
 
-            // Init après DOM prêt + re-attache si le ticker est recréé par renderNewsTicker()
+            // Essayer immédiatement + après chargement + observer les mutations
+            attachTickerEvents();
             document.addEventListener('DOMContentLoaded', attachTickerEvents);
-            if (document.readyState !== 'loading') attachTickerEvents();
+            window.addEventListener('load', attachTickerEvents);
+            // Re-attacher si le ticker est reconstruit dynamiquement
+            const _tickerObserver = new MutationObserver(() => attachTickerEvents());
+            _tickerObserver.observe(document.body, { childList: true, subtree: true });
 
-            // Re-attache propre après chaque renderNewsTicker() (scroll._tickerBound est reset)
-            const _tickerObserver = new MutationObserver(() => {
-                const scroll = getScroll();
-                if (scroll && !scroll._tickerBound) attachTickerEvents();
-            });
-            document.addEventListener('DOMContentLoaded', () => {
-                const container = getContainer();
-                if (container) _tickerObserver.observe(container, { childList: true, subtree: true });
-            });
-
-            // API publique
-            window.tickerNav = (dir) => scrollTicker(dir);
+            window.tickerNav = function(dir) {
+                applyOffset(dir * STEP);
+            };
         })();
 
 

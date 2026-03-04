@@ -20,46 +20,84 @@ function enterGallery() {
             const style = document.createElement('style');
             style.textContent = `
                 @keyframes skeleton-shimmer {
-                    0%   { background-position: -600px 0; }
-                    100% { background-position:  600px 0; }
+                    0%   { background-position: -800px 0; }
+                    100% { background-position:  800px 0; }
                 }
                 .skeleton-base {
                     background: linear-gradient(90deg,
-                        rgba(255,255,255,0.06) 25%,
-                        rgba(255,255,255,0.14) 50%,
-                        rgba(255,255,255,0.06) 75%);
-                    background-size: 600px 100%;
-                    animation: skeleton-shimmer 1.5s infinite linear;
-                    border-radius: 8px;
+                        #e8e5de 25%,
+                        #f0ede6 50%,
+                        #e8e5de 75%);
+                    background-size: 800px 100%;
+                    animation: skeleton-shimmer 1.8s infinite linear;
+                    border-radius: 50px;
                 }
                 /* Carte grille (dashboard artiste / galerie artiste) */
                 .skeleton-card {
-                    background: rgba(255,255,255,0.04);
-                    border-radius: 16px;
+                    background: transparent;
+                    border-radius: 18px;
                     overflow: hidden;
-                    border: 1px solid rgba(255,255,255,0.08);
                 }
                 .skeleton-card .sk-img {
-                    width: 100%; aspect-ratio: 1/1;
+                    width: 100%;
+                    aspect-ratio: 1/1;
+                    border-radius: 18px;
+                    background: linear-gradient(90deg, #e8e5de 25%, #f0ede6 50%, #e8e5de 75%);
+                    background-size: 800px 100%;
+                    animation: skeleton-shimmer 1.8s infinite linear;
                 }
                 .skeleton-card .sk-body {
-                    padding: 12px;
-                    display: flex; flex-direction: column; gap: 8px;
+                    padding: 12px 4px;
+                    display: flex; flex-direction: column; gap: 10px;
                 }
-                .skeleton-card .sk-title  { height: 14px; width: 70%; }
-                .skeleton-card .sk-sub    { height: 11px; width: 45%; }
-                .skeleton-card .sk-price  { height: 16px; width: 35%; margin-top: 4px; }
+                .skeleton-card .sk-title  { height: 14px; width: 72%; border-radius: 50px; }
+                .skeleton-card .sk-sub    { height: 11px; width: 48%; border-radius: 50px; }
+                .skeleton-card .sk-price  { height: 13px; width: 32%; border-radius: 50px; margin-top: 2px; }
                 /* Ligne liste (admin) */
                 .skeleton-row {
                     display: flex; align-items: center; gap: 14px;
-                    background: rgba(255,255,255,0.04);
-                    border-radius: 14px; padding: 14px;
-                    border: 1px solid rgba(255,255,255,0.07);
+                    padding: 14px 4px;
                 }
-                .skeleton-row .sk-thumb { width: 60px; height: 60px; flex-shrink: 0; border-radius: 10px; }
-                .skeleton-row .sk-info  { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-                .skeleton-row .sk-line1 { height: 13px; width: 55%; }
-                .skeleton-row .sk-line2 { height: 11px; width: 35%; }
+                .skeleton-row .sk-thumb {
+                    width: 60px; height: 60px; flex-shrink: 0;
+                    border-radius: 14px;
+                    background: linear-gradient(90deg, #e8e5de 25%, #f0ede6 50%, #e8e5de 75%);
+                    background-size: 800px 100%;
+                    animation: skeleton-shimmer 1.8s infinite linear;
+                }
+                .skeleton-row .sk-info  { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+                .skeleton-row .sk-line1 { height: 13px; width: 58%; border-radius: 50px; }
+                .skeleton-row .sk-line2 { height: 11px; width: 36%; border-radius: 50px; }
+                /* Skeleton masonry (mes artistes feed & galerie principale) */
+                .skeleton-masonry {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+                    gap: 14px;
+                }
+                .skeleton-pin {
+                    border-radius: 18px;
+                    overflow: hidden;
+                    background: transparent;
+                    display: flex; flex-direction: column; gap: 10px;
+                }
+                .skeleton-pin .sk-pin-img {
+                    width: 100%;
+                    border-radius: 18px;
+                    background: linear-gradient(90deg, #e8e5de 25%, #f0ede6 50%, #e8e5de 75%);
+                    background-size: 800px 100%;
+                    animation: skeleton-shimmer 1.8s infinite linear;
+                }
+                .skeleton-pin .sk-pin-body { display: flex; flex-direction: column; gap: 8px; padding: 0 2px 8px; }
+                .skeleton-pin .sk-pin-title { height: 13px; width: 80%; border-radius: 50px; }
+                .skeleton-pin .sk-pin-sub   { height: 11px; width: 50%; border-radius: 50px; }
+                /* Skeleton header (lignes de texte en haut) */
+                .skeleton-header {
+                    display: flex; flex-direction: column; gap: 10px;
+                    margin-bottom: 28px;
+                }
+                .skeleton-header .sk-h1 { height: 20px; width: 38%; border-radius: 50px; }
+                .skeleton-header .sk-h2 { height: 15px; width: 28%; border-radius: 50px; }
+                .skeleton-header .sk-h3 { height: 13px; width: 18%; border-radius: 50px; }
 
                 /* Bouton mode de livraison */
                 .shipping-mode-btn {
@@ -91,7 +129,7 @@ function enterGallery() {
          * Affiche un skeleton loader dans un conteneur.
          * @param {string} containerId  - id du conteneur cible
          * @param {number} count        - nombre de placeholders (défaut 6)
-         * @param {'grid'|'list'} type  - style grille ou liste (défaut 'grid')
+         * @param {'grid'|'list'|'masonry'} type  - style (défaut 'grid')
          */
         function showSkeletonLoader(containerId, count = 6, type = 'grid') {
             const c = document.getElementById(containerId);
@@ -99,12 +137,33 @@ function enterGallery() {
             if (type === 'list') {
                 c.innerHTML = Array.from({ length: count }, () => `
                     <div class="skeleton-row">
-                        <div class="sk-thumb skeleton-base"></div>
+                        <div class="sk-thumb"></div>
                         <div class="sk-info">
                             <div class="sk-line1 skeleton-base"></div>
                             <div class="sk-line2 skeleton-base"></div>
                         </div>
                     </div>`).join('');
+            } else if (type === 'masonry') {
+                // Header lignes + grille masonry style image de référence
+                const heights = [220, 280, 240, 200, 260, 300, 210, 250];
+                const pins = Array.from({ length: count }, (_, i) => {
+                    const h = heights[i % heights.length];
+                    return `
+                    <div class="skeleton-pin">
+                        <div class="sk-pin-img" style="height:${h}px;"></div>
+                        <div class="sk-pin-body">
+                            <div class="sk-pin-title skeleton-base"></div>
+                            <div class="sk-pin-sub skeleton-base"></div>
+                        </div>
+                    </div>`;
+                }).join('');
+                c.innerHTML = `
+                    <div class="skeleton-header">
+                        <div class="sk-h1 skeleton-base"></div>
+                        <div class="sk-h2 skeleton-base"></div>
+                        <div class="sk-h3 skeleton-base"></div>
+                    </div>
+                    <div class="skeleton-masonry">${pins}</div>`;
             } else {
                 c.innerHTML = Array.from({ length: count }, () => `
                     <div class="skeleton-card">
@@ -6481,13 +6540,8 @@ function enterGallery() {
                 </div>
             `).join('');
 
-            // Afficher un indicateur de chargement pendant le chargement du feed
-            loopsFeed.innerHTML = `
-                <div style="text-align: center; padding: 60px 20px;">
-                    <div style="font-size: 48px; margin-bottom: 20px; animation: pulse 1.5s ease-in-out infinite;">⏳</div>
-                    <div style="color: rgba(255, 255, 255, 0.9); font-size: 16px; font-weight: 600;">Chargement des créations...</div>
-                </div>
-            `;
+            // Afficher un skeleton pendant le chargement du feed
+            showSkeletonLoader('artistsLoopsFeed', 8, 'masonry');
 
             // Render feed — grille Pinterest (masonry columns)
             const favorites = safeStorage.get('arkyl_favorites', []);
@@ -7606,7 +7660,7 @@ function enterGallery() {
             }
             // Afficher le skeleton pendant le chargement
             _artworksLoading = true;
-            showSkeletonLoader('artworksGrid', 6, 'grid');
+            showSkeletonLoader('artworksGrid', 6, 'masonry');
             try {
                 const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(artistServerId)}&t=${Date.now()}`);
                 const result = await resp.json();
@@ -8308,7 +8362,7 @@ function enterGallery() {
                 // ⭐ FIX : Skeleton UNIQUEMENT si le chargement est en cours
                 // Avant : skeleton permanent si user connecté → boucle infinie
                 if (_artworksLoading) {
-                    showSkeletonLoader('artworksGrid', 6, 'grid');
+                    showSkeletonLoader('artworksGrid', 6, 'masonry');
                 } else {
                     c.innerHTML = '<p style="text-align:center;opacity:0.7;grid-column:1/-1;padding:40px;">Aucune œuvre. Commencez à créer votre portfolio ! 🎨</p>';
                 }
@@ -8396,7 +8450,7 @@ function enterGallery() {
             const filtered = currentGalleryFilter === 'all' ? artistProducts : artistProducts.filter(p => p.category === currentGalleryFilter);
             const grid = document.getElementById('artistGalleryGrid');
             if (!filtered.length) {
-                showSkeletonLoader('artistGalleryGrid', 6, 'grid');
+                showSkeletonLoader('artistGalleryGrid', 6, 'masonry');
                 return;
             }
             grid.innerHTML = filtered.map(p => `
@@ -9773,7 +9827,10 @@ function enterGallery() {
 
     async function chargerLaVraieGalerie() {
         const grille = document.getElementById('productsContainer'); 
-        if (!grille) return; 
+        if (!grille) return;
+
+        // Afficher le skeleton pendant le chargement
+        showSkeletonLoader('productsContainer', 10, 'masonry');
 
         try {
             // L'adresse COMPLÈTE et ABSOLUE de ton serveur API

@@ -3158,8 +3158,23 @@ function enterGallery() {
 
             clientAddress = { nom, tel, quartier, ville, pays: pays || "Côte d'Ivoire", detail };
             const _uid = currentUser?.id || currentUser?.googleId || currentUser?.email;
+
+            // Sauvegarde locale (cache)
             try { localStorage.setItem(_addressKey(_uid), JSON.stringify(clientAddress)); } catch(e) {}
-            showToast('✅ Adresse enregistrée');
+
+            // Sauvegarde en base de données
+            fetch('https://arkyl-galerie.onrender.com/api_save_address.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: _uid, ...clientAddress })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) showToast('✅ Adresse enregistrée');
+                else showToast('❌ Erreur sauvegarde : ' + (data.error || 'inconnue'));
+            })
+            .catch(() => showToast('⚠️ Adresse sauvegardée localement seulement'));
+
             renderCart();
         }
 

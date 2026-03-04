@@ -7606,15 +7606,11 @@ function enterGallery() {
             }
             // Afficher le skeleton pendant le chargement
             _artworksLoading = true;
-            showSkeletonLoader('artworksGrid', 6, 'grid');
+            showSkeletonLoader('artworksGrid', 6, 'masonry');
             try {
-                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(artistServerId)}&t=${Date.now()}`);
+                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(artistServerId)}&include_sold=1&t=${Date.now()}`);
                 const result = await resp.json();
                 if (result.success && result.data && result.data.length > 0) {
-                    console.log('🔍 Champs API galerie:', Object.keys(result.data[0]));
-                    console.log('🔍 artistServerId utilisé:', artistServerId);
-                    console.log('🔍 Premier artwork:', result.data[0]);
-
                     _artworksRetryCount = 0;
                     db.artworks = result.data.map(art => ({
                         id: art.id,
@@ -7627,6 +7623,7 @@ function enterGallery() {
                         photos: art.photos || [art.image_url],
                         technique: art.technique || '',
                         dimensions: art.dimensions || null,
+                        is_sold: art.is_sold || art.badge === 'Vendu' || false,
                         status: 'published',
                         createdAt: art.created_at || new Date().toISOString()
                     }));
@@ -7636,32 +7633,32 @@ function enterGallery() {
                     const dashSection = document.getElementById('dashboardSection');
                     if (dashSection && dashSection.classList.contains('active')) updateDashboard();
                 } else {
-                    // ⭐ FIX : L'API retourne data:[] mais NE PAS effacer les œuvres existantes
-                    // Cause : Render.com (hébergement gratuit) se met en veille → répond vide
-                    // Si db.artworks est déjà rempli (session en cours), on conserve les données
-                    if (db.artworks.length === 0) {
-                        // Tenter un rechargement automatique (cold start Render.com)
-                        if (_artworksRetryCount < _ARTWORKS_MAX_RETRY) {
-                            _artworksRetryCount++;
-                            const delai = _artworksRetryCount * 4000; // 4s, 8s, 12s
-                            console.log(`🔄 Aucune œuvre reçue — retry ${_artworksRetryCount}/${_ARTWORKS_MAX_RETRY} dans ${delai/1000}s (serveur en cours de réveil)`);
-                            setTimeout(() => loadArtistArtworksFromServer(), delai);
-                        } else {
-                            // Vraiment aucune œuvre après plusieurs tentatives
-                            _artworksRetryCount = 0;
-                            renderArtworks();
+                    // API vide → serveur Render.com en cold start ou artist_id non reconnu
+                    // Réessayer dans tous les cas (avec ou sans données en cache)
+                    if (_artworksRetryCount < _ARTWORKS_MAX_RETRY) {
+                        _artworksRetryCount++;
+                        const delai = _artworksRetryCount * 4000; // 4s, 8s, 12s
+                        console.log(`🔄 API vide — retry ${_artworksRetryCount}/${_ARTWORKS_MAX_RETRY} dans ${delai/1000}s`);
+                        // Conserver les données existantes pendant le retry
+                        if (db.artworks.length > 0) {
+                            console.log('📦 Données existantes conservées pendant le retry');
                         }
+                        setTimeout(() => loadArtistArtworksFromServer(), delai);
+                        return; // Ne pas tomber dans le finally→renderArtworks avant le retry
                     } else {
-                        // On a déjà des œuvres en mémoire — conserver, ne pas écraser
-                        console.warn('⚠️ API retourne 0 artwork mais db.artworks a des données — conservation des données existantes');
+                        // Toutes les tentatives épuisées
+                        _artworksRetryCount = 0;
+                        if (db.artworks.length === 0) {
+                            console.warn('⚠️ Aucune œuvre trouvée après plusieurs tentatives');
+                        }
                     }
                 }
             } catch(e) {
-                // ⭐ FIX : Serveur injoignable (Render.com en veille, réseau coupé...)
-                // NE JAMAIS effacer db.artworks sur une erreur réseau !
-                // Avant : db.artworks = [] → effaçait toutes les œuvres du dashboard
+                // Serveur injoignable — NE PAS effacer db.artworks
                 console.error('❌ Erreur loadArtistArtworksFromServer (données conservées):', e);
-                showToast('⚠️ Serveur momentanément indisponible — données conservées en mémoire');
+                if (db.artworks.length === 0) {
+                    showToast('⚠️ Serveur momentanément indisponible');
+                }
             } finally {
                 _artworksLoading = false;
                 renderArtworks();
@@ -8942,33 +8939,25 @@ function enterGallery() {
             const container = document.querySelector('.news-ticker-content');
             if (!container) return;
 
-            container.innerHTML = newsItems.map((news, index) => {
-                const iconHTML = news.isImage
-                    ? `<img loading="lazy" src="${news.icon}" alt="${news.text}" onerror="this.style.display='none';">`
-                    : `<span style="font-size:100px;">${news.icon}</span>`;
-
+            // Duplicate items for seamless loop
+            const duplicatedNews = [...newsItems, ...newsItems];
+            
+            container.innerHTML = duplicatedNews.map((news, index) => {
+                const originalIndex = index % newsItems.length;
+                const iconHTML = news.isImage 
+                    ? `<img loading="lazy" src="${news.icon}" alt="Affiche" onerror="this.style.display='none'; this.parentElement.innerHTML='📰';">`
+                    : news.icon;
+                
                 return `
-                    <div class="news-ticker-item" onclick="openNewsLightbox(${index})" data-slide="${index}">
+                    <div class="news-ticker-item" onclick="openNewsLightbox(${originalIndex})">
                         <div class="news-ticker-icon ${news.gradient}">
                             ${iconHTML}
                         </div>
-                        <div class="banner-overlay">
-                            <span class="news-ticker-text">${news.text}</span>
-                        </div>
+                        <span class="news-ticker-text">${news.text}</span>
                     </div>
                 `;
             }).join('');
-
-            // Créer les dots
-            const dotsContainer = document.getElementById('tickerDots');
-            if (dotsContainer) {
-                dotsContainer.innerHTML = newsItems.map((_, i) =>
-                    `<button class="ticker-dot ${i === 0 ? 'active' : ''}" onclick="tickerGoTo(${i})"></button>`
-                ).join('');
-            }
-
-            // Lancer l'autoplay
-            startBannerAutoplay();
+        }
 
         function renderNewsList() {
             const container = document.getElementById('newsListContainer');
@@ -9966,91 +9955,80 @@ function enterGallery() {
    ============================ */
 
 
-        // ==================== BANNER CAROUSEL NAVIGATION ====================
+        // ==================== TICKER NAVIGATION ====================
         (function() {
-            let currentSlide = 0;
-            let autoplayTimer = null;
-            let total = 0;
+            const STEP = 320;
 
-            function getSlides() {
-                return document.querySelectorAll('.news-ticker-item');
-            }
-            function getTrack() {
-                return document.querySelector('.news-ticker-content');
-            }
-            function getDots() {
-                return document.querySelectorAll('.ticker-dot');
-            }
+            function getScroll()  { return document.querySelector('.news-ticker-scroll'); }
+            function getContent() { return document.querySelector('.news-ticker-content'); }
 
-            function goTo(index) {
-                const slides = getSlides();
-                total = slides.length;
-                if (total === 0) return;
-
-                currentSlide = ((index % total) + total) % total;
-
-                const track = getTrack();
-                if (track) {
-                    track.style.transform = `translateX(-${currentSlide * 100}%)`;
+            function pauseTicker(ms) {
+                const c = getContent();
+                if (!c) return;
+                c.style.animationPlayState = 'paused';
+                clearTimeout(window._tickerResumeTimer);
+                if (ms) {
+                    window._tickerResumeTimer = setTimeout(() => {
+                        c.style.animationPlayState = 'running';
+                    }, ms);
                 }
-
-                getDots().forEach((dot, i) => {
-                    dot.classList.toggle('active', i === currentSlide);
-                });
             }
 
-            function next() { goTo(currentSlide + 1); }
-            function prev() { goTo(currentSlide - 1); }
-
-            function startAutoplay() {
-                stopAutoplay();
-                autoplayTimer = setInterval(next, 4000);
+            function resumeTicker() {
+                const c = getContent();
+                if (c) c.style.animationPlayState = 'running';
             }
 
-            function stopAutoplay() {
-                if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+            function applyOffset(delta) {
+                const scroll = getScroll();
+                if (!scroll) return;
+                pauseTicker(4000);
+                scroll.scrollLeft += delta;
             }
 
-            // Touch / swipe
-            let touchStartX = 0;
-            document.addEventListener('touchstart', (e) => {
-                const wrap = e.target.closest('.news-ticker-scroll-wrap');
-                if (!wrap) return;
-                touchStartX = e.touches[0].clientX;
-                stopAutoplay();
-            }, { passive: true });
+            // Attacher les events dès que le ticker est dans le DOM
+            function attachTickerEvents() {
+                const scroll = getScroll();
+                if (!scroll || scroll._tickerBound) return;
+                scroll._tickerBound = true;
 
-            document.addEventListener('touchend', (e) => {
-                const wrap = e.target.closest('.news-ticker-scroll-wrap');
-                if (!wrap) return;
-                const dx = touchStartX - e.changedTouches[0].clientX;
-                if (Math.abs(dx) > 40) dx > 0 ? next() : prev();
-                startAutoplay();
-            }, { passive: true });
+                // Pause au survol
+                scroll.addEventListener('mouseenter', () => pauseTicker(0));
+                scroll.addEventListener('mouseleave', () => resumeTicker());
 
-            // Pause au survol
-            document.addEventListener('mouseenter', (e) => {
-                if (e.target.closest('.news-ticker-scroll-wrap')) stopAutoplay();
-            }, true);
-            document.addEventListener('mouseleave', (e) => {
-                if (e.target.closest('.news-ticker-scroll-wrap')) startAutoplay();
-            }, true);
+                // ⭐ Scroll molette → avancer/reculer
+                scroll.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    applyOffset(e.deltaY > 0 ? STEP : -STEP);
+                }, { passive: false });
 
-            // Exposer les fonctions globales
+                // Touch mobile — scroll natif activé
+                scroll.style.overflowX = 'auto';
+                scroll.style.scrollBehavior = 'smooth';
+                let touchStartX = 0;
+                scroll.addEventListener('touchstart', (e) => {
+                    touchStartX = e.touches[0].clientX;
+                    pauseTicker(0);
+                }, { passive: true });
+                scroll.addEventListener('touchend', (e) => {
+                    const dx = touchStartX - e.changedTouches[0].clientX;
+                    applyOffset(dx);
+                    resumeTicker();
+                }, { passive: true });
+            }
+
+            // Essayer immédiatement + après chargement + observer les mutations
+            attachTickerEvents();
+            document.addEventListener('DOMContentLoaded', attachTickerEvents);
+            window.addEventListener('load', attachTickerEvents);
+            // Re-attacher si le ticker est reconstruit dynamiquement
+            const _tickerObserver = new MutationObserver(() => attachTickerEvents());
+            _tickerObserver.observe(document.body, { childList: true, subtree: true });
+
             window.tickerNav = function(dir) {
-                dir > 0 ? next() : prev();
-                stopAutoplay();
-                startAutoplay();
+                applyOffset(dir * STEP);
             };
-            window.tickerGoTo = function(i) {
-                goTo(i);
-                stopAutoplay();
-                startAutoplay();
-            };
-            window.startBannerAutoplay = startAutoplay;
-
-            // Démarrer quand le DOM est prêt
-            document.addEventListener('DOMContentLoaded', () => setTimeout(startAutoplay, 800));
         })();
 
 

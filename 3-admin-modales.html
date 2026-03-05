@@ -701,6 +701,48 @@
     
     </div>
 
+    <!-- ==================== NEWS MODAL ==================== -->
+    <div class="modal" id="newsModal" onclick="if(event.target===this) closeNewsModal()">
+        <div style="background: linear-gradient(135deg, rgba(26,26,46,0.97), rgba(22,22,40,0.97)); border: 1px solid rgba(212,175,55,0.25); border-radius: 24px; padding: 40px; width: 90%; max-width: 520px; max-height: 90vh; overflow-y: auto; position: relative; box-shadow: 0 30px 80px rgba(0,0,0,0.6);">
+
+            <!-- Close button -->
+            <button onclick="closeNewsModal()" style="position:absolute; top:16px; right:18px; background:rgba(255,255,255,0.1); border:none; color:white; font-size:22px; width:40px; height:40px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">✕</button>
+
+            <h2 id="newsModalTitle" style="font-size:22px; font-weight:800; color:white; margin:0 0 28px; font-family:'Poppins',sans-serif;">➕ Nouvelle Actualité</h2>
+
+            <!-- Icône / URL image -->
+            <div style="margin-bottom:20px;">
+                <label style="display:block; font-size:13px; font-weight:600; color:rgba(255,255,255,0.7); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.8px;">Emoji ou URL d'image</label>
+                <input type="text" id="newsIcon" placeholder="Ex: 🎨 ou https://..." style="width:100%; padding:14px 18px; background:rgba(255,255,255,0.08); border:1.5px solid rgba(255,255,255,0.15); border-radius:12px; color:white; font-size:15px; outline:none; box-sizing:border-box; transition:border-color 0.2s;" onfocus="this.style.borderColor='rgba(212,175,55,0.6)'" onblur="this.style.borderColor='rgba(255,255,255,0.15)'">
+            </div>
+
+            <!-- Upload image locale -->
+            <div style="margin-bottom:20px;">
+                <label style="display:block; font-size:13px; font-weight:600; color:rgba(255,255,255,0.7); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.8px;">Ou uploader une image</label>
+                <input type="file" id="newsImageUpload" accept="image/*" style="width:100%; padding:10px 14px; background:rgba(255,255,255,0.05); border:1.5px dashed rgba(255,255,255,0.2); border-radius:12px; color:rgba(255,255,255,0.7); font-size:14px; cursor:pointer; box-sizing:border-box;">
+            </div>
+
+            <!-- Prévisualisation image -->
+            <div id="newsImagePreview" style="display:none; margin-bottom:20px; text-align:center;">
+                <img id="newsPreviewImg" src="" alt="Prévisualisation" style="max-width:100%; max-height:180px; border-radius:12px; object-fit:contain; border:1px solid rgba(255,255,255,0.15);">
+            </div>
+
+            <!-- Texte de l'actualité -->
+            <div style="margin-bottom:28px;">
+                <label style="display:block; font-size:13px; font-weight:600; color:rgba(255,255,255,0.7); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.8px;">Texte de l'actualité *</label>
+                <input type="text" id="newsText" placeholder="Ex: Nouvelle collection disponible — Tableaux de Kofi Mensah" style="width:100%; padding:14px 18px; background:rgba(255,255,255,0.08); border:1.5px solid rgba(255,255,255,0.15); border-radius:12px; color:white; font-size:15px; outline:none; box-sizing:border-box; transition:border-color 0.2s;" onfocus="this.style.borderColor='rgba(212,175,55,0.6)'" onblur="this.style.borderColor='rgba(255,255,255,0.15)'">
+            </div>
+
+            <input type="hidden" id="newsEditIndex" value="">
+
+            <!-- Boutons -->
+            <div style="display:flex; gap:12px;">
+                <button onclick="closeNewsModal()" style="flex:1; padding:14px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); border-radius:12px; color:white; font-size:15px; font-weight:600; cursor:pointer; transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.14)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Annuler</button>
+                <button onclick="saveNews()" style="flex:2; padding:14px; background:linear-gradient(135deg,#d4af37,#a0824a); border:none; border-radius:12px; color:#1a1a2e; font-size:15px; font-weight:800; cursor:pointer; box-shadow:0 4px 15px rgba(212,175,55,0.35); transition:all 0.2s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 20px rgba(212,175,55,0.45)'" onmouseout="this.style.transform=''; this.style.boxShadow='0 4px 15px rgba(212,175,55,0.35)'">💾 Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== NOTIFICATION DETAIL MODAL ==================== -->
     <div id="notificationModal" class="notification-modal" onclick="if(event.target === this) closeNotificationModal()">
         <div class="notification-modal-content">

@@ -9,6 +9,134 @@ window.enterGallery = function enterGallery() {
             }, 1000);
         }
 
+        // ==================== GALERIE BOLIA BUTTON STYLING ====================
+        (function applyGalerieBoliaStyle() {
+            // Inject CSS animations and styles
+            const style = document.createElement('style');
+            style.id = 'galerie-bolia-styles';
+            style.textContent = `
+                /* Animation shimmer pour Galerie BOLIA */
+                @keyframes bolia-shimmer {
+                    0% { left: -100%; }
+                    100% { left: 200%; }
+                }
+
+                .galerie-bolia-btn::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: -100%;
+                    width: 50%;
+                    height: 100%;
+                    background: linear-gradient(90deg, 
+                        transparent 0%, 
+                        rgba(255, 224, 102, 0.3) 50%, 
+                        transparent 100%);
+                    animation: bolia-shimmer 3s infinite;
+                    pointer-events: none;
+                }
+
+                .galerie-bolia-btn:hover {
+                    transform: scale(1.02) !important;
+                    box-shadow: 0 0 20px rgba(212,175,55,0.35), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+                    border-color: rgba(212,175,55,0.6) !important;
+                }
+
+                .galerie-bolia-btn:active {
+                    transform: scale(0.98) !important;
+                }
+            `;
+            document.head.appendChild(style);
+
+            // Function to apply styling to the button
+            function styleBoliaButton() {
+                // Find the button by onclick attribute or text content
+                const hamburgerItems = document.querySelectorAll('.hamburger-menu-item');
+                let boliaBtn = null;
+
+                for (const item of hamburgerItems) {
+                    const onclick = item.getAttribute('onclick') || '';
+                    const text = item.textContent || '';
+                    
+                    if (onclick.includes('myArtists') || text.includes('Mes Artistes') || text.includes('Galerie BOLIA')) {
+                        boliaBtn = item;
+                        break;
+                    }
+                }
+
+                if (!boliaBtn) return false;
+
+                // Apply distinctive styling
+                boliaBtn.id = 'galerieBoliaBtn';
+                boliaBtn.className = 'hamburger-menu-item galerie-bolia-btn';
+                
+                Object.assign(boliaBtn.style, {
+                    background: 'linear-gradient(135deg, rgba(212,175,55,0.12) 0%, rgba(160,120,32,0.08) 100%)',
+                    border: '1.5px solid rgba(212,175,55,0.4)',
+                    borderRadius: '8px',
+                    boxShadow: '0 0 12px rgba(212,175,55,0.15), inset 0 1px 0 rgba(255,255,255,0.1)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    transition: 'all 0.3s ease'
+                });
+
+                // Update content if still showing "Mes Artistes"
+                if (boliaBtn.textContent.includes('Mes Artistes')) {
+                    const svg = boliaBtn.querySelector('svg');
+                    const newContent = `
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="filter: drop-shadow(0 0 4px rgba(212,175,55,0.4));">
+                            <defs>
+                                <linearGradient id="g-bolia" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stop-color="#d4af37"/>
+                                    <stop offset="50%" stop-color="#ffe066"/>
+                                    <stop offset="100%" stop-color="#a07820"/>
+                                </linearGradient>
+                            </defs>
+                            <rect x="3" y="3" width="18" height="18" rx="2" stroke="url(#g-bolia)" stroke-width="2" fill="none"/>
+                            <path d="M3 16l5-5 4 4 9-9" stroke="url(#g-bolia)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <circle cx="8.5" cy="8.5" r="1.5" fill="url(#g-bolia)"/>
+                        </svg>
+                        <span style="background: linear-gradient(135deg, #d4af37 0%, #ffe066 50%, #a07820 100%);
+                                     -webkit-background-clip: text;
+                                     -webkit-text-fill-color: transparent;
+                                     background-clip: text;
+                                     font-weight: 600;
+                                     letter-spacing: 0.3px;">🖼️ Galerie BOLIA</span>
+                    `;
+                    boliaBtn.innerHTML = newContent;
+                }
+
+                return true;
+            }
+
+            // Apply immediately on load
+            setTimeout(() => {
+                if (styleBoliaButton()) {
+                    console.log('✨ Galerie BOLIA button styled successfully');
+                }
+            }, 100);
+
+            // Watch for dynamic menu injection
+            const observer = new MutationObserver(() => {
+                styleBoliaButton();
+            });
+
+            // Observe the hamburger dropdown if it exists
+            const hamburgerDropdown = document.getElementById('hamburgerDropdown');
+            if (hamburgerDropdown) {
+                observer.observe(hamburgerDropdown, {
+                    childList: true,
+                    subtree: true
+                });
+            }
+
+            // Also observe the entire document for the dropdown creation
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+        })();
+
         document.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && document.getElementById('intro-page').style.display !== 'none') {
                 enterGallery();
@@ -6441,7 +6569,7 @@ window.enterGallery = function enterGallery() {
         }
 
 
-        // ==================== OVERLAY IMAGE PINTEREST (MES ARTISTES) ====================
+        // ==================== OVERLAY IMAGE PINTEREST (GALERIE BOLIA) ====================
         window._artistOverlayWorks = [];
 
         function openArtistImageOverlay(workId) {
@@ -6462,11 +6590,23 @@ window.enterGallery = function enterGallery() {
 
             const overlay = document.createElement('div');
             overlay.id = 'artistPinOverlay';
-            overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.93);overflow-y:auto;-webkit-overflow-scrolling:touch;';
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg, #a855f7 0%, #7c3aed 25%, #3b82f6 75%, #0ea5e9 100%);overflow-y:auto;-webkit-overflow-scrolling:touch;';
 
             const imgSrc = work.image_url || work.image || '';
             const artistName = work.artist_name || work.artist || 'Artiste';
             const isSL = typeof isSociallyLiked === 'function' && isSociallyLiked(work.id);
+
+            // Fonction pour télécharger l'image
+            const downloadImage = () => {
+                const link = document.createElement('a');
+                link.href = imgSrc;
+                link.download = `${work.title || 'oeuvre'}_${artistName}.jpg`;
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast('📥 Téléchargement démarré');
+            };
 
             const simHTML = similar.length > 0 ? `
                 <div style="padding:0 0 40px;">
@@ -6482,12 +6622,25 @@ window.enterGallery = function enterGallery() {
                 </div>` : '';
 
             overlay.innerHTML = `
-                <div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(0,0,0,0.85);backdrop-filter:blur(10px);">
+                <div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;background:rgba(0,0,0,0.6);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.1);">
                     <button onclick="document.getElementById('artistPinOverlay').remove()"
-                        style="background:rgba(255,255,255,0.12);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">←</button>
-                    <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55%;">${artistName}</span>
+                        style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;"
+                        onmouseover="this.style.background='rgba(255,255,255,0.25)'"
+                        onmouseout="this.style.background='rgba(255,255,255,0.15)'">←</button>
+                    <button onclick="document.getElementById('artistPinOverlay').remove();navigateTo('home');setTimeout(()=>{ if(typeof afficherOeuvresFiltrees==='function'){ window.currentArtistFilter='${artistName}'; afficherOeuvresFiltrees(); } if(typeof showToast==='function') showToast('🎨 Galerie de ${artistName}'); },100);"
+                        style="background:transparent;border:none;font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center;cursor:pointer;padding:8px 12px;border-radius:20px;transition:all 0.2s;"
+                        onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.color='#d4af37'"
+                        onmouseout="this.style.background='transparent';this.style.color='#fff'"
+                        title="Voir la galerie de ${artistName}">${artistName}</button>
+                    <button onclick="(function(){ const link = document.createElement('a'); link.href = '${imgSrc}'; link.download = '${(work.title || 'oeuvre').replace(/[^a-z0-9]/gi, '_')}_${artistName.replace(/[^a-z0-9]/gi, '_')}.jpg'; document.body.appendChild(link); link.click(); document.body.removeChild(link); if(typeof showToast === 'function') showToast('📥 Téléchargement démarré'); })();"
+                        style="background:rgba(212,175,55,0.2);border:1px solid rgba(212,175,55,0.4);border-radius:50%;width:36px;height:36px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;"
+                        onmouseover="this.style.background='rgba(212,175,55,0.35)';this.style.borderColor='rgba(212,175,55,0.6)'"
+                        onmouseout="this.style.background='rgba(212,175,55,0.2)';this.style.borderColor='rgba(212,175,55,0.4)'"
+                        title="Télécharger l'image">📥</button>
                     <button onclick="toggleSocialLike(event,${work.id},this)"
-                        style="background:rgba(255,255,255,0.12);border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+                        style="background:rgba(255,255,255,0.15);border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;"
+                        onmouseover="this.style.background='rgba(255,255,255,0.25)'"
+                        onmouseout="this.style.background='rgba(255,255,255,0.15)'">
                         ${isSL ? '❤️' : '🤍'}
                     </button>
                 </div>
@@ -6502,8 +6655,10 @@ window.enterGallery = function enterGallery() {
                         <div style="font-size:12px;color:rgba(255,255,255,0.5);">par ${artistName}</div>
                     </div>
                     <button onclick="document.getElementById('artistPinOverlay').remove();viewProductDetailFromAPI(${work.id});"
-                        style="flex-shrink:0;background:linear-gradient(135deg,#d4af37,#b8962e);border:none;color:#1a1a1a;padding:10px 16px;border-radius:22px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
-                        Voir l'œuvre
+                        style="flex-shrink:0;background:linear-gradient(135deg,#d4af37,#b8962e);border:none;color:#1a1a1a;padding:10px 16px;border-radius:22px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.2s;"
+                        onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(212,175,55,0.4)'"
+                        onmouseout="this.style.transform='';this.style.boxShadow=''">
+                        💳 Procédure d'achat
                     </button>
                 </div>
                 ${simHTML}

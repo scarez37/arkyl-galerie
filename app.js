@@ -621,11 +621,11 @@ window.enterGallery = function enterGallery() {
                             loginBtn,
                             {
                                 theme: 'outline',
-                                size: 'medium',
-                                text: 'signin',
+                                size: 'small',
+                                text: 'signin_with',
                                 shape: 'pill',
                                 logo_alignment: 'left',
-                                width: 200
+                                width: 150
                             }
                         );
                         console.log('✅ Google Sign-In initialisé avec succès!');
@@ -9918,6 +9918,21 @@ window.enterGallery = function enterGallery() {
     window.afficherOeuvresFiltrees = function() {
         const grille = document.getElementById('productsContainer');
         if (!grille) return;
+
+        // Force le layout colonnes directement en JS (contourne tout conflit CSS)
+        function applyColumnLayout() {
+            const w = window.innerWidth;
+            let cols = 2;
+            if (w >= 1100) cols = 5;
+            else if (w >= 800) cols = 4;
+            else if (w >= 500) cols = 3;
+            grille.style.cssText += ';display:block!important;column-count:' + cols + '!important;column-gap:7px!important;width:100%!important;box-sizing:border-box!important;';
+        }
+        applyColumnLayout();
+        // Re-applique si la fenêtre est redimensionnée
+        window._columnLayoutHandler = applyColumnLayout;
+        window.removeEventListener('resize', window._columnLayoutHandler);
+        window.addEventListener('resize', window._columnLayoutHandler);
         const cat = window.currentCategory || 'all';
         const selected = window.selectedCategories;
         let oeuvres;

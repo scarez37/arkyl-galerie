@@ -14,19 +14,8 @@
             </defs>
         </svg>
 
-        <div class="news-ticker-container">
-            <div class="news-ticker-wrapper">
-                <div class="news-ticker-scroll-wrap" style="position:relative;">
-                    <button class="ticker-nav-btn ticker-nav-prev" onclick="tickerNav(-1)" title="Précédent">‹</button>
-                    <button class="ticker-nav-btn ticker-nav-next" onclick="tickerNav(1)" title="Suivant">›</button>
-                    <div class="news-ticker-scroll">
-                    <div class="news-ticker-content" id="newsTickerContent">
-                        <!-- Contenu chargé dynamiquement depuis le serveur -->
-                    </div>
-                </div>
-                </div>
-            </div>
-        </div>
+        <!-- Bannière actualités style Jumia — injectée par JS -->
+        <div id="arkyiBannerSection" class="arkyl-banner-section" style="display:none;"></div>
         
         <div class="filter-container" id="filterContainer" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
             <button class="filter-btn active" id="mainFilterBtn" onclick="toggleCategoryBtns(event)" style="display:flex;align-items:center;gap:8px;">

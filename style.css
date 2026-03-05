@@ -4568,12 +4568,12 @@
             }
 
             #googleLoginBtn > div {
-                max-width: 180px !important;
+                max-width: 140px !important;
             }
 
             #googleLoginBtn iframe {
-                max-width: 180px !important;
-                height: 36px !important;
+                max-width: 140px !important;
+                height: 32px !important;
             }
 
             .user-profile-btn {
@@ -4729,12 +4729,12 @@
             }
 
             #googleLoginBtn > div {
-                max-width: 160px !important;
+                max-width: 130px !important;
             }
 
             #googleLoginBtn iframe {
-                max-width: 160px !important;
-                height: 32px !important;
+                max-width: 130px !important;
+                height: 30px !important;
             }
 
             .user-profile-btn {
@@ -5527,14 +5527,21 @@
             height: 18px;
         }
         /* Style pour le bouton Google injecté */
+        #googleLoginBtn {
+            display: flex;
+            align-items: center;
+        }
         #googleLoginBtn > div {
             border-radius: 20px !important;
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
+            max-width: 150px !important;
         }
         #googleLoginBtn iframe {
             border-radius: 20px !important;
+            max-width: 150px !important;
+            height: 36px !important;
         }
         .user-profile-btn {
             display: flex;

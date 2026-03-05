@@ -1962,10 +1962,10 @@
                 white-space: nowrap;
             }
 
-            .products-grid { column-count: 2; column-gap: 6px; }
+            .products-grid { column-count: 2 !important; column-gap: 6px !important; display: block !important; }
         }
 
-        @media (max-width: 380px) { .products-grid { column-count: 2; } }
+        @media (max-width: 380px) { .products-grid { column-count: 2 !important; } }
 
         .filter-btn {
             background: rgba(255, 255, 255, 0.2);
@@ -1986,22 +1986,91 @@
             transform: translateY(-2px);
         }
 
+
+        /* ============ BANNIÈRE ACTUALITÉS STYLE JUMIA ============ */
+        .arkyl-banner-section {
+            width: 100%; margin: 0 0 12px; position: relative;
+        }
+        .arkyl-banner-track {
+            position: relative; width: 100%; overflow: hidden;
+            border-radius: 14px; background: rgba(0,0,0,0.2);
+        }
+        .arkyl-banner-slides {
+            display: flex;
+            transition: transform 0.5s cubic-bezier(0.4,0,0.2,1);
+            will-change: transform;
+        }
+        .arkyl-banner-slide {
+            min-width: 100%; position: relative;
+            cursor: pointer; overflow: hidden; border-radius: 14px;
+        }
+        .arkyl-banner-slide img {
+            width: 100%; height: 190px; object-fit: cover;
+            display: block; border-radius: 14px;
+        }
+        @media (min-width: 600px)  { .arkyl-banner-slide img { height: 250px; } }
+        @media (min-width: 900px)  { .arkyl-banner-slide img { height: 310px; } }
+        .arkyl-banner-slide::after {
+            content: ''; position: absolute;
+            bottom: 0; left: 0; right: 0; height: 55%;
+            background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 100%);
+            border-radius: 0 0 14px 14px; pointer-events: none;
+        }
+        .arkyl-banner-caption {
+            position: absolute; bottom: 14px; left: 16px; right: 56px; z-index: 2; color: #fff;
+        }
+        .arkyl-banner-caption .banner-tag {
+            display: inline-block; background: var(--ocre,#D4A574); color: #fff;
+            font-size: 10px; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 1px; padding: 2px 9px; border-radius: 20px; margin-bottom: 5px;
+        }
+        .arkyl-banner-caption .banner-title {
+            font-size: 15px; font-weight: 700; line-height: 1.3;
+            text-shadow: 0 1px 5px rgba(0,0,0,0.5);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .arkyl-banner-btn {
+            position: absolute; top: 50%; transform: translateY(-50%); z-index: 4;
+            background: rgba(255,255,255,0.18); border: none; color: #fff;
+            width: 34px; height: 34px; border-radius: 50%; font-size: 16px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+        .arkyl-banner-btn.prev { left: 8px; }
+        .arkyl-banner-btn.next { right: 8px; }
+        .arkyl-banner-dots {
+            position: absolute; bottom: 8px; right: 12px;
+            display: flex; gap: 5px; z-index: 4;
+        }
+        .arkyl-banner-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: rgba(255,255,255,0.4); cursor: pointer;
+            transition: all 0.3s; border: none; padding: 0;
+        }
+        .arkyl-banner-dot.active { background: var(--ocre,#D4A574); width: 20px; border-radius: 4px; }
+        .arkyl-banner-progress {
+            position: absolute; bottom: 0; left: 0; height: 3px;
+            background: var(--ocre,#D4A574); border-radius: 0 0 14px 14px;
+            transition: width 0.1s linear; z-index: 5;
+        }
+
         /* ============ PRODUCT GRID — MASONRY PINTEREST ============ */
         .products-grid {
-            column-count: 2;
-            column-gap: 6px;
+            column-count: 2 !important;
+            column-gap: 7px !important;
+            display: block !important;
             margin-top: 8px;
             margin-bottom: 16px;
         }
-        @media (min-width: 480px)  { .products-grid { column-count: 3; } }
-        @media (min-width: 768px)  { .products-grid { column-count: 4; } }
-        @media (min-width: 1100px) { .products-grid { column-count: 5; } }
+        @media (min-width: 500px)  { .products-grid { column-count: 3 !important; } }
+        @media (min-width: 800px)  { .products-grid { column-count: 4 !important; } }
+        @media (min-width: 1100px) { .products-grid { column-count: 5 !important; } }
 
         .product-card {
             break-inside: avoid;
+            -webkit-column-break-inside: avoid;
             display: inline-block;
             width: 100%;
-            margin-bottom: 6px;
+            margin-bottom: 7px;
             background: rgba(255, 255, 255, 0.10);
             backdrop-filter: blur(4px);
             -webkit-backdrop-filter: blur(4px);
@@ -2009,28 +2078,28 @@
             overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.12);
             cursor: pointer;
-            transform: translateZ(0);
+            vertical-align: top;
         }
 
-        .product-card:hover {
-            border-color: rgba(212, 175, 55, 0.45);
-        }
+        .product-card:hover { border-color: rgba(212,175,55,0.4); }
 
-        /* Image hauteur NATURELLE = effet masonry automatique */
+        /* Image hauteur NATURELLE → effet masonry automatique */
         .product-image {
             position: relative;
             width: 100%;
-            height: auto;
+            height: auto !important;
             display: block;
             overflow: hidden;
             background: rgba(0,0,0,0.15);
+            min-height: 80px;
         }
 
         .product-image img {
             width: 100%;
-            height: auto;
+            height: auto !important;
             display: block;
             object-fit: cover;
+            padding: 0 !important;
             border-radius: 12px 12px 0 0;
         }
 
@@ -2038,57 +2107,30 @@
 
         .product-badge {
             position: absolute;
-            top: 7px;
-            left: 7px;
-            background: rgba(0,0,0,0.55);
+            top: 7px; left: 7px;
+            background: rgba(0,0,0,0.6);
             color: #fff;
-            padding: 3px 8px;
+            padding: 3px 7px;
             border-radius: 8px;
             font-size: 10px;
             font-weight: 700;
-            letter-spacing: 0.3px;
         }
 
         .like-button {
             position: absolute;
-            top: 7px;
-            right: 7px;
-            background: rgba(0,0,0,0.45);
-            width: 26px;
-            height: 26px;
+            top: 6px; right: 6px;
+            background: rgba(0,0,0,0.5);
+            width: 26px; height: 26px;
             border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 13px;
-            border: none;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 13px; border: none;
         }
 
-        .product-info {
-            padding: 7px 9px 9px;
-        }
+        .product-info { padding: 7px 9px 9px; }
 
-        .product-title {
-            font-size: 12px;
-            font-weight: 600;
-            margin-bottom: 2px;
-            line-height: 1.3;
-            overflow: hidden;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-        }
+        .product-title { font-size: 12px; font-weight: 600; margin-bottom: 2px; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
-        .product-artist {
-            font-size: 10px;
-            opacity: 0.65;
-            margin-bottom: 6px;
-            cursor: pointer;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
+        .product-artist { font-size: 10px; opacity: 0.65; margin-bottom: 5px; cursor: pointer; }
 
         .product-footer {
             display: flex;
@@ -2096,22 +2138,14 @@
             align-items: center;
         }
 
-        .product-price {
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--ocre);
-        }
+        .product-price { font-size: 12px; font-weight: 700; color: var(--ocre); }
 
         .add-cart-btn {
             background: rgba(212,175,55,0.2);
-            border: 1px solid rgba(212,175,55,0.45);
-            color: #fff;
-            padding: 4px 9px;
-            border-radius: 10px;
-            font-size: 10px;
-            font-weight: 600;
-            cursor: pointer;
-            white-space: nowrap;
+            border: 1px solid rgba(212,175,55,0.5);
+            color: #fff; padding: 4px 9px;
+            border-radius: 10px; font-size: 10px;
+            font-weight: 600; cursor: pointer; white-space: nowrap;
         }
 
         /* ===== ANIMATIONS PANIER & FAVORIS ===== */
@@ -4581,7 +4615,7 @@
                 margin-bottom: 16px;
             }
 
-            .products-grid { column-count: 2; column-gap: 6px; }
+            .products-grid { column-count: 2 !important; column-gap: 6px !important; display: block !important; }
 
             .cart-grid {
                 grid-template-columns: 1fr;

@@ -2857,7 +2857,7 @@ function enterGallery() {
             return `
             <div class="product-card" onclick="viewProductDetailFromAPI(${product.id})">
                 <div class="product-image" style="position:relative;">
-                    <span class="product-badge">${product.badge || 'Disponible'}</span>
+                    <span class="product-badge" style="${(product.is_sold || product.badge === 'Vendu') ? 'background:rgba(80,80,80,0.9);' : ''}">${(product.is_sold || product.badge === 'Vendu') ? '🔴 Vendu' : (product.badge || 'Disponible')}</span>
                     <button class="like-button" onclick="toggleFavorite(event, ${product.id})">❤️</button>
                     ${imageHTML}
                 </div>
@@ -3159,20 +3159,7 @@ function enterGallery() {
             clientAddress = { nom, tel, quartier, ville, pays: pays || "Côte d'Ivoire", detail };
             const _uid = currentUser?.id || currentUser?.googleId || currentUser?.email;
             try { localStorage.setItem(_addressKey(_uid), JSON.stringify(clientAddress)); } catch(e) {}
-
-            // Sauvegarde en base de données
-            fetch('https://arkyl-galerie.onrender.com/api_save_address.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: _uid, ...clientAddress })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) showToast('✅ Adresse enregistrée');
-                else showToast('❌ Erreur sauvegarde : ' + (data.error || 'inconnue'));
-            })
-            .catch(() => showToast('⚠️ Adresse sauvegardée localement seulement'));
-
+            showToast('✅ Adresse enregistrée');
             renderCart();
         }
 
@@ -5795,14 +5782,14 @@ function enterGallery() {
             const worksHTML = artistWorks.length > 0
                 ? `<div class="products-grid">
                     ${artistWorks.map(art => `
-                        <div class="product-card" onclick="viewProductDetail(${art.id})">
+                        <div class="product-card" onclick="viewProductDetail(${art.id})" style="${(art.is_sold || art.badge === 'Vendu') ? 'opacity:0.75;' : ''}">
                             <div class="product-image">
-                                <span class="product-badge">${art.badge || art.category || '🎨'}</span>
+                                <span class="product-badge" style="${(art.is_sold || art.badge === 'Vendu') ? 'background:rgba(80,80,80,0.9);color:#fff;' : ''}">${(art.is_sold || art.badge === 'Vendu') ? '🔴 Vendu' : (art.badge || 'Disponible')}</span>
                                 <button class="like-button" onclick="toggleFavorite(event, ${art.id})">
                                     ${(typeof favorites !== 'undefined' && favorites.includes(art.id)) ? '❤️' : '🤍'}
                                 </button>
                                 <img src="${art.image_url || art.image || ''}" alt="${art.title}"
-                                     style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy"
+                                     style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;${(art.is_sold || art.badge === 'Vendu') ? 'filter:grayscale(40%);' : ''}" loading="lazy"
                                      onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
                             </div>
                             <div class="product-info">
@@ -5810,7 +5797,7 @@ function enterGallery() {
                                 <div class="product-artist">par ${art.artist_name || artistName}</div>
                                 <div class="product-footer">
                                     <div class="product-price">${formatPrice(art.price || 0)}</div>
-                                    <button class="add-cart-btn" onclick="addToCart(event, ${art.id})">+ Panier</button>
+                                    ${(art.is_sold || art.badge === 'Vendu') ? '<span style="font-size:12px;color:rgba(255,255,255,0.5);font-style:italic;">Cette œuvre a été vendue</span>' : `<button class="add-cart-btn" onclick="addToCart(event, ${art.id})">+ Panier</button>`}
                                 </div>
                             </div>
                         </div>
@@ -7333,35 +7320,23 @@ function enterGallery() {
 
             _save(k, v) {
                 try {
-                    // Garder la version complète en mémoire (avec base64 pour affichage immédiat)
-                    _memStore[this._key(k)] = v;
-
-                    // Pour localStorage : supprimer les base64 pour éviter QuotaExceededError
-                    let vToStore = v;
-                    if (k === 'artist_artworks' && Array.isArray(v)) {
-                        vToStore = v.map(artwork => {
-                            const cleaned = { ...artwork };
-                            if (cleaned.photo && cleaned.photo.startsWith('data:')) {
-                                cleaned.photo = cleaned.image_url || null;
-                            }
-                            if (Array.isArray(cleaned.photos)) {
-                                cleaned.photos = cleaned.photos
-                                    .map(p => (typeof p === 'string' && p.startsWith('data:')) ? (cleaned.image_url || null) : p)
-                                    .filter(Boolean);
-                            }
-                            return cleaned;
-                        });
+                    const json = JSON.stringify(v);
+                    // Vérifier approximativement la taille avant de sauvegarder
+                    if (json.length > 1000000) { // > 1MB - trop volumineux
+                        console.warn('⚠️ Données trop volumineuses (' + (json.length/1024/1024).toFixed(2) + 'MB), fallback mémoire:', k);
+                        _memStore[this._key(k)] = v;
+                        return true;
                     }
-
-                    const json = JSON.stringify(vToStore);
                     localStorage.setItem(this._key(k), json);
+                    _memStore[this._key(k)] = v;
                     return true;
                 } catch(e) {
                     console.error('Erreur de sauvegarde:', k, e.name);
                     if (e.name === 'QuotaExceededError') {
-                        console.warn('⚠️ localStorage saturé malgré le nettoyage des base64');
-                        showToast("⚠️ Stockage local plein. Rafraîchissez la page si des œuvres n'apparaissent plus.");
+                        console.warn('⚠️ localStorage saturé (' + (JSON.stringify(v).length/1024/1024).toFixed(2) + 'MB), fallback mémoire');
+                        showToast('⚠️ Espace disque plein. Les données restent en mémoire mais ne seront pas sauvegardées.');
                     }
+                    try { _memStore[this._key(k)] = v; return true; } catch(_) {}
                     return false;
                 }
             }
@@ -7645,32 +7620,20 @@ function enterGallery() {
                     console.log('🔍 Premier artwork:', result.data[0]);
 
                     _artworksRetryCount = 0;
-                    db.artworks = result.data.map(art => {
-                        // Parser les dimensions si c'est une string JSON
-                        let dims = art.dimensions;
-                        if (dims && typeof dims === 'string') {
-                            try { dims = JSON.parse(dims); } catch(e) { dims = null; }
-                        }
-                        return {
-                            id: art.id,
-                            server_id: art.id,
-                            title: art.title,
-                            category: art.category,
-                            price: art.price,
-                            description: art.description || '',
-                            photo: art.image_url,
-                            image_url: art.image_url,
-                            photos: art.photos || [art.image_url],
-                            technique: art.technique || '',
-                            techniqueCustom: art.techniqueCustom || null,
-                            dimensions: dims || null,
-                            country: art.country || art.artist_country || '',
-                            city: art.city || '',
-                            artist_country: art.artist_country || art.country || '',
-                            status: 'published',
-                            createdAt: art.created_at || new Date().toISOString()
-                        };
-                    });
+                    db.artworks = result.data.map(art => ({
+                        id: art.id,
+                        server_id: art.id,
+                        title: art.title,
+                        category: art.category,
+                        price: art.price,
+                        description: art.description || '',
+                        photo: art.image_url,
+                        photos: art.photos || [art.image_url],
+                        technique: art.technique || '',
+                        dimensions: art.dimensions || null,
+                        status: 'published',
+                        createdAt: art.created_at || new Date().toISOString()
+                    }));
                     // Rafraîchir si déjà sur la section œuvres
                     const artSection = document.getElementById('artworksSection');
                     if (artSection && artSection.classList.contains('active')) renderArtworks();
@@ -7899,59 +7862,53 @@ function enterGallery() {
 
         // ==================== PHOTO UPLOAD MANAGEMENT ====================
         let currentImageMode = 'photo'; // Mode photo uniquement
-        let currentPhotosData = []; // Stocke les URLs Cloudinary (plus de base64)
+        let currentPhotosData = []; // Store multiple base64 photo data (max 5)
 
-        // Upload une image vers Cloudinary, retourne l'URL
-        async function uploadToCloudinary(file) {
-            const CLOUD_NAME    = 'ddah64j2a';
-            const UPLOAD_PRESET = 'arkyl_preset';
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('upload_preset', UPLOAD_PRESET);
-            formData.append('folder', 'arkyl');
-            const resp = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-                method: 'POST',
-                body: formData
-            });
-            if (!resp.ok) throw new Error('Cloudinary HTTP ' + resp.status);
-            const data = await resp.json();
-            if (!data.secure_url) throw new Error("Pas d'URL retournée par Cloudinary");
-            return data.secure_url;
-        }
 
         // Nouvelle fonction pour gérer plusieurs photos
-        async function handleMultiplePhotosUpload(event) {
+        function handleMultiplePhotosUpload(event) {
             const files = Array.from(event.target.files);
             if (!files.length) return;
 
+            // Vérifier qu'on ne dépasse pas 5 photos au total
             const remainingSlots = 5 - currentPhotosData.length;
             if (files.length > remainingSlots) {
                 showToast(`⚠️ Vous ne pouvez ajouter que ${remainingSlots} photo(s) supplémentaire(s)`);
-                event.target.value = '';
                 return;
             }
 
-            for (const file of files) {
+            let filesProcessed = 0;
+            files.forEach(file => {
+                // Validate file type
                 if (!file.type.startsWith('image/')) {
                     showToast('⚠️ Veuillez sélectionner des images uniquement');
-                    continue;
+                    return;
                 }
-                if (file.size > 5 * 1024 * 1024) {
-                    showToast(`⚠️ ${file.name} dépasse 5 MB`);
-                    continue;
-                }
-                showToast('📤 Upload en cours...');
-                try {
-                    const url = await uploadToCloudinary(file);
-                    currentPhotosData.push(url);
-                    updatePhotosPreview();
-                    showToast('✅ Photo uploadée !');
-                } catch(err) {
-                    console.error('Erreur Cloudinary:', err);
-                    showToast('❌ Échec upload : ' + err.message);
-                }
-            }
 
+                // Validate file size (5MB max)
+                const maxSize = 5 * 1024 * 1024;
+                if (file.size > maxSize) {
+                    showToast(`⚠️ ${file.name} dépasse 5 MB`);
+                    return;
+                }
+
+                // Read and store the image
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    currentPhotosData.push(e.target.result);
+                    filesProcessed++;
+                    
+                    if (filesProcessed === files.length) {
+                        updatePhotosPreview();
+                        showToast(`✅ ${files.length} photo(s) ajoutée(s)`);
+                    }
+                };
+                reader.onerror = function() {
+                    showToast('⚠️ Erreur lors du chargement d\'une photo');
+                };
+                reader.readAsDataURL(file);
+            });
+            
             // Reset input
             event.target.value = '';
         }
@@ -8288,8 +8245,8 @@ function enterGallery() {
                             artist_country: addedArtwork.artistCountry || '',
                             country: addedArtwork.country || '',
                             city: addedArtwork.city || '',
-                            image_url: (addedArtwork.photo && !addedArtwork.photo.startsWith('data:')) ? addedArtwork.photo : '',
-                            photos: (addedArtwork.photos || []).filter(p => typeof p === 'string' && !p.startsWith('data:')),
+                            image_url: addedArtwork.photo,
+                            photos: addedArtwork.photos || [],
                             technique: addedArtwork.technique || '',
                             dimensions: addedArtwork.dimensions || null,
                             status: 'publiée'
@@ -9702,30 +9659,27 @@ function enterGallery() {
             
             let techniqueText = product.technique || product.techniqueCustom || 'Non spécifiée';
             
-            // Pays et ville de l'œuvre
-            const countryRaw = product.country || product.artist_country || '';
-            const cityRaw    = product.city || '';
+            // Pays de l'artiste avec drapeau
             let artistCountryText = '';
-            if (countryRaw) {
+            if (product.artist_country) {
                 const countryFlags = {
-                    'CI': '🇨🇮', "Côte d'Ivoire": '🇨🇮',
-                    'SN': '🇸🇳', 'Sénégal': '🇸🇳',
-                    'ML': '🇲🇱', 'Mali': '🇲🇱',
-                    'BJ': '🇧🇯', 'Bénin': '🇧🇯',
-                    'BF': '🇧🇫', 'Burkina Faso': '🇧🇫',
-                    'TG': '🇹🇬', 'Togo': '🇹🇬',
-                    'GH': '🇬🇭', 'Ghana': '🇬🇭',
-                    'NG': '🇳🇬', 'Nigeria': '🇳🇬',
-                    'CM': '🇨🇲', 'Cameroun': '🇨🇲',
-                    'CD': '🇨🇩', 'Congo': '🇨🇩',
-                    'FR': '🇫🇷', 'France': '🇫🇷'
+                    'CI': '🇨🇮',
+                    'SN': '🇸🇳', 
+                    'ML': '🇲🇱',
+                    'BJ': '🇧🇯',
+                    'BF': '🇧🇫',
+                    'TG': '🇹🇬',
+                    'GH': '🇬🇭',
+                    'NG': '🇳🇬',
+                    'CM': '🇨🇲',
+                    'CD': '🇨🇩',
+                    'FR': '🇫🇷'
                 };
-                const flag = countryFlags[countryRaw] || '🌍';
-                artistCountryText = `${flag} ${countryRaw}`;
+                const flag = countryFlags[product.artist_country] || '🌍';
+                artistCountryText = `${flag} ${product.artist_country}`;
             } else {
                 artistCountryText = 'Non spécifié';
             }
-            const locationText = [cityRaw, artistCountryText].filter(v => v && v !== 'Non spécifié').join(', ') || 'Non spécifié';
             
             // Gérer les valeurs undefined
             const artistName = product.artist_name || product.artist || 'Artiste inconnu';
@@ -9770,7 +9724,7 @@ function enterGallery() {
                     <!-- INFOS PRODUIT -->
                     <div class="jm-info">
                         <div class="jm-badge-row">
-                            <span class="jm-badge">${product.badge || 'Disponible'}</span>
+                            <span class="jm-badge" style="${(product.is_sold || product.badge === 'Vendu') ? 'background:rgba(80,80,80,0.9);' : ''}">${(product.is_sold || product.badge === 'Vendu') ? '🔴 Vendu' : (product.badge || 'Disponible')}</span>
                             <span class="jm-category">${category}</span>
                         </div>
 
@@ -9797,7 +9751,7 @@ function enterGallery() {
                             </div>` : ''}
                             <div class="jm-meta-item">
                                 <span class="jm-meta-icon">🌍</span>
-                                <div><div class="jm-meta-label">Localisation</div><div class="jm-meta-val">${locationText}</div></div>
+                                <div><div class="jm-meta-label">Pays</div><div class="jm-meta-val">${artistCountryText || 'N/A'}</div></div>
                             </div>
                         </div>
 

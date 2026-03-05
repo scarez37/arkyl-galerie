@@ -215,10 +215,10 @@ function enterGallery() {
             const selectors = [
                 '.product-card', '.filter-btn', '.stat-card', '.orders-stat-card',
                 '.benefit-card', '.back-button', '.action-btn', '.btn-large',
-                '.admin-tab-btn', '.quick-action-btn', '.news-ticker-container',
-                '.notifications-panel', '.notification-modal', '.news-lightbox',
+                '.admin-tab-btn', '.quick-action-btn',
+                '.notifications-panel', '.notification-modal',
                 '.modal-content', '.reg-modal-content', '.chat-window', '.toast',
-                '.nav-menu', '.ticker-nav-btn', '.like-button', '.product-price',
+                '.nav-menu', '.like-button', '.product-price',
                 '.cart-items', '.empty-orders', '.search-bar', '.artist-edit-modal',
                 '.orders-stat-card', '.stat-card', '.overview-section', '.quick-action-btn',
             ];
@@ -1173,7 +1173,6 @@ function enterGallery() {
             // Close menu and navigate to admin news page
             document.getElementById('userMenuDropdown').classList.remove('show');
             navigateTo('adminNews');
-            renderNewsList();
         }
 
         // ==================== ADMIN MANAGEMENT FUNCTIONS ====================
@@ -1286,7 +1285,7 @@ function enterGallery() {
             }
 
             const products = getProducts();
-            // Utilise la variable globale newsItems (chargée depuis le serveur)
+            // newsItems chargées via fetchNewsFromServer (bannière Jumia)
             
             // Search in artworks
             const artworkResults = products.filter(p => 
@@ -1556,12 +1555,12 @@ function enterGallery() {
             await loadAdminDataFromServer(); // always reload
             const products = getProducts();
             const artists = Object.keys(artistsData);
-            // Utilise la variable globale newsItems (chargée depuis le serveur)
+            // newsItems chargées via fetchNewsFromServer (bannière Jumia)
             
             // Update statistics (catalogue)
             var _x=document.getElementById('overviewArtworksCount'); if(_x) _x.textContent=products.length;
             var _y=document.getElementById('overviewArtistsCount'); if(_y) _y.textContent=artists.length;
-            document.getElementById('overviewNewsCount').textContent = newsItems.length;
+            document.getElementById('overviewNewsCount').textContent = (window.newsItems || []).length;
             
             // ⭐ FIX : Chiffre d'affaires RÉEL depuis le serveur (pas les prix du catalogue)
             try {
@@ -8944,7 +8943,7 @@ function enterGallery() {
                 section.style.display = 'block';
 
                 const slidesHTML = _bannerItems.map((news, i) => `
-                    <div class="arkyl-banner-slide" onclick="openNewsLightbox(${i})">
+                    <div class="arkyl-banner-slide">
                         <img src="${news.icon}" alt="${news.text}"
                              loading="lazy"
                              onerror="this.closest('.arkyl-banner-slide').classList.add('no-image');this.remove();">
@@ -9022,386 +9021,6 @@ function enterGallery() {
             window.renderBanner = renderBanner;
         })();
 
-        // ==================== NEWS MANAGEMENT (ADMIN) ====================
-        
-        // ========== ACTUALITÉS : stockage côté serveur (partagé entre tous les utilisateurs) ==========
-        const NEWS_API = `${API_BASE}/api_news.php`;
-        let newsItems = [];
-
-        async function fetchNewsFromServer() {
-            try {
-                const res = await fetch(NEWS_API + '?action=get&t=' + Date.now());
-                const data = await res.json();
-                if (data.success && Array.isArray(data.news)) {
-                    // Normaliser is_image → isImage (colonne SQL snake_case)
-                    newsItems = data.news.map(n => ({
-                        ...n,
-                        isImage: n.isImage ?? (n.is_image == 1)
-                    }));
-                    // Mettre à jour la bannière Jumia
-                    window.newsItems = newsItems;
-                    if (typeof window.renderBanner === 'function') window.renderBanner();
-                    return true;
-                }
-            } catch(e) {
-                console.warn('⚠️ Impossible de charger les actualités:', e);
-            }
-            return false;
-        }
-
-        async function saveNewsToServer(action, payload) {
-            // L'API PHP lit l'action depuis ?action= dans l'URL
-            try {
-                const res = await fetch(NEWS_API + '?action=' + action, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await res.json();
-                if (data.success) {
-                    // Recharger la liste complète depuis le serveur pour rester en sync
-                    await fetchNewsFromServer();
-                }
-                return data;
-            } catch(e) {
-                console.error('❌ Erreur API news:', e);
-                showToast('❌ Erreur de connexion au serveur');
-                return { success: false };
-            }
-        }
-
-        function renderNewsTicker() {
-            const container = document.querySelector('.news-ticker-content');
-            if (!container) return;
-
-            // Duplicate items for seamless loop
-            const duplicatedNews = [...newsItems, ...newsItems];
-            
-            container.innerHTML = duplicatedNews.map((news, index) => {
-                const originalIndex = index % newsItems.length;
-                const iconHTML = news.isImage 
-                    ? `<img loading="lazy" src="${news.icon}" alt="Affiche" onerror="this.style.display='none'; this.parentElement.innerHTML='📰';">`
-                    : news.icon;
-                
-                return `
-                    <div class="news-ticker-item" onclick="openNewsLightbox(${originalIndex})">
-                        <div class="news-ticker-icon ${news.gradient}">
-                            ${iconHTML}
-                        </div>
-                        <span class="news-ticker-text">${news.text}</span>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function renderNewsList() {
-            const container = document.getElementById('newsListContainer');
-            if (!container) return;
-
-            if (newsItems.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align: center; padding: 60px 20px; background: rgba(255,255,255,0.1); border-radius: 20px;">
-                        <div style="font-size: 60px; margin-bottom: 20px;">📰</div>
-                        <p style="font-size: 18px; opacity: 0.8;">Aucune actualité pour le moment</p>
-                        <p style="font-size: 14px; opacity: 0.6; margin-top: 10px;">Cliquez sur "Ajouter une actualité" pour commencer</p>
-                    </div>
-                `;
-                return;
-            }
-
-            container.innerHTML = newsItems.map((news, index) => {
-                const iconDisplay = news.isImage 
-                    ? `<img loading="lazy" src="${news.icon}" style="width: 50px; height: 50px; border-radius: 10px; object-fit: cover;" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2250%22 height=%2250%22%3E%3Crect fill=%22%23ddd%22 width=%2250%22 height=%2250%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2230%22%3E📰%3C/text%3E%3C/svg%3E';">`
-                    : `<div style="font-size: 40px;">${news.icon}</div>`;
-
-                return `
-                    <div style="background: rgba(255,255,255,0.12); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.2); border-radius: 16px; padding: 20px; margin-bottom: 15px; display: flex; align-items: center; gap: 20px;">
-                        <div class="news-ticker-icon ${news.gradient}" style="width: 60px; height: 60px; flex-shrink: 0;">
-                            ${iconDisplay}
-                        </div>
-                        <div style="flex: 1;">
-                            <div style="font-size: 15px; font-weight: 600; margin-bottom: 5px;">${news.text}</div>
-                            <div style="font-size: 12px; opacity: 0.7;">Gradient: ${news.gradient} ${news.isImage ? '· Image' : '· Emoji'}</div>
-                        </div>
-                        <div style="display: flex; gap: 10px;">
-                            <button onclick="editNews(${news.id})" style="background: rgba(66, 135, 245, 0.2); border: 1px solid rgba(66, 135, 245, 0.4); color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;">
-                                ✏️ Modifier
-                            </button>
-                            <button onclick="deleteNews(${news.id})" style="background: rgba(245, 66, 66, 0.2); border: 1px solid rgba(245, 66, 66, 0.4); color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;">
-                                🗑️ Supprimer
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function openAddNewsModal() {
-            document.getElementById('newsModalTitle').textContent = '➕ Nouvelle Actualité';
-            document.getElementById('newsIcon').value = '';
-            document.getElementById('newsImageUpload').value = '';
-            document.getElementById('newsText').value = '';
-            document.getElementById('newsEditIndex').value = '';
-            document.getElementById('newsImagePreview').style.display = 'none';
-            document.getElementById('newsModal').classList.add('show');
-        }
-
-        // Gestion de l'upload d'image
-        document.addEventListener('DOMContentLoaded', function() {
-            const imageUpload = document.getElementById('newsImageUpload');
-            const urlInput = document.getElementById('newsIcon');
-            const previewContainer = document.getElementById('newsImagePreview');
-            const previewImg = document.getElementById('newsPreviewImg');
-
-            // Quand on upload une image
-            if (imageUpload) {
-                imageUpload.addEventListener('change', function(e) {
-                    const file = e.target.files[0];
-                    if (file && file.type.startsWith('image/')) {
-                        const reader = new FileReader();
-                        reader.onload = function(event) {
-                            const base64Image = event.target.result;
-                            // Mettre l'image en base64 dans le champ URL
-                            urlInput.value = base64Image;
-                            // Afficher la prévisualisation
-                            previewImg.src = base64Image;
-                            previewContainer.style.display = 'block';
-                        };
-                        reader.readAsDataURL(file);
-                    }
-                });
-            }
-
-            // Prévisualisation pour URL
-            if (urlInput) {
-                urlInput.addEventListener('input', function() {
-                    const value = this.value.trim();
-                    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:image')) {
-                        previewImg.src = value;
-                        previewContainer.style.display = 'block';
-                    } else {
-                        previewContainer.style.display = 'none';
-                    }
-                });
-            }
-        });
-
-        function editNews(id) {
-            const news = newsItems.find(n => n.id === id);
-            if (!news) return;
-            document.getElementById('newsModalTitle').textContent = '✏️ Modifier l\'Actualité';
-            document.getElementById('newsIcon').value = news.icon;
-            document.getElementById('newsImageUpload').value = ''; // Reset file input
-            document.getElementById('newsText').value = news.text;
-            document.getElementById('newsEditIndex').value = id; // ID serveur
-            
-            // Afficher la prévisualisation si c'est une image
-            const previewContainer = document.getElementById('newsImagePreview');
-            const previewImg = document.getElementById('newsPreviewImg');
-            if (news.isImage) {
-                previewImg.src = news.icon;
-                previewContainer.style.display = 'block';
-            } else {
-                previewContainer.style.display = 'none';
-            }
-            
-            document.getElementById('newsModal').classList.add('show');
-        }
-
-        function closeNewsModal() {
-            document.getElementById('newsModal').classList.remove('show');
-        }
-
-        async function saveNews() {
-            const icon = document.getElementById('newsIcon').value.trim();
-            const gradient = 'gradient-1';
-            const text = document.getElementById('newsText').value.trim();
-            const editId = document.getElementById('newsEditIndex').value; // contient l'ID serveur ou ''
-
-            if (!icon || !text) {
-                showToast('⚠️ Veuillez remplir tous les champs');
-                return;
-            }
-
-            const isImage = icon.startsWith('http://') || icon.startsWith('https://') || icon.startsWith('data:image');
-            const payload = { icon, gradient, text, isImage };
-
-            let result;
-            if (editId !== '') {
-                // Mode édition : on envoie l'ID serveur
-                result = await saveNewsToServer('update', { id: parseInt(editId), ...payload });
-                if (result.success) showToast('✅ Actualité modifiée avec succès!');
-            } else {
-                // Mode ajout
-                result = await saveNewsToServer('add', payload);
-                if (result.success) showToast('✅ Actualité ajoutée avec succès!');
-            }
-
-            if (result.success) {
-                if (typeof window.renderBanner === 'function') window.renderBanner();
-                renderNewsList();
-                closeNewsModal();
-            }
-        }
-
-        async function deleteNews(id) {
-            if (!confirm('Êtes-vous sûr de vouloir supprimer cette actualité ?')) return;
-
-            const result = await saveNewsToServer('delete', { id });
-            if (result.success) {
-                if (typeof window.renderBanner === 'function') window.renderBanner();
-                renderNewsList();
-                renderNewsList();
-                showToast('✅ Actualité supprimée');
-            }
-        }
-
-        async function deleteAllNews() {
-            if (!confirm('Supprimer TOUTES les actualités ? Cette action est irréversible.')) return;
-
-            showToast('🗑️ Suppression en cours...');
-            // Supprimer une par une dans l'ordre
-            const ids = newsItems.map(n => n.id);
-            for (const id of ids) {
-                await saveNewsToServer('delete', { id });
-            }
-            newsItems = [];
-            renderNewsTicker();
-            renderNewsList();
-            showToast('✅ Toutes les actualités ont été supprimées');
-        }
-
-        // ==================== IMAGE LIGHTBOX (plein écran) ====================
-        function openImageLightbox(src) {
-            let lb = document.getElementById('imageLightboxOverlay');
-            if (!lb) {
-                lb = document.createElement('div');
-                lb.id = 'imageLightboxOverlay';
-                lb.style.cssText = `
-                    position: fixed; inset: 0; z-index: 99999;
-                    background: rgba(0,0,0,0.92);
-                    display: flex; align-items: center; justify-content: center;
-                    cursor: zoom-out;
-                    animation: fadeInLb 0.2s ease;
-                `;
-                lb.innerHTML = `
-                    <style>
-                        @keyframes fadeInLb { from { opacity:0; } to { opacity:1; } }
-                        @keyframes zoomInLb { from { transform: scale(0.85); opacity:0; } to { transform: scale(1); opacity:1; } }
-                        #imageLightboxImg {
-                            max-width: 92vw; max-height: 92vh;
-                            object-fit: contain; border-radius: 12px;
-                            box-shadow: 0 30px 80px rgba(0,0,0,0.6);
-                            animation: zoomInLb 0.25s cubic-bezier(0.34,1.56,0.64,1);
-                            cursor: default;
-                        }
-                        #imageLightboxClose {
-                            position: fixed; top: 20px; right: 24px;
-                            background: rgba(255,255,255,0.15); border: none;
-                            color: white; font-size: 28px; width: 48px; height: 48px;
-                            border-radius: 50%; cursor: pointer; display: flex;
-                            align-items: center; justify-content: center;
-                            transition: background 0.2s;
-                            backdrop-filter: blur(4px);
-                        }
-                        #imageLightboxClose:hover { background: rgba(255,255,255,0.3); }
-                    </style>
-                    <button id="imageLightboxClose" onclick="event.stopPropagation(); closeImageLightbox();">✕</button>
-                    <img loading="lazy" id="imageLightboxImg" src="" alt="Vue agrandie">
-                `;
-                lb.addEventListener('click', closeImageLightbox);
-                lb.querySelector('#imageLightboxImg').addEventListener('click', e => e.stopPropagation());
-                document.body.appendChild(lb);
-                // Fermer avec Echap
-                document.addEventListener('keydown', _lbKeyHandler);
-            }
-            document.getElementById('imageLightboxImg').src = src;
-            lb.style.display = 'flex';
-            document.body.style.overflow = 'hidden';
-        }
-
-        function closeImageLightbox() {
-            const lb = document.getElementById('imageLightboxOverlay');
-            if (lb) lb.style.display = 'none';
-            document.body.style.overflow = '';
-        }
-
-        function _lbKeyHandler(e) {
-            if (e.key === 'Escape') closeImageLightbox();
-        }
-
-        // ==================== NEWS LIGHTBOX FUNCTIONS ====================
-        function openNewsLightbox(index) {
-            const news = newsItems[index];
-            if (!news) return;
-
-            const lightbox = document.getElementById('newsLightbox');
-            const imageContainer = document.getElementById('newsLightboxImage');
-            const title = document.getElementById('newsLightboxTitle');
-            const gradientName = document.getElementById('newsLightboxGradientName');
-            const gradientPreview = document.getElementById('newsLightboxGradientPreview');
-            const description = document.getElementById('newsLightboxDescription');
-
-            // Set title
-            title.textContent = news.text;
-
-            // Set image or emoji — utilise un <img loading="lazy"> pour voir l'image complète
-            if (news.isImage) {
-                imageContainer.classList.remove('emoji-display');
-                imageContainer.style.backgroundImage = 'none';
-                imageContainer.innerHTML = `<img loading="lazy" class="lightbox-img" src="${news.icon}" alt="${news.text}" onerror="this.parentElement.innerHTML='📰'">`;
-            } else {
-                imageContainer.classList.add('emoji-display');
-                imageContainer.style.backgroundImage = 'none';
-                imageContainer.innerHTML = news.icon;
-            }
-
-            // Set gradient info
-            const gradientNames = {
-                'gradient-1': 'Bronze-Cuivre',
-                'gradient-2': 'Terre-Argile',
-                'gradient-3': 'Or-Doré',
-                'gradient-4': 'Cuivre-Sable',
-                'gradient-5': 'Bronze-Sable'
-            };
-            gradientName.textContent = gradientNames[news.gradient] || news.gradient;
-
-            // Apply gradient preview
-            gradientPreview.className = `news-lightbox-gradient-preview news-ticker-icon ${news.gradient}`;
-
-            // Set description (same as text for now, you can enhance this)
-            description.textContent = news.text;
-
-            // Show lightbox
-            lightbox.classList.add('active');
-            document.body.style.overflow = 'hidden'; // Prevent scrolling
-        }
-
-        function closeNewsLightbox(event) {
-            // Close only if clicking on background or close button
-            if (event && event.target.closest('.news-lightbox-content') && !event.target.classList.contains('news-lightbox-close')) {
-                return;
-            }
-
-            const lightbox = document.getElementById('newsLightbox');
-            lightbox.classList.remove('active');
-            document.body.style.overflow = ''; // Restore scrolling
-        }
-
-        // Close lightbox with ESC key
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeNewsLightbox();
-            }
-        });
-
-        // Close modal when clicking outside
-        document.addEventListener('click', function(event) {
-            const modal = document.getElementById('newsModal');
-            if (event.target === modal) {
-                closeNewsModal();
-            }
-        });
 
         // ==================== AVATAR UPLOAD HANDLERS ====================
         function handleAvatarUpload(event, context) {
@@ -9641,12 +9260,7 @@ function enterGallery() {
                 window.addEventListener('load', initializeGoogleSignIn);
             }
             
-            // Charger les actualités depuis le serveur (partagées entre tous les utilisateurs)
-            fetchNewsFromServer().then(() => {
-                renderNewsTicker();
-                renderNewsList();
-            });
-            
+
             // Charger les actualités et afficher la bannière
             fetchNewsFromServer();
 
@@ -10102,87 +9716,6 @@ function enterGallery() {
     }
 
 
-
-/* ============================
-   BLOC JS SUIVANT
-   ============================ */
-
-
-        // ==================== TICKER NAVIGATION ====================
-        (function() {
-            const STEP = 320;
-
-            function getScroll()  { return document.querySelector('.news-ticker-scroll'); }
-            function getContent() { return document.querySelector('.news-ticker-content'); }
-
-            function pauseTicker(ms) {
-                const c = getContent();
-                if (!c) return;
-                c.style.animationPlayState = 'paused';
-                clearTimeout(window._tickerResumeTimer);
-                if (ms) {
-                    window._tickerResumeTimer = setTimeout(() => {
-                        c.style.animationPlayState = 'running';
-                    }, ms);
-                }
-            }
-
-            function resumeTicker() {
-                const c = getContent();
-                if (c) c.style.animationPlayState = 'running';
-            }
-
-            function applyOffset(delta) {
-                const scroll = getScroll();
-                if (!scroll) return;
-                pauseTicker(4000);
-                scroll.scrollLeft += delta;
-            }
-
-            // Attacher les events dès que le ticker est dans le DOM
-            function attachTickerEvents() {
-                const scroll = getScroll();
-                if (!scroll || scroll._tickerBound) return;
-                scroll._tickerBound = true;
-
-                // Pause au survol
-                scroll.addEventListener('mouseenter', () => pauseTicker(0));
-                scroll.addEventListener('mouseleave', () => resumeTicker());
-
-                // ⭐ Scroll molette → avancer/reculer
-                scroll.addEventListener('wheel', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    applyOffset(e.deltaY > 0 ? STEP : -STEP);
-                }, { passive: false });
-
-                // Touch mobile — scroll natif activé
-                scroll.style.overflowX = 'auto';
-                scroll.style.scrollBehavior = 'smooth';
-                let touchStartX = 0;
-                scroll.addEventListener('touchstart', (e) => {
-                    touchStartX = e.touches[0].clientX;
-                    pauseTicker(0);
-                }, { passive: true });
-                scroll.addEventListener('touchend', (e) => {
-                    const dx = touchStartX - e.changedTouches[0].clientX;
-                    applyOffset(dx);
-                    resumeTicker();
-                }, { passive: true });
-            }
-
-            // Essayer immédiatement + après chargement + observer les mutations
-            attachTickerEvents();
-            document.addEventListener('DOMContentLoaded', attachTickerEvents);
-            window.addEventListener('load', attachTickerEvents);
-            // Re-attacher si le ticker est reconstruit dynamiquement
-            const _tickerObserver = new MutationObserver(() => attachTickerEvents());
-            _tickerObserver.observe(document.body, { childList: true, subtree: true });
-
-            window.tickerNav = function(dir) {
-                applyOffset(dir * STEP);
-            };
-        })();
 
 
 

@@ -6012,7 +6012,6 @@ function enterGallery() {
                 btn.setAttribute('data-following', 'true');
                 btn.style.transform = 'scale(1.1)';
                 
-                // Animation légère (pas de librairie externe)
                 btn.style.transition = 'transform 0.3s';
                 setTimeout(() => { btn.style.transform = ''; }, 300);
                 
@@ -6580,7 +6579,7 @@ function enterGallery() {
 
             // Construire les pin-cards de posts (badge doré, pas de bouton achat)
             const postCards = relevantPosts.map(post => ({ html: buildPostPinCard(post), date: new Date(post.created_at).getTime() }));
-            // Reconstruire pinCards en array pour intercaler avec posts
+            // Reconstruire pinCards
             const pinCardsArr = allFollowedWorks.map(({ work, artist }) => {
                 const isSocialLiked = isSociallyLiked(work.id);
                 const realLikesCount = allSocialLikes.filter(id => id === work.id).length;
@@ -8911,6 +8910,27 @@ function enterGallery() {
             }
         });
 
+
+        (function(){
+            var _idx=0,_timer=null,_items=[],_el=0,INTV=4000;
+            window.renderBanner=function(){
+                var sec=document.getElementById('arkyiBannerSection');
+                if(!sec)return;
+                _items=(window.newsItems||[]).filter(function(n){return n.isImage&&n.icon;});
+                if(!_items.length){sec.style.display='none';return;}
+                sec.style.display='block';
+                var slides=_items.map(function(n,i){return '<div class="arkyl-banner-slide"><img src="'+n.icon+'" alt="'+n.text+'" loading="lazy" onerror="this.style.minHeight='120px'">'
+                    +'<div class="arkyl-banner-caption"><span class="banner-tag">Actualit\xc3\xa9</span><div class="banner-title">'+n.text+'</div></div></div>';}).join('');
+                var dots=_items.map(function(_,i){return '<button class="arkyl-banner-dot'+(i===0?' active':'')+'" onclick="window._bannerGoTo('+ i +')"></button>';}).join('');
+                var nav=_items.length>1?'<button class="arkyl-banner-btn prev" onclick="window._bannerGoTo(-1,1)">&larr;</button><button class="arkyl-banner-btn next" onclick="window._bannerGoTo(1,1)">&rarr;</button>':'';
+                sec.innerHTML='<div class="arkyl-banner-track"><div class="arkyl-banner-slides" id="bannerSlides">'+slides+'</div>'+nav+'<div class="arkyl-banner-dots">'+dots+'</div><div class="arkyl-banner-progress" id="bannerProgress"></div></div>';
+                _idx=0;_el=0;_upd();_start();
+            };
+            function _upd(){var s=document.getElementById('bannerSlides');if(s)s.style.transform='translateX(-'+(\_idx*100)+'%)';document.querySelectorAll('.arkyl-banner-dot').forEach(function(d,i){d.classList.toggle('active',i===_idx);});}
+            function _start(){clearInterval(_timer);if(_items.length<=1)return;_timer=setInterval(function(){_el+=100;var p=document.getElementById('bannerProgress');if(p)p.style.width=(_el/INTV*100)+'%';if(_el>=INTV){_el=0;_idx=(_idx+1)%_items.length;_upd();}},100);}
+            window._bannerGoTo=function(v,r){_idx=r?(_idx+v+_items.length)%_items.length:v;_upd();clearInterval(_timer);_el=0;var p=document.getElementById('bannerProgress');if(p)p.style.width='0%';_start();};
+        })();
+
         // ==================== NEWS MANAGEMENT (ADMIN) ====================
         
         // ========== ACTUALITÉS : stockage côté serveur (partagé entre tous les utilisateurs) ==========
@@ -8927,6 +8947,8 @@ function enterGallery() {
                         ...n,
                         isImage: n.isImage ?? (n.is_image == 1)
                     }));
+                    window.newsItems = newsItems;
+                    if (typeof window.renderBanner === 'function') window.renderBanner();
                     return true;
                 }
             } catch(e) {
@@ -9532,6 +9554,8 @@ function enterGallery() {
                 renderNewsList();
             });
             
+            // if(typeof fetchNewsFromServer==='function')fetchNewsFromServer();
+
             // Restaurer la dernière page OU traiter retour Stripe
             const lastPage = safeStorage.get('arkyl_last_page', null);
             let startPage = 'home';
@@ -9845,65 +9869,28 @@ function enterGallery() {
             grille.innerHTML = '<p style="text-align:center;width:100%;opacity:0.7;padding:40px;">Aucune œuvre dans cette catégorie.</p>';
             return;
         }
-        // MASONRY : pagination par lots, insertAdjacentHTML (pas innerHTML+=)
-        const PAGE_SIZE = 16;
-        let currentPage = 0;
-
-        function renderPage(page) {
-            const debut = page * PAGE_SIZE;
-            const lot = oeuvres.slice(debut, debut + PAGE_SIZE);
-            if (!lot.length) return;
-
-            const fragment = lot.map(oeuvre => {
-                const photos = (oeuvre.photos && Array.isArray(oeuvre.photos) && oeuvre.photos.length > 0)
-                    ? oeuvre.photos : [oeuvre.image_url || ''];
-
-                const imgSrc = photos[0] || '';
-                const isSold = oeuvre.is_sold || oeuvre.badge === 'Vendu';
-                const badgeLabel = isSold ? '🔴 Vendu' : (oeuvre.badge || 'Disponible');
-                const soldStyle = isSold ? 'filter:grayscale(50%);opacity:0.8;' : '';
-                const btnHTML = isSold
-                    ? `<span style="font-size:10px;opacity:0.55;">Vendu</span>`
-                    : `<button class="add-cart-btn" onclick="addToCart(event,${oeuvre.id})">+ Panier</button>`;
-                const dotsHTML = photos.length > 1
-                    ? `<div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);display:flex;gap:3px;z-index:2;">${photos.map((_,i)=>`<div style="width:5px;height:5px;border-radius:50%;background:${i===0?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.35)'};"></div>`).join('')}</div>`
-                    : '';
-
-                const artistName = oeuvre.artist_name || oeuvre.artist || 'Artiste inconnu';
-                const title = oeuvre.title || 'Sans titre';
-                const price = oeuvre.price || 0;
-
-                return `<div class="product-card" style="${soldStyle}" onclick="viewProductDetailFromAPI(${oeuvre.id})">
-                    <div class="product-image">
-                        <span class="product-badge">${badgeLabel}</span>
-                        <button class="like-button" onclick="toggleFavorite(event,${oeuvre.id})">🤍</button>
-                        <img src="${imgSrc}" alt="${title}" loading="lazy"
-                             style="width:100%;height:auto;display:block;border-radius:12px 12px 0 0;"
-                             onerror="this.style.minHeight='80px'">
-                        ${dotsHTML}
-                    </div>
-                    <div class="product-info">
-                        <div class="product-title">${title}</div>
-                        <div class="product-artist" onclick="viewArtistDetail(event,'${artistName}')">par ${artistName}</div>
-                        <div class="product-footer">
-                            <div class="product-price">${Number(price).toLocaleString('fr-FR')} FCFA</div>
-                            ${btnHTML}
-                        </div>
-                    </div>
-                </div>`;
+        const PAGE_SIZE=16;let currentPage=0;
+        function renderPage(page){
+            const debut=page*PAGE_SIZE,lot=oeuvres.slice(debut,debut+PAGE_SIZE);
+            if(!lot.length)return;
+            const fragment=lot.map(oeuvre=>{
+                const photos=(oeuvre.photos&&Array.isArray(oeuvre.photos)&&oeuvre.photos.length>0)?oeuvre.photos:[oeuvre.image_url||''];
+                const imgSrc=photos[0]||'';
+                const isSold=oeuvre.is_sold||oeuvre.badge==='Vendu';
+                const badgeLabel=isSold?'🔴 Vendu':(oeuvre.badge||'Disponible');
+                const soldStyle=isSold?'filter:grayscale(50%);opacity:0.8;':''
+                const btnHTML=isSold?`<span style="font-size:10px;opacity:0.55;">Vendu</span>`:`<button class="add-cart-btn" onclick="addToCart(event,${oeuvre.id})">+ Panier</button>`;
+                const dotsHTML=photos.length>1?`<div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);display:flex;gap:3px;z-index:2;">${photos.map((_,i)=>`<div style="width:5px;height:5px;border-radius:50%;background:${i===0?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.35)'};"></div>`).join('')}</div>`:'';
+                const artistName=oeuvre.artist_name||oeuvre.artist||'Artiste inconnu';
+                const title=oeuvre.title||'Sans titre';
+                const price=oeuvre.price||0;
+                return `<div class="product-card" style="${soldStyle}" onclick="viewProductDetailFromAPI(${oeuvre.id})"><div class="product-image"><span class="product-badge">${badgeLabel}</span><button class="like-button" onclick="toggleFavorite(event,${oeuvre.id})">🤍</button><img src="${imgSrc}" alt="${title}" loading="lazy" style="width:100%;height:auto;display:block;" onerror="this.style.minHeight='80px'">${dotsHTML}</div><div class="product-info"><div class="product-title">${title}</div><div class="product-artist" onclick="viewArtistDetail(event,'${artistName}')">par ${artistName}</div><div class="product-footer"><div class="product-price">${Number(price).toLocaleString('fr-FR')} FCFA</div>${btnHTML}</div></div></div>`;
             }).join('');
-
-            grille.insertAdjacentHTML('beforeend', fragment);
-
-            const oldBtn = document.getElementById('loadMoreBtn');
-            if (oldBtn) oldBtn.remove();
-            if (debut + PAGE_SIZE < oeuvres.length) {
-                const restant = oeuvres.length - (debut + PAGE_SIZE);
-                grille.insertAdjacentHTML('afterend', `<div id="loadMoreBtn" style="text-align:center;margin:14px 0 28px;"><button onclick="window._loadMoreOeuvres()" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:white;padding:9px 26px;border-radius:22px;font-size:13px;font-weight:600;cursor:pointer;">Voir plus (${restant})</button></div>`);
-            }
+            grille.insertAdjacentHTML('beforeend',fragment);
+            const ob=document.getElementById('loadMoreBtn');if(ob)ob.remove();
+            if(debut+PAGE_SIZE<oeuvres.length){const r=oeuvres.length-(debut+PAGE_SIZE);grille.insertAdjacentHTML('afterend',`<div id="loadMoreBtn" style="text-align:center;margin:14px 0 28px;"><button onclick="window._loadMoreOeuvres()" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:white;padding:9px 26px;border-radius:22px;font-size:13px;font-weight:600;cursor:pointer;">Voir plus (${r})</button></div>`);}
         }
-
-        window._loadMoreOeuvres = function() { currentPage++; renderPage(currentPage); };
+        window._loadMoreOeuvres=function(){currentPage++;renderPage(currentPage);};
         renderPage(0);
     }
 

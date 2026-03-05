@@ -1962,19 +1962,10 @@
                 white-space: nowrap;
             }
 
-            /* Grille produits : 2 colonnes sur mobile */
-            .products-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 12px;
-                margin-bottom: 24px;
-            }
+            .products-grid { column-count: 2; column-gap: 6px; }
         }
 
-        @media (max-width: 400px) {
-            .products-grid {
-                grid-template-columns: 1fr;
-            }
-        }
+        @media (max-width: 380px) { .products-grid { column-count: 2; } }
 
         .filter-btn {
             background: rgba(255, 255, 255, 0.2);
@@ -1995,285 +1986,108 @@
             transform: translateY(-2px);
         }
 
-
-        /* ============ BANNIÈRE ACTUALITÉS STYLE JUMIA ============ */
-        .arkyl-banner-section {
-            width: 100%;
-            margin: 0 0 18px 0;
-            position: relative;
-        }
-
-        .arkyl-banner-track {
-            position: relative;
-            width: 100%;
-            overflow: hidden;
-            border-radius: 16px;
-            background: rgba(0,0,0,0.2);
-        }
-
-        .arkyl-banner-slides {
-            display: flex;
-            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            will-change: transform;
-        }
-
-        .arkyl-banner-slide {
-            min-width: 100%;
-            position: relative;
-            cursor: pointer;
-            overflow: hidden;
-            border-radius: 16px;
-        }
-
-        /* Image principale plein format */
-        .arkyl-banner-slide img {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
-            display: block;
-            border-radius: 16px;
-        }
-
-        @media (min-width: 600px) {
-            .arkyl-banner-slide img { height: 260px; }
-        }
-        @media (min-width: 900px) {
-            .arkyl-banner-slide img { height: 320px; }
-        }
-
-        /* Overlay dégradé en bas de la slide */
-        .arkyl-banner-slide::after {
-            content: '';
-            position: absolute;
-            bottom: 0; left: 0; right: 0;
-            height: 55%;
-            background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%);
-            border-radius: 0 0 16px 16px;
-            pointer-events: none;
-        }
-
-        /* Texte sur la slide */
-        .arkyl-banner-caption {
-            position: absolute;
-            bottom: 16px;
-            left: 18px;
-            right: 60px;
-            z-index: 2;
-            color: #fff;
-        }
-        .arkyl-banner-caption .banner-tag {
-            display: inline-block;
-            background: var(--ocre, #D4A574);
-            color: #fff;
-            font-size: 10px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: 3px 10px;
-            border-radius: 20px;
-            margin-bottom: 6px;
-        }
-        .arkyl-banner-caption .banner-title {
-            font-size: 16px;
-            font-weight: 700;
-            line-height: 1.3;
-            text-shadow: 0 1px 6px rgba(0,0,0,0.5);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        /* Slide sans image — fond coloré */
-        .arkyl-banner-slide.no-image {
-            background: linear-gradient(135deg, #c47c2f, #8B4513);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 200px;
-        }
-        @media (min-width: 600px) { .arkyl-banner-slide.no-image { height: 260px; } }
-        @media (min-width: 900px) { .arkyl-banner-slide.no-image { height: 320px; } }
-
-        .arkyl-banner-slide.no-image .banner-emoji {
-            font-size: 64px;
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            opacity: 0.3;
-        }
-
-        /* Boutons précédent / suivant */
-        .arkyl-banner-btn {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 4;
-            background: rgba(255,255,255,0.18);
-            backdrop-filter: blur(8px);
-            border: none;
-            color: #fff;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            font-size: 16px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s;
-        }
-        .arkyl-banner-btn:hover { background: rgba(255,255,255,0.35); }
-        .arkyl-banner-btn.prev { left: 10px; }
-        .arkyl-banner-btn.next { right: 10px; }
-
-        /* Indicateurs de points */
-        .arkyl-banner-dots {
-            position: absolute;
-            bottom: 10px;
-            right: 14px;
-            display: flex;
-            gap: 5px;
-            z-index: 4;
-        }
-        .arkyl-banner-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.4);
-            cursor: pointer;
-            transition: all 0.3s;
-            border: none;
-            padding: 0;
-        }
-        .arkyl-banner-dot.active {
-            background: var(--ocre, #D4A574);
-            width: 22px;
-            border-radius: 4px;
-        }
-
-        /* Barre de progression */
-        .arkyl-banner-progress {
-            position: absolute;
-            bottom: 0; left: 0;
-            height: 3px;
-            background: var(--ocre, #D4A574);
-            border-radius: 0 0 16px 16px;
-            transition: width 0.1s linear;
-            z-index: 5;
-        }
-
-        /* État vide */
-        .arkyl-banner-empty {
-            display: none;
-        }
-
-        /* ============ PRODUCT GRID ============ */
+        /* ============ PRODUCT GRID — MASONRY PINTEREST ============ */
         .products-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 25px;
-            margin-bottom: 40px;
+            column-count: 2;
+            column-gap: 6px;
+            margin-top: 8px;
+            margin-bottom: 16px;
         }
+        @media (min-width: 480px)  { .products-grid { column-count: 3; } }
+        @media (min-width: 768px)  { .products-grid { column-count: 4; } }
+        @media (min-width: 1100px) { .products-grid { column-count: 5; } }
 
         .product-card {
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(20px);
-            border-radius: 20px;
+            break-inside: avoid;
+            display: inline-block;
+            width: 100%;
+            margin-bottom: 6px;
+            background: rgba(255, 255, 255, 0.10);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border-radius: 12px;
             overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            transition: all 0.4s;
+            border: 1px solid rgba(255, 255, 255, 0.12);
             cursor: pointer;
+            transform: translateZ(0);
         }
 
         .product-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-            border-color: rgba(255, 255, 255, 0.4);
+            border-color: rgba(212, 175, 55, 0.45);
         }
 
+        /* Image hauteur NATURELLE = effet masonry automatique */
         .product-image {
             position: relative;
-            height: 240px;
-            background: rgba(0, 0, 0, 0.25);
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            width: 100%;
+            height: auto;
+            display: block;
             overflow: hidden;
+            background: rgba(0,0,0,0.15);
         }
 
         .product-image img {
             width: 100%;
-            height: 100%;
-            object-fit: contain !important;
-            padding: 8px;
+            height: auto;
+            display: block;
+            object-fit: cover;
+            border-radius: 12px 12px 0 0;
         }
 
-        .product-emoji {
-            font-size: 80px;
-            animation: floatEmoji 3s ease-in-out infinite;
-        }
-
-        @keyframes floatEmoji {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
+        .product-emoji { font-size: 50px; }
 
         .product-badge {
             position: absolute;
-            top: 15px;
-            left: 15px;
-            background: rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(10px);
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 12px;
+            top: 7px;
+            left: 7px;
+            background: rgba(0,0,0,0.55);
+            color: #fff;
+            padding: 3px 8px;
+            border-radius: 8px;
+            font-size: 10px;
             font-weight: 700;
+            letter-spacing: 0.3px;
         }
 
         .like-button {
             position: absolute;
-            top: 15px;
-            right: 15px;
-            background: rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(10px);
-            width: 40px;
-            height: 40px;
+            top: 7px;
+            right: 7px;
+            background: rgba(0,0,0,0.45);
+            width: 26px;
+            height: 26px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            font-size: 20px;
-            transition: all 0.3s ease;
+            font-size: 13px;
             border: none;
         }
 
-        .like-button:hover {
-            transform: scale(1.15);
-            background: rgba(255, 255, 255, 0.4);
-        }
-
         .product-info {
-            padding: 20px;
+            padding: 7px 9px 9px;
         }
 
         .product-title {
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 2px;
+            line-height: 1.3;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
         }
 
         .product-artist {
-            font-size: 13px;
-            opacity: 0.8;
-            margin-bottom: 15px;
+            font-size: 10px;
+            opacity: 0.65;
+            margin-bottom: 6px;
             cursor: pointer;
-            transition: opacity 0.2s, color 0.2s;
-        }
-
-        .product-artist:hover {
-            opacity: 1;
-            color: var(--ocre);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .product-footer {
@@ -2283,33 +2097,21 @@
         }
 
         .product-price {
-            font-size: 22px;
+            font-size: 12px;
             font-weight: 700;
             color: var(--ocre);
         }
 
         .add-cart-btn {
-            background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            color: white;
-            padding: 8px 18px;
-            border-radius: 20px;
-            font-size: 13px;
+            background: rgba(212,175,55,0.2);
+            border: 1px solid rgba(212,175,55,0.45);
+            color: #fff;
+            padding: 4px 9px;
+            border-radius: 10px;
+            font-size: 10px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .add-cart-btn:hover {
-            background: rgba(255, 255, 255, 0.35);
-            transform: scale(1.05);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-        }
-
-        .add-cart-btn:active {
-            transform: scale(0.98);
+            white-space: nowrap;
         }
 
         /* ===== ANIMATIONS PANIER & FAVORIS ===== */
@@ -4779,10 +4581,7 @@
                 margin-bottom: 16px;
             }
 
-            .products-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 12px;
-            }
+            .products-grid { column-count: 2; column-gap: 6px; }
 
             .cart-grid {
                 grid-template-columns: 1fr;

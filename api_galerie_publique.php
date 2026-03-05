@@ -49,9 +49,15 @@ try {
         //          (le panneau admin doit voir TOUTES les œuvres)
         $isAdmin = isset($_GET['admin']) && $_GET['admin'] === '1';
 
+        $includeSold = isset($_GET['include_sold']) && $_GET['include_sold'] === '1';
+
         if ($isAdmin) {
             $sql = "SELECT * FROM artworks WHERE 1=1";
+        } elseif ($includeSold) {
+            // Page artiste ou mes artistes : montrer toutes les œuvres publiées (vendues incluses)
+            $sql = "SELECT * FROM artworks WHERE status = 'publiée'";
         } else {
+            // Galerie publique : uniquement les œuvres disponibles
             $sql = "SELECT * FROM artworks WHERE status = 'publiée' AND (is_sold IS NULL OR is_sold = FALSE)";
         }
 
@@ -159,10 +165,7 @@ function formatArtwork($oeuvre) {
         'image' => !empty($photos) ? $photos[0] : null,
         'image_url' => !empty($photos) ? $photos[0] : null,
         'photos' => $photos,
-        'created_at' => $oeuvre['created_at'] ?? null,
-        'country' => $oeuvre['country'] ?? null,
-        'city' => $oeuvre['city'] ?? null,
-        'is_sold' => !empty($oeuvre['is_sold']) ? (bool)$oeuvre['is_sold'] : false
+        'created_at' => $oeuvre['created_at'] ?? null
     ];
 }
 ?>

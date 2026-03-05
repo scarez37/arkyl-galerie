@@ -1,4 +1,4 @@
-function enterGallery() {
+window.enterGallery = function enterGallery() {
             const introPage = document.getElementById('intro-page');
             const mainContent = document.getElementById('main-content');
             introPage.classList.add('fade-out');
@@ -6012,8 +6012,8 @@ function enterGallery() {
                 btn.setAttribute('data-following', 'true');
                 btn.style.transform = 'scale(1.1)';
                 
-                btn.style.transition = 'transform 0.3s';
-                setTimeout(() => { btn.style.transform = ''; }, 300);
+                btn.style.transition = "transform 0.3s";
+                setTimeout(() => { btn.style.transform = ""; }, 300);
                 
                 setTimeout(() => {
                     btn.style.transform = '';
@@ -6261,7 +6261,7 @@ function enterGallery() {
             preview.dataset.fileUrl = url;
             preview.dataset.fileType = file.type.startsWith('video/') ? 'video' : 'image';
             preview.dataset.fileName = file.name;
-            preview._postFile = file;
+            preview._postFile = file; // Stocker pour upload Cloudinary
         }
 
         function handlePostFileDrop(event) {
@@ -6288,8 +6288,9 @@ function enterGallery() {
             }
 
             const btn = document.querySelector('#createPostModal button[onclick="submitArtistPost()"]');
-            if (btn) { btn.disabled = true; btn.textContent = '📤 Upload en cours...'; }
+            if (btn) { btn.disabled = true; btn.textContent = '📤 Upload...'; }
 
+            // Upload sur Cloudinary si fichier local
             const file = preview._postFile;
             if (file && mediaUrl.startsWith('blob:')) {
                 try {
@@ -6300,9 +6301,15 @@ function enterGallery() {
                     const resource = mediaType === 'video' ? 'video' : 'image';
                     const res = await fetch(`https://api.cloudinary.com/v1_1/ddah64j2a/${resource}/upload`, { method: 'POST', body: fd });
                     const data = await res.json();
-                    if (data.secure_url) { mediaUrl = data.secure_url; if (btn) btn.textContent = '⏳ Publication...'; }
-                    else { console.warn('Cloudinary:', data); showToast('⚠️ Upload échoué, publication locale'); }
-                } catch(e) { console.warn(e); showToast('⚠️ Upload échoué, publication locale'); }
+                    if (data.secure_url) {
+                        mediaUrl = data.secure_url;
+                        if (btn) btn.textContent = '⏳ Publication...';
+                    } else {
+                        showToast('⚠️ Upload échoué, publication locale');
+                    }
+                } catch(e) {
+                    showToast('⚠️ Upload échoué, publication locale');
+                }
             }
 
             const post = {
@@ -6431,11 +6438,14 @@ function enterGallery() {
 
             const similar = (window.toutesLesOeuvres || allWorks)
                 .filter(w => String(w.id) !== String(workId) && !w.is_sold)
-                .filter(w => (w.artist_name||w.artist||'') === (work.artist_name||work.artist||'') || (w.category||w.categorie||'') === (work.category||work.categorie||''))
-                .slice(0, 12);
+                .filter(w => {
+                    const sameArtist = (w.artist_name||w.artist||'') === (work.artist_name||work.artist||'');
+                    const sameCat = (w.category||w.categorie||'') === (work.category||work.categorie||'');
+                    return sameArtist || sameCat;
+                }).slice(0, 12);
 
-            const old = document.getElementById('artistPinOverlay');
-            if (old) old.remove();
+            const existing = document.getElementById('artistPinOverlay');
+            if (existing) existing.remove();
 
             const overlay = document.createElement('div');
             overlay.id = 'artistPinOverlay';
@@ -6443,37 +6453,50 @@ function enterGallery() {
 
             const imgSrc = work.image_url || work.image || '';
             const artistName = work.artist_name || work.artist || 'Artiste';
-            const isSocialLiked = typeof isSociallyLiked === 'function' && isSociallyLiked(work.id);
+            const isSL = typeof isSociallyLiked === 'function' && isSociallyLiked(work.id);
 
-            const similarHTML = similar.length ? `
+            const simHTML = similar.length > 0 ? `
                 <div style="padding:0 0 40px;">
-                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,0.35);margin:0 0 12px;padding:0 14px;">Similaires</div>
-                    <div style="column-count:2;column-gap:6px;padding:0 14px;">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,0.35);margin-bottom:12px;padding:0 16px;">Similaires</div>
+                    <div style="column-count:2;column-gap:6px;padding:0 16px;">
                         ${similar.map(s => {
-                            const si = s.image_url || s.image || '';
-                            return si ? `<div style="break-inside:avoid;margin-bottom:6px;border-radius:10px;overflow:hidden;cursor:pointer;" onclick="openArtistImageOverlay(${s.id})"><img loading="lazy" src="${si}" alt="${s.title||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='60px'"></div>` : '';
+                            const si = s.image_url||s.image||'';
+                            return si ? `<div style="break-inside:avoid;margin-bottom:6px;border-radius:10px;overflow:hidden;cursor:pointer;" onclick="openArtistImageOverlay(${s.id})">
+                                <img loading="lazy" src="${si}" alt="${s.title||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='80px'">
+                            </div>` : '';
                         }).join('')}
                     </div>
                 </div>` : '';
 
             overlay.innerHTML = `
-                <div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);">
-                    <button onclick="document.getElementById('artistPinOverlay').remove()" style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;">←</button>
-                    <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.8);max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${artistName}</span>
-                    <button onclick="event.stopPropagation();toggleSocialLike(event,${work.id},this)" style="background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;">${isSocialLiked ? '❤️' : '🤍'}</button>
+                <div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(0,0,0,0.85);backdrop-filter:blur(10px);">
+                    <button onclick="document.getElementById('artistPinOverlay').remove()"
+                        style="background:rgba(255,255,255,0.12);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">←</button>
+                    <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55%;">${artistName}</span>
+                    <button onclick="toggleSocialLike(event,${work.id},this)"
+                        style="background:rgba(255,255,255,0.12);border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+                        ${isSL ? '❤️' : '🤍'}
+                    </button>
                 </div>
-                <img src="${imgSrc}" alt="${work.title||''}" style="width:100%;height:auto;display:block;max-height:72vh;object-fit:contain;background:#000;" onerror="this.style.minHeight='200px'">
-                <div style="padding:14px 14px 18px;display:flex;gap:10px;align-items:center;">
+                <div>
+                    <img src="${imgSrc}" alt="${work.title||''}"
+                         style="width:100%;height:auto;display:block;max-height:72vh;object-fit:contain;background:#000;"
+                         onerror="this.style.minHeight='200px'">
+                </div>
+                <div style="padding:14px 16px 18px;display:flex;gap:10px;align-items:center;">
                     <div style="flex:1;min-width:0;">
-                        <div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:3px;">${work.title||'Sans titre'}</div>
+                        <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:3px;line-height:1.3;">${work.title||'Sans titre'}</div>
                         <div style="font-size:12px;color:rgba(255,255,255,0.5);">par ${artistName}</div>
                     </div>
-                    <button onclick="document.getElementById('artistPinOverlay').remove();viewProductDetailFromAPI(${work.id});" style="flex-shrink:0;background:linear-gradient(135deg,#d4af37,#b8962e);border:none;color:#1a1a1a;padding:10px 16px;border-radius:22px;font-size:13px;font-weight:700;cursor:pointer;">Voir l&#x27;oeuvre</button>
+                    <button onclick="document.getElementById('artistPinOverlay').remove();viewProductDetailFromAPI(${work.id});"
+                        style="flex-shrink:0;background:linear-gradient(135deg,#d4af37,#b8962e);border:none;color:#1a1a1a;padding:10px 16px;border-radius:22px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
+                        Voir l'œuvre
+                    </button>
                 </div>
-                ${similarHTML}`;
-
+                ${simHTML}
+            `;
             document.body.appendChild(overlay);
-            const esc = e => { if(e.key==='Escape') { overlay.remove(); document.removeEventListener('keydown', esc); } };
+            const esc = (e) => { if(e.key==='Escape') { overlay.remove(); document.removeEventListener('keydown',esc); } };
             document.addEventListener('keydown', esc);
         }
 
@@ -6580,7 +6603,6 @@ function enterGallery() {
                 artistWorks.forEach(work => allFollowedWorks.push({ work, artist }));
             });
 
-            window._artistOverlayWorks = allFollowedWorks.map(x => ({...x.work, artist_name: x.artist?.name||''}));
             if (allFollowedWorks.length === 0) {
                 loopsFeed.innerHTML = `
                     <div style="text-align:center;padding:60px 20px;">
@@ -6591,20 +6613,18 @@ function enterGallery() {
                 return;
             }
 
+            window._artistOverlayWorks = allFollowedWorks.map(x => ({...x.work, artist_name: x.artist?.name}));
             const pinCards = allFollowedWorks.map(({ work, artist }) => {
-                const isSocialLiked = typeof isSociallyLiked === 'function' && isSociallyLiked(work.id);
-                const realLikesCount = (window.allSocialLikes||[]).filter(id => id === work.id).length;
+                const isSL = typeof isSociallyLiked === 'function' && isSociallyLiked(work.id);
+                const cnt = (window.allSocialLikes||[]).filter(id => id === work.id).length;
                 const imgSrc = (work.image_url && work.image_url !== 'undefined') ? work.image_url : '';
                 return `<div style="break-inside:avoid;margin-bottom:6px;border-radius:10px;overflow:hidden;cursor:pointer;position:relative;"
-                    onclick="openArtistImageOverlay(${work.id})">
-                    ${imgSrc
-                        ? `<img loading="lazy" src="${imgSrc}" alt="${work.title||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='80px'">`
-                        : `<div style="width:100%;min-height:140px;display:flex;align-items:center;justify-content:center;font-size:56px;background:rgba(255,255,255,0.06);border-radius:10px;">🎨</div>`
-                    }
+                             onclick="openArtistImageOverlay(${work.id})">
+                    ${imgSrc ? `<img loading="lazy" src="${imgSrc}" alt="${work.title||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='80px'">` : `<div style="width:100%;min-height:120px;display:flex;align-items:center;justify-content:center;font-size:48px;background:rgba(255,255,255,0.06);border-radius:10px;">🎨</div>`}
                     ${work.is_sold ? '<div style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.65);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;">🔴 Vendu</div>' : ''}
                     <button onclick="event.stopPropagation();toggleSocialLike(event,${work.id},this)"
-                        style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.5);border:none;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;">
-                        ${isSocialLiked ? '❤️' : '🤍'}
+                        style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.5);border:none;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;">
+                        ${isSL ? '❤️' : '🤍'}${cnt > 0 ? `<span style="position:absolute;bottom:-3px;right:-3px;background:#d4af37;color:#000;font-size:9px;font-weight:700;border-radius:8px;padding:0 3px;min-width:14px;text-align:center;">${cnt}</span>` : ''}
                     </button>
                 </div>`;
             }).join('');
@@ -6624,22 +6644,21 @@ function enterGallery() {
 
             // Construire les pin-cards de posts (badge doré, pas de bouton achat)
             const postCards = relevantPosts.map(post => ({ html: buildPostPinCard(post), date: new Date(post.created_at).getTime() }));
+            // Reconstruire pinCards en array pour intercaler avec posts
             const pinCardsArr = allFollowedWorks.map(({ work, artist }) => {
-                const isSocialLiked = typeof isSociallyLiked === 'function' && isSociallyLiked(work.id);
-                const realLikesCount = (window.allSocialLikes||[]).filter(id => id === work.id).length;
+                const isSL = typeof isSociallyLiked === 'function' && isSociallyLiked(work.id);
+                const cnt = (window.allSocialLikes||[]).filter(id => id === work.id).length;
                 const imgSrc = (work.image_url && work.image_url !== 'undefined') ? work.image_url : '';
                 return `<div style="break-inside:avoid;margin-bottom:6px;border-radius:10px;overflow:hidden;cursor:pointer;position:relative;"
-                    onclick="openArtistImageOverlay(${work.id})">
-                    ${imgSrc
-                        ? `<img loading="lazy" src="${imgSrc}" alt="${work.title||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='80px'">`
-                        : `<div style="width:100%;min-height:140px;display:flex;align-items:center;justify-content:center;font-size:56px;background:rgba(255,255,255,0.06);border-radius:10px;">🎨</div>`
-                    }
+                             onclick="openArtistImageOverlay(${work.id})">
+                    ${imgSrc ? `<img loading="lazy" src="${imgSrc}" alt="${work.title||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='80px'">` : `<div style="width:100%;min-height:120px;display:flex;align-items:center;justify-content:center;font-size:48px;background:rgba(255,255,255,0.06);border-radius:10px;">🎨</div>`}
                     ${work.is_sold ? '<div style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.65);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;">🔴 Vendu</div>' : ''}
                     <button onclick="event.stopPropagation();toggleSocialLike(event,${work.id},this)"
-                        style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.5);border:none;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;">
-                        ${isSocialLiked ? '❤️' : '🤍'}
+                        style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.5);border:none;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;">
+                        ${isSL ? '❤️' : '🤍'}${cnt > 0 ? `<span style="position:absolute;bottom:-3px;right:-3px;background:#d4af37;color:#000;font-size:9px;font-weight:700;border-radius:8px;padding:0 3px;min-width:14px;text-align:center;">${cnt}</span>` : ''}
                     </button>
-                </div>`;});
+                </div>`;
+            });
 
             // Intercaler: 1 post toutes les 4 oeuvres
             const mixedCards = [];
@@ -8927,23 +8946,49 @@ function enterGallery() {
         });
 
 
-        (function(){
-            var _idx=0,_timer=null,_items=[],_el=0,INTV=4000;
-            window.renderBanner=function(){
-                var sec=document.getElementById('arkyiBannerSection');
-                if(!sec)return;
-                _items=(window.newsItems||[]).filter(function(n){return n.isImage&&n.icon;});
-                if(!_items.length){sec.style.display='none';return;}
-                sec.style.display='block';
-                var slides=_items.map(function(n){return '<div class="arkyl-banner-slide"><img src="'+n.icon+'" alt="'+n.text+'" loading="lazy" style="width:100%;display:block;"><div class="arkyl-banner-caption"><span class="banner-tag">Actualité</span><div class="banner-title">'+n.text+'</div></div></div>';}).join('');
-                var dots=_items.map(function(_,i){return '<button class="arkyl-banner-dot'+(i===0?' active':'')+'" onclick="window._bannerGoTo('+i+')"></button>';}).join('');
-                var nav=_items.length>1?'<button class="arkyl-banner-btn prev" onclick="window._bannerGoTo(-1,1)">&larr;</button><button class="arkyl-banner-btn next" onclick="window._bannerGoTo(1,1)">&rarr;</button>':'';
-                sec.innerHTML='<div class="arkyl-banner-track"><div class="arkyl-banner-slides" id="bannerSlides">'+slides+'</div>'+nav+'<div class="arkyl-banner-dots">'+dots+'</div><div class="arkyl-banner-progress" id="bannerProgress"></div></div>';
-                _idx=0;_el=0;_upd();_start();
+        // ==================== BANNIÈRE JUMIA ====================
+        (function() {
+            var _idx=0, _timer=null, _items=[], _el=0, INTV=4000;
+            window.renderBanner = function() {
+                var sec = document.getElementById('arkyiBannerSection');
+                if (!sec) return;
+                _items = (window.newsItems||[]).filter(function(n){ return n.isImage && n.icon; });
+                if (!_items.length) { sec.style.display='none'; return; }
+                sec.style.display = 'block';
+                var slides = _items.map(function(n){
+                    return '<div class="arkyl-banner-slide"><img src="'+n.icon+'" alt="'+n.text+'" loading="lazy" onerror="this.style.minHeight=\'120px\'">'
+                        +'<div class="arkyl-banner-caption"><span class="banner-tag">Actualité</span>'
+                        +'<div class="banner-title">'+n.text+'</div></div></div>';
+                }).join('');
+                var dots = _items.map(function(_,i){
+                    return '<button class="arkyl-banner-dot'+(i===0?' active':'')+'" onclick="window._bannerGoTo('+i+')"></button>';
+                }).join('');
+                var nav = _items.length>1
+                    ? '<button class="arkyl-banner-btn prev" onclick="window._bannerGoTo(-1,1)">&#8592;</button><button class="arkyl-banner-btn next" onclick="window._bannerGoTo(1,1)">&#8594;</button>' : '';
+                sec.innerHTML = '<div class="arkyl-banner-track"><div class="arkyl-banner-slides" id="bannerSlides">'+slides+'</div>'+nav+'<div class="arkyl-banner-dots">'+dots+'</div><div class="arkyl-banner-progress" id="bannerProgress"></div></div>';
+                _idx=0; _el=0; _upd(); _start();
             };
-            function _upd(){var s=document.getElementById('bannerSlides');if(s)s.style.transform='translateX(-'+(_idx*100)+'%)';document.querySelectorAll('.arkyl-banner-dot').forEach(function(d,i){d.classList.toggle('active',i===_idx);});}
-            function _start(){clearInterval(_timer);if(_items.length<=1)return;_timer=setInterval(function(){_el+=100;var p=document.getElementById('bannerProgress');if(p)p.style.width=(_el/INTV*100)+'%';if(_el>=INTV){_el=0;_idx=(_idx+1)%_items.length;_upd();}},100);}
-            window._bannerGoTo=function(v,r){_idx=r?(_idx+v+_items.length)%_items.length:v;_upd();clearInterval(_timer);_el=0;var p=document.getElementById('bannerProgress');if(p)p.style.width='0%';_start();};
+            function _upd() {
+                var s=document.getElementById('bannerSlides');
+                if(s) s.style.transform='translateX(-'+(_idx*100)+'%)';
+                document.querySelectorAll('.arkyl-banner-dot').forEach(function(d,i){ d.classList.toggle('active',i===_idx); });
+            }
+            function _start() {
+                clearInterval(_timer);
+                if(_items.length<=1) return;
+                _timer = setInterval(function(){
+                    _el+=100;
+                    var p=document.getElementById('bannerProgress');
+                    if(p) p.style.width=(_el/INTV*100)+'%';
+                    if(_el>=INTV){ _el=0; _idx=(_idx+1)%_items.length; _upd(); }
+                },100);
+            }
+            window._bannerGoTo = function(v,r) {
+                _idx = r ? (_idx+v+_items.length)%_items.length : v;
+                _upd(); clearInterval(_timer); _el=0;
+                var p=document.getElementById('bannerProgress'); if(p) p.style.width='0%';
+                _start();
+            };
         })();
 
         // ==================== NEWS MANAGEMENT (ADMIN) ====================
@@ -9569,7 +9614,7 @@ function enterGallery() {
                 renderNewsList();
             });
             
-            // if(typeof fetchNewsFromServer==='function')fetchNewsFromServer();
+            // if(typeof fetchNewsFromServer==='function') fetchNewsFromServer();
 
             // Restaurer la dernière page OU traiter retour Stripe
             const lastPage = safeStorage.get('arkyl_last_page', null);
@@ -9884,28 +9929,46 @@ function enterGallery() {
             grille.innerHTML = '<p style="text-align:center;width:100%;opacity:0.7;padding:40px;">Aucune œuvre dans cette catégorie.</p>';
             return;
         }
-        const PAGE_SIZE=16;let currentPage=0;
-        function renderPage(page){
-            const debut=page*PAGE_SIZE,lot=oeuvres.slice(debut,debut+PAGE_SIZE);
-            if(!lot.length)return;
-            const fragment=lot.map(oeuvre=>{
-                const photos=(oeuvre.photos&&Array.isArray(oeuvre.photos)&&oeuvre.photos.length>0)?oeuvre.photos:[oeuvre.image_url||''];
-                const imgSrc=photos[0]||'';
-                const isSold=oeuvre.is_sold||oeuvre.badge==='Vendu';
-                const badgeLabel=isSold?'🔴 Vendu':(oeuvre.badge||'Disponible');
-                const soldStyle=isSold?'filter:grayscale(50%);opacity:0.8;':'';
-                const btnHTML=isSold?'<span style="font-size:10px;opacity:0.55;">Vendu</span>':`<button class="add-cart-btn" onclick="addToCart(event,${oeuvre.id})">+ Panier</button>`;
-                const dotsHTML=photos.length>1?`<div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);display:flex;gap:3px;z-index:2;">${photos.map((_,i)=>`<div style="width:5px;height:5px;border-radius:50%;background:${i===0?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.35)'};"></div>`).join('')}</div>`:'';
-                const artistName=oeuvre.artist_name||oeuvre.artist||'Artiste inconnu';
-                const title=oeuvre.title||'Sans titre';
-                const price=oeuvre.price||0;
-                return `<div class="product-card" style="${soldStyle}" onclick="viewProductDetailFromAPI(${oeuvre.id})"><div class="product-image"><span class="product-badge">${badgeLabel}</span><button class="like-button" onclick="toggleFavorite(event,${oeuvre.id})">🤍</button><img src="${imgSrc}" alt="${title}" loading="lazy" style="width:100%;height:auto;display:block;" onerror="this.style.minHeight='80px'">${dotsHTML}</div><div class="product-info"><div class="product-title">${title}</div><div class="product-artist" onclick="viewArtistDetail(event,'${artistName}')">par ${artistName}</div><div class="product-footer"><div class="product-price">${Number(price).toLocaleString('fr-FR')} FCFA</div>${btnHTML}</div></div></div>`;
+        const PAGE_SIZE=16; let currentPage=0;
+        function renderPage(page) {
+            const debut = page * PAGE_SIZE, lot = oeuvres.slice(debut, debut + PAGE_SIZE);
+            if (!lot.length) return;
+            const fragment = lot.map(oeuvre => {
+                const photos = (oeuvre.photos && Array.isArray(oeuvre.photos) && oeuvre.photos.length > 0) ? oeuvre.photos : [oeuvre.image_url || ''];
+                const imgSrc = photos[0] || '';
+                const isSold = oeuvre.is_sold || oeuvre.badge === 'Vendu';
+                const badgeLabel = isSold ? '🔴 Vendu' : (oeuvre.badge || 'Disponible');
+                const soldStyle = isSold ? 'filter:grayscale(50%);opacity:0.8;' : '';
+                const btnHTML = isSold ? `<span style="font-size:10px;opacity:0.55;">Vendu</span>` : `<button class="add-cart-btn" onclick="addToCart(event,${oeuvre.id})">+ Panier</button>`;
+                const dotsHTML = photos.length > 1 ? `<div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);display:flex;gap:3px;z-index:2;">${photos.map((_,i)=>`<div style="width:5px;height:5px;border-radius:50%;background:${i===0?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.35)'};"></div>`).join('')}</div>` : '';
+                const artistName = oeuvre.artist_name || oeuvre.artist || 'Artiste inconnu';
+                const title = oeuvre.title || 'Sans titre';
+                const price = oeuvre.price || 0;
+                return `<div class="product-card" style="${soldStyle}" onclick="viewProductDetailFromAPI(${oeuvre.id})">
+                    <div class="product-image">
+                        <span class="product-badge">${badgeLabel}</span>
+                        <button class="like-button" onclick="toggleFavorite(event,${oeuvre.id})">🤍</button>
+                        <img src="${imgSrc}" alt="${title}" loading="lazy" style="width:100%;height:auto;display:block;" onerror="this.style.minHeight='80px'">
+                        ${dotsHTML}
+                    </div>
+                    <div class="product-info">
+                        <div class="product-title">${title}</div>
+                        <div class="product-artist" onclick="viewArtistDetail(event,'${artistName}')">par ${artistName}</div>
+                        <div class="product-footer">
+                            <div class="product-price">${Number(price).toLocaleString('fr-FR')} FCFA</div>
+                            ${btnHTML}
+                        </div>
+                    </div>
+                </div>`;
             }).join('');
-            grille.insertAdjacentHTML('beforeend',fragment);
-            const ob=document.getElementById('loadMoreBtn');if(ob)ob.remove();
-            if(debut+PAGE_SIZE<oeuvres.length){const r=oeuvres.length-(debut+PAGE_SIZE);grille.insertAdjacentHTML('afterend',`<div id="loadMoreBtn" style="text-align:center;margin:14px 0 28px;"><button onclick="window._loadMoreOeuvres()" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:white;padding:9px 26px;border-radius:22px;font-size:13px;font-weight:600;cursor:pointer;">Voir plus (${r})</button></div>`);}
+            grille.insertAdjacentHTML('beforeend', fragment);
+            const ob = document.getElementById('loadMoreBtn'); if (ob) ob.remove();
+            if (debut + PAGE_SIZE < oeuvres.length) {
+                const r = oeuvres.length - (debut + PAGE_SIZE);
+                grille.insertAdjacentHTML('afterend', `<div id="loadMoreBtn" style="text-align:center;margin:14px 0 28px;"><button onclick="window._loadMoreOeuvres()" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:white;padding:9px 26px;border-radius:22px;font-size:13px;font-weight:600;cursor:pointer;">Voir plus (${r})</button></div>`);
+            }
         }
-        window._loadMoreOeuvres=function(){currentPage++;renderPage(currentPage);};
+        window._loadMoreOeuvres = function() { currentPage++; renderPage(currentPage); };
         renderPage(0);
     }
 

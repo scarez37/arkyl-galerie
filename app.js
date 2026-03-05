@@ -83,6 +83,19 @@ window.enterGallery = function enterGallery() {
                     background: rgba(255,255,255,0.1);
                     border-color: rgba(212,175,55,0.4);
                 }
+
+                /* ===== GALERIE : garantit la largeur pleine des colonnes ===== */
+                /* style.css gère display:block et column-count — ne pas overrider */
+                #productsContainer,
+                #favoritesContainer {
+                    width: 100%;
+                    box-sizing: border-box;
+                }
+                /* galerie-live est vide et inutilisé (productsContainer le remplace) */
+                #galerie-live { display: none !important; }
+                /* .page box-sizing pour que padding ne réduise pas la largeur utile */
+                .page.active { box-sizing: border-box; }
+
             `;
             document.head.appendChild(style);
         })();
@@ -601,26 +614,21 @@ window.enterGallery = function enterGallery() {
                         cancel_on_tap_outside: true
                     });
                     
-                    // Bouton Google Sign-In HTML custom (sans iframe — évite le warning CSP)
-                    // google.accounts.id.renderButton() injecte une iframe accounts.google.com
-                    // qui déclenche "frame-ancestors 'self'" (report-only) en console.
-                    // On le remplace par un bouton HTML + triggerGoogleSignIn() → prompt().
+                    // Rendre le bouton Google Sign-In
                     const loginBtn = document.getElementById('googleLoginBtn');
                     if (loginBtn) {
-                        loginBtn.innerHTML = `
-                            <button onclick="triggerGoogleSignIn()" style="
-                                display:flex;align-items:center;gap:10px;
-                                background:#fff;border:1.5px solid #dadce0;border-radius:24px;
-                                padding:10px 20px;font-size:14px;font-weight:600;
-                                color:#3c4043;cursor:pointer;font-family:'Google Sans',Roboto,sans-serif;
-                                box-shadow:0 1px 3px rgba(0,0,0,0.12);transition:box-shadow 0.2s,background 0.2s;
-                                white-space:nowrap;"
-                                onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.2)';this.style.background='#f8f8f8';"
-                                onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.12)';this.style.background='#fff';">
-                                <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
-                                Se connecter avec Google
-                            </button>`;
-                        console.log('✅ Google Sign-In initialisé (bouton custom, sans iframe)');
+                        google.accounts.id.renderButton(
+                            loginBtn,
+                            {
+                                theme: 'outline',
+                                size: 'medium',
+                                text: 'signin',
+                                shape: 'pill',
+                                logo_alignment: 'left',
+                                width: 200
+                            }
+                        );
+                        console.log('✅ Google Sign-In initialisé avec succès!');
                     } else {
                         console.error('❌ Élément googleLoginBtn non trouvé');
                     }
@@ -642,34 +650,6 @@ window.enterGallery = function enterGallery() {
                 }, 2000);
             }
         }
-
-        // Déclenche le One Tap / popup Google Sign-In sans iframe dans la page
-        function triggerGoogleSignIn() {
-            if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-                google.accounts.id.prompt(function(notification) {
-                    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-                        // One Tap bloqué → popup OAuth classique
-                        var params = new URLSearchParams({
-                            client_id: GOOGLE_CLIENT_ID,
-                            redirect_uri: window.location.origin + window.location.pathname,
-                            response_type: 'token',
-                            scope: 'openid email profile',
-                            prompt: 'select_account'
-                        });
-                        var w = 500, h = 600;
-                        var left = (screen.width - w) / 2, top = (screen.height - h) / 2;
-                        window.open(
-                            'https://accounts.google.com/o/oauth2/v2/auth?' + params,
-                            'google_login',
-                            'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',toolbar=no,menubar=no'
-                        );
-                    }
-                });
-            } else {
-                showGoogleSignInError();
-            }
-        }
-
         
         // Gérer la réponse d'authentification Google
         function handleGoogleCredentialResponse(response) {

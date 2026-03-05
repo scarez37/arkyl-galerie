@@ -2857,7 +2857,7 @@ function enterGallery() {
             return `
             <div class="product-card" onclick="viewProductDetailFromAPI(${product.id})">
                 <div class="product-image" style="position:relative;">
-                    <span class="product-badge" style="${(product.is_sold || product.badge === 'Vendu') ? 'background:rgba(80,80,80,0.9);' : ''}">${(product.is_sold || product.badge === 'Vendu') ? '🔴 Vendu' : (product.badge || 'Disponible')}</span>
+                    <span class="product-badge">${product.badge || 'Disponible'}</span>
                     <button class="like-button" onclick="toggleFavorite(event, ${product.id})">❤️</button>
                     ${imageHTML}
                 </div>
@@ -5707,24 +5707,23 @@ function enterGallery() {
             // Récupérer les œuvres : depuis l'API et depuis getProducts()
             let artistWorks = [];
             try {
-                const response = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=${Date.now()}`);
+                // include_sold=1 pour afficher toutes les œuvres (disponibles + vendues)
+                const response = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?include_sold=1&t=${Date.now()}`);
                 const result = await response.json();
                 if (result.success && result.data) {
                     artistWorks = result.data.filter(a =>
                         a.artist_name && a.artist_name.trim().toLowerCase() === artistName.trim().toLowerCase()
-                        && !a.is_sold && a.badge !== 'Vendu'
                     );
                 }
             } catch(e) {}
 
-            // Compléter avec les produits locaux (non vendus uniquement)
+            // Compléter avec les produits locaux (tous statuts)
             const localWorks = getProducts().filter(p =>
                 p.artist && p.artist.toLowerCase() === artistName.toLowerCase()
-                && !p.is_sold && p.badge !== 'Vendu'
             );
             localWorks.forEach(p => {
                 if (!artistWorks.find(o => String(o.id) === String(p.id))) {
-                    artistWorks.push({ id: p.id, title: p.title, artist_name: p.artist, price: p.price, image_url: p.image, badge: p.badge, category: p.category });
+                    artistWorks.push({ id: p.id, title: p.title, artist_name: p.artist, price: p.price, image_url: p.image, badge: p.badge, category: p.category, is_sold: p.is_sold || false });
                 }
             });
 
@@ -5782,14 +5781,14 @@ function enterGallery() {
             const worksHTML = artistWorks.length > 0
                 ? `<div class="products-grid">
                     ${artistWorks.map(art => `
-                        <div class="product-card" onclick="viewProductDetail(${art.id})" style="${(art.is_sold || art.badge === 'Vendu') ? 'opacity:0.75;' : ''}">
+                        <div class="product-card" onclick="viewProductDetail(${art.id})">
                             <div class="product-image">
-                                <span class="product-badge" style="${(art.is_sold || art.badge === 'Vendu') ? 'background:rgba(80,80,80,0.9);color:#fff;' : ''}">${(art.is_sold || art.badge === 'Vendu') ? '🔴 Vendu' : (art.badge || 'Disponible')}</span>
+                                <span class="product-badge">${art.badge || art.category || '🎨'}</span>
                                 <button class="like-button" onclick="toggleFavorite(event, ${art.id})">
                                     ${(typeof favorites !== 'undefined' && favorites.includes(art.id)) ? '❤️' : '🤍'}
                                 </button>
                                 <img src="${art.image_url || art.image || ''}" alt="${art.title}"
-                                     style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;${(art.is_sold || art.badge === 'Vendu') ? 'filter:grayscale(40%);' : ''}" loading="lazy"
+                                     style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy"
                                      onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
                             </div>
                             <div class="product-info">
@@ -5797,7 +5796,7 @@ function enterGallery() {
                                 <div class="product-artist">par ${art.artist_name || artistName}</div>
                                 <div class="product-footer">
                                     <div class="product-price">${formatPrice(art.price || 0)}</div>
-                                    ${(art.is_sold || art.badge === 'Vendu') ? '<span style="font-size:12px;color:rgba(255,255,255,0.5);font-style:italic;">Cette œuvre a été vendue</span>' : `<button class="add-cart-btn" onclick="addToCart(event, ${art.id})">+ Panier</button>`}
+                                    <button class="add-cart-btn" onclick="addToCart(event, ${art.id})">+ Panier</button>
                                 </div>
                             </div>
                         </div>
@@ -5953,7 +5952,9 @@ function enterGallery() {
                             price: art.price,
                             image_url: art.image_url,
                             photos: art.photos || [art.image_url],
-                            artistAvatar: art.artist_avatar || '👨🏿‍🎨'
+                            artistAvatar: art.artist_avatar || '👨🏿‍🎨',
+                            is_sold: art.is_sold || art.badge === 'Vendu' || false,
+                            badge: art.badge || 'Disponible'
                         }));
                     }
                 }
@@ -9724,7 +9725,7 @@ function enterGallery() {
                     <!-- INFOS PRODUIT -->
                     <div class="jm-info">
                         <div class="jm-badge-row">
-                            <span class="jm-badge" style="${(product.is_sold || product.badge === 'Vendu') ? 'background:rgba(80,80,80,0.9);' : ''}">${(product.is_sold || product.badge === 'Vendu') ? '🔴 Vendu' : (product.badge || 'Disponible')}</span>
+                            <span class="jm-badge">${product.badge || 'Disponible'}</span>
                             <span class="jm-category">${category}</span>
                         </div>
 

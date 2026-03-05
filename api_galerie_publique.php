@@ -161,7 +161,8 @@ function formatArtwork($oeuvre) {
         'photos' => $photos,
         'created_at' => $oeuvre['created_at'] ?? null,
         'country' => $oeuvre['country'] ?? null,
-        'city' => $oeuvre['city'] ?? null
+        'city' => $oeuvre['city'] ?? null,
+        'is_sold' => !empty($oeuvre['is_sold']) ? (bool)$oeuvre['is_sold'] : false
     ];
 }
 ?>

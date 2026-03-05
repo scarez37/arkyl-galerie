@@ -5707,23 +5707,24 @@ function enterGallery() {
             // Récupérer les œuvres : depuis l'API et depuis getProducts()
             let artistWorks = [];
             try {
-                // include_sold=1 pour afficher toutes les œuvres (disponibles + vendues)
-                const response = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?include_sold=1&t=${Date.now()}`);
+                const response = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=${Date.now()}`);
                 const result = await response.json();
                 if (result.success && result.data) {
                     artistWorks = result.data.filter(a =>
                         a.artist_name && a.artist_name.trim().toLowerCase() === artistName.trim().toLowerCase()
+                        && !a.is_sold && a.badge !== 'Vendu'
                     );
                 }
             } catch(e) {}
 
-            // Compléter avec les produits locaux (tous statuts)
+            // Compléter avec les produits locaux (non vendus uniquement)
             const localWorks = getProducts().filter(p =>
                 p.artist && p.artist.toLowerCase() === artistName.toLowerCase()
+                && !p.is_sold && p.badge !== 'Vendu'
             );
             localWorks.forEach(p => {
                 if (!artistWorks.find(o => String(o.id) === String(p.id))) {
-                    artistWorks.push({ id: p.id, title: p.title, artist_name: p.artist, price: p.price, image_url: p.image, badge: p.badge, category: p.category, is_sold: p.is_sold || false });
+                    artistWorks.push({ id: p.id, title: p.title, artist_name: p.artist, price: p.price, image_url: p.image, badge: p.badge, category: p.category });
                 }
             });
 
@@ -5952,9 +5953,7 @@ function enterGallery() {
                             price: art.price,
                             image_url: art.image_url,
                             photos: art.photos || [art.image_url],
-                            artistAvatar: art.artist_avatar || '👨🏿‍🎨',
-                            is_sold: art.is_sold || art.badge === 'Vendu' || false,
-                            badge: art.badge || 'Disponible'
+                            artistAvatar: art.artist_avatar || '👨🏿‍🎨'
                         }));
                     }
                 }
@@ -8919,6 +8918,110 @@ function enterGallery() {
             }
         });
 
+
+
+        // ==================== BANNIÈRE ACTUALITÉS STYLE JUMIA ====================
+        (function() {
+            let _bannerIndex = 0;
+            let _bannerTimer = null;
+            let _bannerItems = [];
+            const INTERVAL = 4000;
+
+            function getBannerContainer() {
+                return document.getElementById('arkyiBannerSection');
+            }
+
+            function renderBanner() {
+                const section = getBannerContainer();
+                if (!section) return;
+
+                _bannerItems = (window.newsItems || []).filter(n => n.isImage && n.icon);
+
+                if (_bannerItems.length === 0) {
+                    section.style.display = 'none';
+                    return;
+                }
+                section.style.display = 'block';
+
+                const slidesHTML = _bannerItems.map((news, i) => `
+                    <div class="arkyl-banner-slide" onclick="openNewsLightbox(${i})">
+                        <img src="${news.icon}" alt="${news.text}"
+                             loading="lazy"
+                             onerror="this.closest('.arkyl-banner-slide').classList.add('no-image');this.remove();">
+                        <div class="arkyl-banner-caption">
+                            <span class="banner-tag">Actualité</span>
+                            <div class="banner-title">${news.text}</div>
+                        </div>
+                    </div>
+                `).join('');
+
+                const dotsHTML = _bannerItems.map((_, i) =>
+                    `<button class="arkyl-banner-dot ${i === 0 ? 'active' : ''}" onclick="window._bannerGoTo(${i})"></button>`
+                ).join('');
+
+                section.innerHTML = `
+                    <div class="arkyl-banner-track">
+                        <div class="arkyl-banner-slides" id="bannerSlides">${slidesHTML}</div>
+                        ${_bannerItems.length > 1 ? `
+                        <button class="arkyl-banner-btn prev" onclick="window._bannerGoTo(${-1}, true)">&#8592;</button>
+                        <button class="arkyl-banner-btn next" onclick="window._bannerGoTo(${1}, true)">&#8594;</button>
+                        ` : ''}
+                        <div class="arkyl-banner-dots">${dotsHTML}</div>
+                        <div class="arkyl-banner-progress" id="bannerProgress"></div>
+                    </div>
+                `;
+
+                _bannerIndex = 0;
+                updateBannerUI();
+                startBannerAuto();
+            }
+
+            function updateBannerUI() {
+                const slides = document.getElementById('bannerSlides');
+                if (!slides) return;
+                slides.style.transform = `translateX(-${_bannerIndex * 100}%)`;
+
+                // Dots
+                document.querySelectorAll('.arkyl-banner-dot').forEach((d, i) => {
+                    d.classList.toggle('active', i === _bannerIndex);
+                });
+            }
+
+            function startBannerAuto() {
+                clearInterval(_bannerTimer);
+                if (_bannerItems.length <= 1) return;
+
+                let elapsed = 0;
+                _bannerTimer = setInterval(function() {
+                    elapsed += 100;
+                    const progress = document.getElementById('bannerProgress');
+                    if (progress) progress.style.width = (elapsed / INTERVAL * 100) + '%';
+
+                    if (elapsed >= INTERVAL) {
+                        elapsed = 0;
+                        _bannerIndex = (_bannerIndex + 1) % _bannerItems.length;
+                        updateBannerUI();
+                    }
+                }, 100);
+            }
+
+            window._bannerGoTo = function(val, isRelative) {
+                if (isRelative) {
+                    _bannerIndex = (_bannerIndex + val + _bannerItems.length) % _bannerItems.length;
+                } else {
+                    _bannerIndex = val;
+                }
+                updateBannerUI();
+                // Reset timer
+                clearInterval(_bannerTimer);
+                const progress = document.getElementById('bannerProgress');
+                if (progress) progress.style.width = '0%';
+                startBannerAuto();
+            };
+
+            window.renderBanner = renderBanner;
+        })();
+
         // ==================== NEWS MANAGEMENT (ADMIN) ====================
         
         // ========== ACTUALITÉS : stockage côté serveur (partagé entre tous les utilisateurs) ==========
@@ -8935,6 +9038,9 @@ function enterGallery() {
                         ...n,
                         isImage: n.isImage ?? (n.is_image == 1)
                     }));
+                    // Mettre à jour la bannière Jumia
+                    window.newsItems = newsItems;
+                    if (typeof window.renderBanner === 'function') window.renderBanner();
                     return true;
                 }
             } catch(e) {
@@ -9132,7 +9238,7 @@ function enterGallery() {
             }
 
             if (result.success) {
-                renderNewsTicker();
+                if (typeof window.renderBanner === 'function') window.renderBanner();
                 renderNewsList();
                 closeNewsModal();
             }
@@ -9143,7 +9249,8 @@ function enterGallery() {
 
             const result = await saveNewsToServer('delete', { id });
             if (result.success) {
-                renderNewsTicker();
+                if (typeof window.renderBanner === 'function') window.renderBanner();
+                renderNewsList();
                 renderNewsList();
                 showToast('✅ Actualité supprimée');
             }
@@ -9540,6 +9647,9 @@ function enterGallery() {
                 renderNewsList();
             });
             
+            // Charger les actualités et afficher la bannière
+            fetchNewsFromServer();
+
             // Restaurer la dernière page OU traiter retour Stripe
             const lastPage = safeStorage.get('arkyl_last_page', null);
             let startPage = 'home';
@@ -9795,9 +9905,23 @@ function enterGallery() {
     }
 
     // ==================== CHARGEMENT DE LA GALERIE ====================
+
+        // Injecter le conteneur bannière avant la grille de produits
+        function injectBannerContainer() {
+            if (document.getElementById('arkyiBannerSection')) return;
+            const grille = document.getElementById('productsContainer');
+            if (!grille) return;
+            const banner = document.createElement('div');
+            banner.id = 'arkyiBannerSection';
+            banner.className = 'arkyl-banner-section';
+            banner.style.display = 'none';
+            grille.parentNode.insertBefore(banner, grille);
+        }
+
     document.addEventListener('DOMContentLoaded', chargerLaVraieGalerie);
 
     async function chargerLaVraieGalerie() {
+        injectBannerContainer();
         const grille = document.getElementById('productsContainer'); 
         if (!grille) return; 
 

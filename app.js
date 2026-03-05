@@ -6261,6 +6261,7 @@ function enterGallery() {
             preview.dataset.fileUrl = url;
             preview.dataset.fileType = file.type.startsWith('video/') ? 'video' : 'image';
             preview.dataset.fileName = file.name;
+            preview._postFile = file;
         }
 
         function handlePostFileDrop(event) {
@@ -6278,12 +6279,30 @@ function enterGallery() {
         async function submitArtistPost() {
             const preview = document.getElementById('postMediaPreview');
             const caption = document.getElementById('postCaption')?.value?.trim() || '';
-            const mediaUrl = preview?.dataset?.fileUrl || '';
+            let mediaUrl = preview?.dataset?.fileUrl || '';
             const mediaType = preview?.dataset?.fileType || 'image';
 
             if (!mediaUrl) {
                 showToast('⚠️ Ajoutez une image ou vidéo avant de publier');
                 return;
+            }
+
+            const btn = document.querySelector('#createPostModal button[onclick="submitArtistPost()"]');
+            if (btn) { btn.disabled = true; btn.textContent = '📤 Upload en cours...'; }
+
+            const file = preview._postFile;
+            if (file && mediaUrl.startsWith('blob:')) {
+                try {
+                    const fd = new FormData();
+                    fd.append('file', file);
+                    fd.append('upload_preset', 'arkyl_preset');
+                    fd.append('folder', 'arkyl/posts');
+                    const resource = mediaType === 'video' ? 'video' : 'image';
+                    const res = await fetch(`https://api.cloudinary.com/v1_1/ddah64j2a/${resource}/upload`, { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (data.secure_url) { mediaUrl = data.secure_url; if (btn) btn.textContent = '⏳ Publication...'; }
+                    else { console.warn('Cloudinary:', data); showToast('⚠️ Upload échoué, publication locale'); }
+                } catch(e) { console.warn(e); showToast('⚠️ Upload échoué, publication locale'); }
             }
 
             const post = {
@@ -6298,9 +6317,6 @@ function enterGallery() {
                 comments: [],
                 created_at: new Date().toISOString()
             };
-
-            const btn = document.querySelector('#createPostModal button[onclick="submitArtistPost()"]');
-            if (btn) { btn.disabled = true; btn.textContent = '⏳ Publication...'; }
 
             await savePostToServer(post);
             document.getElementById('createPostModal')?.remove();
@@ -6402,6 +6418,63 @@ function enterGallery() {
                     </div>
                 </div>
             </div>`;
+        }
+
+
+        // ==================== OVERLAY IMAGE PINTEREST (MES ARTISTES) ====================
+        window._artistOverlayWorks = [];
+
+        function openArtistImageOverlay(workId) {
+            const allWorks = window._artistOverlayWorks;
+            const work = allWorks.find(w => String(w.id) === String(workId));
+            if (!work) return;
+
+            const similar = (window.toutesLesOeuvres || allWorks)
+                .filter(w => String(w.id) !== String(workId) && !w.is_sold)
+                .filter(w => (w.artist_name||w.artist||'') === (work.artist_name||work.artist||'') || (w.category||w.categorie||'') === (work.category||work.categorie||''))
+                .slice(0, 12);
+
+            const old = document.getElementById('artistPinOverlay');
+            if (old) old.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'artistPinOverlay';
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.93);overflow-y:auto;-webkit-overflow-scrolling:touch;';
+
+            const imgSrc = work.image_url || work.image || '';
+            const artistName = work.artist_name || work.artist || 'Artiste';
+            const isSocialLiked = typeof isSociallyLiked === 'function' && isSociallyLiked(work.id);
+
+            const similarHTML = similar.length ? `
+                <div style="padding:0 0 40px;">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,0.35);margin:0 0 12px;padding:0 14px;">Similaires</div>
+                    <div style="column-count:2;column-gap:6px;padding:0 14px;">
+                        ${similar.map(s => {
+                            const si = s.image_url || s.image || '';
+                            return si ? `<div style="break-inside:avoid;margin-bottom:6px;border-radius:10px;overflow:hidden;cursor:pointer;" onclick="openArtistImageOverlay(${s.id})"><img loading="lazy" src="${si}" alt="${s.title||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='60px'"></div>` : '';
+                        }).join('')}
+                    </div>
+                </div>` : '';
+
+            overlay.innerHTML = `
+                <div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);">
+                    <button onclick="document.getElementById('artistPinOverlay').remove()" style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;">←</button>
+                    <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.8);max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${artistName}</span>
+                    <button onclick="event.stopPropagation();toggleSocialLike(event,${work.id},this)" style="background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;">${isSocialLiked ? '❤️' : '🤍'}</button>
+                </div>
+                <img src="${imgSrc}" alt="${work.title||''}" style="width:100%;height:auto;display:block;max-height:72vh;object-fit:contain;background:#000;" onerror="this.style.minHeight='200px'">
+                <div style="padding:14px 14px 18px;display:flex;gap:10px;align-items:center;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:3px;">${work.title||'Sans titre'}</div>
+                        <div style="font-size:12px;color:rgba(255,255,255,0.5);">par ${artistName}</div>
+                    </div>
+                    <button onclick="document.getElementById('artistPinOverlay').remove();viewProductDetailFromAPI(${work.id});" style="flex-shrink:0;background:linear-gradient(135deg,#d4af37,#b8962e);border:none;color:#1a1a1a;padding:10px 16px;border-radius:22px;font-size:13px;font-weight:700;cursor:pointer;">Voir l&#x27;oeuvre</button>
+                </div>
+                ${similarHTML}`;
+
+            document.body.appendChild(overlay);
+            const esc = e => { if(e.key==='Escape') { overlay.remove(); document.removeEventListener('keydown', esc); } };
+            document.addEventListener('keydown', esc);
         }
 
         async function renderMyArtistsPage() {
@@ -6507,6 +6580,7 @@ function enterGallery() {
                 artistWorks.forEach(work => allFollowedWorks.push({ work, artist }));
             });
 
+            window._artistOverlayWorks = allFollowedWorks.map(x => ({...x.work, artist_name: x.artist?.name||''}));
             if (allFollowedWorks.length === 0) {
                 loopsFeed.innerHTML = `
                     <div style="text-align:center;padding:60px 20px;">
@@ -6518,49 +6592,20 @@ function enterGallery() {
             }
 
             const pinCards = allFollowedWorks.map(({ work, artist }) => {
-                const isSocialLiked = isSociallyLiked(work.id);
-                const realLikesCount = allSocialLikes.filter(id => id === work.id).length;
-                const isFav = favorites.includes(work.id);
-
-                const imgBlock = work.image_url && work.image_url !== 'undefined'
-                    ? `<img loading="lazy" src="${work.image_url}" alt="${work.title}"
-                            style="width:100%;display:block;border-radius:16px 16px 0 0;"
-                            onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-                       <div style="display:none;width:100%;min-height:160px;align-items:center;justify-content:center;font-size:72px;border-radius:16px 16px 0 0;background:rgba(255,255,255,0.06);">
-                           ${work.emoji || '🎨'}
-                       </div>`
-                    : `<div style="display:flex;width:100%;min-height:200px;align-items:center;justify-content:center;font-size:72px;border-radius:16px 16px 0 0;background:rgba(255,255,255,0.06);">
-                           ${work.emoji || '🎨'}
-                       </div>`;
-
-                return `
-                <div style="break-inside:avoid;margin-bottom:14px;background:rgba(255,255,255,0.05);border-radius:16px;border:1px solid rgba(255,255,255,0.09);overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;"
-                     onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 12px 32px rgba(0,0,0,0.4)'"
-                     onmouseout="this.style.transform='';this.style.boxShadow=''">
-                    <div onclick="viewProductDetailFromAPI(${work.id})" style="position:relative;cursor:pointer;">
-                        ${imgBlock}
-                        ${work.is_sold ? `<div style="position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.75);color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:1px;backdrop-filter:blur(4px);">✅ VENDU</div>` : ''}
-                    </div>
-                    <div style="padding:10px 12px 12px;">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;" onclick="viewArtistDetail(event, '${artist.name}')">
-                            <div style="width:26px;height:26px;border-radius:50%;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">
-                                ${buildMiniAvatar(artist, 26, null)}
-                            </div>
-                            <span style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${artist.name}</span>
-                        </div>
-                        <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:3px;line-height:1.3;cursor:pointer;" onclick="viewProductDetailFromAPI(${work.id})">${work.title}</div>
-                        <div style="font-size:12px;color:#D4A574;font-weight:700;margin-bottom:8px;">${formatPrice(work.price)}</div>
-                        <div style="display:flex;align-items:center;gap:4px;">
-                            <button onclick="toggleSocialLike(event,${work.id},this)" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">
-                                ${isSocialLiked ? '❤️' : '🤍'}${realLikesCount > 0 ? `<span style="font-size:11px;color:rgba(255,255,255,0.6);margin-left:2px;">${realLikesCount}</span>` : ''}
-                            </button>
-                            <button onclick="focusComment(${work.id})" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">💬</button>
-                            <button onclick="shareArtwork(${work.id})" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">📤</button>
-                            <div style="flex:1;"></div>
-                            <button onclick="toggleFavorite(event,${work.id});this.textContent='${isFav ? '☆' : '⭐'}'" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">${isFav ? '⭐' : '☆'}</button>
-                            <button onclick="addToCart(event,${work.id})" style="background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.3);border-radius:20px;cursor:pointer;font-size:12px;padding:4px 10px;color:#d4af37;font-weight:600;transition:background 0.2s;" onmouseover="this.style.background='rgba(212,175,55,0.3)'" onmouseout="this.style.background='rgba(212,175,55,0.15)'">🛒</button>
-                        </div>
-                    </div>
+                const isSocialLiked = typeof isSociallyLiked === 'function' && isSociallyLiked(work.id);
+                const realLikesCount = (window.allSocialLikes||[]).filter(id => id === work.id).length;
+                const imgSrc = (work.image_url && work.image_url !== 'undefined') ? work.image_url : '';
+                return `<div style="break-inside:avoid;margin-bottom:6px;border-radius:10px;overflow:hidden;cursor:pointer;position:relative;"
+                    onclick="openArtistImageOverlay(${work.id})">
+                    ${imgSrc
+                        ? `<img loading="lazy" src="${imgSrc}" alt="${work.title||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='80px'">`
+                        : `<div style="width:100%;min-height:140px;display:flex;align-items:center;justify-content:center;font-size:56px;background:rgba(255,255,255,0.06);border-radius:10px;">🎨</div>`
+                    }
+                    ${work.is_sold ? '<div style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.65);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;">🔴 Vendu</div>' : ''}
+                    <button onclick="event.stopPropagation();toggleSocialLike(event,${work.id},this)"
+                        style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.5);border:none;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;">
+                        ${isSocialLiked ? '❤️' : '🤍'}
+                    </button>
                 </div>`;
             }).join('');
 
@@ -6579,51 +6624,22 @@ function enterGallery() {
 
             // Construire les pin-cards de posts (badge doré, pas de bouton achat)
             const postCards = relevantPosts.map(post => ({ html: buildPostPinCard(post), date: new Date(post.created_at).getTime() }));
-            // Reconstruire pinCards
             const pinCardsArr = allFollowedWorks.map(({ work, artist }) => {
-                const isSocialLiked = isSociallyLiked(work.id);
-                const realLikesCount = allSocialLikes.filter(id => id === work.id).length;
-                const isFav = favorites.includes(work.id);
-                const imgBlock = work.image_url && work.image_url !== 'undefined'
-                    ? `<img loading="lazy" src="${work.image_url}" alt="${work.title}"
-                            style="width:100%;display:block;border-radius:16px 16px 0 0;"
-                            onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-                       <div style="display:none;width:100%;min-height:160px;align-items:center;justify-content:center;font-size:72px;border-radius:16px 16px 0 0;background:rgba(255,255,255,0.06);">
-                           ${work.emoji || '🎨'}
-                       </div>`
-                    : `<div style="display:flex;width:100%;min-height:200px;align-items:center;justify-content:center;font-size:72px;border-radius:16px 16px 0 0;background:rgba(255,255,255,0.06);">
-                           ${work.emoji || '🎨'}
-                       </div>`;
-                return `
-                <div style="break-inside:avoid;margin-bottom:14px;background:rgba(255,255,255,0.05);border-radius:16px;border:1px solid rgba(255,255,255,0.09);overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;"
-                     onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 12px 32px rgba(0,0,0,0.4)'"
-                     onmouseout="this.style.transform='';this.style.boxShadow=''">
-                    <div onclick="viewProductDetailFromAPI(${work.id})" style="position:relative;cursor:pointer;">
-                        ${imgBlock}
-                        ${work.is_sold ? `<div style="position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.75);color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:1px;backdrop-filter:blur(4px);">✅ VENDU</div>` : ''}
-                    </div>
-                    <div style="padding:10px 12px 12px;">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;" onclick="viewArtistDetail(event, '${artist.name}')">
-                            <div style="width:26px;height:26px;border-radius:50%;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">
-                                ${buildMiniAvatar(artist, 26, null)}
-                            </div>
-                            <span style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${artist.name}</span>
-                        </div>
-                        <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:3px;line-height:1.3;cursor:pointer;" onclick="viewProductDetailFromAPI(${work.id})">${work.title}</div>
-                        <div style="font-size:12px;color:#D4A574;font-weight:700;margin-bottom:8px;">${formatPrice(work.price)}</div>
-                        <div style="display:flex;align-items:center;gap:4px;">
-                            <button onclick="toggleSocialLike(event,${work.id},this)" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">
-                                ${isSocialLiked ? '❤️' : '🤍'}${realLikesCount > 0 ? `<span style="font-size:11px;color:rgba(255,255,255,0.6);margin-left:2px;">${realLikesCount}</span>` : ''}
-                            </button>
-                            <button onclick="focusComment(${work.id})" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">💬</button>
-                            <button onclick="shareArtwork(${work.id})" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">📤</button>
-                            <div style="flex:1;"></div>
-                            <button onclick="toggleFavorite(event,${work.id});this.textContent='${isFav ? '☆' : '⭐'}'" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">${isFav ? '⭐' : '☆'}</button>
-                            <button onclick="addToCart(event,${work.id})" style="background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.3);border-radius:20px;cursor:pointer;font-size:12px;padding:4px 10px;color:#d4af37;font-weight:600;" onmouseover="this.style.background='rgba(212,175,55,0.3)'" onmouseout="this.style.background='rgba(212,175,55,0.15)'">🛒</button>
-                        </div>
-                    </div>
-                </div>`;
-            });
+                const isSocialLiked = typeof isSociallyLiked === 'function' && isSociallyLiked(work.id);
+                const realLikesCount = (window.allSocialLikes||[]).filter(id => id === work.id).length;
+                const imgSrc = (work.image_url && work.image_url !== 'undefined') ? work.image_url : '';
+                return `<div style="break-inside:avoid;margin-bottom:6px;border-radius:10px;overflow:hidden;cursor:pointer;position:relative;"
+                    onclick="openArtistImageOverlay(${work.id})">
+                    ${imgSrc
+                        ? `<img loading="lazy" src="${imgSrc}" alt="${work.title||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='80px'">`
+                        : `<div style="width:100%;min-height:140px;display:flex;align-items:center;justify-content:center;font-size:56px;background:rgba(255,255,255,0.06);border-radius:10px;">🎨</div>`
+                    }
+                    ${work.is_sold ? '<div style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.65);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;">🔴 Vendu</div>' : ''}
+                    <button onclick="event.stopPropagation();toggleSocialLike(event,${work.id},this)"
+                        style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.5);border:none;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;">
+                        ${isSocialLiked ? '❤️' : '🤍'}
+                    </button>
+                </div>`;});
 
             // Intercaler: 1 post toutes les 4 oeuvres
             const mixedCards = [];
@@ -8919,14 +8935,13 @@ function enterGallery() {
                 _items=(window.newsItems||[]).filter(function(n){return n.isImage&&n.icon;});
                 if(!_items.length){sec.style.display='none';return;}
                 sec.style.display='block';
-                var slides=_items.map(function(n,i){return '<div class="arkyl-banner-slide"><img src="'+n.icon+'" alt="'+n.text+'" loading="lazy" onerror="this.style.minHeight='120px'">'
-                    +'<div class="arkyl-banner-caption"><span class="banner-tag">Actualit\xc3\xa9</span><div class="banner-title">'+n.text+'</div></div></div>';}).join('');
-                var dots=_items.map(function(_,i){return '<button class="arkyl-banner-dot'+(i===0?' active':'')+'" onclick="window._bannerGoTo('+ i +')"></button>';}).join('');
+                var slides=_items.map(function(n){return '<div class="arkyl-banner-slide"><img src="'+n.icon+'" alt="'+n.text+'" loading="lazy" style="width:100%;display:block;"><div class="arkyl-banner-caption"><span class="banner-tag">Actualité</span><div class="banner-title">'+n.text+'</div></div></div>';}).join('');
+                var dots=_items.map(function(_,i){return '<button class="arkyl-banner-dot'+(i===0?' active':'')+'" onclick="window._bannerGoTo('+i+')"></button>';}).join('');
                 var nav=_items.length>1?'<button class="arkyl-banner-btn prev" onclick="window._bannerGoTo(-1,1)">&larr;</button><button class="arkyl-banner-btn next" onclick="window._bannerGoTo(1,1)">&rarr;</button>':'';
                 sec.innerHTML='<div class="arkyl-banner-track"><div class="arkyl-banner-slides" id="bannerSlides">'+slides+'</div>'+nav+'<div class="arkyl-banner-dots">'+dots+'</div><div class="arkyl-banner-progress" id="bannerProgress"></div></div>';
                 _idx=0;_el=0;_upd();_start();
             };
-            function _upd(){var s=document.getElementById('bannerSlides');if(s)s.style.transform='translateX(-'+(\_idx*100)+'%)';document.querySelectorAll('.arkyl-banner-dot').forEach(function(d,i){d.classList.toggle('active',i===_idx);});}
+            function _upd(){var s=document.getElementById('bannerSlides');if(s)s.style.transform='translateX(-'+(_idx*100)+'%)';document.querySelectorAll('.arkyl-banner-dot').forEach(function(d,i){d.classList.toggle('active',i===_idx);});}
             function _start(){clearInterval(_timer);if(_items.length<=1)return;_timer=setInterval(function(){_el+=100;var p=document.getElementById('bannerProgress');if(p)p.style.width=(_el/INTV*100)+'%';if(_el>=INTV){_el=0;_idx=(_idx+1)%_items.length;_upd();}},100);}
             window._bannerGoTo=function(v,r){_idx=r?(_idx+v+_items.length)%_items.length:v;_upd();clearInterval(_timer);_el=0;var p=document.getElementById('bannerProgress');if(p)p.style.width='0%';_start();};
         })();
@@ -9878,8 +9893,8 @@ function enterGallery() {
                 const imgSrc=photos[0]||'';
                 const isSold=oeuvre.is_sold||oeuvre.badge==='Vendu';
                 const badgeLabel=isSold?'🔴 Vendu':(oeuvre.badge||'Disponible');
-                const soldStyle=isSold?'filter:grayscale(50%);opacity:0.8;':''
-                const btnHTML=isSold?`<span style="font-size:10px;opacity:0.55;">Vendu</span>`:`<button class="add-cart-btn" onclick="addToCart(event,${oeuvre.id})">+ Panier</button>`;
+                const soldStyle=isSold?'filter:grayscale(50%);opacity:0.8;':'';
+                const btnHTML=isSold?'<span style="font-size:10px;opacity:0.55;">Vendu</span>':`<button class="add-cart-btn" onclick="addToCart(event,${oeuvre.id})">+ Panier</button>`;
                 const dotsHTML=photos.length>1?`<div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);display:flex;gap:3px;z-index:2;">${photos.map((_,i)=>`<div style="width:5px;height:5px;border-radius:50%;background:${i===0?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.35)'};"></div>`).join('')}</div>`:'';
                 const artistName=oeuvre.artist_name||oeuvre.artist||'Artiste inconnu';
                 const title=oeuvre.title||'Sans titre';

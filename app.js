@@ -9,6 +9,33 @@ window.enterGallery = function enterGallery() {
             }, 1000);
         }; // FIX: semicolon ajouté — évite que le (function...) suivant soit interprété comme un appel
 
+        // ── FIX : Favicon dynamique — évite le 404 serveur ──
+        (function injectFavicon() {
+            if (document.querySelector('link[rel="icon"]')) return;
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            // Fond doré
+            const g = ctx.createLinearGradient(0,0,64,64);
+            g.addColorStop(0, '#d4af37');
+            g.addColorStop(1, '#b8962e');
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.roundRect(0,0,64,64,14);
+            ctx.fill();
+            // Lettre A
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 42px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('A', 32, 35);
+            const link = document.createElement('link');
+            link.rel = 'icon';
+            link.href = canvas.toDataURL();
+            document.head.appendChild(link);
+        })();
+
+
         // ==================== GALERIE BOLIA BUTTON STYLING ====================
         (function applyGalerieBoliaStyle() {
             // Inject CSS animations and styles
@@ -96,12 +123,10 @@ window.enterGallery = function enterGallery() {
                             <path d="M3 16l5-5 4 4 9-9" stroke="url(#g-bolia)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             <circle cx="8.5" cy="8.5" r="1.5" fill="url(#g-bolia)"/>
                         </svg>
-                        <span style="background: linear-gradient(135deg, #d4af37 0%, #ffe066 50%, #a07820 100%);
-                                     -webkit-background-clip: text;
-                                     -webkit-text-fill-color: transparent;
-                                     background-clip: text;
-                                     font-weight: 600;
-                                     letter-spacing: 0.3px;">🖼️ Galerie BOLIA</span>
+                        <span style="color: #ffe066;
+                                     font-weight: 700;
+                                     letter-spacing: 0.5px;
+                                     text-shadow: 0 0 10px rgba(255,215,0,0.6), 0 1px 3px rgba(0,0,0,0.8);">🖼️ Galerie BOLIA</span>
                     `;
                     boliaBtn.innerHTML = newContent;
                 }
@@ -6442,7 +6467,11 @@ window.enterGallery = function enterGallery() {
             }
 
             const btn = document.querySelector('#createPostModal button[onclick="submitArtistPost()"]');
-            if (btn) { btn.disabled = true; btn.textContent = '📤 Upload...'; }
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = mediaType === 'video' ? '🎬 Upload vidéo (peut prendre 1 min)...' : '📤 Upload...';
+                if (mediaType === 'video') showToast('🎬 Upload vidéo en cours — merci de patienter…');
+            }
 
             // Upload sur Cloudinary si fichier local
             const file = preview._postFile;
@@ -6452,6 +6481,11 @@ window.enterGallery = function enterGallery() {
                     fd.append('file', file);
                     fd.append('upload_preset', 'arkyl_preset');
                     fd.append('folder', 'arkyl/posts');
+                    // Compression auto pour les vidéos
+                    if (mediaType === 'video') {
+                        fd.append('quality', 'auto:low');
+                        fd.append('eager', 'f_mp4,q_auto:low,vc_h264');
+                    }
                     const resource = mediaType === 'video' ? 'video' : 'image';
                     const res = await fetch(`https://api.cloudinary.com/v1_1/ddah64j2a/${resource}/upload`, { method: 'POST', body: fd });
                     const data = await res.json();
@@ -6520,8 +6554,12 @@ window.enterGallery = function enterGallery() {
                  currentUser?.googleId === post.artist_id ||
                  currentUser?.email === post.artist_id);
 
+            // Génère un poster depuis Cloudinary (première frame, évite le chargement complet)
+            const videoPoster = (post.media_url||'').includes('cloudinary.com')
+                ? post.media_url.replace('/video/upload/', '/video/upload/so_0,w_600,f_jpg/').replace(/\.mp4$/, '.jpg')
+                : '';
             const mediaBlock = post.media_type === 'video'
-                ? `<video src="${post.media_url}" style="width:100%;display:block;border-radius:16px 16px 0 0;max-height:340px;object-fit:cover;" controls muted playsinline></video>`
+                ? `<video src="${post.media_url}" poster="${videoPoster}" preload="none" style="width:100%;display:block;border-radius:16px 16px 0 0;max-height:340px;object-fit:cover;" controls muted playsinline></video>`
                 : `<img loading="lazy" src="${post.media_url}" alt="Post"
                         style="width:100%;display:block;border-radius:16px 16px 0 0;"
                         onerror="this.parentElement.innerHTML='<div style=\'min-height:160px;display:flex;align-items:center;justify-content:center;font-size:60px;background:rgba(255,255,255,0.06);border-radius:16px 16px 0 0;\'>🎨</div>'">`;
@@ -6603,7 +6641,7 @@ window.enterGallery = function enterGallery() {
 
             const overlay = document.createElement('div');
             overlay.id = 'artistPinOverlay';
-            overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg, #a855f7 0%, #7c3aed 25%, #3b82f6 75%, #0ea5e9 100%);overflow-y:auto;-webkit-overflow-scrolling:touch;';
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:linear-gradient(160deg,#fafaf8 0%,#f4f1ec 40%,#eee8df 100%);overflow-y:auto;-webkit-overflow-scrolling:touch;';
 
             const imgSrc = work.image_url || work.image || '';
             const artistName = work.artist_name || work.artist || 'Artiste';
@@ -6623,7 +6661,7 @@ window.enterGallery = function enterGallery() {
 
             const simHTML = similar.length > 0 ? `
                 <div style="padding:0 0 40px;">
-                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,0.35);margin-bottom:12px;padding:0 16px;">Similaires</div>
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:rgba(0,0,0,0.3);margin-bottom:12px;padding:0 16px;">Similaires</div>
                     <div style="column-count:2;column-gap:6px;padding:0 16px;">
                         ${similar.map(s => {
                             const si = s.image_url||s.image||'';
@@ -6635,15 +6673,15 @@ window.enterGallery = function enterGallery() {
                 </div>` : '';
 
             overlay.innerHTML = `
-                <div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;background:rgba(0,0,0,0.6);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.1);">
+                <div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;background:rgba(255,255,255,0.88);backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,0,0,0.07);box-shadow:0 1px 8px rgba(0,0,0,0.06);">
                     <button onclick="document.getElementById('artistPinOverlay').remove()"
-                        style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;"
-                        onmouseover="this.style.background='rgba(255,255,255,0.25)'"
-                        onmouseout="this.style.background='rgba(255,255,255,0.15)'">←</button>
+                        style="background:rgba(0,0,0,0.07);border:none;color:#333;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;"
+                        onmouseover="this.style.background='rgba(0,0,0,0.13)'"
+                        onmouseout="this.style.background='rgba(0,0,0,0.07)'">←</button>
                     <button onclick="document.getElementById('artistPinOverlay').remove();navigateTo('home');setTimeout(()=>{ if(typeof afficherOeuvresFiltrees==='function'){ window.currentArtistFilter='${artistName}'; afficherOeuvresFiltrees(); } if(typeof showToast==='function') showToast('🎨 Galerie de ${artistName}'); },100);"
-                        style="background:transparent;border:none;font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center;cursor:pointer;padding:8px 12px;border-radius:20px;transition:all 0.2s;"
-                        onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.color='#d4af37'"
-                        onmouseout="this.style.background='transparent';this.style.color='#fff'"
+                        style="background:transparent;border:none;font-size:13px;font-weight:600;color:#2a2a2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center;cursor:pointer;padding:8px 12px;border-radius:20px;transition:all 0.2s;"
+                        onmouseover="this.style.background='rgba(0,0,0,0.06)';this.style.color='#b8962e'"
+                        onmouseout="this.style.background='transparent';this.style.color='#2a2a2a'"
                         title="Voir la galerie de ${artistName}">${artistName}</button>
                     <button onclick="(function(){ const link = document.createElement('a'); link.href = '${imgSrc}'; link.download = '${(work.title || 'oeuvre').replace(/[^a-z0-9]/gi, '_')}_${artistName.replace(/[^a-z0-9]/gi, '_')}.jpg'; document.body.appendChild(link); link.click(); document.body.removeChild(link); if(typeof showToast === 'function') showToast('📥 Téléchargement démarré'); })();"
                         style="background:rgba(212,175,55,0.2);border:1px solid rgba(212,175,55,0.4);border-radius:50%;width:36px;height:36px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;"
@@ -6651,21 +6689,21 @@ window.enterGallery = function enterGallery() {
                         onmouseout="this.style.background='rgba(212,175,55,0.2)';this.style.borderColor='rgba(212,175,55,0.4)'"
                         title="Télécharger l'image">📥</button>
                     <button onclick="toggleSocialLike(event,${work.id},this)"
-                        style="background:rgba(255,255,255,0.15);border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;"
-                        onmouseover="this.style.background='rgba(255,255,255,0.25)'"
-                        onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                        style="background:rgba(0,0,0,0.07);border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;"
+                        onmouseover="this.style.background='rgba(0,0,0,0.13)'"
+                        onmouseout="this.style.background='rgba(0,0,0,0.07)'">
                         ${isSL ? '❤️' : '🤍'}
                     </button>
                 </div>
                 <div>
                     <img src="${imgSrc}" alt="${work.title||''}"
-                         style="width:100%;height:auto;display:block;max-height:72vh;object-fit:contain;background:#000;"
+                         style="width:100%;height:auto;display:block;max-height:72vh;object-fit:contain;background:#f0ede8;"
                          onerror="this.style.minHeight='200px'">
                 </div>
                 <div style="padding:14px 16px 18px;display:flex;gap:10px;align-items:center;">
                     <div style="flex:1;min-width:0;">
-                        <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:3px;line-height:1.3;">${work.title||'Sans titre'}</div>
-                        <div style="font-size:12px;color:rgba(255,255,255,0.5);">par ${artistName}</div>
+                        <div style="font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:3px;line-height:1.3;">${work.title||'Sans titre'}</div>
+                        <div style="font-size:12px;color:rgba(0,0,0,0.45);">par ${artistName}</div>
                     </div>
                     <button onclick="document.getElementById('artistPinOverlay').remove();viewProductDetailFromAPI(${work.id});"
                         style="flex-shrink:0;background:linear-gradient(135deg,#d4af37,#b8962e);border:none;color:#1a1a1a;padding:10px 16px;border-radius:22px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.2s;"
@@ -6681,7 +6719,47 @@ window.enterGallery = function enterGallery() {
             document.addEventListener('keydown', esc);
         }
 
-        async function renderMyArtistsPage() {
+        // ── Injection dynamique de l'onglet "Mon Espace Artiste" dans la barre de tabs ──
+        function _injectMonEspaceTab() {
+            if (document.getElementById('tab-mon-espace')) return; // déjà injecté
+
+            // Trouver la barre de tabs (cherche les boutons artist-tab existants)
+            const existingTabs = document.querySelectorAll('.artist-tab');
+            if (!existingTabs.length) return;
+
+            const tabBar = existingTabs[existingTabs.length - 1].parentElement;
+            if (!tabBar) return;
+
+            // Séparateur vertical
+            const sep = document.createElement('span');
+            sep.style.cssText = 'display:inline-block;width:1px;height:18px;background:rgba(255,255,255,0.2);margin:0 2px;vertical-align:middle;';
+            tabBar.appendChild(sep);
+
+            // Onglet Mon Espace
+            const btn = document.createElement('button');
+            btn.id = 'tab-mon-espace';
+            btn.className = 'artist-tab';
+            btn.setAttribute('data-tab', 'myspace');
+            btn.onclick = function() { switchArtistTab('myspace'); };
+
+            if (currentUser && currentUser.isArtist) {
+                btn.innerHTML = '🎭 Mon Espace';
+                btn.style.cssText = 'background:linear-gradient(135deg,rgba(212,175,55,0.25),rgba(184,150,46,0.15));' +
+                    'border:none;border-bottom:2.5px solid #d4af37;' +
+                    'color:#ffe066;font-size:14px;font-weight:700;cursor:pointer;padding:10px 16px;' +
+                    'border-radius:0;letter-spacing:0.3px;transition:all 0.2s;white-space:nowrap;' +
+                    'text-shadow:0 0 8px rgba(255,215,0,0.4);';
+                btn.onmouseover = function() { this.style.color = '#fff'; };
+                btn.onmouseout  = function() { this.style.color = '#ffe066'; };
+                tabBar.appendChild(btn);
+            }
+            // Si non-artiste : pas d'onglet visible
+        }
+
+                async function renderMyArtistsPage() {
+            // ── Injecter l'onglet "Mon Espace" si artiste connecté ──
+            _injectMonEspaceTab();
+
             const followed = getFollowedArtists();
             const emptyState = document.getElementById('emptyArtistsState');
             const carousel = document.getElementById('followedArtistsCarousel');
@@ -6855,6 +6933,26 @@ window.enterGallery = function enterGallery() {
                 mixedCards.push(buildPostPinCard(relevantPosts[postIdx++]));
             }
 
+            // ── Onglet "Mon Espace" visible uniquement aux artistes connectés ──
+            const mySpaceTab = currentUser?.isArtist ? `
+                <div id="artistMySpaceTab" style="margin-bottom:16px;">
+                    <button onclick="switchArtistTab('myspace')"
+                        style="display:flex;align-items:center;gap:8px;width:100%;padding:13px 16px;
+                               background:linear-gradient(135deg,rgba(212,175,55,0.15),rgba(184,150,46,0.08));
+                               border:1.5px solid rgba(212,175,55,0.5);border-radius:14px;
+                               color:#ffe066;font-size:14px;font-weight:700;cursor:pointer;
+                               box-shadow:0 0 14px rgba(212,175,55,0.15);transition:all 0.2s;"
+                        onmouseover="this.style.background='rgba(212,175,55,0.25)'"
+                        onmouseout="this.style.background='linear-gradient(135deg,rgba(212,175,55,0.15),rgba(184,150,46,0.08))'">
+                        <span style="font-size:20px;">🎭</span>
+                        <div style="text-align:left;">
+                            <div>Mon Espace Artiste</div>
+                            <div style="font-size:11px;color:rgba(255,224,102,0.6);font-weight:400;">Gérer mes publications</div>
+                        </div>
+                        <span style="margin-left:auto;font-size:18px;opacity:0.7;">›</span>
+                    </button>
+                </div>` : '';
+
             // Bouton "Publier" visible uniquement pour les artistes connectés
             const publishBtn = currentUser?.isArtist ? `
                 <div style="margin-bottom:18px;">
@@ -6877,26 +6975,143 @@ window.enterGallery = function enterGallery() {
                     @media(min-width:600px){ .pinterest-grid{ column-count:3; } }
                     @media(min-width:900px){ .pinterest-grid{ column-count:4; } }
                 </style>
+                ${mySpaceTab}
                 ${publishBtn}
                 <div class="pinterest-grid">${mixedCards.join('')}</div>`;
         }
 
         async function switchArtistTab(tab) {
-            // Update active tab
-            document.querySelectorAll('.artist-tab').forEach(t => {
-                t.classList.remove('active');
-            });
-            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
-
-            // Show different content based on tab
+            document.querySelectorAll('.artist-tab').forEach(t => t.classList.remove('active'));
+            const tabEl = document.querySelector(`[data-tab="${tab}"]`);
+            if (tabEl) tabEl.classList.add('active');
             if (tab === 'all') {
                 await renderMyArtistsPage();
             } else if (tab === 'following') {
                 await renderFollowingArtistsGrid();
+            } else if (tab === 'myspace') {
+                await renderArtistMySpace();
             }
         }
 
-        async function renderFollowingArtistsGrid() {
+        // ══════════════════════════════════════════════════
+        //  ESPACE ARTISTE — gestion de ses propres publications
+        // ══════════════════════════════════════════════════
+        async function renderArtistMySpace() {
+            const loopsFeed       = document.getElementById('artistsLoopsFeed');
+            const emptyState      = document.getElementById('emptyArtistsState');
+            const followedSection = document.getElementById('followedArtistsSection');
+            const loopsSection    = document.getElementById('artistsLoopsSection');
+
+            if (emptyState)      emptyState.style.display      = 'none';
+            if (followedSection) followedSection.style.display = 'none';
+            if (loopsSection)    loopsSection.style.display    = 'block';
+            if (!loopsFeed) return;
+
+            // Vérification compte artiste
+            if (!currentUser || !currentUser.isArtist) {
+                loopsFeed.innerHTML =
+                    '<div style="text-align:center;padding:60px 20px;">' +
+                        '<div style="font-size:52px;margin-bottom:16px;">🔒</div>' +
+                        '<div style="color:rgba(255,255,255,0.9);font-weight:700;font-size:17px;margin-bottom:8px;">Réservé aux artistes</div>' +
+                        '<div style="color:rgba(255,255,255,0.5);font-size:13px;margin-bottom:20px;">Créez un compte artiste pour accéder à votre espace de publication.</div>' +
+                        '<button onclick="handleArtistSpace()" style="background:linear-gradient(135deg,#d4af37,#b8962e);border:none;color:#1a1a1a;padding:12px 24px;border-radius:24px;font-size:14px;font-weight:700;cursor:pointer;">Devenir artiste</button>' +
+                    '</div>';
+                return;
+            }
+
+            loopsFeed.innerHTML = '<div style="text-align:center;padding:40px 0;"><div style="font-size:36px;margin-bottom:12px;">⏳</div><div style="color:rgba(255,255,255,0.7);font-size:14px;">Chargement de vos publications…</div></div>';
+
+            let allPosts = [];
+            try { allPosts = await fetchArtistPostsFromServer(); } catch(e) {}
+            const myPosts = allPosts.filter(function(p) {
+                return p.artist_id === currentUser.id ||
+                       p.artist_id === currentUser.googleId ||
+                       p.artist_id === currentUser.email;
+            });
+
+            const totalLikes    = myPosts.reduce(function(s,p){ return s + (p.likes_count||0); }, 0);
+            const totalComments = myPosts.reduce(function(s,p){ return s + (p.comments ? p.comments.length : 0); }, 0);
+
+            // Stats
+            const statsBar =
+                '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">' +
+                    [['📸', myPosts.length, 'Publications'], ['❤️', totalLikes, 'Jaimes'], ['💬', totalComments, 'Commentaires']].map(function(row) {
+                        return '<div style="background:rgba(255,255,255,0.06);border:1px solid rgba(212,175,55,0.2);border-radius:14px;padding:14px 10px;text-align:center;">' +
+                            '<div style="font-size:20px;margin-bottom:4px;">' + row[0] + '</div>' +
+                            '<div style="font-size:20px;font-weight:800;color:#d4af37;">' + row[1] + '</div>' +
+                            '<div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:2px;">' + row[2] + '</div>' +
+                        '</div>';
+                    }).join('') +
+                '</div>';
+
+            // Bouton nouvelle publication
+            const newPostBtn =
+                '<button onclick="openCreatePostModal()" ' +
+                    'style="display:flex;align-items:center;gap:10px;width:100%;padding:14px 18px;margin-bottom:18px;' +
+                           'background:rgba(212,175,55,0.1);border:1.5px dashed rgba(212,175,55,0.45);' +
+                           'border-radius:16px;color:#d4af37;font-size:14px;font-weight:600;cursor:pointer;transition:background 0.2s;" ' +
+                    'onmouseover="this.style.background=\'rgba(212,175,55,0.18)\'" ' +
+                    'onmouseout="this.style.background=\'rgba(212,175,55,0.1)\'">' +
+                    '<span style="font-size:22px;">📸</span>' +
+                    '<div style="text-align:left;">' +
+                        '<div>Nouvelle publication</div>' +
+                        '<div style="font-size:11px;opacity:0.55;font-weight:400;">Image ou vidéo — visible dans la Galerie BOLIA</div>' +
+                    '</div>' +
+                    '<span style="margin-left:auto;font-size:22px;font-weight:300;">＋</span>' +
+                '</button>';
+
+            // Publications
+            let postsHTML = '';
+            if (myPosts.length === 0) {
+                postsHTML =
+                    '<div style="text-align:center;padding:40px 20px;background:rgba(255,255,255,0.03);border-radius:16px;border:1px dashed rgba(255,255,255,0.1);">' +
+                        '<div style="font-size:44px;margin-bottom:12px;">🎨</div>' +
+                        '<div style="color:rgba(255,255,255,0.7);font-size:14px;">Vous n\'avez pas encore publié.</div>' +
+                        '<div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:6px;">Utilisez le bouton ci-dessus pour partager votre première création !</div>' +
+                    '</div>';
+            } else {
+                const cards = myPosts.map(function(post) {
+                    const poster = (post.media_url||'').includes('cloudinary.com')
+                        ? post.media_url.replace('/video/upload/','/video/upload/so_0,w_600,f_jpg/').replace(/\.mp4$/,'.jpg')
+                        : '';
+                    const media = post.media_type === 'video'
+                        ? '<video src="' + post.media_url + '" poster="' + poster + '" preload="none" style="width:100%;height:200px;object-fit:cover;display:block;" controls muted playsinline></video>'
+                        : '<img src="' + post.media_url + '" style="width:100%;height:200px;object-fit:cover;display:block;" loading="lazy" onerror="this.style.display=\'none\'">';
+                    const badge = post.media_type === 'video' ? '🎬 VIDÉO' : '📸 PHOTO';
+                    const dateStr = post.created_at ? new Date(post.created_at).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'}) : '';
+                    const caption = post.caption || '<em style="opacity:0.4">Sans légende</em>';
+                    const likesC  = post.likes_count || 0;
+                    const cmtC    = post.comments ? post.comments.length : 0;
+                    return '<div style="background:rgba(255,255,255,0.05);border:1.5px solid rgba(212,175,55,0.18);border-radius:16px;overflow:hidden;margin-bottom:14px;">' +
+                        '<div style="position:relative;">' + media +
+                            '<span style="position:absolute;top:8px;left:8px;background:rgba(212,175,55,0.9);color:#000;font-size:9px;font-weight:800;padding:2px 8px;border-radius:12px;letter-spacing:0.5px;">' + badge + '</span>' +
+                        '</div>' +
+                        '<div style="padding:12px 14px;">' +
+                            '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
+                                '<div style="flex:1;min-width:0;">' +
+                                    '<div style="font-size:13px;color:rgba(255,255,255,0.85);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + caption + '</div>' +
+                                    '<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:4px;">' + dateStr + ' · ' + likesC + ' ❤️ · ' + cmtC + ' 💬</div>' +
+                                '</div>' +
+                                '<button onclick="deleteArtistPost(\'' + post.id + '\')" ' +
+                                    'style="flex-shrink:0;background:rgba(220,53,69,0.15);border:1px solid rgba(220,53,69,0.35);border-radius:10px;color:#ef4444;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;" ' +
+                                    'onmouseover="this.style.background=\'rgba(220,53,69,0.3)\'" ' +
+                                    'onmouseout="this.style.background=\'rgba(220,53,69,0.15)\'">' +
+                                    '🗑️ Supprimer' +
+                                '</button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+
+                postsHTML =
+                    '<div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;">Mes publications (' + myPosts.length + ')</div>' +
+                    cards;
+            }
+
+            loopsFeed.innerHTML = statsBar + newPostBtn + postsHTML;
+        }
+
+                async function renderFollowingArtistsGrid() {
             const followed = getFollowedArtists();
             const emptyState = document.getElementById('emptyArtistsState');
             const followedSection = document.getElementById('followedArtistsSection');

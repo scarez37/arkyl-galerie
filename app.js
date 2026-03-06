@@ -405,7 +405,7 @@ window.enterGallery = function enterGallery() {
             new MutationObserver(apply).observe(document.documentElement, { childList: true, subtree: true });
         })();
 
-        let currentUser = null; // Déclaré globalement — restauré par restoreSession
+        if (typeof currentUser === 'undefined') var currentUser = null; // Déclaré globalement — restauré par restoreSession (guard: évite l'erreur si app.js est chargé en double)
         const _memStore = {};
         const safeStorage = {
             get: (key, defaultValue = null) => {
@@ -10353,34 +10353,136 @@ window.enterGallery = function enterGallery() {
         }
         window._loadMoreOeuvres = function() { currentPage++; renderPage(currentPage); };
         renderPage(0);
+        
+        // Après avoir affiché toutes les œuvres filtrées, afficher le bouton global si nécessaire
+        setTimeout(() => {
+            const localBtn = document.getElementById('loadMoreBtn');
+            if (!localBtn && window.hasMoreData !== false) {
+                // Toutes les œuvres chargées sont affichées, montrer le bouton global
+                ajouterBoutonChargerPlus();
+            }
+        }, 100);
     }
     document.addEventListener('DOMContentLoaded', chargerLaVraieGalerie);
+
+    // ==================== CHARGEMENT PROGRESSIF DE LA GALERIE ====================
+    let currentOffset = 0;
+    const ITEMS_PER_LOAD = 50; // Charger 50 œuvres à la fois
+    let isLoading = false;
+    window.hasMoreData = true; // Rendre global pour que afficherOeuvresFiltrees puisse y accéder
 
     async function chargerLaVraieGalerie() {
         const grille = document.getElementById('productsContainer'); 
         if (!grille) return; 
 
+        // Afficher un indicateur de chargement initial
+        grille.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-size:48px;margin-bottom:20px;animation:pulse 1.5s ease-in-out infinite;">⏳</div><p style="color:rgba(255,255,255,0.7);">Chargement de la galerie...</p></div>';
+
+        // Réinitialiser pour le premier chargement
+        currentOffset = 0;
+        window.hasMoreData = true;
+        window.toutesLesOeuvres = [];
+
+        // Charger le premier lot
+        await chargerPlusOeuvres();
+    }
+
+    async function chargerPlusOeuvres() {
+        if (isLoading || !window.hasMoreData) return;
+        
+        const grille = document.getElementById('productsContainer');
+        if (!grille) return;
+
+        isLoading = true;
+
         try {
-            // L'adresse COMPLÈTE et ABSOLUE de ton serveur API
-            const urlAPI = 'https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now();
+            // Ajouter les paramètres de pagination à l'API
+            const urlAPI = `https://arkyl-galerie.onrender.com/api_galerie_publique.php?limit=${ITEMS_PER_LOAD}&offset=${currentOffset}&t=${Date.now()}`;
+            
+            console.log(`📥 Chargement des œuvres ${currentOffset} à ${currentOffset + ITEMS_PER_LOAD}...`);
             
             const reponse = await fetch(urlAPI);
             const resultat = await reponse.json();
 
-            grille.innerHTML = ''; // On vide le texte de chargement
+            if (currentOffset === 0) {
+                grille.innerHTML = ''; // Vider seulement au premier chargement
+            }
 
-            if (resultat.success && resultat.data.length > 0) {
-                window.toutesLesOeuvres = resultat.data;
+            if (resultat.success && resultat.data && resultat.data.length > 0) {
+                // Ajouter les nouvelles œuvres à la liste globale
+                window.toutesLesOeuvres = [...(window.toutesLesOeuvres || []), ...resultat.data];
+                
+                // Vérifier s'il reste des données
+                if (resultat.data.length < ITEMS_PER_LOAD) {
+                    window.hasMoreData = false;
+                }
+                
+                // Incrémenter l'offset pour le prochain chargement
+                currentOffset += resultat.data.length;
+                
+                // Afficher les œuvres
                 window.afficherOeuvresFiltrees();
+                
+                console.log(`✅ ${resultat.data.length} œuvres chargées. Total: ${window.toutesLesOeuvres.length}`);
+                
+                // Si c'est le premier chargement et qu'il y a plus de données, ajouter le bouton "Charger plus"
+                if (window.hasMoreData) {
+                    ajouterBoutonChargerPlus();
+                }
             } else {
-                grille.innerHTML = '<p style="text-align:center; width:100%;">La galerie est vide pour le moment.</p>';
+                if (currentOffset === 0) {
+                    grille.innerHTML = '<p style="text-align:center; width:100%;">La galerie est vide pour le moment.</p>';
+                }
+                window.hasMoreData = false;
             }
 
         } catch (erreur) {
             console.error("Erreur de communication :", erreur);
-            grille.innerHTML = '<p style="color:red; text-align:center;">Serveur injoignable pour le moment.</p>';
+            if (currentOffset === 0) {
+                grille.innerHTML = '<p style="color:red; text-align:center;">Serveur injoignable pour le moment.</p>';
+            }
+            window.hasMoreData = false;
+        } finally {
+            isLoading = false;
         }
     }
+
+    function ajouterBoutonChargerPlus() {
+        // Supprimer l'ancien bouton s'il existe
+        const oldBtn = document.getElementById('loadMoreGlobalBtn');
+        if (oldBtn) oldBtn.remove();
+
+        // Ajouter le nouveau bouton après la grille
+        const grille = document.getElementById('productsContainer');
+        if (!grille) return;
+
+        const btnContainer = document.createElement('div');
+        btnContainer.id = 'loadMoreGlobalBtn';
+        btnContainer.style.cssText = 'text-align:center;margin:24px 0 40px;';
+        
+        btnContainer.innerHTML = `
+            <button onclick="chargerPlusOeuvres()" 
+                    style="background:linear-gradient(135deg, rgba(212,175,55,0.15), rgba(160,120,32,0.1));
+                           border:1.5px solid rgba(212,175,55,0.4);
+                           color:#d4af37;
+                           padding:12px 32px;
+                           border-radius:25px;
+                           font-size:14px;
+                           font-weight:600;
+                           cursor:pointer;
+                           transition:all 0.3s;
+                           box-shadow:0 4px 12px rgba(212,175,55,0.15);"
+                    onmouseover="this.style.background='linear-gradient(135deg, rgba(212,175,55,0.25), rgba(160,120,32,0.15))';this.style.borderColor='rgba(212,175,55,0.6)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(212,175,55,0.25)'"
+                    onmouseout="this.style.background='linear-gradient(135deg, rgba(212,175,55,0.15), rgba(160,120,32,0.1))';this.style.borderColor='rgba(212,175,55,0.4)';this.style.transform='';this.style.boxShadow='0 4px 12px rgba(212,175,55,0.15)'">
+                📥 Charger plus d'œuvres
+            </button>
+        `;
+
+        grille.parentNode.insertBefore(btnContainer, grille.nextSibling);
+    }
+
+    // Rendre la fonction globale pour qu'elle soit accessible
+    window.chargerPlusOeuvres = chargerPlusOeuvres;
 
 
     // ==================== FONCTIONS DE CARROUSEL POUR LES CARTES ====================

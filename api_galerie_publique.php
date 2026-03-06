@@ -51,6 +51,16 @@ try {
 
         $includeSold = isset($_GET['include_sold']) && $_GET['include_sold'] === '1';
 
+        // ==================== PAGINATION ====================
+        // Paramètres de pagination pour le chargement progressif
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 9999; // Par défaut : tout charger
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+        
+        // Validation et sécurisation
+        $limit = max(1, min($limit, 200)); // Entre 1 et 200 œuvres max par requête
+        $offset = max(0, $offset); // Minimum 0
+        // ====================================================
+
         if ($isAdmin) {
             $sql = "SELECT * FROM artworks WHERE 1=1";
         } elseif ($includeSold) {
@@ -81,20 +91,64 @@ try {
             }
         }
         
-        $sql .= " ORDER BY id DESC";
+        $sql .= " ORDER BY id DESC LIMIT :limit OFFSET :offset";
         
         $stmt = $db->prepare($sql);
-        $stmt->execute($params);
+        
+        // Lier les paramètres de pagination
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        
+        // Lier les autres paramètres si présents
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        
+        $stmt->execute();
         $oeuvres = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Formater chaque œuvre
         $formatted = array_map('formatArtwork', $oeuvres);
         
+        // Compter le nombre total d'œuvres (pour savoir s'il reste des données)
+        // Reconstruire la requête COUNT avec les mêmes conditions
+        if ($isAdmin) {
+            $countSql = "SELECT COUNT(*) as total FROM artworks WHERE 1=1";
+        } elseif ($includeSold) {
+            $countSql = "SELECT COUNT(*) as total FROM artworks WHERE status = 'publiée'";
+        } else {
+            $countSql = "SELECT COUNT(*) as total FROM artworks WHERE status = 'publiée' AND (is_sold IS NULL OR is_sold = FALSE)";
+        }
+        
+        // Ajouter le même filtre artist_id si présent
+        if (isset($_GET['artist_id']) && !empty($_GET['artist_id'])) {
+            $artistId = $_GET['artist_id'];
+            if (is_numeric($artistId)) {
+                $countSql .= " AND artist_id::text = :artist_id";
+            } else {
+                $countSql .= " AND (artist_name = :artist_name OR artist_email = :artist_email)";
+            }
+        }
+        
+        $countStmt = $db->prepare($countSql);
+        foreach ($params as $key => $value) {
+            $countStmt->bindValue($key, $value);
+        }
+        $countStmt->execute();
+        $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+        
         // Ajouter info de filtrage à la réponse
         $response = [
             'success' => true,
             'data' => $formatted,
-            'count' => count($formatted)
+            'count' => count($formatted),
+            'pagination' => [
+                'limit' => $limit,
+                'offset' => $offset,
+                'total' => (int)$totalCount,
+                'hasMore' => ($offset + count($formatted)) < $totalCount,
+                'nextOffset' => ($offset + count($formatted)) < $totalCount ? $offset + count($formatted) : null
+            ]
         ];
         
         // 🔍 Debug: Ajouter info si filtrage appliqué

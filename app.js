@@ -7,7 +7,7 @@ window.enterGallery = function enterGallery() {
                 mainContent.classList.add('visible');
                 if (typeof init === 'function') init();
             }, 1000);
-        }
+        }; // FIX: semicolon ajouté — évite que le (function...) suivant soit interprété comme un appel
 
         // ==================== GALERIE BOLIA BUTTON STYLING ====================
         (function applyGalerieBoliaStyle() {
@@ -259,12 +259,20 @@ window.enterGallery = function enterGallery() {
             }
         }
 
-        // Variables pour optimisation (déclarées une seule fois)
-        let productsCache = null;
-        let favoritesCache = null;
-        let lastRenderTime = {};
-        let autoRefreshInterval = null;
-        let currentAdminFilter = 'all';
+        // Variables pour optimisation — var évite "already declared" si le script est chargé deux fois
+        if (typeof window._appVarsInitialized === 'undefined') {
+            window._appVarsInitialized  = true;
+            window._productsCache       = null;
+            window._favoritesCache      = null;
+            window._lastRenderTime      = {};
+            window._autoRefreshInterval = null;
+            window._currentAdminFilter  = 'all';
+        }
+        var productsCache      = window._productsCache;
+        var favoritesCache     = window._favoritesCache;
+        var lastRenderTime     = window._lastRenderTime;
+        var autoRefreshInterval= window._autoRefreshInterval;
+        var currentAdminFilter = window._currentAdminFilter;
 
         function debounce(func, wait) {
             let timeout;
@@ -612,11 +620,16 @@ window.enterGallery = function enterGallery() {
         let favorites = safeStorage.get('arkyl_favorites', []);
         let cartItems = [];
         let orderHistory = safeStorage.get('arkyl_orders', []);
-        let notifications = safeStorage.get('arkyl_notifications', [
+        // FIX Bug 3: window.notifications évite le TDZ quand updateBadges est appelé avant initialisation
+        if (!window._notificationsInit) {
+            window._notificationsInit = true;
+            window.notifications = safeStorage.get('arkyl_notifications', [
             { id: 1, title: 'Bienvenue!', text: 'Découvrez nos nouvelles œuvres d\'art', time: 'Il y a 2h', unread: true },
             { id: 2, title: 'Promotion', text: '-20% sur toutes les sculptures cette semaine', time: 'Il y a 5h', unread: true },
             { id: 3, title: 'Nouvel artiste', text: 'Kofi Mensah a ajouté de nouvelles peintures', time: 'Hier', unread: false }
-        ]);
+            ]);
+        }
+        var notifications = window.notifications;
 
         const sampleProducts = [];
 
@@ -1062,7 +1075,7 @@ window.enterGallery = function enterGallery() {
             favoritesCache = null;
             lastRenderTime = {};
             window.toutesLesOeuvres = [];
-            notifications = [];
+            notifications = []; window.notifications = notifications;
             // Réinitialiser le db artiste pour ne pas laisser les données d'un compte sur l'autre
             db.switchArtist('default');
             db.artworks = [];
@@ -3963,7 +3976,7 @@ window.enterGallery = function enterGallery() {
             // Réinitialiser les variables en mémoire
             cartItems     = [];
             favorites     = [];
-            notifications = [];
+            notifications = []; window.notifications = notifications;
             updateBadges();
 
             console.log('🧹 Cache nettoyé :', removed);
@@ -10039,34 +10052,6 @@ window.enterGallery = function enterGallery() {
     }
 
     // ==================== CHARGEMENT DE LA GALERIE ====================
-    document.addEventListener('DOMContentLoaded', chargerLaVraieGalerie);
-
-    async function chargerLaVraieGalerie() {
-        const grille = document.getElementById('productsContainer'); 
-        if (!grille) return; 
-
-        try {
-            // L'adresse COMPLÈTE et ABSOLUE de ton serveur API
-            const urlAPI = 'https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now();
-            
-            const reponse = await fetch(urlAPI);
-            const resultat = await reponse.json();
-
-            grille.innerHTML = ''; // On vide le texte de chargement
-
-            if (resultat.success && resultat.data.length > 0) {
-                window.toutesLesOeuvres = resultat.data;
-                window.afficherOeuvresFiltrees();
-            } else {
-                grille.innerHTML = '<p style="text-align:center; width:100%;">La galerie est vide pour le moment.</p>';
-            }
-
-        } catch (erreur) {
-            console.error("Erreur de communication :", erreur);
-            grille.innerHTML = '<p style="color:red; text-align:center;">Serveur injoignable pour le moment.</p>';
-        }
-    }
-
     // Stockage global des œuvres
     window.toutesLesOeuvres = [];
 
@@ -10154,6 +10139,34 @@ window.enterGallery = function enterGallery() {
         window._loadMoreOeuvres = function() { currentPage++; renderPage(currentPage); };
         renderPage(0);
     }
+    document.addEventListener('DOMContentLoaded', chargerLaVraieGalerie);
+
+    async function chargerLaVraieGalerie() {
+        const grille = document.getElementById('productsContainer'); 
+        if (!grille) return; 
+
+        try {
+            // L'adresse COMPLÈTE et ABSOLUE de ton serveur API
+            const urlAPI = 'https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=' + Date.now();
+            
+            const reponse = await fetch(urlAPI);
+            const resultat = await reponse.json();
+
+            grille.innerHTML = ''; // On vide le texte de chargement
+
+            if (resultat.success && resultat.data.length > 0) {
+                window.toutesLesOeuvres = resultat.data;
+                window.afficherOeuvresFiltrees();
+            } else {
+                grille.innerHTML = '<p style="text-align:center; width:100%;">La galerie est vide pour le moment.</p>';
+            }
+
+        } catch (erreur) {
+            console.error("Erreur de communication :", erreur);
+            grille.innerHTML = '<p style="color:red; text-align:center;">Serveur injoignable pour le moment.</p>';
+        }
+    }
+
 
     // ==================== FONCTIONS DE CARROUSEL POUR LES CARTES ====================
     
@@ -10522,7 +10535,10 @@ window.enterGallery = function enterGallery() {
     window.addEventListener('resize', resize);
     init();
     draw();
-})();        async function loadAdminOrdersFromServer() {
+})();
+
+        // FIX: fonction séparée de la fermeture IIFE précédente
+        async function loadAdminOrdersFromServer() {
             try {
                 const resp = await fetch(`${ORDERS_API}?action=list&admin=1&t=${Date.now()}`);
                 const data = await resp.json();

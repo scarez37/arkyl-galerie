@@ -10632,7 +10632,7 @@ window.enterGallery = function enterGallery() {
                         <button onclick="event.stopPropagation();viewProductDetailFromAPI(${oeuvre.id})"
                             style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);border:none;border-radius:20px;padding:4px 12px;display:flex;align-items:center;gap:4px;cursor:pointer;font-size:14px;color:white;transition:transform 0.15s;white-space:nowrap;"
                             onmouseover="this.style.transform='translateX(-50%) scale(1.08)'" onmouseout="this.style.transform='translateX(-50%)'">💬</button>
-                        ${isSold ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,0.35);border-radius:inherit;display:flex;align-items:center;justify-content:center;"><span style='font-size:12px;font-weight:800;color:#fff;background:rgba(200,0,0,0.8);padding:3px 10px;border-radius:20px;'>VENDU</span></div>' : ''}
+                        ${isSold ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,0.35);border-radius:inherit;display:flex;align-items:center;justify-content:center;"><span style="font-size:12px;font-weight:800;color:#fff;background:rgba(200,0,0,0.8);padding:3px 10px;border-radius:20px;">VENDU</span></div>' : ''}
                     </div>
                     <div class="product-info">
                         <div class="product-title">${title}</div>

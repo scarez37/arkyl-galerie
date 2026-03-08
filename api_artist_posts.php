@@ -16,6 +16,11 @@ function getAllPosts($db) {
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($rows as &$row) {
         $row['comments'] = json_decode($row['comments'] ?? '[]', true) ?? [];
+        $row['photos']   = json_decode($row['photos']   ?? '[]', true) ?? [];
+        // Compat : si photos vide, utiliser media_url
+        if (empty($row['photos']) && !empty($row['media_url'])) {
+            $row['photos'] = [$row['media_url']];
+        }
         $row['likes']    = intval($row['likes'] ?? 0);
     }
     return $rows;
@@ -33,6 +38,7 @@ try {
             artist_avatar TEXT         DEFAULT '',
             media_url     TEXT         NOT NULL,
             media_type    VARCHAR(10)  DEFAULT 'image',
+            photos        TEXT         DEFAULT '[]',
             caption       TEXT         DEFAULT '',
             likes         INTEGER      DEFAULT 0,
             comments      TEXT         DEFAULT '[]',
@@ -53,11 +59,15 @@ try {
     // POST add — publier un nouveau post
     if ($method === 'POST' && $action === 'add') {
         $id = $body['id'] ?? ('post_' . time() . '_' . bin2hex(random_bytes(4)));
+        $photosArr = $body['photos'] ?? [];
+        if (empty($photosArr) && !empty($body['media_url'])) {
+            $photosArr = [$body['media_url']];
+        }
         $stmt = $db->prepare("
             INSERT INTO artist_posts
-                (id, artist_id, artist_name, artist_avatar, media_url, media_type, caption, likes, comments, created_at)
+                (id, artist_id, artist_name, artist_avatar, media_url, media_type, photos, caption, likes, comments, created_at)
             VALUES
-                (:id, :artist_id, :artist_name, :artist_avatar, :media_url, :media_type, :caption, 0, '[]', :created_at)
+                (:id, :artist_id, :artist_name, :artist_avatar, :media_url, :media_type, :photos, :caption, 0, '[]', :created_at)
             ON CONFLICT(id) DO NOTHING
         ");
         $stmt->execute([
@@ -67,6 +77,7 @@ try {
             ':artist_avatar' => $body['artist_avatar']  ?? '',
             ':media_url'     => $body['media_url']     ?? '',
             ':media_type'    => $body['media_type']    ?? 'image',
+            ':photos'        => json_encode($photosArr, JSON_UNESCAPED_UNICODE),
             ':caption'       => $body['caption']       ?? '',
             ':created_at'    => $body['created_at']    ?? date('Y-m-d H:i:s'),
         ]);

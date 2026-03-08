@@ -406,7 +406,8 @@ window.enterGallery = function enterGallery() {
         })();
 
         if (typeof currentUser === 'undefined') var currentUser = null; // Déclaré globalement — restauré par restoreSession (guard: évite l'erreur si app.js est chargé en double)
-        const _memStore = {};
+        var _memStore = window._memStore || {};
+        window._memStore = _memStore;
         const safeStorage = {
             get: (key, defaultValue = null) => {
                 try {
@@ -7062,13 +7063,13 @@ window.enterGallery = function enterGallery() {
             // Show/hide empty state
             if (followed.length === 0) {
                 emptyState.style.display = 'block';
-                document.getElementById('followedArtistsSection').style.display = 'none';
+                (document.getElementById('followedArtistsSection')||{style:{display:''}}).style.display='none';
                 document.getElementById('artistsLoopsSection').style.display = 'none';
                 return;
             }
 
             emptyState.style.display = 'none';
-            document.getElementById('followedArtistsSection').style.display = 'block';
+            (document.getElementById('followedArtistsSection')||{style:{display:''}}).style.display='block';
             document.getElementById('artistsLoopsSection').style.display = 'block';
 
             // Charger les œuvres depuis le serveur
@@ -7122,7 +7123,7 @@ window.enterGallery = function enterGallery() {
                 `;
                 document.head.appendChild(s);
             }
-            carousel.innerHTML = followed.map(artist => `
+            if(carousel) carousel.innerHTML = followed.map(artist => `
                 <div class="avatar-story-item" onclick="scrollToArtistLoops('${artist.name}')">
                     <div class="avatar-story-ring">
                         <div class="avatar-story-inner">
@@ -7296,7 +7297,7 @@ window.enterGallery = function enterGallery() {
             const loopsSection    = document.getElementById('artistsLoopsSection');
 
             if (emptyState)      emptyState.style.display      = 'none';
-            if (followedSection) followedSection.style.display = 'none';
+            if (followedSection) if(followedSection) followedSection.style.display='none';
             if (loopsSection)    loopsSection.style.display    = 'block';
             if (!loopsFeed) return;
 
@@ -7411,7 +7412,7 @@ window.enterGallery = function enterGallery() {
             const loopsSection = document.getElementById('artistsLoopsSection');
 
             // Hide the carousel and loops sections
-            followedSection.style.display = 'none';
+            if(followedSection) followedSection.style.display='none';
             loopsSection.style.display = 'none';
 
             // Show/hide empty state
@@ -10284,6 +10285,12 @@ window.enterGallery = function enterGallery() {
         }
 
         // ==================== INIT ====================
+        // Déclarations nécessaires avant init() (évite le TDZ)
+        var currentOffset = 0;
+        var ITEMS_PER_LOAD = 50;
+        var isLoading = false;
+        window.hasMoreData = true;
+
         function init() {
             (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
             updateBadges();
@@ -10666,10 +10673,7 @@ window.enterGallery = function enterGallery() {
     document.addEventListener('DOMContentLoaded', chargerLaVraieGalerie);
 
     // ==================== CHARGEMENT PROGRESSIF DE LA GALERIE ====================
-    let currentOffset = 0;
-    const ITEMS_PER_LOAD = 50; // Charger 50 œuvres à la fois
-    let isLoading = false;
-    window.hasMoreData = true; // Rendre global pour que afficherOeuvresFiltrees puisse y accéder
+
 
     async function chargerLaVraieGalerie() {
         const grille = document.getElementById('productsContainer'); 

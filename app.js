@@ -7167,24 +7167,9 @@ window.enterGallery = function enterGallery() {
             }
 
             window._artistOverlayWorks = allFollowedWorks.map(x => ({...x.work, artist_name: x.artist?.name}));
-            const pinCards = allFollowedWorks.map(({ work, artist }) => {
-                const isSL = typeof isSociallyLiked === 'function' && isSociallyLiked(work.id);
-                const cnt = (window.allSocialLikes||[]).filter(id => id === work.id).length;
-                const imgSrc = (work.image_url && work.image_url !== 'undefined') ? work.image_url : '';
-                return `<div style="break-inside:avoid;margin-bottom:6px;border-radius:10px;overflow:hidden;cursor:pointer;position:relative;"
-                             onclick="openArtistImageOverlay(${work.id})">
-                    ${imgSrc ? `<img loading="lazy" src="${imgSrc}" alt="${work.title||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='80px'">` : `<div style="width:100%;min-height:120px;display:flex;align-items:center;justify-content:center;font-size:48px;background:rgba(255,255,255,0.06);border-radius:10px;">🎨</div>`}
-                    ${work.is_sold ? '<div style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.65);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;">🔴 Vendu</div>' : ''}
-                    <button onclick="event.stopPropagation();toggleSocialLike(event,${work.id},this)"
-                        style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.5);border:none;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;">
-                        ${isSL ? '❤️' : '🤍'}${cnt > 0 ? `<span style="position:absolute;bottom:-3px;right:-3px;background:#d4af37;color:#000;font-size:9px;font-weight:700;border-radius:8px;padding:0 3px;min-width:14px;text-align:center;">${cnt}</span>` : ''}
-                    </button>
-                </div>`;
-            }).join('');
 
-            // Charger les posts artiste et les mélanger avec les oeuvres
+            // Charger les posts artiste
             const artistPostsRaw = await fetchArtistPostsFromServer();
-            // Filtrer les posts des artistes suivis
             const followedNames = followed.map(a => a.name.trim().toLowerCase());
             const relevantPosts = artistPostsRaw.filter(p =>
                 followedNames.includes((p.artist_name || '').trim().toLowerCase()) ||
@@ -7195,10 +7180,8 @@ window.enterGallery = function enterGallery() {
                 ))
             );
 
-            // Construire les pin-cards de posts (badge doré, pas de bouton achat)
-            const postCards = relevantPosts.map(post => ({ html: buildPostPinCard(post), date: new Date(post.created_at).getTime() }));
-            // Reconstruire pinCards en array pour intercaler avec posts
-            const pinCardsArr = allFollowedWorks.map(({ work, artist }) => {
+            // ── Construire une seule fois les cartes (sans doublon) ──
+            function buildWorkCard({ work }) {
                 const isSL = typeof isSociallyLiked === 'function' && isSociallyLiked(work.id);
                 const cnt = (window.allSocialLikes||[]).filter(id => id === work.id).length;
                 const imgSrc = (work.image_url && work.image_url !== 'undefined') ? work.image_url : '';
@@ -7211,21 +7194,64 @@ window.enterGallery = function enterGallery() {
                         ${isSL ? '❤️' : '🤍'}${cnt > 0 ? `<span style="position:absolute;bottom:-3px;right:-3px;background:#d4af37;color:#000;font-size:9px;font-weight:700;border-radius:8px;padding:0 3px;min-width:14px;text-align:center;">${cnt}</span>` : ''}
                     </button>
                 </div>`;
-            });
+            }
 
             // Intercaler: 1 post toutes les 4 oeuvres
-            const mixedCards = [];
+            const allMixedCards = [];
             let postIdx = 0;
-            pinCardsArr.forEach((card, i) => {
+            allFollowedWorks.forEach((item, i) => {
                 if (postIdx < relevantPosts.length && i % 4 === 0) {
-                    mixedCards.push(buildPostPinCard(relevantPosts[postIdx++]));
+                    allMixedCards.push(buildPostPinCard(relevantPosts[postIdx++]));
                 }
-                mixedCards.push(card);
+                allMixedCards.push(buildWorkCard(item));
             });
-            // Ajouter les posts restants à la fin
             while (postIdx < relevantPosts.length) {
-                mixedCards.push(buildPostPinCard(relevantPosts[postIdx++]));
+                allMixedCards.push(buildPostPinCard(relevantPosts[postIdx++]));
             }
+
+            // ── Pagination : afficher par lots de 20 ──
+            const BOLIA_PAGE = 20;
+            let boliaPage = 0;
+            window._boliaAllCards = allMixedCards;
+            window._boliaPage = 0;
+
+            function renderBoliaBatch() {
+                const start = window._boliaPage * BOLIA_PAGE;
+                const batch = window._boliaAllCards.slice(start, start + BOLIA_PAGE);
+                if (!batch.length) return;
+                const feed = document.getElementById('artistsLoopsFeed');
+                if (!feed) return;
+                const grid = feed.querySelector('.bolia-grid');
+                if (grid) {
+                    grid.insertAdjacentHTML('beforeend', batch.join(''));
+                } else {
+                    feed.insertAdjacentHTML('beforeend', `<div class="bolia-grid">${batch.join('')}</div>`);
+                }
+                window._boliaPage++;
+
+                // Sentinel pour infinite scroll
+                const oldSentinel = document.getElementById('boliaSentinel');
+                if (oldSentinel) oldSentinel.remove();
+
+                if (window._boliaPage * BOLIA_PAGE < window._boliaAllCards.length) {
+                    const sentinel = document.createElement('div');
+                    sentinel.id = 'boliaSentinel';
+                    sentinel.style.cssText = 'height:1px;width:100%;';
+                    feed.appendChild(sentinel);
+
+                    if (window._boliaObserver) window._boliaObserver.disconnect();
+                    window._boliaObserver = new IntersectionObserver((entries) => {
+                        if (entries[0].isIntersecting) {
+                            window._boliaObserver.disconnect();
+                            renderBoliaBatch();
+                        }
+                    }, { rootMargin: '200px' });
+                    window._boliaObserver.observe(sentinel);
+                }
+            }
+            window.renderBoliaBatch = renderBoliaBatch;
+
+            const mixedCards = allMixedCards; // compat ligne suivante
 
             // ── Onglet "Mon Espace" visible uniquement aux artistes connectés ──
             const mySpaceTab = currentUser?.isArtist ? `
@@ -7263,15 +7289,16 @@ window.enterGallery = function enterGallery() {
                     </button>
                 </div>` : '';
 
+            // Injecter le layout + les blocs fixes, puis charger le 1er lot
             loopsFeed.innerHTML = `
                 <style>
-                    .pinterest-grid { column-count:2; column-gap:12px; }
-                    @media(min-width:600px){ .pinterest-grid{ column-count:3; } }
-                    @media(min-width:900px){ .pinterest-grid{ column-count:4; } }
+                    .bolia-grid { column-count:2; column-gap:6px; }
+                    @media(min-width:600px){ .bolia-grid{ column-count:3; } }
+                    @media(min-width:900px){ .bolia-grid{ column-count:4; } }
                 </style>
                 ${mySpaceTab}
-                ${publishBtn}
-                <div class="pinterest-grid">${mixedCards.join('')}</div>`;
+                ${publishBtn}`;
+            renderBoliaBatch();
         }
 
         async function switchArtistTab(tab) {
@@ -10652,23 +10679,30 @@ window.enterGallery = function enterGallery() {
                 </div>`;
             }).join('');
             grille.insertAdjacentHTML('beforeend', fragment);
-            const ob = document.getElementById('loadMoreBtn'); if (ob) ob.remove();
+
+            // Sentinel local pour pagination interne (œuvres filtrées)
+            const oldLocalSentinel = document.getElementById('localGalerieSentinel');
+            if (oldLocalSentinel) oldLocalSentinel.remove();
             if (debut + PAGE_SIZE < oeuvres.length) {
-                const r = oeuvres.length - (debut + PAGE_SIZE);
-                grille.insertAdjacentHTML('afterend', `<div id="loadMoreBtn" style="text-align:center;margin:14px 0 28px;"><button onclick="window._loadMoreOeuvres()" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:white;padding:9px 26px;border-radius:22px;font-size:13px;font-weight:600;cursor:pointer;">Voir plus (${r})</button></div>`);
-            }
-        }
-        window._loadMoreOeuvres = function() { currentPage++; renderPage(currentPage); };
-        renderPage(0);
-        
-        // Après avoir affiché toutes les œuvres filtrées, afficher le bouton global si nécessaire
-        setTimeout(() => {
-            const localBtn = document.getElementById('loadMoreBtn');
-            if (!localBtn && window.hasMoreData !== false) {
-                // Toutes les œuvres chargées sont affichées, montrer le bouton global
+                const sentinel = document.createElement('div');
+                sentinel.id = 'localGalerieSentinel';
+                sentinel.style.cssText = 'height:1px;width:100%;';
+                grille.parentNode.insertBefore(sentinel, grille.nextSibling);
+                if (window._localGalerieObserver) window._localGalerieObserver.disconnect();
+                window._localGalerieObserver = new IntersectionObserver((entries) => {
+                    if (entries[0].isIntersecting) {
+                        window._localGalerieObserver.disconnect();
+                        currentPage++;
+                        renderPage(currentPage);
+                    }
+                }, { rootMargin: '300px' });
+                window._localGalerieObserver.observe(sentinel);
+            } else if (window.hasMoreData !== false) {
+                // Toutes les œuvres locales affichées → sentinel global pour charger depuis le serveur
                 ajouterBoutonChargerPlus();
             }
-        }, 100);
+        }
+        renderPage(0);
     }
     document.addEventListener('DOMContentLoaded', chargerLaVraieGalerie);
 
@@ -10729,7 +10763,7 @@ window.enterGallery = function enterGallery() {
                 
                 console.log(`✅ ${resultat.data.length} œuvres chargées. Total: ${window.toutesLesOeuvres.length}`);
                 
-                // Si c'est le premier chargement et qu'il y a plus de données, ajouter le bouton "Charger plus"
+                // Remettre le sentinel global si encore des données à charger depuis le serveur
                 if (window.hasMoreData) {
                     ajouterBoutonChargerPlus();
                 }
@@ -10752,37 +10786,25 @@ window.enterGallery = function enterGallery() {
     }
 
     function ajouterBoutonChargerPlus() {
-        // Supprimer l'ancien bouton s'il existe
-        const oldBtn = document.getElementById('loadMoreGlobalBtn');
-        if (oldBtn) oldBtn.remove();
+        const oldSentinel = document.getElementById('loadMoreGlobalBtn');
+        if (oldSentinel) oldSentinel.remove();
 
-        // Ajouter le nouveau bouton après la grille
         const grille = document.getElementById('productsContainer');
-        if (!grille) return;
+        if (!grille || !window.hasMoreData) return;
 
-        const btnContainer = document.createElement('div');
-        btnContainer.id = 'loadMoreGlobalBtn';
-        btnContainer.style.cssText = 'text-align:center;margin:24px 0 40px;';
-        
-        btnContainer.innerHTML = `
-            <button onclick="chargerPlusOeuvres()" 
-                    style="background:linear-gradient(135deg, rgba(212,175,55,0.15), rgba(160,120,32,0.1));
-                           border:1.5px solid rgba(212,175,55,0.4);
-                           color:#d4af37;
-                           padding:12px 32px;
-                           border-radius:25px;
-                           font-size:14px;
-                           font-weight:600;
-                           cursor:pointer;
-                           transition:all 0.3s;
-                           box-shadow:0 4px 12px rgba(212,175,55,0.15);"
-                    onmouseover="this.style.background='linear-gradient(135deg, rgba(212,175,55,0.25), rgba(160,120,32,0.15))';this.style.borderColor='rgba(212,175,55,0.6)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(212,175,55,0.25)'"
-                    onmouseout="this.style.background='linear-gradient(135deg, rgba(212,175,55,0.15), rgba(160,120,32,0.1))';this.style.borderColor='rgba(212,175,55,0.4)';this.style.transform='';this.style.boxShadow='0 4px 12px rgba(212,175,55,0.15)'">
-                📥 Charger plus d'œuvres
-            </button>
-        `;
+        const sentinel = document.createElement('div');
+        sentinel.id = 'loadMoreGlobalBtn';
+        sentinel.style.cssText = 'height:1px;width:100%;';
+        grille.parentNode.insertBefore(sentinel, grille.nextSibling);
 
-        grille.parentNode.insertBefore(btnContainer, grille.nextSibling);
+        if (window._globalGalerieObserver) window._globalGalerieObserver.disconnect();
+        window._globalGalerieObserver = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) {
+                window._globalGalerieObserver.disconnect();
+                chargerPlusOeuvres();
+            }
+        }, { rootMargin: '300px' });
+        window._globalGalerieObserver.observe(sentinel);
     }
 
     // Rendre la fonction globale pour qu'elle soit accessible

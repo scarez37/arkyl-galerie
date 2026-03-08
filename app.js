@@ -6348,25 +6348,52 @@ window.enterGallery = function enterGallery() {
         async function togglePostLike(postId, btn) {
             const key = 'arkyl_post_likes';
             const liked = safeStorage.get(key, []);
-            const isLiked = liked.includes(postId);
-            let newLiked;
-            if (isLiked) {
-                newLiked = liked.filter(id => id !== postId);
-            } else {
-                newLiked = [...liked, postId];
-            }
+            const isLiked = liked.includes(String(postId));
+            const delta = isLiked ? -1 : 1;
+
+            // Mise à jour locale immédiate (feedback instantané)
+            const newLiked = isLiked
+                ? liked.filter(id => id !== String(postId))
+                : [...liked, String(postId)];
             safeStorage.set(key, newLiked);
-            // Mettre à jour le compteur visuellement
+
             const posts = getArtistPosts();
-            const post = posts.find(p => p.id === postId);
+            const post = posts.find(p => String(p.id) === String(postId));
             if (post) {
-                post.likes = Math.max(0, (post.likes || 0) + (isLiked ? -1 : 1));
+                post.likes = Math.max(0, (post.likes || 0) + delta);
                 saveArtistPostsLocal(posts);
+                if (window._allPosts && window._allPosts[String(postId)]) {
+                    window._allPosts[String(postId)].likes = post.likes;
+                }
             }
             if (btn) {
-                const count = (post?.likes || 0);
-                btn.innerHTML = (newLiked.includes(postId) ? '❤️' : '🤍') +
+                const count = post?.likes || 0;
+                btn.innerHTML = (!isLiked ? '❤️' : '🤍') +
                     (count > 0 ? `<span style="font-size:11px;color:rgba(255,255,255,0.6);margin-left:2px;">${count}</span>` : '');
+            }
+
+            // Sync serveur — like réel partagé entre tous les clients
+            try {
+                const res = await fetch(POSTS_API + '?action=like', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: postId, delta })
+                });
+                const data = await res.json();
+                if (data.success && Array.isArray(data.posts)) {
+                    saveArtistPostsLocal(data.posts);
+                    const serverPost = data.posts.find(p => String(p.id) === String(postId));
+                    if (serverPost && btn) {
+                        const realCount = serverPost.likes || 0;
+                        btn.innerHTML = (!isLiked ? '❤️' : '🤍') +
+                            (realCount > 0 ? `<span style="font-size:11px;color:rgba(255,255,255,0.6);margin-left:2px;">${realCount}</span>` : '');
+                        if (window._allPosts && window._allPosts[String(postId)]) {
+                            window._allPosts[String(postId)].likes = realCount;
+                        }
+                    }
+                }
+            } catch(e) {
+                console.warn('Like non synchronisé avec le serveur:', e);
             }
         }
 
@@ -6376,6 +6403,7 @@ window.enterGallery = function enterGallery() {
 
         // Ouvre la modale de création de post
         function openCreatePostModal() {
+            window._postSelectedFiles = []; // tableau des fichiers sélectionnés
             let modal = document.getElementById('createPostModal');
             if (!modal) {
                 modal = document.createElement('div');
@@ -6384,24 +6412,28 @@ window.enterGallery = function enterGallery() {
                 document.body.appendChild(modal);
             }
             modal.innerHTML = `
-                <div style="background:#1a1a2e;border:1px solid rgba(212,175,55,0.35);border-radius:20px;padding:28px;max-width:480px;width:100%;color:white;font-family:'Inter',sans-serif;max-height:90vh;overflow-y:auto;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+                <div style="background:#1a1a2e;border:1px solid rgba(212,175,55,0.35);border-radius:20px;padding:24px;max-width:480px;width:100%;color:white;font-family:'Inter',sans-serif;max-height:92vh;overflow-y:auto;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
                         <h3 style="margin:0;font-size:18px;color:#d4af37;">📸 Nouvelle publication</h3>
                         <button onclick="document.getElementById('createPostModal').remove()"
                             style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:22px;cursor:pointer;line-height:1;">×</button>
                     </div>
 
-                    <!-- Aperçu média -->
-                    <div id="postMediaPreview" style="width:100%;min-height:160px;background:rgba(255,255,255,0.05);border:2px dashed rgba(255,255,255,0.2);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;margin-bottom:16px;cursor:pointer;transition:border-color 0.2s;"
+                    <!-- Zone de drop -->
+                    <div id="postDropZone"
+                         style="width:100%;min-height:130px;background:rgba(255,255,255,0.04);border:2px dashed rgba(255,255,255,0.2);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;margin-bottom:12px;cursor:pointer;transition:border-color 0.2s;box-sizing:border-box;"
                          onclick="document.getElementById('postFileInput').click()"
                          ondragover="event.preventDefault();this.style.borderColor='#d4af37'"
                          ondragleave="this.style.borderColor='rgba(255,255,255,0.2)'"
                          ondrop="handlePostFileDrop(event)">
-                        <div style="font-size:36px;">📁</div>
-                        <div style="font-size:13px;color:rgba(255,255,255,0.5);">Clique ou glisse une image / vidéo</div>
-                        <div style="font-size:11px;color:rgba(255,255,255,0.3);">JPG, PNG, GIF, MP4, MOV — max 20 Mo</div>
+                        <div style="font-size:32px;">📁</div>
+                        <div style="font-size:13px;color:rgba(255,255,255,0.5);">Clique ou glisse tes images / vidéos</div>
+                        <div style="font-size:11px;color:rgba(255,255,255,0.3);">Jusqu'à 10 fichiers — JPG, PNG, GIF, MP4, MOV</div>
                     </div>
-                    <input type="file" id="postFileInput" accept="image/*,video/*" style="display:none;" onchange="previewPostFile(this)">
+                    <input type="file" id="postFileInput" accept="image/*,video/*" multiple style="display:none;" onchange="previewPostFiles(this)">
+
+                    <!-- Miniatures des fichiers sélectionnés -->
+                    <div id="postThumbsRow" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:14px;padding:10px;background:rgba(255,255,255,0.04);border-radius:12px;border:1px solid rgba(255,255,255,0.1);"></div>
 
                     <!-- Légende -->
                     <div style="margin-bottom:14px;">
@@ -6418,7 +6450,7 @@ window.enterGallery = function enterGallery() {
                             style="flex:1;padding:11px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:13px;cursor:pointer;">
                             Annuler
                         </button>
-                        <button onclick="submitArtistPost()"
+                        <button id="postSubmitBtn" onclick="submitArtistPost()"
                             style="flex:2;padding:11px;background:linear-gradient(135deg,#d4af37,#a07820);border:none;border-radius:10px;color:#000;font-size:13px;font-weight:700;cursor:pointer;">
                             📤 Publier
                         </button>
@@ -6427,86 +6459,129 @@ window.enterGallery = function enterGallery() {
             modal.style.display = 'flex';
         }
 
-        function previewPostFile(input) {
-            const file = input.files[0];
-            if (!file) return;
-            const preview = document.getElementById('postMediaPreview');
-            const url = URL.createObjectURL(file);
-            if (file.type.startsWith('video/')) {
-                preview.innerHTML = `<video src="${url}" style="width:100%;border-radius:12px;max-height:260px;" controls muted></video>`;
-            } else {
-                preview.innerHTML = `<img src="${url}" style="width:100%;border-radius:12px;max-height:260px;object-fit:contain;" alt="Aperçu">`;
+        function previewPostFile(input) { previewPostFiles(input); } // compat
+
+        function previewPostFiles(input) {
+            const files = Array.from(input.files || []).slice(0, 10);
+            if (!files.length) return;
+            if (!window._postSelectedFiles) window._postSelectedFiles = [];
+            // Ajouter sans doublons (par nom+taille)
+            files.forEach(f => {
+                const key = f.name + f.size;
+                if (!window._postSelectedFiles.find(x => x.name + x.size === key)) {
+                    window._postSelectedFiles.push(f);
+                }
+            });
+            window._postSelectedFiles = window._postSelectedFiles.slice(0, 10);
+            renderPostThumbs();
+        }
+
+        function renderPostThumbs() {
+            const row = document.getElementById('postThumbsRow');
+            const zone = document.getElementById('postDropZone');
+            if (!row) return;
+            const files = window._postSelectedFiles || [];
+            if (!files.length) { row.style.display = 'none'; return; }
+            row.style.display = 'flex';
+            row.innerHTML = files.map((f, i) => {
+                const url = URL.createObjectURL(f);
+                const isVid = f.type.startsWith('video/');
+                return `<div style="position:relative;width:72px;height:72px;border-radius:10px;overflow:hidden;border:2px solid ${i===0?'#d4af37':'rgba(255,255,255,0.2)'};">
+                    ${isVid
+                        ? `<video src="${url}" style="width:100%;height:100%;object-fit:cover;" muted></video><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;">🎬</div>`
+                        : `<img src="${url}" style="width:100%;height:100%;object-fit:cover;">`}
+                    ${i===0 ? '<div style="position:absolute;bottom:2px;left:2px;background:#d4af37;color:#000;font-size:8px;font-weight:800;padding:1px 5px;border-radius:6px;">1ère</div>' : ''}
+                    <button onclick="event.stopPropagation();removePostFile(${i})"
+                        style="position:absolute;top:2px;right:2px;background:rgba(220,53,69,0.85);border:none;border-radius:50%;width:18px;height:18px;color:white;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;">×</button>
+                </div>`;
+            }).join('');
+            // Bouton ajouter si < 10
+            if (files.length < 10) {
+                row.innerHTML += `<div onclick="document.getElementById('postFileInput').click()"
+                    style="width:72px;height:72px;border-radius:10px;border:2px dashed rgba(255,255,255,0.25);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:4px;">
+                    <div style="font-size:22px;">+</div>
+                    <div style="font-size:9px;color:rgba(255,255,255,0.4);">${files.length}/10</div>
+                </div>`;
             }
-            preview.dataset.fileUrl = url;
-            preview.dataset.fileType = file.type.startsWith('video/') ? 'video' : 'image';
-            preview.dataset.fileName = file.name;
-            preview._postFile = file; // Stocker pour upload Cloudinary
+            // Cacher la zone de drop si au moins 1 fichier
+            if (zone) zone.style.display = files.length ? 'none' : 'flex';
+        }
+
+        function removePostFile(idx) {
+            if (!window._postSelectedFiles) return;
+            window._postSelectedFiles.splice(idx, 1);
+            renderPostThumbs();
+            const zone = document.getElementById('postDropZone');
+            if (zone && !window._postSelectedFiles.length) zone.style.display = 'flex';
         }
 
         function handlePostFileDrop(event) {
             event.preventDefault();
-            const file = event.dataTransfer.files[0];
-            if (!file) return;
+            const files = Array.from(event.dataTransfer.files);
+            if (!files.length) return;
             const dt = new DataTransfer();
-            dt.items.add(file);
+            files.forEach(f => dt.items.add(f));
             const input = document.getElementById('postFileInput');
             input.files = dt.files;
-            previewPostFile(input);
-            document.getElementById('postMediaPreview').style.borderColor = 'rgba(255,255,255,0.2)';
+            previewPostFiles(input);
+            const zone = document.getElementById('postDropZone');
+            if (zone) zone.style.borderColor = 'rgba(255,255,255,0.2)';
         }
 
         async function submitArtistPost() {
-            const preview = document.getElementById('postMediaPreview');
+            const files = window._postSelectedFiles || [];
             const caption = document.getElementById('postCaption')?.value?.trim() || '';
-            let mediaUrl = preview?.dataset?.fileUrl || '';
-            const mediaType = preview?.dataset?.fileType || 'image';
 
-            if (!mediaUrl) {
-                showToast('⚠️ Ajoutez une image ou vidéo avant de publier');
+            if (!files.length) {
+                showToast('⚠️ Ajoutez au moins une image ou vidéo avant de publier');
                 return;
             }
 
-            const btn = document.querySelector('#createPostModal button[onclick="submitArtistPost()"]');
-            if (btn) {
-                btn.disabled = true;
-                btn.textContent = mediaType === 'video' ? '🎬 Upload vidéo (peut prendre 1 min)...' : '📤 Upload...';
-                if (mediaType === 'video') showToast('🎬 Upload vidéo en cours — merci de patienter…');
-            }
+            const btn = document.getElementById('postSubmitBtn');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Upload en cours...'; }
 
-            // Upload sur Cloudinary si fichier local
-            const file = preview._postFile;
-            if (file && mediaUrl.startsWith('blob:')) {
+            // Uploader chaque fichier sur Cloudinary
+            const uploadedUrls = [];
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const isVid = file.type.startsWith('video/');
+                if (btn) btn.textContent = `⏳ Upload ${i+1}/${files.length}...`;
                 try {
                     const fd = new FormData();
                     fd.append('file', file);
                     fd.append('upload_preset', 'arkyl_preset');
                     fd.append('folder', 'arkyl/posts');
-                    // Compression auto pour les vidéos
-                    if (mediaType === 'video') {
+                    if (isVid) {
                         fd.append('quality', 'auto:low');
                         fd.append('eager', 'f_mp4,q_auto:low,vc_h264');
                     }
-                    const resource = mediaType === 'video' ? 'video' : 'image';
+                    const resource = isVid ? 'video' : 'image';
                     const res = await fetch(`https://api.cloudinary.com/v1_1/ddah64j2a/${resource}/upload`, { method: 'POST', body: fd });
                     const data = await res.json();
-                    if (data.secure_url) {
-                        mediaUrl = data.secure_url;
-                        if (btn) btn.textContent = '⏳ Publication...';
-                    } else {
-                        showToast('⚠️ Upload échoué, publication locale');
-                    }
+                    if (data.secure_url) uploadedUrls.push(data.secure_url);
+                    else showToast(`⚠️ Fichier ${i+1} non uploadé`);
                 } catch(e) {
-                    showToast('⚠️ Upload échoué, publication locale');
+                    showToast(`⚠️ Erreur upload fichier ${i+1}`);
                 }
             }
+
+            if (!uploadedUrls.length) {
+                showToast('❌ Aucun fichier uploadé');
+                if (btn) { btn.disabled = false; btn.textContent = '📤 Publier'; }
+                return;
+            }
+
+            const firstFile = files[0];
+            const mediaType = firstFile.type.startsWith('video/') ? 'video' : 'image';
 
             const post = {
                 id: 'post_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
                 artist_id: currentUser?.id || currentUser?.googleId || currentUser?.email,
                 artist_name: currentUser?.artistName || currentUser?.name || 'Artiste',
                 artist_avatar: currentUser?.avatar || '',
-                media_url: mediaUrl,
+                media_url: uploadedUrls[0],      // première image (compat)
                 media_type: mediaType,
+                photos: uploadedUrls,             // toutes les images
                 caption: caption,
                 likes: 0,
                 comments: [],
@@ -6514,6 +6589,7 @@ window.enterGallery = function enterGallery() {
             };
 
             await savePostToServer(post);
+            window._postSelectedFiles = [];
             document.getElementById('createPostModal')?.remove();
             showToast('✅ Publication partagée !');
             await renderMyArtistsPage();
@@ -6527,27 +6603,68 @@ window.enterGallery = function enterGallery() {
         }
 
         async function submitPostComment(postId) {
-            const input = document.getElementById('post-comment-' + postId);
+            // Cherche le champ dans la carte ET dans l'overlay
+            const input = document.getElementById('post-comment-' + postId)
+                       || document.getElementById('post-detail-comment-' + postId);
             const text = input?.value?.trim();
             if (!text) return;
+
+            const author = currentUser?.name || currentUser?.displayName || 'Visiteur';
+            input.value = '';
+
+            // Sync serveur — commentaire visible par tous les clients
+            try {
+                const res = await fetch(POSTS_API + '?action=comment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: postId, author, text })
+                });
+                const data = await res.json();
+                if (data.success && Array.isArray(data.posts)) {
+                    saveArtistPostsLocal(data.posts);
+                    // Mettre à jour window._allPosts
+                    data.posts.forEach(p => {
+                        if (window._allPosts) window._allPosts[String(p.id)] = p;
+                    });
+                    showToast('💬 Commentaire publié');
+
+                    // Rafraîchir l'overlay si ouvert
+                    const overlay = document.getElementById('postDetailOverlay');
+                    if (overlay) {
+                        overlay.remove();
+                        openPostDetail(postId);
+                    } else {
+                        await renderMyArtistsPage();
+                    }
+                    return;
+                }
+            } catch(e) {
+                console.warn('Commentaire non synchronisé avec le serveur:', e);
+            }
+
+            // Fallback local si serveur KO
             const posts = getArtistPosts();
-            const post = posts.find(p => p.id === postId);
+            const post = posts.find(p => String(p.id) === String(postId));
             if (post) {
                 if (!post.comments) post.comments = [];
-                post.comments.push({
-                    author: currentUser?.name || 'Visiteur',
-                    text,
-                    at: new Date().toISOString()
-                });
+                post.comments.push({ author, text, at: new Date().toISOString() });
                 saveArtistPostsLocal(posts);
+                if (window._allPosts && window._allPosts[String(postId)]) {
+                    window._allPosts[String(postId)].comments = post.comments;
+                }
             }
-            input.value = '';
-            showToast('💬 Commentaire ajouté');
-            await renderMyArtistsPage();
+            showToast('💬 Commentaire ajouté (hors ligne)');
+            const overlay = document.getElementById('postDetailOverlay');
+            if (overlay) { overlay.remove(); openPostDetail(postId); }
+            else await renderMyArtistsPage();
         }
 
         // Construit une pin-card pour un POST artiste (pas d'achat)
         function buildPostPinCard(post) {
+            // Stocker le post globalement pour openPostDetail
+            if (!window._allPosts) window._allPosts = {};
+            window._allPosts[String(post.id)] = post;
+
             const liked = isPostLiked(post.id);
             const isOwner = currentUser?.isArtist &&
                 (currentUser?.id === post.artist_id ||
@@ -6558,27 +6675,41 @@ window.enterGallery = function enterGallery() {
             const videoPoster = (post.media_url||'').includes('cloudinary.com')
                 ? post.media_url.replace('/video/upload/', '/video/upload/so_0,w_600,f_jpg/').replace(/\.mp4$/, '.jpg')
                 : '';
+            const postPhotos = (post.photos && Array.isArray(post.photos) && post.photos.length > 0)
+                ? post.photos : (post.media_url ? [post.media_url] : []);
+            const hasMultiPhotos = postPhotos.length > 1;
+            const dotsPost = hasMultiPhotos
+                ? `<div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:3;">
+                    ${postPhotos.map((_,i) => `<div style="width:6px;height:6px;border-radius:50%;background:${i===0?'rgba(255,255,255,0.95)':'rgba(255,255,255,0.4)'};box-shadow:0 1px 3px rgba(0,0,0,0.5);"></div>`).join('')}
+                   </div>` : '';
             const mediaBlock = post.media_type === 'video'
                 ? `<video src="${post.media_url}" poster="${videoPoster}" preload="none" style="width:100%;display:block;border-radius:16px 16px 0 0;max-height:340px;object-fit:cover;" controls muted playsinline></video>`
-                : `<img loading="lazy" src="${post.media_url}" alt="Post"
+                : `<img loading="lazy" src="${postPhotos[0]}" alt="Post"
                         style="width:100%;display:block;border-radius:16px 16px 0 0;"
                         onerror="this.parentElement.innerHTML='<div style=\'min-height:160px;display:flex;align-items:center;justify-content:center;font-size:60px;background:rgba(255,255,255,0.06);border-radius:16px 16px 0 0;\'>🎨</div>'">`;
 
             return `
-            <div style="break-inside:avoid;margin-bottom:14px;background:rgba(212,175,55,0.06);border-radius:16px;border:1.5px solid rgba(212,175,55,0.2);overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;"
+            <div style="break-inside:avoid;margin-bottom:14px;background:rgba(212,175,55,0.06);border-radius:16px;border:1.5px solid rgba(212,175,55,0.2);overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;cursor:pointer;"
+                 onclick="openPostDetail('${post.id}')"
                  onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 12px 32px rgba(0,0,0,0.4)'"
                  onmouseout="this.style.transform='';this.style.boxShadow=''">
 
-                <!-- Badge "Post" -->
+                <!-- Média + like en haut droite + commentaire en bas -->
                 <div style="position:relative;">
                     ${mediaBlock}
-                    <div style="position:absolute;top:10px;right:10px;background:rgba(212,175,55,0.9);color:#000;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;letter-spacing:0.5px;">
-                        ✨ POST
-                    </div>
-                    ${isOwner ? `
-                    <button onclick="deleteArtistPost('${post.id}')"
-                        style="position:absolute;top:10px;left:10px;background:rgba(220,53,69,0.85);border:none;border-radius:50%;width:28px;height:28px;color:white;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;"
-                        title="Supprimer">🗑️</button>` : ''}
+                    ${dotsPost}
+                    <!-- Like haut droite -->
+                    <button id="post-like-btn-${post.id}" onclick="event.stopPropagation();togglePostLike('${post.id}', this)"
+                        style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);border:none;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:17px;transition:transform 0.15s;"
+                        onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform=''">
+                        ${liked ? '❤️' : '🤍'}${(post.likes||0) > 0 ? `<span style="font-size:10px;color:#fff;margin-left:1px;">${post.likes}</span>` : ''}
+                    </button>
+                    <!-- Commentaire bas image -->
+                    <button onclick="event.stopPropagation();openPostDetail('${post.id}')"
+                        style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);border:none;border-radius:20px;padding:5px 14px;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:15px;color:white;transition:transform 0.15s;"
+                        onmouseover="this.style.transform='translateX(-50%) scale(1.08)'" onmouseout="this.style.transform='translateX(-50%)'">
+                        💬 <span style="font-size:11px;color:rgba(255,255,255,0.8);">${(post.comments||[]).length > 0 ? post.comments.length : ''}</span>
+                    </button>
                 </div>
 
                 <div style="padding:10px 12px 12px;">
@@ -6593,32 +6724,136 @@ window.enterGallery = function enterGallery() {
 
                     ${post.caption ? `<div style="font-size:13px;color:rgba(255,255,255,0.8);margin-bottom:8px;line-height:1.4;">${post.caption}</div>` : ''}
 
-                    <!-- Like only (pas d'achat) -->
-                    <div style="display:flex;align-items:center;gap:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);">
-                        <button id="post-like-btn-${post.id}" onclick="togglePostLike('${post.id}', this)"
-                            style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;transition:transform 0.15s;"
-                            onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">
-                            ${liked ? '❤️' : '🤍'}${(post.likes||0) > 0 ? `<span style="font-size:11px;color:rgba(255,255,255,0.6);margin-left:2px;">${post.likes}</span>` : ''}
-                        </button>
-                        <button onclick="this.closest('div').nextElementSibling.style.display=this.closest('div').nextElementSibling.style.display==='none'?'flex':'none'"
-                            style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;transition:transform 0.15s;"
-                            onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform=''">
-                            💬 ${post.comments?.length > 0 ? `<span style="font-size:11px;color:rgba(255,255,255,0.6);">${post.comments.length}</span>` : ''}
-                        </button>
-                    </div>
 
-                    <!-- Zone commentaire -->
-                    <div style="display:none;gap:8px;align-items:center;margin-top:8px;">
-                        <input type="text" id="post-comment-${post.id}" placeholder="Commenter..."
-                            style="flex:1;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;color:white;font-size:12px;outline:none;"
-                            onkeydown="if(event.key==='Enter')submitPostComment('${post.id}')">
-                        <button onclick="submitPostComment('${post.id}')"
-                            style="background:rgba(212,175,55,0.2);border:1px solid rgba(212,175,55,0.4);border-radius:20px;padding:6px 12px;color:#d4af37;font-size:12px;font-weight:600;cursor:pointer;">OK</button>
-                    </div>
                 </div>
             </div>`;
         }
 
+
+        // ==================== OVERLAY DETAIL POST (GALERIE BOLIA) ====================
+        window.openPostDetail = function(postId) {
+            const post = (window._allPosts || {})[String(postId)];
+            if (!post) return;
+
+            const existing = document.getElementById('postDetailOverlay');
+            if (existing) existing.remove();
+
+            const liked = isPostLiked(post.id);
+            const likesCount = post.likes || 0;
+
+            const videoPoster = (post.media_url||'').includes('cloudinary.com')
+                ? post.media_url.replace('/video/upload/', '/video/upload/so_0,w_800,f_jpg/').replace(/\.mp4$/, '.jpg')
+                : '';
+
+            const detailPhotos = (post.photos && Array.isArray(post.photos) && post.photos.length > 0)
+                ? post.photos : (post.media_url ? [post.media_url] : []);
+            const detailHasMany = detailPhotos.length > 1;
+            const detailCarId = 'pdCar_' + post.id;
+
+            const mediaBlock = post.media_type === 'video'
+                ? `<video src="${post.media_url}" poster="${videoPoster}" preload="metadata"
+                        style="width:100%;max-height:70vh;object-fit:contain;border-radius:16px;display:block;background:#000;"
+                        controls playsinline></video>`
+                : `<div id="${detailCarId}" style="position:relative;overflow:hidden;border-radius:16px;background:#111;">
+                    <div id="${detailCarId}_track" style="display:flex;transition:transform 0.3s ease;">
+                        ${detailPhotos.map(p => `<div style="flex:0 0 100%;"><img src="${p}" alt="Post" style="width:100%;max-height:70vh;object-fit:contain;display:block;" onerror="this.style.minHeight='200px'"></div>`).join('')}
+                    </div>
+                    ${detailHasMany ? `
+                        <button onclick="pdCarPrev_${post.id}()" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);border:none;color:white;width:34px;height:34px;border-radius:50%;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;">‹</button>
+                        <button onclick="pdCarNext_${post.id}()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);border:none;color:white;width:34px;height:34px;border-radius:50%;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;">›</button>
+                        <div id="${detailCarId}_counter" style="position:absolute;bottom:8px;right:10px;background:rgba(0,0,0,0.55);color:white;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">1 / ${detailPhotos.length}</div>
+                    ` : ''}
+                   </div>`;
+
+            const commentsHTML = (post.comments && post.comments.length > 0)
+                ? post.comments.map(c => `
+                    <div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:13px;color:rgba(255,255,255,0.75);">
+                        <span style="font-weight:700;color:#d4af37;margin-right:6px;">${c.author || 'Anonyme'}</span>${c.text || ''}
+                    </div>`).join('')
+                : `<div style="font-size:13px;color:rgba(255,255,255,0.3);padding:8px 0;">Aucun commentaire pour l'instant.</div>`;
+
+            const overlay = document.createElement('div');
+            overlay.id = 'postDetailOverlay';
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.88);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 16px 40px;';
+            overlay.innerHTML = `
+                <div style="background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);border-radius:20px;border:1.5px solid rgba(212,175,55,0.25);width:100%;max-width:560px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.7);margin:auto;">
+
+                    <!-- Header artiste -->
+                    <div style="display:flex;align-items:center;gap:12px;padding:16px;border-bottom:1px solid rgba(255,255,255,0.08);">
+                        <div style="width:42px;height:42px;border-radius:50%;background:rgba(212,175,55,0.2);border:2px solid rgba(212,175,55,0.4);display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden;flex-shrink:0;">
+                            ${post.artist_avatar ? `<img src="${post.artist_avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : '🎨'}
+                        </div>
+                        <div>
+                            <div style="font-weight:700;font-size:15px;color:#fff;">${post.artist_name || 'Artiste'}</div>
+                            <div style="font-size:11px;color:rgba(255,255,255,0.4);">${new Date(post.created_at).toLocaleDateString('fr-FR', {day:'numeric',month:'long',year:'numeric'})}</div>
+                        </div>
+                        <button onclick="document.getElementById('postDetailOverlay').remove()"
+                            style="margin-left:auto;background:rgba(255,255,255,0.08);border:none;border-radius:50%;width:36px;height:36px;color:white;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+                    </div>
+
+                    <!-- Média -->
+                    <div style="padding:16px;background:#0f0f1e;">${mediaBlock}</div>
+
+                    <!-- Contenu -->
+                    <div style="padding:16px;">
+                        ${post.caption ? `<p style="font-size:15px;color:rgba(255,255,255,0.9);line-height:1.6;margin:0 0 16px;">${post.caption}</p>` : ''}
+
+                        <!-- Actions like/comment -->
+                        <div style="display:flex;align-items:center;gap:16px;padding:12px 0;border-top:1px solid rgba(255,255,255,0.08);border-bottom:1px solid rgba(255,255,255,0.08);">
+                            <button id="post-detail-like-${post.id}"
+                                onclick="togglePostLike('${post.id}', this); const c=document.getElementById('post-like-btn-${post.id}'); if(c){c.innerHTML=this.innerHTML;}"
+                                style="background:none;border:none;cursor:pointer;font-size:22px;display:flex;align-items:center;gap:6px;transition:transform 0.15s;"
+                                onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform=''">
+                                ${liked ? '❤️' : '🤍'}<span style="font-size:14px;color:rgba(255,255,255,0.6);">${likesCount > 0 ? likesCount : ''}</span>
+                            </button>
+                            <span style="font-size:14px;color:rgba(255,255,255,0.5);">💬 ${(post.comments||[]).length} commentaire${(post.comments||[]).length !== 1 ? 's' : ''}</span>
+                        </div>
+
+                        <!-- Commentaires -->
+                        <div style="margin-top:14px;max-height:180px;overflow-y:auto;">${commentsHTML}</div>
+
+                        <!-- Saisir commentaire -->
+                        <div style="display:flex;gap:8px;align-items:center;margin-top:14px;">
+                            <input type="text" id="post-detail-comment-${post.id}" placeholder="Ajouter un commentaire..."
+                                style="flex:1;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:24px;padding:10px 16px;color:white;font-size:13px;outline:none;"
+                                onkeydown="if(event.key==='Enter'){submitPostComment('${post.id}');}" onclick="event.stopPropagation()">
+                            <button onclick="submitPostComment('${post.id}')"
+                                style="background:rgba(212,175,55,0.2);border:1px solid rgba(212,175,55,0.4);border-radius:24px;padding:10px 16px;color:#d4af37;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Envoyer</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Fermer en cliquant hors du contenu
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) overlay.remove();
+            });
+
+            document.body.appendChild(overlay);
+
+            // Carousel post-détail
+            if (post.media_type !== 'video' && detailHasMany) {
+                let _pdIdx = 0;
+                const goTo = (idx) => {
+                    _pdIdx = Math.max(0, Math.min(detailPhotos.length - 1, idx));
+                    const track = document.getElementById(detailCarId + '_track');
+                    if (track) track.style.transform = 'translateX(-' + (_pdIdx * 100) + '%)';
+                    const ctr = document.getElementById(detailCarId + '_counter');
+                    if (ctr) ctr.textContent = (_pdIdx + 1) + ' / ' + detailPhotos.length;
+                };
+                window['pdCarPrev_' + post.id] = () => goTo(_pdIdx - 1);
+                window['pdCarNext_' + post.id] = () => goTo(_pdIdx + 1);
+                // Swipe tactile
+                let _tx = null;
+                overlay.addEventListener('touchstart', e => { _tx = e.touches[0].clientX; }, { passive: true });
+                overlay.addEventListener('touchend', e => {
+                    if (_tx === null) return;
+                    const dx = e.changedTouches[0].clientX - _tx;
+                    if (Math.abs(dx) > 40) dx < 0 ? goTo(_pdIdx + 1) : goTo(_pdIdx - 1);
+                    _tx = null;
+                });
+            }
+        };
 
         // ==================== OVERLAY IMAGE PINTEREST (GALERIE BOLIA) ====================
         window._artistOverlayWorks = [];
@@ -6672,6 +6907,24 @@ window.enterGallery = function enterGallery() {
                     </div>
                 </div>` : '';
 
+            // Carousel multi-photos
+            const photos = (work.photos && Array.isArray(work.photos) && work.photos.length > 0)
+                ? work.photos.filter(Boolean)
+                : (imgSrc ? [imgSrc] : []);
+            const hasMany = photos.length > 1;
+
+            const carouselId = 'pinCarousel_' + work.id;
+
+            const thumbsHTML = hasMany ? `
+                <div style="display:flex;gap:8px;overflow-x:auto;padding:10px 16px 4px;scrollbar-width:none;">
+                    ${photos.map((p, i) => `
+                        <div onclick="pinGoTo_${work.id}(${i})"
+                             id="pinThumb_${work.id}_${i}"
+                             style="flex-shrink:0;width:60px;height:60px;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid ${i===0?'#d4af37':'rgba(0,0,0,0.15)'};transition:border-color 0.2s;">
+                            <img src="${p}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">
+                        </div>`).join('')}
+                </div>` : '';
+
             overlay.innerHTML = `
                 <div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;background:rgba(255,255,255,0.88);backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,0,0,0.07);box-shadow:0 1px 8px rgba(0,0,0,0.06);">
                     <button onclick="document.getElementById('artistPinOverlay').remove()"
@@ -6683,11 +6936,6 @@ window.enterGallery = function enterGallery() {
                         onmouseover="this.style.background='rgba(0,0,0,0.06)';this.style.color='#b8962e'"
                         onmouseout="this.style.background='transparent';this.style.color='#2a2a2a'"
                         title="Voir la galerie de ${artistName}">${artistName}</button>
-                    <button onclick="(function(){ const link = document.createElement('a'); link.href = '${imgSrc}'; link.download = '${(work.title || 'oeuvre').replace(/[^a-z0-9]/gi, '_')}_${artistName.replace(/[^a-z0-9]/gi, '_')}.jpg'; document.body.appendChild(link); link.click(); document.body.removeChild(link); if(typeof showToast === 'function') showToast('📥 Téléchargement démarré'); })();"
-                        style="background:rgba(212,175,55,0.2);border:1px solid rgba(212,175,55,0.4);border-radius:50%;width:36px;height:36px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;"
-                        onmouseover="this.style.background='rgba(212,175,55,0.35)';this.style.borderColor='rgba(212,175,55,0.6)'"
-                        onmouseout="this.style.background='rgba(212,175,55,0.2)';this.style.borderColor='rgba(212,175,55,0.4)'"
-                        title="Télécharger l'image">📥</button>
                     <button onclick="toggleSocialLike(event,${work.id},this)"
                         style="background:rgba(0,0,0,0.07);border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;"
                         onmouseover="this.style.background='rgba(0,0,0,0.13)'"
@@ -6695,11 +6943,29 @@ window.enterGallery = function enterGallery() {
                         ${isSL ? '❤️' : '🤍'}
                     </button>
                 </div>
-                <div>
-                    <img src="${imgSrc}" alt="${work.title||''}"
-                         style="width:100%;height:auto;display:block;max-height:72vh;object-fit:contain;background:#f0ede8;"
-                         onerror="this.style.minHeight='200px'">
+
+                <!-- Carousel principal -->
+                <div id="${carouselId}" style="position:relative;background:#f0ede8;overflow:hidden;">
+                    <div id="${carouselId}_track" style="display:flex;transition:transform 0.3s ease;will-change:transform;">
+                        ${photos.map(p => `
+                            <div style="flex:0 0 100%;width:100%;">
+                                <img src="${p}" alt="${work.title||''}"
+                                     style="width:100%;max-height:72vh;object-fit:contain;display:block;"
+                                     onerror="this.style.minHeight='200px'">
+                            </div>`).join('')}
+                    </div>
+                    ${hasMany ? `
+                        <button onclick="pinPrev_${work.id}()"
+                            style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.45);border:none;color:white;width:38px;height:38px;border-radius:50%;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;">‹</button>
+                        <button onclick="pinNext_${work.id}()"
+                            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.45);border:none;color:white;width:38px;height:38px;border-radius:50%;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;">›</button>
+                        <div id="${carouselId}_counter" style="position:absolute;bottom:10px;right:12px;background:rgba(0,0,0,0.5);color:white;font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px;">1 / ${photos.length}</div>
+                    ` : ''}
                 </div>
+
+                <!-- Miniatures -->
+                ${thumbsHTML}
+
                 <div style="padding:14px 16px 18px;display:flex;gap:10px;align-items:center;">
                     <div style="flex:1;min-width:0;">
                         <div style="font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:3px;line-height:1.3;">${work.title||'Sans titre'}</div>
@@ -6714,6 +6980,33 @@ window.enterGallery = function enterGallery() {
                 </div>
                 ${simHTML}
             `;
+
+            // Fonctions carousel
+            let _pinIdx = 0;
+            window['pinGoTo_' + work.id] = function(idx) {
+                _pinIdx = Math.max(0, Math.min(photos.length - 1, idx));
+                const track = document.getElementById(carouselId + '_track');
+                if (track) track.style.transform = 'translateX(-' + (_pinIdx * 100) + '%)';
+                const counter = document.getElementById(carouselId + '_counter');
+                if (counter) counter.textContent = (_pinIdx + 1) + ' / ' + photos.length;
+                // Highlight miniature active
+                photos.forEach((_, i) => {
+                    const th = document.getElementById('pinThumb_' + work.id + '_' + i);
+                    if (th) th.style.borderColor = i === _pinIdx ? '#d4af37' : 'rgba(0,0,0,0.15)';
+                });
+            };
+            window['pinPrev_' + work.id] = function() { window['pinGoTo_' + work.id](_pinIdx - 1); };
+            window['pinNext_' + work.id] = function() { window['pinGoTo_' + work.id](_pinIdx + 1); };
+
+            // Swipe tactile
+            let _pinTouchX = null;
+            overlay.addEventListener('touchstart', e => { _pinTouchX = e.touches[0].clientX; }, { passive: true });
+            overlay.addEventListener('touchend', e => {
+                if (_pinTouchX === null) return;
+                const dx = e.changedTouches[0].clientX - _pinTouchX;
+                if (Math.abs(dx) > 40) dx < 0 ? window['pinNext_' + work.id]() : window['pinPrev_' + work.id]();
+                _pinTouchX = null;
+            });
             document.body.appendChild(overlay);
             const esc = (e) => { if(e.key==='Escape') { overlay.remove(); document.removeEventListener('keydown',esc); } };
             document.addEventListener('keydown', esc);
@@ -10328,11 +10621,18 @@ window.enterGallery = function enterGallery() {
                 const title = oeuvre.title || 'Sans titre';
                 const price = oeuvre.price || 0;
                 return `<div class="product-card" style="${soldStyle}" onclick="viewProductDetailFromAPI(${oeuvre.id})">
-                    <div class="product-image">
-                        <span class="product-badge">${badgeLabel}</span>
-                        <button class="like-button" onclick="toggleFavorite(event,${oeuvre.id})">🤍</button>
+                    <div class="product-image" style="position:relative;">
                         <img src="${imgSrc}" alt="${title}" loading="lazy" style="width:100%;height:auto;display:block;" onerror="this.style.minHeight='80px'">
                         ${dotsHTML}
+                        <!-- Like haut droite -->
+                        <button onclick="toggleFavorite(event,${oeuvre.id})"
+                            style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);border:none;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;transition:transform 0.15s;"
+                            onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform=''">🤍</button>
+                        <!-- Commentaire bas image -->
+                        <button onclick="event.stopPropagation();viewProductDetailFromAPI(${oeuvre.id})"
+                            style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);border:none;border-radius:20px;padding:4px 12px;display:flex;align-items:center;gap:4px;cursor:pointer;font-size:14px;color:white;transition:transform 0.15s;white-space:nowrap;"
+                            onmouseover="this.style.transform='translateX(-50%) scale(1.08)'" onmouseout="this.style.transform='translateX(-50%)'">💬</button>
+                        ${isSold ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,0.35);border-radius:inherit;display:flex;align-items:center;justify-content:center;"><span style='font-size:12px;font-weight:800;color:#fff;background:rgba(200,0,0,0.8);padding:3px 10px;border-radius:20px;'>VENDU</span></div>' : ''}
                     </div>
                     <div class="product-info">
                         <div class="product-title">${title}</div>

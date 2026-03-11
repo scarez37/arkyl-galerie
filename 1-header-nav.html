@@ -168,6 +168,15 @@
                 </svg>
                 <span class="badge" id="cartBadge" style="display:none;">0</span>
             </button>
+            <!-- Profil utilisateur / Connexion Google -->
+            <div id="authContainer" style="display:flex;align-items:center;">
+                <div class="google-login-btn" id="googleLoginBtn" style="display:none;"></div>
+                <div class="user-profile-btn" id="userProfileBtn" onclick="toggleUserMenu()" style="display:none;cursor:pointer;">
+                    <img loading="lazy" id="userAvatar" class="user-avatar" src="" alt="Avatar">
+                    <span class="user-name" id="userName"></span>
+                    <span class="admin-indicator" id="adminBadge" style="display:none;">ADMIN</span>
+                </div>
+            </div>
             <!-- Bouton Menu Hamburger -->
             <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleHamburgerMenu()" title="Menu">
                 <span></span>
@@ -188,7 +197,7 @@
             Espace Artiste
         </button>
 
-        <!-- 🖼️ Galerie BOLIA -->
+        <!-- Galerie BOLIA -->
         <button class="hamburger-menu-item galerie-bolia-btn" id="galerieBoliaBtn" onclick="navigateTo('myArtists'); toggleHamburgerMenu()" 
                 style="background: linear-gradient(135deg, rgba(212,175,55,0.12) 0%, rgba(160,120,32,0.08) 100%);
                        border: 1.5px solid rgba(212,175,55,0.4);
@@ -212,7 +221,7 @@
             <span style="color: #d4af37;
                          text-shadow: 0 0 8px rgba(212,175,55,0.5), 0 1px 3px rgba(0,0,0,0.8);
                          font-weight: 700;
-                         letter-spacing: 0.3px;">🖼️ Galerie BOLIA</span>
+                         letter-spacing: 0.3px;">Galerie BOLIA</span>
         </button>
 
 
@@ -268,15 +277,6 @@
         </button>
 
 
-        <!-- 🔐 Connexion Google — séparé, toujours en dernier -->
-        <div id="authContainer">
-            <div class="google-login-btn" id="googleLoginBtn" style="display:none;"></div>
-            <div class="user-profile-btn" id="userProfileBtn" onclick="toggleUserMenu()" style="display:none;">
-                <img loading="lazy" id="userAvatar" class="user-avatar" src="" alt="Avatar">
-                <span class="user-name" id="userName"></span>
-                <span class="admin-indicator" id="adminBadge" style="display:none;">ADMIN</span>
-            </div>
-        </div>
     </div>
 
     <!-- User Menu Dropdown -->

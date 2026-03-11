@@ -408,7 +408,26 @@ window.enterGallery = function enterGallery() {
         if (typeof currentUser === 'undefined') var currentUser = null; // Déclaré globalement — restauré par restoreSession (guard: évite l'erreur si app.js est chargé en double)
         var _memStore = window._memStore || {};
         window._memStore = _memStore;
-        const safeStorage = {
+
+        // Polyfill lazy loading pour Edge/anciens navigateurs
+        if ('loading' in HTMLImageElement.prototype === false) {
+            const lazyImages = document.querySelectorAll('img[loading="lazy"]');
+            if ('IntersectionObserver' in window) {
+                const io = new IntersectionObserver((entries, obs) => {
+                    entries.forEach(e => {
+                        if (e.isIntersecting) {
+                            const img = e.target;
+                            if (img.dataset.src) img.src = img.dataset.src;
+                            obs.unobserve(img);
+                        }
+                    });
+                });
+                lazyImages.forEach(img => io.observe(img));
+            } else {
+                lazyImages.forEach(img => { if (img.dataset.src) img.src = img.dataset.src; });
+            }
+        }
+        var safeStorage = window.safeStorage || {
             get: (key, defaultValue = null) => {
                 try {
                     const raw = localStorage.getItem(key);
@@ -428,7 +447,8 @@ window.enterGallery = function enterGallery() {
                 delete _memStore[key];
                 return true;
             }
-        };
+        };        window.safeStorage = safeStorage;
+
 
         // ==================== DATA ====================
         // Retourne le compte artiste de l'utilisateur connecté (cherche par Google ID puis par email)
@@ -768,12 +788,12 @@ window.enterGallery = function enterGallery() {
         
         // Initialiser Google Sign-In
         function initializeGoogleSignIn() {
-            console.log('🔍 Tentative d\'initialisation de Google Sign-In...');
-            console.log('📋 Client ID:', GOOGLE_CLIENT_ID);
-            console.log('🌐 Type de google:', typeof google);
-            
+            // Guard : n'initialiser qu'une seule fois
+            if (window._googleSignInInitialized) return;
+
             if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
                 try {
+                    window._googleSignInInitialized = true;
                     google.accounts.id.initialize({
                         client_id: GOOGLE_CLIENT_ID,
                         callback: handleGoogleCredentialResponse,
@@ -805,10 +825,8 @@ window.enterGallery = function enterGallery() {
                 }
             } else {
                 console.error('❌ Bibliothèque Google Sign-In non chargée');
-                console.log('ℹ️ Vérifiez votre connexion Internet et que vous utilisez un serveur HTTP');
                 // Réessayer après un délai
                 setTimeout(() => {
-                    console.log('🔄 Nouvelle tentative dans 2 secondes...');
                     if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
                         initializeGoogleSignIn();
                     } else {
@@ -2896,6 +2914,7 @@ window.enterGallery = function enterGallery() {
                             ...product,
                             id: String(product.id),
                             image: product.image || product.image_url || (product.photos && product.photos[0]) || '',
+                            weight_g: parseInt(product.weight_g) || 0,
                             quantity: 1
                         });
                         console.log('🛒 Produit ajouté au panier — artist_id:', product.artist_id, '| id:', product.id, '| title:', product.title);
@@ -3444,7 +3463,18 @@ window.enterGallery = function enterGallery() {
             const dateBus         = getDeliveryDate(7);
             const dateMainPropre  = getDeliveryDate(1);
             // posteVille est une variable globale mise à jour par confirmerVillePoste()
-            const shipping = 3000;
+            // Calcul initial du port selon poids + destination déjà enregistrée
+            let shipping = 3000; // défaut
+            if (posteVille) {
+                const poidsTotal = cartItems.reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
+                const calcInit = calculerFraisPoste(poidsTotal, posteVille);
+                shipping = calcInit.cout;
+                window._posteCalcDetail = { poidsTotal, zone: calcInit.zone, dest: posteVille, cout: shipping };
+            } else if (mainPropreLieu) {
+                shipping = 0;
+            } else if (transportCompagnie) {
+                shipping = 1500;
+            }
             const total = subtotal + shipping;
             const totalArticles = cartItems.reduce((s,i) => s + i.quantity, 0);
 
@@ -3480,7 +3510,8 @@ window.enterGallery = function enterGallery() {
                                     }</span>
                                     <span id="shipping-mode-price" style="margin-left:auto;font-weight:700;color:var(--ocre);">${
                                         (() => {
-                                            if (posteVille) return '3 000 FCFA';
+                                            if (posteVille && window._posteCalcDetail) return formatPrice(window._posteCalcDetail.cout);
+                                            if (posteVille) return '— FCFA';
                                             if (transportCompagnie) return '1 500 FCFA';
                                             if (mainPropreLieu) return 'Gratuit';
                                             return '';
@@ -3490,7 +3521,7 @@ window.enterGallery = function enterGallery() {
                                 </button>
                                 <!-- Champ caché pour stocker le mode et coût sélectionnés -->
                                 <input type="hidden" id="selected-shipping-mode" value="${posteVille ? 'poste' : transportCompagnie ? 'transport' : mainPropreLieu ? 'mainpropre' : 'poste'}">
-                                <input type="hidden" id="selected-shipping-cost" value="${posteVille ? '3000' : transportCompagnie ? '1500' : mainPropreLieu ? '0' : '3000'}">
+                                <input type="hidden" id="selected-shipping-cost" value="${posteVille ? shipping : transportCompagnie ? '1500' : mainPropreLieu ? '0' : '3000'}">
                             </div>
                             <div class="address-section">
                                 <div class="shipping-label">📍 Adresse de livraison</div>
@@ -3717,9 +3748,7 @@ window.enterGallery = function enterGallery() {
 
         function confirmerModeLivraison() {
             const mode = _modeEnCours || document.getElementById('selected-shipping-mode')?.value || 'poste';
-            const costs = { poste: 3000, transport: 1500, mainpropre: 0 };
             const icons = { poste: '📮', transport: '🚌', mainpropre: '🤝' };
-            const cost = costs[mode];
 
             // Récupérer la valeur de l'input associé
             if (mode === 'poste') {
@@ -3736,6 +3765,25 @@ window.enterGallery = function enterGallery() {
                 _saveMainPropreLieu(val);
             }
 
+            // ── Calcul du coût La Poste basé sur le poids réel du panier ──
+            let cost;
+            let priceLabel;
+            if (mode === 'poste') {
+                const dest = document.getElementById('modal-poste-ville')?.value.trim() || posteVille || '';
+                const poidsTotal = cartItems.reduce((sum, item) => sum + ((item.weight_g || 500) * (item.quantity || 1)), 0);
+                const calcul = calculerFraisPoste(poidsTotal, dest);
+                cost = calcul.cout;
+                // Stocker le détail pour affichage
+                window._posteCalcDetail = { poidsTotal, zone: calcul.zone, dest, cout: cost };
+                priceLabel = formatPrice(cost);
+            } else if (mode === 'transport') {
+                cost = 1500;
+                priceLabel = '1 500 FCFA';
+            } else {
+                cost = 0;
+                priceLabel = 'Gratuit';
+            }
+
             // Mettre à jour les champs cachés dans le panier
             const modeInput = document.getElementById('selected-shipping-mode');
             const costInput = document.getElementById('selected-shipping-cost');
@@ -3748,17 +3796,46 @@ window.enterGallery = function enterGallery() {
                 transport:  '🚌 Transport · ' + (transportCompagnie || ''),
                 mainpropre: '🤝 Main propre · ' + (mainPropreLieu || '')
             };
-            const priceLabels = { poste: '3 000 FCFA', transport: '1 500 FCFA', mainpropre: 'Gratuit' };
             const btn = document.getElementById('shipping-mode-btn');
             if (btn) {
                 document.getElementById('shipping-mode-icon').textContent = icons[mode];
                 document.getElementById('shipping-mode-label').textContent = labels[mode];
-                document.getElementById('shipping-mode-price').textContent = priceLabels[mode];
+                document.getElementById('shipping-mode-price').textContent = priceLabel;
             }
+
+            // Afficher le détail du calcul postal si disponible
+            if (mode === 'poste' && window._posteCalcDetail) {
+                const d = window._posteCalcDetail;
+                const kg = (d.poidsTotal / 1000).toFixed(2).replace('.', ',');
+                showToast(`📮 ${kg} kg · Zone ${nomZonePostale(d.zone)} → ${formatPrice(d.cout)}`);
+            } else {
+                showToast('✅ Mode de livraison enregistré !');
+            }
+
+            // Afficher le bloc d'explication dans le panier
+            _afficherDetailPortPoste();
 
             updateCartTotal();
             fermerModeLivraison();
-            showToast('✅ Mode de livraison enregistré !');
+        }
+
+        function _afficherDetailPortPoste() {
+            const existing = document.getElementById('poste-port-detail');
+            if (existing) existing.remove();
+            if (!window._posteCalcDetail) return;
+            const d = window._posteCalcDetail;
+            const kg = (d.poidsTotal / 1000).toFixed(2).replace('.', ',');
+            const shippingSection = document.querySelector('.shipping-section');
+            if (!shippingSection) return;
+            const div = document.createElement('div');
+            div.id = 'poste-port-detail';
+            div.style.cssText = 'margin-top:8px;padding:10px 14px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.25);border-radius:10px;font-size:12px;color:rgba(255,255,255,0.75);line-height:1.6;';
+            div.innerHTML = `<strong style="color:#d4af37;">📦 Détail du port :</strong><br>`
+                + `Poids total estimé : <strong>${kg} kg</strong><br>`
+                + `Zone : <strong>${nomZonePostale(d.zone)}</strong><br>`
+                + `Frais de port : <strong style="color:#d4af37;">${formatPrice(d.cout)}</strong>`
+                + (cartItems.some(i => !i.weight_g) ? `<br><em style="opacity:0.5;">⚠️ Certaines œuvres n'ont pas de poids renseigné — 500g appliqués par défaut.</em>` : '');
+            shippingSection.appendChild(div);
         }
 
         function fermerModeLivraison() {
@@ -3772,6 +3849,87 @@ window.enterGallery = function enterGallery() {
             ouvrirModeLivraison();
         }
 
+
+        // ══════════════════════════════════════════════════════════════
+        //  TARIFS LA POSTE — barèmes SOCOPCI (Côte d'Ivoire) réels
+        //  5 zones : CI domestique / UEMOA / Afrique / Europe / International
+        // ══════════════════════════════════════════════════════════════
+        function detecterZonePostale(destination) {
+            if (!destination) return 'ci';
+            const d = destination.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+
+            // Villes CI domestiques
+            const villesCI = ['abidjan','bouake','yamoussoukro','daloa','san pedro','korhogo','man','gagnoa','bondoukou',
+                'divo','abengourou','adzope','agboville','anyama','bassam','bingerville','dabou','duekoue','ferke',
+                'ferkessedougou','grand bassam','guiglo','issia','lakota','mbahiakro','odienne','sinfra','soubre',
+                'tabou','tiassale','touba','toumodi','vavoua','zuenula'];
+            if (villesCI.some(v => d.includes(v))) return 'ci';
+            if (d.includes("cote d'ivoire") || d.includes('cote divoire') || d.includes('ivory coast') || d.includes('ci')) return 'ci';
+
+            // Zone UEMOA (Union Économique et Monétaire Ouest-Africaine)
+            const uemoa = ['senegal','dakar','mali','bamako','burkina','ouagadougou','niger','niamey',
+                'benin','cotonou','porto novo','togo','lome','guinee-bissau','bissau','guinee bissau'];
+            if (uemoa.some(v => d.includes(v))) return 'uemoa';
+
+            // Afrique (hors UEMOA)
+            const afriqueMots = ['ghana','accra','nigeria','lagos','abuja','cameroun','douala','yaounde',
+                'conakry','guinea','liberia','sierra leone','mauritanie','maroc','algerie','tunisie',
+                'egypte','ethiopie','kenya','nairobi','tanzanie','afrique du sud','johannesburg','angola',
+                'congo','kinshasa','brazzaville','gabon','libreville','madagascar','mozambique','zimbabwe',
+                'zambie','rwanda','ouganda','ghana','sao tome','cap vert','comores','djibouti','somalie',
+                'soudan','libye','tchad','centrafrique','namibie','botswana','malawi','lesotho'];
+            if (afriqueMots.some(v => d.includes(v))) return 'afrique';
+
+            // Europe
+            const europe = ['france','paris','lyon','marseille','belgique','bruxelles','suisse','geneve','zurich',
+                'luxembourg','allemagne','berlin','munich','italie','rome','milan','espagne','madrid','barcelone',
+                'portugal','lisbonne','royaume-uni','london','angleterre','pays-bas','amsterdam','autriche',
+                'suede','stockholm','norvege','danemark','finlande','pologne','ukraine','grece','turquie',
+                'roumanie','hongrie','tcheque','slovaquie','serbie','croatie','europe'];
+            if (europe.some(v => d.includes(v))) return 'europe';
+
+            // International (Amériques, Asie, Océanie, reste du monde)
+            return 'international';
+        }
+
+        function calculerFraisPoste(poidsGrammes, destination) {
+            // Barèmes basés sur les tarifs réels SOCOPCI / La Poste de Côte d'Ivoire
+            // Unité : FCFA — paliers en grammes
+            const bareme = {
+                //          [max_g,  ci,    uemoa,  afrique,  europe,  intl ]
+                paliers: [
+                    [  250,   1000,   2500,   4000,   7500,  10000],
+                    [  500,   1500,   3500,   6000,  11000,  15000],
+                    [ 1000,   2500,   5500,   9000,  16000,  22000],
+                    [ 2000,   3500,   8000,  13000,  24000,  32000],
+                    [ 3000,   5000,  11000,  18000,  33000,  44000],
+                    [ 5000,   7000,  15000,  25000,  46000,  62000],
+                    [10000,  10000,  22000,  36000,  68000,  90000],
+                    [15000,  13500,  29000,  48000,  88000, 118000],
+                    [20000,  17000,  36000,  60000, 108000, 145000],
+                    [30000,  22000,  46000,  76000, 138000, 185000],
+                ],
+                zoneIndex: { ci: 1, uemoa: 2, afrique: 3, europe: 4, international: 5 }
+            };
+
+            const zone = detecterZonePostale(destination);
+            const zIdx = bareme.zoneIndex[zone];
+            const poids = Math.max(1, poidsGrammes);
+
+            // Trouver le palier
+            for (const palier of bareme.paliers) {
+                if (poids <= palier[0]) return { cout: palier[zIdx], zone };
+            }
+            // Au-delà de 30kg : calcul par tranche de 5kg supplémentaires
+            const base = bareme.paliers[bareme.paliers.length - 1][zIdx];
+            const surplus = Math.ceil((poids - 30000) / 5000);
+            const extra = { ci: 4000, uemoa: 8000, afrique: 12000, europe: 22000, international: 30000 }[zone];
+            return { cout: base + surplus * extra, zone };
+        }
+
+        function nomZonePostale(zone) {
+            return { ci: "Côte d'Ivoire", uemoa: "Zone UEMOA", afrique: "Afrique", europe: "Europe", international: "International" }[zone] || zone;
+        }
         function updateCartTotal() {
             const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
             const costInput = document.getElementById('selected-shipping-cost');
@@ -6089,7 +6247,9 @@ window.enterGallery = function enterGallery() {
             // Update UI
             updateFollowButton(artistName, false);
             
-            // Refresh page if on My Artists page
+            // Invalider le cache et rafraîchir la page si nécessaire
+            window._boliaAllCards = null;
+            window._boliaPage = 0;
             const currentPage = document.querySelector('.page.active');
             if (currentPage && currentPage.id === 'myArtistsPage') {
                 renderMyArtistsPage();
@@ -7072,40 +7232,43 @@ window.enterGallery = function enterGallery() {
             (document.getElementById('followedArtistsSection')||{style:{display:''}}).style.display='block';
             document.getElementById('artistsLoopsSection').style.display = 'block';
 
-            // Charger les œuvres depuis le serveur
+            // ── Cache TTL 90s pour éviter les double-fetch à chaque navigation ──
+            const BOLIA_CACHE_TTL = 90_000;
+            const now = Date.now();
             let allProducts = [];
-            try {
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?include_sold=1&t=' + Date.now());
-                const contentType = response.headers.get('content-type');
-                
-                if (response.ok && contentType && contentType.includes('application/json')) {
-                    const result = await response.json();
-                    if (result.success && result.data && result.data.length > 0) {
-                        allProducts = result.data.map(art => ({
-                            id: art.id,
-                            title: art.title,
-                            artist: art.artist_name,
-                            category: art.category,
-                            price: art.price,
-                            image_url: art.image_url,
-                            photos: art.photos || [art.image_url],
-                            emoji: '🎨',
-                            description: art.description || '',
-                            created_at: art.created_at || '',
-                            is_sold: art.is_sold || art.badge === 'Vendu' || false,
-                            badge: art.badge || ''
-                        }));
+
+            if (window._boliaCache && (now - window._boliaCache.ts) < BOLIA_CACHE_TTL) {
+                allProducts = window._boliaCache.products;
+            } else {
+                try {
+                    const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?include_sold=1');
+                    const contentType = response.headers.get('content-type');
+                    if (response.ok && contentType && contentType.includes('application/json')) {
+                        const result = await response.json();
+                        if (result.success && result.data && result.data.length > 0) {
+                            allProducts = result.data.map(art => ({
+                                id: art.id,
+                                title: art.title,
+                                artist: art.artist_name,
+                                category: art.category,
+                                price: art.price,
+                                image_url: art.image_url,
+                                photos: art.photos || [art.image_url],
+                                emoji: '🎨',
+                                description: art.description || '',
+                                created_at: art.created_at || '',
+                                is_sold: art.is_sold || art.badge === 'Vendu' || false,
+                                badge: art.badge || ''
+                            }));
+                            window._boliaCache = { ts: now, products: allProducts };
+                        }
                     }
+                } catch (error) {
+                    console.log('⚠️ Utilisation des données locales:', error);
                 }
-            } catch (error) {
-                console.log('⚠️ Utilisation des données locales:', error);
-            }
-            
-            // Données locales si API indisponible si l'API échoue
-            if (allProducts.length === 0) {
-                allProducts = getProducts();
-                console.log('📦 Œuvres chargées depuis local:', allProducts.length);
-                console.log('📋 Artistes dans local:', [...new Set(allProducts.map(p => p.artist))]);
+                if (allProducts.length === 0) {
+                    allProducts = window._boliaCache?.products || getProducts();
+                }
             }
 
             // Render carousel d'avatars (Your Loop)
@@ -7168,8 +7331,14 @@ window.enterGallery = function enterGallery() {
 
             window._artistOverlayWorks = allFollowedWorks.map(x => ({...x.work, artist_name: x.artist?.name}));
 
-            // Charger les posts artiste
-            const artistPostsRaw = await fetchArtistPostsFromServer();
+            // Cache posts TTL 90s
+            let artistPostsRaw;
+            if (window._boliaPostsCache && (Date.now() - window._boliaPostsCache.ts) < BOLIA_CACHE_TTL) {
+                artistPostsRaw = window._boliaPostsCache.posts;
+            } else {
+                artistPostsRaw = await fetchArtistPostsFromServer();
+                window._boliaPostsCache = { ts: Date.now(), posts: artistPostsRaw };
+            }
             const followedNames = followed.map(a => a.name.trim().toLowerCase());
             const relevantPosts = artistPostsRaw.filter(p =>
                 followedNames.includes((p.artist_name || '').trim().toLowerCase()) ||
@@ -7306,6 +7475,21 @@ window.enterGallery = function enterGallery() {
             const tabEl = document.querySelector(`[data-tab="${tab}"]`);
             if (tabEl) tabEl.classList.add('active');
             if (tab === 'all') {
+                // Si les données sont déjà prêtes, juste re-afficher sans re-fetch
+                if (window._boliaAllCards && window._boliaAllCards.length > 0) {
+                    const loopsFeed = document.getElementById('artistsLoopsFeed');
+                    if (loopsFeed) {
+                        const emptyState = document.getElementById('emptyArtistsState');
+                        const loopsSection = document.getElementById('artistsLoopsSection');
+                        if (emptyState) emptyState.style.display = 'none';
+                        if (loopsSection) loopsSection.style.display = 'block';
+                        (document.getElementById('followedArtistsSection')||{style:{display:''}}).style.display='block';
+                        window._boliaPage = 0;
+                        loopsFeed.innerHTML = `<style>.bolia-grid{column-count:2;column-gap:6px;}@media(min-width:600px){.bolia-grid{column-count:3;}}@media(min-width:900px){.bolia-grid{column-count:4;}}</style>`;
+                        window.renderBoliaBatch();
+                        return;
+                    }
+                }
                 await renderMyArtistsPage();
             } else if (tab === 'following') {
                 await renderFollowingArtistsGrid();
@@ -8903,6 +9087,9 @@ window.enterGallery = function enterGallery() {
             const width  = parseFloat(document.getElementById('artwork-width').value)  || null;
             const height = parseFloat(document.getElementById('artwork-height').value) || null;
 
+            // Poids pour calcul de port La Poste (en grammes)
+            const weight_g = parseInt(document.getElementById('artwork-weight')?.value) || 0;
+
             // Get country / city
             const artworkCountry = (document.getElementById('artwork-country')?.value || '').trim();
             const artworkCity    = (document.getElementById('artwork-city')?.value    || '').trim();
@@ -8920,6 +9107,7 @@ window.enterGallery = function enterGallery() {
                 photos: currentPhotosData, // Array de photos
                 photo: currentPhotosData[0], // Photo principale
                 dimensions: (width || height) ? { width, height } : null,
+                weight_g: weight_g || 0,
                 technique: technique || null,
                 techniqueCustom: (technique === 'Autre' || techniqueCustom) ? techniqueCustom : null,
                 emoji: '🎨',
@@ -8993,6 +9181,7 @@ window.enterGallery = function enterGallery() {
                             photos: addedArtwork.photos || [],
                             technique: addedArtwork.technique || '',
                             dimensions: addedArtwork.dimensions || null,
+                            weight_g: addedArtwork.weight_g || 0,
                             status: 'publiée'
                         };
                         
@@ -10324,11 +10513,14 @@ window.enterGallery = function enterGallery() {
             renderNotifications();
             updateAuthUI(); // Initialize authentication UI
             
-            // Initialiser Google Sign-In après le chargement complet
-            if (document.readyState === 'complete') {
-                initializeGoogleSignIn();
-            } else {
-                window.addEventListener('load', initializeGoogleSignIn);
+            // Initialiser Google Sign-In une seule fois après le chargement
+            if (!window._googleSignInInitialized) {
+                if (document.readyState === 'complete') {
+                    initializeGoogleSignIn();
+                } else if (!window._googleSignInListenerAdded) {
+                    window._googleSignInListenerAdded = true;
+                    window.addEventListener('load', initializeGoogleSignIn, { once: true });
+                }
             }
             
             // Charger les actualités depuis le serveur (partagées entre tous les utilisateurs)

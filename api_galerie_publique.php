@@ -219,7 +219,8 @@ function formatArtwork($oeuvre) {
         'image' => !empty($photos) ? $photos[0] : null,
         'image_url' => !empty($photos) ? $photos[0] : null,
         'photos' => $photos,
-        'created_at' => $oeuvre['created_at'] ?? null
+        'created_at' => $oeuvre['created_at'] ?? null,
+        'weight_g'   => isset($oeuvre['weight_g']) ? intval($oeuvre['weight_g']) : 0,
     ];
 }
 ?>

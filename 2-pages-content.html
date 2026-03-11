@@ -229,8 +229,10 @@
         <div style="position: sticky; top: 90px; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 100; border-bottom: 1px solid rgba(255, 255, 255, 0.3); padding: 20px 0; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);">
             <div style="max-width: 680px; margin: 0 auto; padding: 0 16px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
-                    <h1 style="font-size: 32px; font-weight: 800; color: #ffffff; margin: 0; letter-spacing: -0.5px; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);">Mes Artistes</h1>
-
+                    <h1 style="font-size: 32px; font-weight: 800; color: #ffffff; margin: 0; letter-spacing: -0.5px; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);">🖼️ Galerie BOLIA</h1>
+                    <button onclick="navigateTo('home')" style="background: rgba(255, 255, 255, 0.25); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.3); color: white; padding: 10px 20px; border-radius: 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); white-space: nowrap;" onmouseover="this.style.transform='translateY(-2px)'; this.style.background='rgba(255, 255, 255, 0.35)'; this.style.boxShadow='0 6px 20px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.background='rgba(255, 255, 255, 0.25)'; this.style.boxShadow='0 4px 15px rgba(0, 0, 0, 0.1)'">
+                        ✨ Découvrir
+                    </button>
                 </div>
                 
                 <!-- Tabs -->
@@ -248,7 +250,15 @@
         <!-- Content -->
         <div style="max-width: 680px; margin: 0 auto; padding: 0 16px 100px;">
             
-
+            <!-- Section: Artistes suivis en haut (Your Loop) -->
+            <div id="followedArtistsSection" style="margin: 32px 0;">
+                <div style="font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.9); margin-bottom: 18px; text-transform: uppercase; letter-spacing: 1.2px; font-family: 'Segoe UI', sans-serif; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">Vos Artistes Préférés</div>
+                
+                <!-- Carousel horizontal d'avatars -->
+                <div id="followedArtistsCarousel" style="display: flex; gap: 20px; overflow-x: auto; padding: 12px 0; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
+                    <!-- Sera rempli dynamiquement -->
+                </div>
+            </div>
 
             <!-- Empty State -->
             <div id="emptyArtistsState" style="display: none; text-align: center; padding: 80px 24px; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 24px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15); border: 1px solid rgba(255, 255, 255, 0.3);">
@@ -959,11 +969,18 @@
                 </div>
                 
                 <div class="form-group">
+                    <label>⚖️ Poids de l'œuvre (grammes)</label>
+                    <p style="font-size: 12px; opacity: 0.7; margin-bottom: 8px;">Utilisé pour calculer les frais de port La Poste. Inclure l'emballage de protection estimé.</p>
+                    <input type="number" id="artwork-weight" min="0" step="1" placeholder="Ex: 2500 (= 2,5 kg)">
+                    <p style="font-size: 11px; opacity: 0.5; margin-top: 4px;">💡 Conseil : toile 40×50 cm ≈ 800g · Sculpture ≈ 3000-10000g · Photo encadrée ≈ 1500g</p>
+                </div>
+                
+                <div class="form-group">
                     <label>📝 Description</label>
                     <textarea id="artwork-description" rows="4" placeholder="Décrivez votre œuvre, votre inspiration, le contexte de création..."></textarea>
                 </div>
                 
-                <div style="position: sticky; bottom: -40px; left: -40px; right: -40px; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(30px); padding: 20px 40px; margin: 30px -40px -40px; border-top: 1px solid rgba(255, 255, 255, 0.2); z-index: 10;">
+                <div style="margin-top: 24px;">
                     <button onclick="saveArtwork()" class="btn" style="width:100%;background:linear-gradient(135deg,var(--terre-cuite),var(--terre-sombre));border:none;color:white;padding:14px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;box-shadow: 0 4px 15px rgba(0,0,0,0.3);">Publier l'œuvre</button>
                 </div>
             </div>

@@ -1,4 +1,7 @@
 <?php
+header('Cross-Origin-Embedder-Policy: unsafe-none');
+header('Cross-Origin-Opener-Policy: unsafe-none');
+header('Cross-Origin-Resource-Policy: cross-origin');
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');

@@ -4326,6 +4326,8 @@ window.enterGallery = function enterGallery() {
 
         const API_BASE   = 'https://arkyl-galerie.onrender.com';
         const ORDERS_API = `${API_BASE}/api_commandes.php`;
+        // ⭐ POSTS_API déclaré tôt pour éviter undefined dans fetchArtistPostsFromServer
+        window.POSTS_API = `${API_BASE}/api_artist_posts.php`;
 
         const DELIVERY_STATUSES = [
             { key: 'En préparation', icon: '📦', label: 'En préparation', color: '#ff9800' },
@@ -6459,7 +6461,8 @@ window.enterGallery = function enterGallery() {
 
         async function fetchArtistPostsFromServer() {
             try {
-                const res = await fetch(POSTS_API + '?action=get&t=' + Date.now());
+                const _postsUrl = window.POSTS_API || POSTS_API;
+                const res = await fetch(_postsUrl + '?action=get&t=' + Date.now());
                 if (!res.ok) return null;
                 const data = await res.json();
                 if (data.success && Array.isArray(data.posts)) {
@@ -6473,25 +6476,30 @@ window.enterGallery = function enterGallery() {
         }
 
         async function savePostToServer(post) {
+            const _postsUrl = window.POSTS_API || POSTS_API;
             try {
-                const res = await fetch(POSTS_API + '?action=add', {
+                const res = await fetch(_postsUrl + '?action=add', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(post)
                 });
                 const data = await res.json();
                 if (data.success) {
+                    // Invalider le cache posts pour forcer un vrai rechargement
+                    window._boliaPostsCache = null;
                     await fetchArtistPostsFromServer();
                     return data;
+                } else {
+                    // Erreur serveur explicite — pas de fallback silencieux
+                    console.error('❌ Erreur serveur savePostToServer:', data.message);
+                    showToast('❌ Erreur serveur : ' + (data.message || 'Publication échouée'));
+                    return { success: false, message: data.message };
                 }
             } catch(e) {
-                console.warn('Post sauvegardé localement seulement');
+                console.error('❌ savePostToServer exception:', e);
+                showToast('❌ Serveur inaccessible — publication non enregistrée');
+                return { success: false, local: true };
             }
-            // Fallback local
-            const posts = getArtistPosts();
-            posts.unshift(post);
-            saveArtistPostsLocal(posts);
-            return { success: true, local: true };
         }
 
         async function deletePostFromServer(postId) {
@@ -6749,10 +6757,15 @@ window.enterGallery = function enterGallery() {
                 created_at: new Date().toISOString()
             };
 
-            await savePostToServer(post);
+            const saveResult = await savePostToServer(post);
+            if (!saveResult || saveResult.success === false) {
+                if (btn) { btn.disabled = false; btn.textContent = '📤 Publier'; }
+                return; // toast d'erreur déjà affiché dans savePostToServer
+            }
             window._postSelectedFiles = [];
+            window._boliaPostsCache = null; // invalider le cache
             document.getElementById('createPostModal')?.remove();
-            showToast('✅ Publication partagée !');
+            showToast('✅ Publication partagée avec succès !');
             await renderMyArtistsPage();
         }
 
@@ -8344,7 +8357,7 @@ window.enterGallery = function enterGallery() {
         // 🔔 SYSTÈME DE NOTIFICATIONS ARTISTE
         // ═══════════════════════════════════════════════════════════════
         const NOTIF_API = `${API_BASE}/api_commandes.php`;
-        const POSTS_API = `${API_BASE}/api_artist_posts.php`;
+        window.POSTS_API = `${API_BASE}/api_artist_posts.php`; // déclaré via window pour être accessible avant la ligne 8347
         let _notifPollInterval = null;
 
         async function loadArtistNotifications() {

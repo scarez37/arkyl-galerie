@@ -168,7 +168,7 @@ function fetchTimeline($db, $orderId) {
 // ─────────────────────────────────────────────────────────────────
 // ⭐ NOUVEAU : Alertes artiste — email + notification BDD
 // ─────────────────────────────────────────────────────────────────
-function notifyArtists($db, $orderId, $orderNumber, $items, $buyerName, $total) {
+function notifyArtists($db, $orderId, $orderNumber, $items, $buyerName, $total, $shippingAddress = '', $shippingName = '') {
 
     // Regrouper les items par artist_id
     $byArtist = [];
@@ -194,7 +194,8 @@ function notifyArtists($db, $orderId, $orderNumber, $items, $buyerName, $total) 
         $itemsTotal = array_sum(array_map(fn($i) => ($i['price'] ?? 0) * ($i['quantity'] ?? 1), $artistItems));
 
         $notifTitle   = "🎉 Nouvelle commande — {$orderNumber}";
-        $notifMessage = "Bonne nouvelle {$artistName} ! {$buyerName} vient de commander {$titlesStr} pour un montant de " . number_format($itemsTotal, 0, ',', ' ') . " FCFA.";
+        $adresseStr   = $shippingAddress ? " | 📍 Adresse : {$shippingAddress}" : '';
+        $notifMessage = "Bonne nouvelle {$artistName} ! {$buyerName} vient de commander {$titlesStr} pour un montant de " . number_format($itemsTotal, 0, ',', ' ') . " FCFA.{$adresseStr}";
 
         // ── 2. Notification en base de données ──────────────────
         try {
@@ -249,7 +250,23 @@ function notifyArtists($db, $orderId, $orderNumber, $items, $buyerName, $total) 
             <td style="color:#888;font-size:13px;padding:4px 0;">Acheteur</td>
             <td style="color:#fff;font-size:13px;text-align:right;">' . htmlspecialchars($buyerName) . '</td>
           </tr>
+          ' . ($shippingAddress ? '
+          <tr>
+            <td style="color:#888;font-size:13px;padding:4px 0;">Mode de livraison</td>
+            <td style="color:#fff;font-size:13px;text-align:right;">' . htmlspecialchars($shippingName) . '</td>
+          </tr>' : '') . '
         </table>
+        ' . ($shippingAddress ? '
+        <!-- Adresse de livraison -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a0a2e;border:1.5px solid #d4af3766;border-radius:12px;padding:20px;margin:0 0 20px;">
+          <tr>
+            <td>
+              <p style="color:#d4af37;font-size:12px;font-weight:700;letter-spacing:1px;margin:0 0 10px;text-transform:uppercase;">📍 Adresse de livraison du client</p>
+              <p style="color:#fff;font-size:14px;font-weight:600;line-height:1.8;margin:0;">' . nl2br(htmlspecialchars(str_replace(', ', "\n", $shippingAddress))) . '</p>
+              <p style="color:#aaa;font-size:12px;margin:10px 0 0;">Utilisez cette adresse pour préparer et expédier votre œuvre.</p>
+            </td>
+          </tr>
+        </table>' : '') . '
         <!-- Œuvres -->
         <p style="color:#aaa;font-size:13px;margin:0 0 8px;">Œuvres commandées :</p>
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#111;border-radius:12px;overflow:hidden;">
@@ -450,9 +467,11 @@ try {
         ")->execute([$orderId]);
 
         // ⭐ Envoyer alertes aux artistes concernés
-        $buyerName = $body['user_name'] ?? $body['user_email'] ?? 'Un acheteur';
-        $total     = $body['total'] ?? 0;
-        notifyArtists($db, $orderId, $orderNum, $itemsInserted, $buyerName, $total);
+        $buyerName       = $body['user_name'] ?? $body['user_email'] ?? 'Un acheteur';
+        $total           = $body['total'] ?? 0;
+        $shippingAddress = $body['shipping_address'] ?? '';
+        $shippingName    = $body['shipping_name'] ?? '';
+        notifyArtists($db, $orderId, $orderNum, $itemsInserted, $buyerName, $total, $shippingAddress, $shippingName);
 
         echo json_encode(['success' => true, 'order_id' => $orderId, 'order_number' => $orderNum]);
         exit;

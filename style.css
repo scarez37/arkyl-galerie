@@ -719,6 +719,28 @@
 
         /* Hamburger Menu Button */
 
+        /* ===== BACKDROP OVERLAY — bloque le contenu page derrière le menu ===== */
+        .hamburger-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.72);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            z-index: 1000;
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+        }
+        .hamburger-overlay.active {
+            display: block;
+            animation: fadeInOverlay 0.3s ease forwards;
+        }
+        @keyframes fadeInOverlay {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+
         /* Bouton auth — apparaît à droite quand le hamburger s'ouvre */
         #authContainer {
             position: fixed !important;

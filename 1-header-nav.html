@@ -12,6 +12,11 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link rel="stylesheet" href="style.css">
     <style>
+        /* Notification badge pulse animation */
+        @keyframes notifPulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(225,29,72,0.7); }
+            50% { transform: scale(1.15); box-shadow: 0 0 0 4px rgba(225,29,72,0); }
+        }
         /* Galerie BOLIA - Animation shimmer */
         @keyframes shimmer {
             0% {
@@ -181,23 +186,24 @@
     <!-- Hamburger Menu Dropdown -->
     <div class="hamburger-dropdown" id="hamburgerDropdown">
         <!--  Espace Artiste / Dashboard -->
-        <button class="hamburger-menu-item" onclick="handleArtistSpace(); toggleHamburgerMenu()">
+        <button class="hamburger-menu-item" id="artistSpaceMenuBtn" onclick="handleArtistSpace(); toggleHamburgerMenu()" style="position:relative;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <defs><linearGradient id="g-palette" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
                 <path d="M12 2C6.48 2 2 6.48 2 12c0 5.52 4.48 10 10 10 .83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" fill="url(#g-palette)"/>
             </svg>
             Espace Artiste
+            <span id="artistSpaceMenuBadge" style="display:none;position:absolute;top:6px;right:10px;background:#e11d48;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 4px;align-items:center;justify-content:center;border:2px solid rgba(0,0,0,0.4);animation:notifPulse 1.5s ease-in-out infinite;">0</span>
         </button>
 
         <!-- Galerie BOLIA -->
         <button class="hamburger-menu-item" id="galerieBoliaBtn" onclick="navigateTo('myArtists'); toggleHamburgerMenu()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <defs><linearGradient id="g-bolia" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a07820" stop-opacity="0.8"/></linearGradient></defs>
+                <defs><linearGradient id="g-bolia" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs>
                 <rect x="3" y="3" width="18" height="18" rx="2" stroke="url(#g-bolia)" stroke-width="2" fill="none"/>
                 <path d="M3 16l5-5 4 4 9-9" stroke="url(#g-bolia)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <circle cx="8.5" cy="8.5" r="1.5" fill="url(#g-bolia)"/>
             </svg>
-            <span style="color: #d4af37;">Galerie BOLIA</span>
+            Galerie BOLIA
         </button>
 
 

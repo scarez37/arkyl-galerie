@@ -49,7 +49,7 @@
                 <canvas id="crossCanvas" width="24" height="24" style="display:block;"></canvas>
                 Rafraîchir
             </button>
-            <div id="categoryBtns" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:36px;">
+            <div id="categoryBtns" inert style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:36px;">
                 <button class="filter-btn" data-cat="all" onclick="selectCategory(this)">Toutes</button>
                 <button class="filter-btn" data-cat="Peinture" onclick="selectCategory(this)">🖼️ Peintures</button>
                 <button class="filter-btn" data-cat="Sculpture" onclick="selectCategory(this)">🗿 Sculptures</button>
@@ -72,26 +72,22 @@
         
         <!-- External Resources Section -->
         <div style="margin-top:60px;padding:30px;background:rgba(255,255,255,0.1);backdrop-filter:blur(20px);border-radius:20px;border:1px solid rgba(255,255,255,0.2);">
-            <h2 style="font-size:24px;margin-bottom:20px;text-align:center;">🌍 Ressources Externes</h2>
+            <h2 style="font-size:24px;margin-bottom:20px;text-align:center;">🌍 Retrouvez-nous sur les réseaux</h2>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;">
-                <a href="https://www.google.com/search?q=art+africain+contemporain" target="_blank" rel="noopener noreferrer" style="padding:15px;background:rgba(255,255,255,0.15);border-radius:12px;text-decoration:none;color:white;display:flex;align-items:center;gap:10px;transition:all 0.3s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="g-srch2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d4af37"/><stop offset="100%" stop-color="#a0a0b0" stop-opacity="0.8"/></linearGradient></defs><circle cx="11" cy="11" r="7" stroke="url(#g-srch2)" stroke-width="2.2" fill="none"/><path d="M16.5 16.5L21 21" stroke="url(#g-srch2)" stroke-width="2.2" stroke-linecap="round"/></svg>
-                    <span>Rechercher art africain</span>
+                <a href="https://www.youtube.com/@ARKYL_GALERIE" target="_blank" rel="noopener noreferrer" style="padding:15px;background:rgba(255,255,255,0.15);border-radius:12px;text-decoration:none;color:white;display:flex;align-items:center;gap:10px;transition:all 0.3s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58 2.78 2.78 0 0 0 1.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z" fill="#FF0000"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="#fff"/></svg>
+                    <span>YouTube — @ARKYL_GALERIE</span>
                 </a>
-                <a href="https://www.instagram.com/explore/tags/artafricain/" target="_blank" rel="noopener noreferrer" style="padding:15px;background:rgba(255,255,255,0.15);border-radius:12px;text-decoration:none;color:white;display:flex;align-items:center;gap:10px;transition:all 0.3s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
-                    <span style="font-size:24px;">📸</span>
-                    <span>Instagram #artafricain</span>
+                <a href="https://www.instagram.com/arkyl_galerie/" target="_blank" rel="noopener noreferrer" style="padding:15px;background:rgba(255,255,255,0.15);border-radius:12px;text-decoration:none;color:white;display:flex;align-items:center;gap:10px;transition:all 0.3s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><defs><radialGradient id="ig-grad" cx="30%" cy="107%" r="150%"><stop offset="0%" stop-color="#fdf497"/><stop offset="10%" stop-color="#fdf497"/><stop offset="50%" stop-color="#fd5949"/><stop offset="70%" stop-color="#d6249f"/><stop offset="90%" stop-color="#285AEB"/></radialGradient></defs><rect x="2" y="2" width="20" height="20" rx="5.5" fill="url(#ig-grad)"/><rect x="6.5" y="6.5" width="11" height="11" rx="3" stroke="#fff" stroke-width="1.8" fill="none"/><circle cx="12" cy="12" r="2.8" stroke="#fff" stroke-width="1.8" fill="none"/><circle cx="17.2" cy="6.8" r="1" fill="#fff"/></svg>
+                    <span>Instagram — @arkyl_galerie</span>
                 </a>
-                <a href="https://en.wikipedia.org/wiki/African_art" target="_blank" rel="noopener noreferrer" style="padding:15px;background:rgba(255,255,255,0.15);border-radius:12px;text-decoration:none;color:white;display:flex;align-items:center;gap:10px;transition:all 0.3s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
-                    <span style="font-size:24px;">📚</span>
-                    <span>En savoir plus sur Wikipedia</span>
-                </a>
-                <a href="https://www.youtube.com/results?search_query=art+africain+contemporain" target="_blank" rel="noopener noreferrer" style="padding:15px;background:rgba(255,255,255,0.15);border-radius:12px;text-decoration:none;color:white;display:flex;align-items:center;gap:10px;transition:all 0.3s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
-                    <span style="font-size:24px;">🎥</span>
-                    <span>Vidéos YouTube</span>
+                <a href="https://www.tiktok.com/@arkyl_galerie" target="_blank" rel="noopener noreferrer" style="padding:15px;background:rgba(255,255,255,0.15);border-radius:12px;text-decoration:none;color:white;display:flex;align-items:center;gap:10px;transition:all 0.3s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.75a4.85 4.85 0 0 1-1.01-.06z" fill="#fff"/><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.75a4.85 4.85 0 0 1-1.01-.06z" fill="url(#tt-grad)" opacity="0.6"/><defs><linearGradient id="tt-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#69C9D0"/><stop offset="100%" stop-color="#EE1D52"/></linearGradient></defs></svg>
+                    <span>TikTok — @arkyl_galerie</span>
                 </a>
             </div>
-            <p style="text-align:center;margin-top:20px;opacity:0.8;font-size:14px;">🌐 Explorez l'art africain au-delà d'ARKYL</p>
+            <p style="text-align:center;margin-top:20px;opacity:0.8;font-size:14px;">🎨 Suivez l'actualité d'ARKYL Galerie</p>
         </div>
     </div>
 

@@ -4086,8 +4086,9 @@ window.enterGallery = function enterGallery() {
                     // Sauvegarder la commande AVANT la redirection (Stripe peut échouer)
                     const shippingCostVal = parseInt(document.getElementById('selected-shipping-cost')?.value || '3000');
                     const subtotal = cartItems.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
-                    const tax = Math.round(subtotal * 0.18);
-                    const total = subtotal + tax + shippingCostVal;
+                    // ⚠️ Pas de TVA — Stripe ne la facture pas, total = ce qui est réellement débité
+                    const tax = 0;
+                    const total = subtotal + shippingCostVal;
 
                     const pendingOrder = {
                         stripe_session_id: data.session_id || null,
@@ -4861,6 +4862,18 @@ window.enterGallery = function enterGallery() {
                     </div>`;
             }
 
+            // ── Adresse de livraison ──────────────────────────────────────
+            const rawAddr = order.shipping_address || order.shippingAddress || '';
+            const addressBlock = rawAddr ? `
+                <div style="background:rgba(212,175,55,0.1);border:1.5px solid rgba(212,175,55,0.4);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+                    <div style="font-size:12px;font-weight:700;color:#ffe082;letter-spacing:0.5px;margin-bottom:8px;text-transform:uppercase;">📍 Adresse de livraison du client</div>
+                    <div style="font-size:14px;font-weight:600;color:white;line-height:1.7;">${rawAddr.replace(/,\s*/g, '<br>')}</div>
+                    ${order.shipping_mode || order.shippingMode ? `<div style="margin-top:8px;font-size:12px;color:rgba(255,255,255,0.55);">🚚 Mode : ${order.shipping_name || order.shippingName || (order.shipping_mode || order.shippingMode)}</div>` : ''}
+                </div>` : `
+                <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.25);border-radius:12px;padding:12px 16px;margin-bottom:14px;">
+                    <div style="font-size:13px;color:#f87171;">⚠️ Adresse de livraison non renseignée — contactez l'admin</div>
+                </div>`;
+
             return `
                 <div class="admin-order-card" style="margin-bottom:20px;">
 
@@ -4875,6 +4888,9 @@ window.enterGallery = function enterGallery() {
                             <div style="font-size:20px;font-weight:800;color:var(--ocre);">${formatPrice(myRevenue)}</div>
                         </div>
                     </div>
+
+                    <!-- Adresse de livraison -->
+                    ${addressBlock}
 
                     <!-- Progression escrow -->
                     <div style="display:flex;align-items:flex-start;gap:0;margin-bottom:20px;padding:16px;background:rgba(0,0,0,0.2);border-radius:12px;">
@@ -5370,7 +5386,6 @@ window.enterGallery = function enterGallery() {
                 }
                 
                 if (sousTotalMatch) details.push({ label: '💵 Sous-total', value: `${sousTotalMatch[1].trim()} FCFA` });
-                if (taxesMatch) details.push({ label: '📊 TVA (18%)', value: `${taxesMatch[1].trim()} FCFA` });
                 
                 if (revenuMatch) {
                     details.push({ label: '💰 Votre revenu', value: `${revenuMatch[1].trim()} FCFA` });
@@ -5507,7 +5522,7 @@ window.enterGallery = function enterGallery() {
             const clientNotification = {
                 id: Date.now(),
                 title: '🎉 Commande confirmée !',
-                text: `Merci pour votre achat ! Votre commande a été confirmée avec succès • Commande #${order.id} • ${itemsCount} article${itemsCount > 1 ? 's' : ''} • Montant total: ${formatPrice(order.total)} (dont ${formatPrice(order.tax)} de TVA) • Articles: ${itemsList} • Paiement: ${order.paymentMethod} • Livraison: ${order.shippingName} • Adresse: ${order.shippingAddress || 'À définir'} • Statut: ${order.status}`,
+                text: `Merci pour votre achat ! Votre commande a été confirmée avec succès • Commande #${order.id} • ${itemsCount} article${itemsCount > 1 ? 's' : ''} • Montant total: ${formatPrice(order.total)} • Articles: ${itemsList} • Paiement: ${order.paymentMethod} • Livraison: ${order.shippingName} • Adresse: ${order.shippingAddress || 'À définir'} • Statut: ${order.status}`,
                 time: 'À l\'instant',
                 unread: true,
                 type: 'order-client',
@@ -5529,7 +5544,7 @@ window.enterGallery = function enterGallery() {
                 const adminNotification = {
                     id: Date.now() + 1, // ID unique différent
                     title: '💰 Nouvelle vente !',
-                    text: `Une nouvelle commande vient d'être passée • Client: ${order.user}${order.userEmail ? ` (${order.userEmail})` : ''} • Commande #${order.id} • ${itemsCount} article${itemsCount > 1 ? 's' : ''} • Montant total: ${formatPrice(order.total)} (Sous-total: ${formatPrice(order.subtotal)} + TVA: ${formatPrice(order.tax)}) • Articles: ${itemsList} • Paiement: ${order.paymentMethod} • Livraison: ${order.shippingName} • Adresse: ${order.shippingAddress || 'À définir'} • Statut: ${order.status}`,
+                    text: `Une nouvelle commande vient d'être passée • Client: ${order.user}${order.userEmail ? ` (${order.userEmail})` : ''} • Commande #${order.id} • ${itemsCount} article${itemsCount > 1 ? 's' : ''} • Montant total: ${formatPrice(order.total)} (Sous-total: ${formatPrice(order.subtotal)} + Livraison: ${formatPrice(order.shippingCost || 0)}) • Articles: ${itemsList} • Paiement: ${order.paymentMethod} • Livraison: ${order.shippingName} • Adresse: ${order.shippingAddress || 'À définir'} • Statut: ${order.status}`,
                     time: 'À l\'instant',
                     unread: true,
                     type: 'order-admin',
@@ -5563,7 +5578,7 @@ window.enterGallery = function enterGallery() {
                 const artistNotification = {
                     id: Date.now() + 2 + index, // ID unique
                     title: '🎨 Vente de votre œuvre !',
-                    text: `Félicitations ! Vos œuvres ont été vendues • Commande #${order.id} • Client: ${order.user} • ${artistItemsCount} œuvre${artistItemsCount > 1 ? 's' : ''} vendue${artistItemsCount > 1 ? 's' : ''} • Vos œuvres: ${artistItemsList} • Revenu: ${formatPrice(artistRevenue)} • Mode de paiement: ${order.paymentMethod} • Livraison: ${order.shippingName} • Statut: ${order.status}`,
+                    text: `Félicitations ! Vos œuvres ont été vendues • Commande #${order.id} • Client: ${order.user} • ${artistItemsCount} œuvre${artistItemsCount > 1 ? 's' : ''} vendue${artistItemsCount > 1 ? 's' : ''} • Vos œuvres: ${artistItemsList} • Revenu: ${formatPrice(artistRevenue)} • Mode de paiement: ${order.paymentMethod} • Livraison: ${order.shippingName} • 📍 Adresse de livraison: ${order.shippingAddress || 'Non renseignée'} • Statut: ${order.status}`,
                     time: 'À l\'instant',
                     unread: true,
                     type: 'order-artist',
@@ -5575,6 +5590,8 @@ window.enterGallery = function enterGallery() {
                         revenue: artistRevenue,
                         itemsCount: artistItemsCount,
                         customer: order.user,
+                        shippingAddress: order.shippingAddress || order.shipping_address || '',
+                        shippingName: order.shippingName || '',
                         date: order.date
                     }
                 };

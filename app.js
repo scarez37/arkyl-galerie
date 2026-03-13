@@ -2464,12 +2464,14 @@ window.enterGallery = function enterGallery() {
                     btns.forEach(btn => {
                         btn.style.animation = '';
                         btn.style.opacity = '0';
-                        btn.style.pointerEvents = '';
+                        btn.style.pointerEvents = 'none';
                     });
+                    cats.setAttribute('inert', '');
                 }, 500);
             } else {
                 // Ouverture : depuis la direction avec spring
                 cats.dataset.open = '1';
+                cats.removeAttribute('inert');
                 btns.forEach((btn, i) => {
                     const d = directions[i % directions.length];
                     btn.style.setProperty('--tx', d.tx);
@@ -7969,46 +7971,54 @@ window.enterGallery = function enterGallery() {
                 return;
             }
 
-            // Search in local products
-            const allProducts = getProducts();
-            const results = allProducts.filter(p => 
-                p.title.toLowerCase().includes(query) || 
-                p.artist.toLowerCase().includes(query) ||
-                p.category.toLowerCase().includes(query)
+            // Chercher dans la vraie galerie (base de données)
+            const allProducts = (window.toutesLesOeuvres && window.toutesLesOeuvres.length > 0)
+                ? window.toutesLesOeuvres
+                : getProducts();
+
+            const results = allProducts.filter(p =>
+                (p.title || p.titre || '').toLowerCase().includes(query) ||
+                (p.artist || p.artiste || '').toLowerCase().includes(query) ||
+                (p.category || p.categorie || '').toLowerCase().includes(query)
             );
 
+            navigateTo('home');
+
             if (results.length > 0) {
-                // Show local results
-                navigateTo('home');
-                const container = document.getElementById('productsContainer');
-                container.innerHTML = results.map(product => `
-                    <div class="product-card" onclick="viewProductDetail(${product.id})">
-                        <div class="product-image">
-                            <span class="product-badge">${product.badge}</span>
-                            <button class="like-button" onclick="toggleFavorite(event, ${product.id})">
-                                ${favorites.includes(product.id) ? '❤️' : '🤍'}
-                            </button>
-                            <img src="${product.image}" alt="${product.title}" style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
-                        </div>
-                        <div class="product-info">
-                            <div class="product-title">${product.title}</div>
-                            <div class="product-artist" onclick="viewArtistDetail(event, '${product.artist}')">par ${product.artist}</div>
-                            <div class="product-footer">
-                                <div class="product-price">${formatPrice(product.price)}</div>
-                                <button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-                
-                showToast(`✅ ${results.length} résultat(s) trouvé(s)`);
-            } else {
-                // Offer to search on Google
-                if (confirm(`Aucun résultat local pour "${query}". Rechercher sur Google ?`)) {
-                    window.open(`https://www.google.com/search?q=${encodeURIComponent('art africain ' + query)}`, '_blank');
+                if (typeof afficherOeuvresFiltrees === 'function') {
+                    afficherOeuvresFiltrees(results);
                 } else {
-                    showToast(`❌ Aucun résultat pour "${query}"`);
-                    (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null); // Show all products again
+                    const container = document.getElementById('productsContainer');
+                    if (container) {
+                        container.innerHTML = results.map(product => `
+                            <div class="product-card" onclick="viewProductDetail(${product.id})">
+                                <div class="product-image">
+                                    <span class="product-badge">${product.badge || ''}</span>
+                                    <button class="like-button" onclick="toggleFavorite(event, ${product.id})">
+                                        ${favorites.includes(product.id) ? '❤️' : '🤍'}
+                                    </button>
+                                    <img src="${product.image}" alt="${product.title || product.titre}" style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
+                                </div>
+                                <div class="product-info">
+                                    <div class="product-title">${product.title || product.titre}</div>
+                                    <div class="product-artist" onclick="viewArtistDetail(event, '${product.artist || product.artiste}')">par ${product.artist || product.artiste}</div>
+                                    <div class="product-footer">
+                                        <div class="product-price">${formatPrice(product.price || product.prix)}</div>
+                                        <button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                }
+                showToast(`✅ ${results.length} résultat(s) pour « ${query} »`);
+            } else {
+                showToast(`❌ Aucun résultat pour « ${query} »`);
+                // Réafficher toute la galerie
+                if (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) {
+                    afficherOeuvresFiltrees();
+                } else if (typeof chargerLaVraieGalerie === 'function') {
+                    chargerLaVraieGalerie();
                 }
             }
         }
@@ -8393,13 +8403,25 @@ window.enterGallery = function enterGallery() {
         }
 
         function updateNotifBadge(count) {
+            // Badge cloche dans l'espace artiste
             const badge = document.getElementById('notifBadge');
-            if (!badge) return;
-            if (count > 0) {
-                badge.textContent = count > 99 ? '99+' : count;
-                badge.style.display = 'flex';
-            } else {
-                badge.style.display = 'none';
+            if (badge) {
+                if (count > 0) {
+                    badge.textContent = count > 99 ? '99+' : count;
+                    badge.style.display = 'flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+            // Badge alerte sur le bouton "Espace Artiste" du menu hamburger
+            const hamburgerBadge = document.getElementById('artistSpaceMenuBadge');
+            if (hamburgerBadge) {
+                if (count > 0) {
+                    hamburgerBadge.textContent = count > 99 ? '99+' : count;
+                    hamburgerBadge.style.display = 'flex';
+                } else {
+                    hamburgerBadge.style.display = 'none';
+                }
             }
         }
 

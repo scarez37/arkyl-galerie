@@ -1314,9 +1314,11 @@ window.enterGallery = function enterGallery() {
         function toggleHamburgerMenu() {
             const btn = document.getElementById('hamburgerBtn');
             const dropdown = document.getElementById('hamburgerDropdown');
+            const overlay = document.getElementById('hamburgerOverlay');
             orbitalOpen = !orbitalOpen;
             btn.classList.toggle('active', orbitalOpen);
             dropdown.classList.toggle('open', orbitalOpen);
+            if (overlay) overlay.classList.toggle('active', orbitalOpen);
             positionOrbitalItems();
             if (orbitalOpen) updateHamburgerOrderBadges();
         }
@@ -1324,9 +1326,11 @@ window.enterGallery = function enterGallery() {
         function closeHamburgerMenu() {
             const btn = document.getElementById('hamburgerBtn');
             const dropdown = document.getElementById('hamburgerDropdown');
+            const overlay = document.getElementById('hamburgerOverlay');
             orbitalOpen = false;
             btn.classList.remove('active');
             dropdown.classList.remove('open');
+            if (overlay) overlay.classList.remove('active');
             positionOrbitalItems();
         }
 

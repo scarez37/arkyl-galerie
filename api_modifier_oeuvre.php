@@ -28,7 +28,7 @@ try {
     $dimensions  = $data['dimensions']         ?? null;
     $country     = trim($data['country']       ?? '');
     $city        = trim($data['city']          ?? '');
-    $weight_g    = isset($data['weight_g'])    ? intval($data['weight_g']) : 0;
+    $poids       = isset($data['poids'])       ? floatval($data['poids']) : null;
 
     if (!$artwork_id || !$artist_id || !$title || !$category) {
         throw new Exception("Champs obligatoires manquants (artwork_id, artist_id, title, category).");
@@ -45,7 +45,7 @@ try {
     // Construire le UPDATE dynamiquement selon si on a une nouvelle image
     $setClause = "title = :title, category = :category, price = :price, description = :description,
                   technique = :technique, dimensions = :dimensions, photos = :photos,
-                  country = :country, city = :city, weight_g = :weight_g";
+                  country = :country, city = :city, poids = :poids";
     $params = [
         ':title'       => $title,
         ':category'    => $category,
@@ -56,7 +56,7 @@ try {
         ':photos'      => !empty($photos) ? json_encode($photos) : null,
         ':country'     => $country,
         ':city'        => $city,
-        ':weight_g'    => $weight_g,
+        ':poids'       => $poids,
         ':id'          => $artwork_id,
         ':artist_id'   => (string)$artist_id,
     ];

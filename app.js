@@ -1207,7 +1207,7 @@ window.enterGallery = function enterGallery() {
                 const topVal = startY + i * itemSpacing;
                 // Garde-fou : dernier(s) item(s) ne sortent pas de l'écran
                 const clampedTop = Math.min(topVal, maxBottom - (n - i) * itemSpacing);
-                item.style.top = Math.max(clampedTop, navbarHeight) + 'px';
+                item.style.top = Math.max(clampedTop, startY) + 'px';
                 if (orbitalOpen) {
                     item.style.transform = 'translateX(0) scale(1)';
                     item.style.opacity = '1';

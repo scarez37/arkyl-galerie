@@ -824,15 +824,15 @@
             display: flex;
             flex-direction: row;
             align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
+            gap: 6px;
+            padding: 5px 10px;
             background: rgba(0, 0, 0, 0.85);
             backdrop-filter: blur(12px);
             border: 1px solid #000;
             border-radius: 10px;
             color: rgba(255, 255, 255, 0.9);
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 600;
             cursor: pointer;
             white-space: nowrap;
@@ -858,6 +858,8 @@
         .hamburger-dropdown.open .hamburger-menu-item {
             opacity: 1;
             pointer-events: auto;
+            transform: translateX(0) scale(1);
+            max-bottom: calc(100vh - 10px); /* sécurité anti-débordement bas */
         }
 
 

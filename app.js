@@ -36,7 +36,38 @@ window.enterGallery = function enterGallery() {
         })();
 
 
-        // (bloc galerie-bolia-btn supprimé — causait position:relative qui écrasait position:fixed orbital)
+        // ==================== GALERIE BOLIA BUTTON STYLING ====================
+        (function applyGalerieBoliaStyle() {
+            function styleBoliaButton() {
+                const hamburgerItems = document.querySelectorAll('.hamburger-menu-item');
+                let boliaBtn = null;
+
+                for (const item of hamburgerItems) {
+                    const onclick = item.getAttribute('onclick') || '';
+                    const text = item.textContent || '';
+                    if (onclick.includes('myArtists') || text.includes('Mes Artistes') || text.includes('Galerie BOLIA')) {
+                        boliaBtn = item;
+                        break;
+                    }
+                }
+
+                if (!boliaBtn) return false;
+
+                // Appliquer le doré SANS toucher à position (garder fixed de l'orbital)
+                boliaBtn.style.background    = 'linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(160,120,32,0.1) 100%)';
+                boliaBtn.style.border        = '1.5px solid rgba(212,175,55,0.5)';
+                boliaBtn.style.boxShadow     = '0 0 12px rgba(212,175,55,0.2), inset 0 1px 0 rgba(255,255,255,0.1)';
+                boliaBtn.style.color         = '#ffe066';
+                // NE PAS mettre position, overflow — on garde position:fixed du CSS
+
+                return true;
+            }
+
+            setTimeout(() => { styleBoliaButton(); }, 150);
+
+            const observer = new MutationObserver(() => { styleBoliaButton(); });
+            observer.observe(document.body, { childList: true, subtree: true });
+        })();
 
         document.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && document.getElementById('intro-page').style.display !== 'none') {
@@ -1157,7 +1188,7 @@ window.enterGallery = function enterGallery() {
             const n = mainItems.length;
             const navbarHeight = 80;
             const itemSpacing = 50;
-            const startY = navbarHeight + 16;
+            const startY = navbarHeight + 36;   /* assez bas pour ne pas chevaucher le btn hamburger */
             const maxBottom = window.innerHeight - 10;
 
             mainItems.forEach((item, i) => {

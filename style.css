@@ -828,7 +828,7 @@
             padding: 5px 10px;
             background: rgba(0, 0, 0, 0.85);
             backdrop-filter: blur(12px);
-            border: 1px solid #000;
+            border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: 10px;
             color: rgba(255, 255, 255, 0.9);
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
@@ -859,6 +859,20 @@
             opacity: 1;
             pointer-events: auto;
             transform: translateX(0) scale(1);
+        }
+
+        /* ===== OVERRIDE : neutralise tout effet .active/.nav-link sur les items du hamburger ===== */
+        .hamburger-menu-item.active,
+        .hamburger-menu-item.nav-link,
+        .hamburger-menu-item.nav-link.active,
+        .hamburger-menu-item.current,
+        .hamburger-menu-item.selected {
+            background: rgba(0, 0, 0, 0.85) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+            color: rgba(255, 255, 255, 0.9) !important;
+            background-image: none !important;
         }
 
 

@@ -1186,9 +1186,21 @@ window.enterGallery = function enterGallery() {
             // Items principaux à gauche (excl. authContainer)
             const mainItems = items.filter(el => el.id !== 'authContainer');
             const n = mainItems.length;
-            const navbarHeight = 80;
+
+            // Sur mobile, l'authContainer peut être large et haut.
+            // getBoundingClientRect() est fiable seulement si l'élément est visible.
+            // On utilise une heuristique : mobile (<= 600px) → réserver 110px en haut.
+            const authEl = document.getElementById('authContainer');
+            let authClearance = 80 + 36; // desktop par défaut
+            if (authEl) {
+                const rect = authEl.getBoundingClientRect();
+                const measuredBottom = rect.bottom + 16;
+                // Sur mobile (écran étroit), l'authContainer fait ~80-90px de haut
+                const mobileGuard = window.innerWidth <= 600 ? 110 : 0;
+                authClearance = Math.max(80 + 36, measuredBottom, mobileGuard);
+            }
+            const startY    = authClearance;
             const itemSpacing = 50;
-            const startY = navbarHeight + 36;   /* assez bas pour ne pas chevaucher le btn hamburger */
             const maxBottom = window.innerHeight - 10;
 
             mainItems.forEach((item, i) => {

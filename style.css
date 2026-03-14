@@ -719,6 +719,18 @@
 
         /* Hamburger Menu Button */
 
+        /* ===== SUPPRIME LE FLASH BLEU AU TAP SUR MOBILE ===== */
+        .hamburger-menu-item,
+        .hamburger-btn,
+        #authContainer,
+        .hamburger-menu-item *,
+        .nav-link,
+        button {
+            -webkit-tap-highlight-color: transparent !important;
+            tap-highlight-color: transparent !important;
+            outline: none;
+        }
+
         /* ===== BACKDROP OVERLAY — bloque le contenu page derrière le menu ===== */
         .hamburger-overlay {
             display: none;

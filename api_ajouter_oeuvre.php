@@ -50,12 +50,12 @@ try {
     $country        = !empty($data['country'])        ? $data['country']        : '';
     $city           = !empty($data['city'])           ? $data['city']           : '';
     $artist_country = !empty($data['artist_country']) ? $data['artist_country'] : $country;
-    $weight_g       = isset($data['weight_g'])        ? intval($data['weight_g']) : 0;
+    $poids          = isset($data['poids'])            ? floatval($data['poids'])  : null;
 
     $sql = "INSERT INTO artworks 
-                (title, price, image_url, artist_id, artist_name, description, category, technique, dimensions, photos, status, country, city, artist_country, weight_g) 
+                (title, price, image_url, artist_id, artist_name, description, category, technique, dimensions, photos, status, country, city, artist_country, poids) 
             VALUES 
-                (:title, :price, :image_url, :artist_id, :artist_name, :description, :category, :technique, :dimensions, :photos, :status, :country, :city, :artist_country, :weight_g)";
+                (:title, :price, :image_url, :artist_id, :artist_name, :description, :category, :technique, :dimensions, :photos, :status, :country, :city, :artist_country, :poids)";
 
     $stmt = $db->prepare($sql);
     $stmt->execute([
@@ -73,7 +73,7 @@ try {
         ':country'        => $country,
         ':city'           => $city,
         ':artist_country' => $artist_country,
-        ':weight_g'       => $weight_g,
+        ':poids'          => $poids,
     ]);
 
     $newId = $db->lastInsertId();

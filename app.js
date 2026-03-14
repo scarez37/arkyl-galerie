@@ -36,131 +36,7 @@ window.enterGallery = function enterGallery() {
         })();
 
 
-        // ==================== GALERIE BOLIA BUTTON STYLING ====================
-        (function applyGalerieBoliaStyle() {
-            // Inject CSS animations and styles
-            const style = document.createElement('style');
-            style.id = 'galerie-bolia-styles';
-            style.textContent = `
-                /* Animation shimmer pour Galerie BOLIA */
-                @keyframes bolia-shimmer {
-                    0% { left: -100%; }
-                    100% { left: 200%; }
-                }
-
-                .galerie-bolia-btn::before {
-                    content: '';
-                    position: absolute;
-                    top: 0;
-                    left: -100%;
-                    width: 50%;
-                    height: 100%;
-                    background: linear-gradient(90deg, 
-                        transparent 0%, 
-                        rgba(255, 224, 102, 0.3) 50%, 
-                        transparent 100%);
-                    animation: bolia-shimmer 3s infinite;
-                    pointer-events: none;
-                }
-
-                .galerie-bolia-btn:hover {
-                    transform: scale(1.02) !important;
-                    box-shadow: 0 0 20px rgba(212,175,55,0.35), inset 0 1px 0 rgba(255,255,255,0.2) !important;
-                    border-color: rgba(212,175,55,0.6) !important;
-                }
-
-                .galerie-bolia-btn:active {
-                    transform: scale(0.98) !important;
-                }
-            `;
-            document.head.appendChild(style);
-
-            // Function to apply styling to the button
-            function styleBoliaButton() {
-                // Find the button by onclick attribute or text content
-                const hamburgerItems = document.querySelectorAll('.hamburger-menu-item');
-                let boliaBtn = null;
-
-                for (const item of hamburgerItems) {
-                    const onclick = item.getAttribute('onclick') || '';
-                    const text = item.textContent || '';
-                    
-                    if (onclick.includes('myArtists') || text.includes('Mes Artistes') || text.includes('Galerie BOLIA')) {
-                        boliaBtn = item;
-                        break;
-                    }
-                }
-
-                if (!boliaBtn) return false;
-
-                // Apply distinctive styling
-                boliaBtn.id = 'galerieBoliaBtn';
-                boliaBtn.className = 'hamburger-menu-item galerie-bolia-btn';
-                
-                Object.assign(boliaBtn.style, {
-                    background: 'linear-gradient(135deg, rgba(212,175,55,0.12) 0%, rgba(160,120,32,0.08) 100%)',
-                    border: '1.5px solid rgba(212,175,55,0.4)',
-                    borderRadius: '8px',
-                    boxShadow: '0 0 12px rgba(212,175,55,0.15), inset 0 1px 0 rgba(255,255,255,0.1)',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    transition: 'all 0.3s ease'
-                });
-
-                // Update content if still showing "Mes Artistes"
-                if (boliaBtn.textContent.includes('Mes Artistes')) {
-                    const svg = boliaBtn.querySelector('svg');
-                    const newContent = `
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="filter: drop-shadow(0 0 4px rgba(212,175,55,0.4));">
-                            <defs>
-                                <linearGradient id="g-bolia" x1="0" y1="0" x2="1" y2="1">
-                                    <stop offset="0%" stop-color="#d4af37"/>
-                                    <stop offset="50%" stop-color="#ffe066"/>
-                                    <stop offset="100%" stop-color="#a07820"/>
-                                </linearGradient>
-                            </defs>
-                            <rect x="3" y="3" width="18" height="18" rx="2" stroke="url(#g-bolia)" stroke-width="2" fill="none"/>
-                            <path d="M3 16l5-5 4 4 9-9" stroke="url(#g-bolia)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <circle cx="8.5" cy="8.5" r="1.5" fill="url(#g-bolia)"/>
-                        </svg>
-                        <span style="color: #ffe066;
-                                     font-weight: 700;
-                                     letter-spacing: 0.5px;
-                                     text-shadow: 0 0 10px rgba(255,215,0,0.6), 0 1px 3px rgba(0,0,0,0.8);">🖼️ Galerie BOLIA</span>
-                    `;
-                    boliaBtn.innerHTML = newContent;
-                }
-
-                return true;
-            }
-
-            // Apply immediately on load
-            setTimeout(() => {
-                if (styleBoliaButton()) {
-                    console.log('✨ Galerie BOLIA button styled successfully');
-                }
-            }, 100);
-
-            // Watch for dynamic menu injection
-            const observer = new MutationObserver(() => {
-                styleBoliaButton();
-            });
-
-            // Observe the hamburger dropdown if it exists
-            const hamburgerDropdown = document.getElementById('hamburgerDropdown');
-            if (hamburgerDropdown) {
-                observer.observe(hamburgerDropdown, {
-                    childList: true,
-                    subtree: true
-                });
-            }
-
-            // Also observe the entire document for the dropdown creation
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
-        })();
+        // (bloc galerie-bolia-btn supprimé — causait position:relative qui écrasait position:fixed orbital)
 
         document.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && document.getElementById('intro-page').style.display !== 'none') {
@@ -1280,11 +1156,15 @@ window.enterGallery = function enterGallery() {
             const mainItems = items.filter(el => el.id !== 'authContainer');
             const n = mainItems.length;
             const navbarHeight = 80;
-            const itemSpacing = 44;
-            const startY = navbarHeight + 20;
+            const itemSpacing = 50;
+            const startY = navbarHeight + 16;
+            const maxBottom = window.innerHeight - 10;
 
             mainItems.forEach((item, i) => {
-                item.style.top = (startY + i * itemSpacing) + 'px';
+                const topVal = startY + i * itemSpacing;
+                // Garde-fou : dernier(s) item(s) ne sortent pas de l'écran
+                const clampedTop = Math.min(topVal, maxBottom - (n - i) * itemSpacing);
+                item.style.top = Math.max(clampedTop, navbarHeight) + 'px';
                 if (orbitalOpen) {
                     item.style.transform = 'translateX(0) scale(1)';
                     item.style.opacity = '1';

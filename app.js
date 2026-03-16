@@ -38,13 +38,53 @@ window.enterGallery = function enterGallery() {
 
         // ==================== GALERIE BOLIA BUTTON STYLING ====================
         (function applyGalerieBoliaStyle() {
+            // Inject CSS animations and styles
+            const style = document.createElement('style');
+            style.id = 'galerie-bolia-styles';
+            style.textContent = `
+                /* Animation shimmer pour Galerie BOLIA */
+                @keyframes bolia-shimmer {
+                    0% { left: -100%; }
+                    100% { left: 200%; }
+                }
+
+                .galerie-bolia-btn::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: -100%;
+                    width: 50%;
+                    height: 100%;
+                    background: linear-gradient(90deg, 
+                        transparent 0%, 
+                        rgba(255, 224, 102, 0.3) 50%, 
+                        transparent 100%);
+                    animation: bolia-shimmer 3s infinite;
+                    pointer-events: none;
+                }
+
+                .galerie-bolia-btn:hover {
+                    transform: scale(1.02) !important;
+                    box-shadow: 0 0 20px rgba(212,175,55,0.35), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+                    border-color: rgba(212,175,55,0.6) !important;
+                }
+
+                .galerie-bolia-btn:active {
+                    transform: scale(0.98) !important;
+                }
+            `;
+            document.head.appendChild(style);
+
+            // Function to apply styling to the button
             function styleBoliaButton() {
+                // Find the button by onclick attribute or text content
                 const hamburgerItems = document.querySelectorAll('.hamburger-menu-item');
                 let boliaBtn = null;
 
                 for (const item of hamburgerItems) {
                     const onclick = item.getAttribute('onclick') || '';
                     const text = item.textContent || '';
+                    
                     if (onclick.includes('myArtists') || text.includes('Mes Artistes') || text.includes('Galerie BOLIA')) {
                         boliaBtn = item;
                         break;
@@ -53,20 +93,73 @@ window.enterGallery = function enterGallery() {
 
                 if (!boliaBtn) return false;
 
-                // Appliquer le doré SANS toucher à position (garder fixed de l'orbital)
-                boliaBtn.style.background    = 'linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(160,120,32,0.1) 100%)';
-                boliaBtn.style.border        = '1.5px solid rgba(212,175,55,0.5)';
-                boliaBtn.style.boxShadow     = '0 0 12px rgba(212,175,55,0.2), inset 0 1px 0 rgba(255,255,255,0.1)';
-                boliaBtn.style.color         = '#ffe066';
-                // NE PAS mettre position, overflow — on garde position:fixed du CSS
+                // Apply distinctive styling
+                boliaBtn.id = 'galerieBoliaBtn';
+                boliaBtn.className = 'hamburger-menu-item galerie-bolia-btn';
+                
+                Object.assign(boliaBtn.style, {
+                    background: 'linear-gradient(135deg, rgba(212,175,55,0.12) 0%, rgba(160,120,32,0.08) 100%)',
+                    border: '1.5px solid rgba(212,175,55,0.4)',
+                    borderRadius: '8px',
+                    boxShadow: '0 0 12px rgba(212,175,55,0.15), inset 0 1px 0 rgba(255,255,255,0.1)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    transition: 'all 0.3s ease'
+                });
+
+                // Update content if still showing "Mes Artistes"
+                if (boliaBtn.textContent.includes('Mes Artistes')) {
+                    const svg = boliaBtn.querySelector('svg');
+                    const newContent = `
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="filter: drop-shadow(0 0 4px rgba(212,175,55,0.4));">
+                            <defs>
+                                <linearGradient id="g-bolia" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stop-color="#d4af37"/>
+                                    <stop offset="50%" stop-color="#ffe066"/>
+                                    <stop offset="100%" stop-color="#a07820"/>
+                                </linearGradient>
+                            </defs>
+                            <rect x="3" y="3" width="18" height="18" rx="2" stroke="url(#g-bolia)" stroke-width="2" fill="none"/>
+                            <path d="M3 16l5-5 4 4 9-9" stroke="url(#g-bolia)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <circle cx="8.5" cy="8.5" r="1.5" fill="url(#g-bolia)"/>
+                        </svg>
+                        <span style="color: #ffe066;
+                                     font-weight: 700;
+                                     letter-spacing: 0.5px;
+                                     text-shadow: 0 0 10px rgba(255,215,0,0.6), 0 1px 3px rgba(0,0,0,0.8);">🖼️ Galerie BOLIA</span>
+                    `;
+                    boliaBtn.innerHTML = newContent;
+                }
 
                 return true;
             }
 
-            setTimeout(() => { styleBoliaButton(); }, 150);
+            // Apply immediately on load
+            setTimeout(() => {
+                if (styleBoliaButton()) {
+                    console.log('✨ Galerie BOLIA button styled successfully');
+                }
+            }, 100);
 
-            const observer = new MutationObserver(() => { styleBoliaButton(); });
-            observer.observe(document.body, { childList: true, subtree: true });
+            // Watch for dynamic menu injection
+            const observer = new MutationObserver(() => {
+                styleBoliaButton();
+            });
+
+            // Observe the hamburger dropdown if it exists
+            const hamburgerDropdown = document.getElementById('hamburgerDropdown');
+            if (hamburgerDropdown) {
+                observer.observe(hamburgerDropdown, {
+                    childList: true,
+                    subtree: true
+                });
+            }
+
+            // Also observe the entire document for the dropdown creation
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
         })();
 
         document.addEventListener('keypress', (e) => {
@@ -1186,28 +1279,12 @@ window.enterGallery = function enterGallery() {
             // Items principaux à gauche (excl. authContainer)
             const mainItems = items.filter(el => el.id !== 'authContainer');
             const n = mainItems.length;
-
-            // Sur mobile, l'authContainer peut être large et haut.
-            // getBoundingClientRect() est fiable seulement si l'élément est visible.
-            // On utilise une heuristique : mobile (<= 600px) → réserver 110px en haut.
-            const authEl = document.getElementById('authContainer');
-            let authClearance = 80 + 36; // desktop par défaut
-            if (authEl) {
-                const rect = authEl.getBoundingClientRect();
-                const measuredBottom = rect.bottom + 16;
-                // Sur mobile (écran étroit), l'authContainer fait ~80-90px de haut
-                const mobileGuard = window.innerWidth <= 600 ? 110 : 0;
-                authClearance = Math.max(80 + 36, measuredBottom, mobileGuard);
-            }
-            const startY    = authClearance;
-            const itemSpacing = 50;
-            const maxBottom = window.innerHeight - 10;
+            const navbarHeight = 80;
+            const itemSpacing = 44;
+            const startY = navbarHeight + 20;
 
             mainItems.forEach((item, i) => {
-                const topVal = startY + i * itemSpacing;
-                // Garde-fou : dernier(s) item(s) ne sortent pas de l'écran
-                const clampedTop = Math.min(topVal, maxBottom - (n - i) * itemSpacing);
-                item.style.top = Math.max(clampedTop, startY) + 'px';
+                item.style.top = (startY + i * itemSpacing) + 'px';
                 if (orbitalOpen) {
                     item.style.transform = 'translateX(0) scale(1)';
                     item.style.opacity = '1';
@@ -1237,11 +1314,9 @@ window.enterGallery = function enterGallery() {
         function toggleHamburgerMenu() {
             const btn = document.getElementById('hamburgerBtn');
             const dropdown = document.getElementById('hamburgerDropdown');
-            const overlay = document.getElementById('hamburgerOverlay');
             orbitalOpen = !orbitalOpen;
             btn.classList.toggle('active', orbitalOpen);
             dropdown.classList.toggle('open', orbitalOpen);
-            if (overlay) overlay.classList.toggle('active', orbitalOpen);
             positionOrbitalItems();
             if (orbitalOpen) updateHamburgerOrderBadges();
         }
@@ -1249,11 +1324,9 @@ window.enterGallery = function enterGallery() {
         function closeHamburgerMenu() {
             const btn = document.getElementById('hamburgerBtn');
             const dropdown = document.getElementById('hamburgerDropdown');
-            const overlay = document.getElementById('hamburgerOverlay');
             orbitalOpen = false;
             btn.classList.remove('active');
             dropdown.classList.remove('open');
-            if (overlay) overlay.classList.remove('active');
             positionOrbitalItems();
         }
 
@@ -2231,7 +2304,7 @@ window.enterGallery = function enterGallery() {
             targetPage.classList.add('active');
             
             if (page === 'favorites') renderFavorites();
-            else if (page === 'cart') renderCart();
+            else if (page === 'cart') { renderCart(); verifierPanierVsVendus(); }
             else if (page === 'orders') renderOrders();
             else if (page === 'adminOrders') renderAdminOrders();
             else if (page === 'home') {
@@ -2391,14 +2464,12 @@ window.enterGallery = function enterGallery() {
                     btns.forEach(btn => {
                         btn.style.animation = '';
                         btn.style.opacity = '0';
-                        btn.style.pointerEvents = 'none';
+                        btn.style.pointerEvents = '';
                     });
-                    cats.setAttribute('inert', '');
                 }, 500);
             } else {
                 // Ouverture : depuis la direction avec spring
                 cats.dataset.open = '1';
-                cats.removeAttribute('inert');
                 btns.forEach((btn, i) => {
                     const d = directions[i % directions.length];
                     btn.style.setProperty('--tx', d.tx);
@@ -3339,6 +3410,38 @@ window.enterGallery = function enterGallery() {
             </div>`;
         }
 
+        // ── Vérification serveur des œuvres vendues dans le panier ────────
+        async function verifierPanierVsVendus() {
+            if (cartItems.length === 0) return;
+            const ids = cartItems.map(i => i.id || i.artwork_id).filter(Boolean);
+            try {
+                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?ids=${ids.join(',')}`);
+                const data = await resp.json();
+                if (!data.artworks && !data.oeuvres) return;
+                const artworks = data.artworks || data.oeuvres || [];
+
+                // Marquer les items vendus dans cartItems
+                let changed = false;
+                cartItems.forEach(item => {
+                    const itemId = String(item.id || item.artwork_id);
+                    const fromServer = artworks.find(a => String(a.id) === itemId);
+                    // Vendu si : serveur le dit, ou artwork absent de la réponse (supprimé)
+                    const isSold = fromServer ? (fromServer.is_sold || fromServer.badge === 'Vendu') : false;
+                    if (isSold && !item.is_sold) {
+                        item.is_sold = true;
+                        changed = true;
+                    }
+                });
+
+                if (changed) {
+                    renderCart(); // Re-render avec les items grisés
+                    showToast('⚠️ Certaines œuvres de votre panier ont été achetées entre temps');
+                }
+            } catch(e) {
+                // Silencieux — pas critique
+            }
+        }
+
         function renderCart() {
             const container = document.getElementById('cartContainer');
 
@@ -3354,17 +3457,54 @@ window.enterGallery = function enterGallery() {
                 return;
             }
 
+            // ── Détecter les œuvres vendues ────────────────────────────────
+            const soldIds = new Set(
+                (window.toutesLesOeuvres || [])
+                    .filter(o => o.is_sold || o.badge === 'Vendu')
+                    .map(o => String(o.id))
+            );
+            // Aussi vérifier les items marqués directement
+            cartItems.forEach(i => { if (i.is_sold) soldIds.add(String(i.id || i.artwork_id)); });
+
             let subtotal = 0;
+            let hasSoldItems = false;
             const itemsHtml = cartItems.map(item => {
+                const itemId = String(item.id || item.artwork_id);
+                const isSold = soldIds.has(itemId);
+                if (isSold) { hasSoldItems = true; }
+
                 const itemTotal = item.price * item.quantity;
-                subtotal += itemTotal;
+                if (!isSold) subtotal += itemTotal;
+
                 const imgHtml = item.image
-                    ? `<img loading="lazy" src="${item.image}" alt="${item.title}" style="width:100%;height:100%;object-fit:contain;" onerror="this.style.display='none'">`
-                    : `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:48px;">${item.emoji || '🎨'}</span>`;
-                const emojiHtml = '';
+                    ? `<img loading="lazy" src="${item.image}" alt="${item.title}" style="width:100%;height:100%;object-fit:contain;${isSold ? 'filter:grayscale(100%);opacity:0.5;' : ''}" onerror="this.style.display='none'">`
+                    : `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:48px;${isSold ? 'filter:grayscale(100%);opacity:0.5;' : ''}">${item.emoji || '🎨'}</span>`;
+
+                if (isSold) {
+                    return `
+                    <div class="cart-item" id="cart-item-${item.id}" style="opacity:0.6;position:relative;">
+                        <div class="cart-item-img" style="position:relative;">
+                            ${imgHtml}
+                            <div style="position:absolute;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;border-radius:inherit;">
+                                <span style="background:rgba(200,30,30,0.9);color:#fff;font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;letter-spacing:0.5px;">VENDU</span>
+                            </div>
+                        </div>
+                        <div class="cart-item-body">
+                            <div class="cart-item-title" style="text-decoration:line-through;opacity:0.6;">${item.title}</div>
+                            <div class="cart-item-artist" style="opacity:0.5;">par ${item.artist || 'Artiste ARKYL'}</div>
+                            <div style="font-size:12px;color:#f87171;font-weight:600;margin:6px 0;">⚠️ Cette œuvre a déjà été achetée par quelqu'un d'autre</div>
+                            <div class="cart-item-actions">
+                                <button class="cart-remove-btn" id="remove-btn-${item.id}" onclick="confirmRemoveFromCart('${item.id}', this)" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#f87171;">
+                                    🗑️ Retirer du panier
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
+                }
+
                 return `
                     <div class="cart-item" id="cart-item-${item.id}">
-                        <div class="cart-item-img">${imgHtml}${emojiHtml}</div>
+                        <div class="cart-item-img">${imgHtml}</div>
                         <div class="cart-item-body">
                             <div class="cart-item-title">${item.title}</div>
                             <div class="cart-item-artist">par ${item.artist || 'Artiste ARKYL'}</div>
@@ -3393,7 +3533,7 @@ window.enterGallery = function enterGallery() {
             const dateMainPropre  = getDeliveryDate(1);
             // posteVille est une variable globale mise à jour par confirmerVillePoste()
             // Calcul initial du port selon poids + destination déjà enregistrée
-            let shipping = 3000; // défaut
+            let shipping = 0; // défaut — jusqu'à ce que le mode soit choisi
             if (posteVille) {
                 const poidsTotal = cartItems.reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
                 const calcInit = calculerFraisPoste(poidsTotal, posteVille);
@@ -3402,7 +3542,7 @@ window.enterGallery = function enterGallery() {
             } else if (mainPropreLieu) {
                 shipping = 0;
             } else if (transportCompagnie) {
-                shipping = 1500;
+                shipping = Math.round(subtotal * 0.10);
             }
             const total = subtotal + shipping;
             const totalArticles = cartItems.reduce((s,i) => s + i.quantity, 0);
@@ -3440,8 +3580,8 @@ window.enterGallery = function enterGallery() {
                                     <span id="shipping-mode-price" style="margin-left:auto;font-weight:700;color:var(--ocre);">${
                                         (() => {
                                             if (posteVille && window._posteCalcDetail) return formatPrice(window._posteCalcDetail.cout);
-                                            if (posteVille) return '— FCFA';
-                                            if (transportCompagnie) return '1 500 FCFA';
+                                            if (posteVille) return '—';
+                                            if (transportCompagnie) return formatPrice(Math.round(subtotal * 0.10)) + ' (10%)';
                                             if (mainPropreLieu) return 'Gratuit';
                                             return '';
                                         })()
@@ -3450,7 +3590,7 @@ window.enterGallery = function enterGallery() {
                                 </button>
                                 <!-- Champ caché pour stocker le mode et coût sélectionnés -->
                                 <input type="hidden" id="selected-shipping-mode" value="${posteVille ? 'poste' : transportCompagnie ? 'transport' : mainPropreLieu ? 'mainpropre' : 'poste'}">
-                                <input type="hidden" id="selected-shipping-cost" value="${posteVille ? shipping : transportCompagnie ? '1500' : mainPropreLieu ? '0' : '3000'}">
+                                <input type="hidden" id="selected-shipping-cost" value="${posteVille ? shipping : transportCompagnie ? Math.round(subtotal * 0.10) : mainPropreLieu ? '0' : '0'}">
                             </div>
                             <div class="address-section">
                                 <div class="shipping-label">📍 Adresse de livraison</div>
@@ -3474,7 +3614,8 @@ window.enterGallery = function enterGallery() {
                                     <p class="stripe-info-text">Vous serez redirigé vers la page de paiement sécurisée Stripe. Vos données bancaires ne transitent jamais par nos serveurs.</p>
                                 </div>
                             </div>
-                            <button id="checkout-btn" class="checkout-btn" onclick="validerPaiementStripe()">COMMANDER — ${formatPrice(total)}</button>
+                            <button id="checkout-btn" class="checkout-btn" onclick="validerPaiementStripe()" ${hasSoldItems ? 'disabled style="opacity:0.4;cursor:not-allowed;"' : ''}>COMMANDER — ${formatPrice(total)}</button>
+                            ${hasSoldItems ? `<div style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);border-radius:12px;padding:12px 16px;margin-top:10px;font-size:13px;color:#f87171;font-weight:600;text-align:center;">⚠️ Retirez les œuvres déjà vendues pour pouvoir commander</div>` : ''}
                             <div class="security-badge">🔒 Paiement sécurisé — Tiers de Confiance ARKYL</div>
                         </div>
                     </div>
@@ -3602,7 +3743,7 @@ window.enterGallery = function enterGallery() {
                                     style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;" onclick="event.stopPropagation()">
                             </div>
                         </div>
-                        <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;">3 000 FCFA</span>
+                        <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;">Calculé selon poids</span>
                     </div>
 
                     <!-- Option Transport -->
@@ -3616,7 +3757,7 @@ window.enterGallery = function enterGallery() {
                                     style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;" onclick="event.stopPropagation()">
                             </div>
                         </div>
-                        <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;">1 500 FCFA</span>
+                        <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;">10% du prix</span>
                     </div>
 
                     <!-- Option Main propre -->
@@ -3706,8 +3847,9 @@ window.enterGallery = function enterGallery() {
                 window._posteCalcDetail = { poidsTotal, zone: calcul.zone, dest, cout: cost };
                 priceLabel = formatPrice(cost);
             } else if (mode === 'transport') {
-                cost = 1500;
-                priceLabel = '1 500 FCFA';
+                const transportSubtotal = cartItems.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
+                cost = Math.round(transportSubtotal * 0.10);
+                priceLabel = formatPrice(cost) + ' (10%)';
             } else {
                 cost = 0;
                 priceLabel = 'Gratuit';
@@ -7342,6 +7484,7 @@ window.enterGallery = function enterGallery() {
             let boliaPage = 0;
             window._boliaAllCards = allMixedCards;
             window._boliaPage = 0;
+            window.renderBoliaBatch = renderBoliaBatch; // exposer immédiatement
 
             function renderBoliaBatch() {
                 const start = window._boliaPage * BOLIA_PAGE;
@@ -7433,9 +7576,15 @@ window.enterGallery = function enterGallery() {
             document.querySelectorAll('.artist-tab').forEach(t => t.classList.remove('active'));
             const tabEl = document.querySelector(`[data-tab="${tab}"]`);
             if (tabEl) tabEl.classList.add('active');
+
+            // Scroll vers le haut de la page à chaque changement d'onglet
+            const myArtistsPage = document.getElementById('myArtistsPage');
+            if (myArtistsPage) myArtistsPage.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
             if (tab === 'all') {
                 // Si les données sont déjà prêtes, juste re-afficher sans re-fetch
-                if (window._boliaAllCards && window._boliaAllCards.length > 0) {
+                if (window._boliaAllCards && window._boliaAllCards.length > 0 && typeof window.renderBoliaBatch === 'function') {
                     const loopsFeed = document.getElementById('artistsLoopsFeed');
                     if (loopsFeed) {
                         const emptyState = document.getElementById('emptyArtistsState');
@@ -7575,7 +7724,7 @@ window.enterGallery = function enterGallery() {
             loopsFeed.innerHTML = statsBar + newPostBtn + postsHTML;
         }
 
-                async function renderFollowingArtistsGrid() {
+        async function renderFollowingArtistsGrid() {
             const followed = getFollowedArtists();
             const emptyState = document.getElementById('emptyArtistsState');
             const followedSection = document.getElementById('followedArtistsSection');
@@ -7594,37 +7743,50 @@ window.enterGallery = function enterGallery() {
             emptyState.style.display = 'none';
             loopsSection.style.display = 'block';
 
-            // Charger les œuvres depuis le serveur
+            // Loader pendant le fetch
+            const loopsFeed = document.getElementById('artistsLoopsFeed');
+            if (loopsFeed) loopsFeed.innerHTML = `
+                <div style="text-align:center;padding:60px 20px;">
+                    <div style="font-size:48px;margin-bottom:16px;animation:pulse 1.5s ease-in-out infinite;">⏳</div>
+                    <div style="color:rgba(255,255,255,0.7);font-size:14px;">Chargement des artistes…</div>
+                </div>`;
+
+            // Charger les œuvres depuis le cache ou le serveur
+            const BOLIA_CACHE_TTL = 90_000;
             let allProducts = [];
-            try {
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?include_sold=1&t=' + Date.now());
-                const contentType = response.headers.get('content-type');
-                
-                if (response.ok && contentType && contentType.includes('application/json')) {
-                    const result = await response.json();
-                    if (result.success && result.data && result.data.length > 0) {
-                        allProducts = result.data.map(art => ({
-                            id: art.id,
-                            title: art.title,
-                            artist: art.artist_name,
-                            category: art.category,
-                            price: art.price,
-                            image_url: art.image_url,
-                            photos: art.photos || [art.image_url],
-                            emoji: '🎨'
-                        }));
+            if (window._boliaCache && (Date.now() - window._boliaCache.ts) < BOLIA_CACHE_TTL) {
+                allProducts = window._boliaCache.products;
+            } else {
+                try {
+                    const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?include_sold=1');
+                    const contentType = response.headers.get('content-type');
+                    
+                    if (response.ok && contentType && contentType.includes('application/json')) {
+                        const result = await response.json();
+                        if (result.success && result.data && result.data.length > 0) {
+                            allProducts = result.data.map(art => ({
+                                id: art.id,
+                                title: art.title,
+                                artist: art.artist_name,
+                                category: art.category,
+                                price: art.price,
+                                image_url: art.image_url,
+                                photos: art.photos || [art.image_url],
+                                emoji: '🎨'
+                            }));
+                            window._boliaCache = { ts: Date.now(), products: allProducts };
+                        }
                     }
+                } catch (error) {
+                    console.log('⚠️ Utilisation des données locales');
                 }
-            } catch (error) {
-                console.log('⚠️ Utilisation des données locales');
-            }
-            
-            if (allProducts.length === 0) {
-                allProducts = getProducts();
+                
+                if (allProducts.length === 0) {
+                    allProducts = window._boliaCache?.products || getProducts();
+                }
             }
 
             // Create grid view for followed artists
-            const loopsFeed = document.getElementById('artistsLoopsFeed');
 
             const artistCards = followed.map(artist => {
                 const artistWorks = allProducts.filter(p =>
@@ -7694,14 +7856,41 @@ window.enterGallery = function enterGallery() {
 
 
         function scrollToArtistLoops(artistName) {
-            const element = document.querySelector(`[data-artist="${artistName}"]`);
-            if (element) {
-                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                // Highlight effect
-                element.style.transform = 'scale(1.02)';
-                setTimeout(() => {
-                    element.style.transform = 'scale(1)';
-                }, 300);
+            // D'abord switcher vers l'onglet "Tous" si pas déjà dessus
+            const allTab = document.querySelector('[data-tab="all"]');
+            const isAllActive = allTab && allTab.classList.contains('active');
+
+            const doScroll = () => {
+                // Cherche un élément contenant le nom de l'artiste dans le feed
+                const feed = document.getElementById('artistsLoopsFeed');
+                if (!feed) return;
+                // Chercher d'abord par data-artist, puis par contenu texte
+                let target = feed.querySelector(`[data-artist="${artistName}"]`);
+                if (!target) {
+                    // Fallback : chercher dans les éléments img alt ou les divs
+                    const allImgs = feed.querySelectorAll('img');
+                    for (const img of allImgs) {
+                        if ((img.alt || '').toLowerCase().includes(artistName.toLowerCase())) {
+                            target = img.closest('div[style]') || img;
+                            break;
+                        }
+                    }
+                }
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    target.style.outline = '2px solid rgba(212,175,55,0.7)';
+                    target.style.borderRadius = '10px';
+                    setTimeout(() => { target.style.outline = ''; }, 1200);
+                } else {
+                    // Juste scroll vers le feed
+                    feed.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            };
+
+            if (!isAllActive) {
+                switchArtistTab('all').then(() => setTimeout(doScroll, 400));
+            } else {
+                doScroll();
             }
         }
 
@@ -7898,56 +8087,64 @@ window.enterGallery = function enterGallery() {
                 return;
             }
 
-            // Chercher dans la vraie galerie (base de données)
-            const allProducts = (window.toutesLesOeuvres && window.toutesLesOeuvres.length > 0)
+            // Chercher dans les vraies données serveur
+            const source = (window.toutesLesOeuvres && window.toutesLesOeuvres.length > 0)
                 ? window.toutesLesOeuvres
                 : getProducts();
 
-            const results = allProducts.filter(p =>
-                (p.title || p.titre || '').toLowerCase().includes(query) ||
-                (p.artist || p.artiste || '').toLowerCase().includes(query) ||
-                (p.category || p.categorie || '').toLowerCase().includes(query)
-            );
+            const results = source.filter(p => {
+                const title    = (p.title || p.titre || '').toLowerCase();
+                const artist   = (p.artist || p.artist_name || p.artiste || '').toLowerCase();
+                const category = (p.category || p.categorie || p.type || '').toLowerCase();
+                const desc     = (p.description || '').toLowerCase();
+                return title.includes(query) || artist.includes(query) ||
+                       category.includes(query) || desc.includes(query);
+            });
 
+            if (results.length === 0) {
+                showToast(`❌ Aucun résultat pour "${query}"`);
+                return;
+            }
+
+            // Naviguer vers la galerie
             navigateTo('home');
 
-            if (results.length > 0) {
-                if (typeof afficherOeuvresFiltrees === 'function') {
-                    afficherOeuvresFiltrees(results);
+            setTimeout(() => {
+                if (typeof window.afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) {
+                    // Injecter temporairement les résultats filtrés
+                    const original = window.toutesLesOeuvres;
+                    window.toutesLesOeuvres = results;
+                    window.currentCategory = 'all';
+                    window.selectedCategories = null;
+                    window.afficherOeuvresFiltrees();
+                    window.toutesLesOeuvres = original;
                 } else {
+                    // Fallback
                     const container = document.getElementById('productsContainer');
-                    if (container) {
-                        container.innerHTML = results.map(product => `
-                            <div class="product-card" onclick="viewProductDetail(${product.id})">
-                                <div class="product-image">
-                                    <span class="product-badge">${product.badge || ''}</span>
-                                    <button class="like-button" onclick="toggleFavorite(event, ${product.id})">
-                                        ${favorites.includes(product.id) ? '❤️' : '🤍'}
-                                    </button>
-                                    <img src="${product.image}" alt="${product.title || product.titre}" style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
-                                </div>
-                                <div class="product-info">
-                                    <div class="product-title">${product.title || product.titre}</div>
-                                    <div class="product-artist" onclick="viewArtistDetail(event, '${product.artist || product.artiste}')">par ${product.artist || product.artiste}</div>
-                                    <div class="product-footer">
-                                        <div class="product-price">${formatPrice(product.price || product.prix)}</div>
-                                        <button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>
-                                    </div>
+                    if (!container) return;
+                    const favorites = safeStorage.get('arkyl_favorites', []);
+                    container.innerHTML = results.map(product => {
+                        const imgSrc = product.image_url || product.image || '';
+                        const artistName = product.artist || product.artist_name || 'Artiste ARKYL';
+                        return `<div class="product-card" onclick="viewProductDetailFromAPI(${product.id})">
+                            <div class="product-image">
+                                <span class="product-badge">${product.badge || 'Disponible'}</span>
+                                <button class="like-button" onclick="toggleFavorite(event, ${product.id})">${favorites.includes(product.id) ? '❤️' : '🤍'}</button>
+                                ${imgSrc ? `<img src="${imgSrc}" alt="${product.title}" style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">` : `<span style="font-size:60px;">🎨</span>`}
+                            </div>
+                            <div class="product-info">
+                                <div class="product-title">${product.title}</div>
+                                <div class="product-artist" onclick="viewArtistDetail(event, '${artistName}')">par ${artistName}</div>
+                                <div class="product-footer">
+                                    <div class="product-price">${formatPrice(product.price)}</div>
+                                    <button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>
                                 </div>
                             </div>
-                        `).join('');
-                    }
+                        </div>`;
+                    }).join('');
                 }
-                showToast(`✅ ${results.length} résultat(s) pour « ${query} »`);
-            } else {
-                showToast(`❌ Aucun résultat pour « ${query} »`);
-                // Réafficher toute la galerie
-                if (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) {
-                    afficherOeuvresFiltrees();
-                } else if (typeof chargerLaVraieGalerie === 'function') {
-                    chargerLaVraieGalerie();
-                }
-            }
+                showToast(`🔍 ${results.length} résultat${results.length > 1 ? 's' : ''} pour "${query}"`);
+            }, 150);
         }
 
         // Allow Enter key in search
@@ -8330,25 +8527,13 @@ window.enterGallery = function enterGallery() {
         }
 
         function updateNotifBadge(count) {
-            // Badge cloche dans l'espace artiste
             const badge = document.getElementById('notifBadge');
-            if (badge) {
-                if (count > 0) {
-                    badge.textContent = count > 99 ? '99+' : count;
-                    badge.style.display = 'flex';
-                } else {
-                    badge.style.display = 'none';
-                }
-            }
-            // Badge alerte sur le bouton "Espace Artiste" du menu hamburger
-            const hamburgerBadge = document.getElementById('artistSpaceMenuBadge');
-            if (hamburgerBadge) {
-                if (count > 0) {
-                    hamburgerBadge.textContent = count > 99 ? '99+' : count;
-                    hamburgerBadge.style.display = 'flex';
-                } else {
-                    hamburgerBadge.style.display = 'none';
-                }
+            if (!badge) return;
+            if (count > 0) {
+                badge.textContent = count > 99 ? '99+' : count;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
             }
         }
 

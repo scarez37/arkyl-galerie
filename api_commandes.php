@@ -406,17 +406,25 @@ try {
     if ($action === 'create') {
         $orderNum = 'ARK-' . strtoupper(substr(md5(uniqid()), 0, 8));
 
+        // Calculer artist_payout = 65% du sous-total (hors livraison)
+        $subtotalVal   = (float)($body['subtotal']      ?? 0);
+        $shippingVal   = (float)($body['shipping_cost'] ?? 0);
+        $artistPayoutV = round($subtotalVal * 0.65, 2);
+        $payoutTotal   = round($artistPayoutV + $shippingVal, 2);
+
         $stmt = $db->prepare("
             INSERT INTO orders (
                 order_number, user_id, user_name, user_email,
                 status, escrow_status,
                 subtotal, tax, shipping_cost, shipping_name, total,
-                shipping_mode, shipping_address, payment_method
+                shipping_mode, shipping_address, payment_method,
+                artist_payout
             ) VALUES (
                 :num, :uid, :uname, :uemail,
                 'En préparation', 'payée_en_attente',
                 :subtotal, :tax, :shipping_cost, :shipping_name, :total,
-                :shipping_mode, :shipping_address, :payment_method
+                :shipping_mode, :shipping_address, :payment_method,
+                :artist_payout
             ) RETURNING id
         ");
         $stmt->execute([
@@ -424,14 +432,15 @@ try {
             ':uid'              => $body['user_id']           ?? '',
             ':uname'            => $body['user_name']         ?? '',
             ':uemail'           => $body['user_email']        ?? '',
-            ':subtotal'         => $body['subtotal']          ?? 0,
+            ':subtotal'         => $subtotalVal,
             ':tax'              => $body['tax']               ?? 0,
-            ':shipping_cost'    => $body['shipping_cost']     ?? 0,
+            ':shipping_cost'    => $shippingVal,
             ':shipping_name'    => $body['shipping_name']     ?? '',
             ':total'            => $body['total']             ?? 0,
             ':shipping_mode'    => $body['shipping_mode']     ?? '',
             ':shipping_address' => $body['shipping_address']  ?? '',
             ':payment_method'   => $body['payment_method']    ?? '',
+            ':artist_payout'    => $artistPayoutV,
         ]);
         $orderId = $stmt->fetchColumn();
 

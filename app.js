@@ -11749,27 +11749,64 @@ window.enterGallery = function enterGallery() {
                     conteneurPaiements.innerHTML = '<p style="color: #28a745; margin: 0;">🎉 Aucun paiement en attente. Tous les artistes ont reçu leur argent !</p>';
                 } else {
                     let html = '<table style="width: 100%; text-align: left; border-collapse: collapse; color: white;">';
-                    html += '<tr style="border-bottom: 1px solid #555;"><th style="padding: 10px;">Commande</th><th>Date</th><th>Artiste</th><th>Montant à envoyer</th><th>Action</th></tr>';
+                    html += '<tr style="border-bottom: 1px solid #555;"><th style="padding: 10px;">Commande</th><th>Date</th><th>Artiste</th><th>Œuvres / Client</th><th>Montant à envoyer</th><th>Action</th></tr>';
 
                     urgents.forEach(cmd => {
                         const dateFR = new Date(cmd.created_at).toLocaleDateString('fr-FR');
-                        const montantTotal = parseFloat(cmd.payout_total_with_shipping || 0).toLocaleString('fr-FR');
-                        const partArt = parseFloat(cmd.artist_payout || 0).toLocaleString('fr-FR');
+                        const montantTotal = (() => {
+                            const ptws = parseFloat(cmd.payout_total_with_shipping || 0);
+                            if (ptws > 0) return ptws.toLocaleString('fr-FR');
+                            // Fallback : calculer depuis artist_payout + shipping_cost
+                            const art  = parseFloat(cmd.artist_payout || 0);
+                            const ship = parseFloat(cmd.shipping_cost || 0);
+                            if (art > 0 || ship > 0) return (art + ship).toLocaleString('fr-FR');
+                            // Dernier recours : 65% du total + port
+                            const total = parseFloat(cmd.total || 0);
+                            return (Math.round(total * 0.65) + ship).toLocaleString('fr-FR');
+                        })();
+                        const partArt = (() => {
+                            const art = parseFloat(cmd.artist_payout || 0);
+                            if (art > 0) return art.toLocaleString('fr-FR');
+                            const total = parseFloat(cmd.total || 0);
+                            const ship  = parseFloat(cmd.shipping_cost || 0);
+                            return Math.round((total - ship) * 0.65).toLocaleString('fr-FR');
+                        })();
                         const transport = parseFloat(cmd.shipping_cost || 0).toLocaleString('fr-FR');
+
+                        // Extraire le nom artiste depuis les items de la commande
+                        const artisteNom = (() => {
+                            if (cmd.items && Array.isArray(cmd.items) && cmd.items.length > 0) {
+                                return cmd.items[0].artist_name || cmd.items[0].artist || cmd.artist_id || '—';
+                            }
+                            return cmd.artist_id || '—';
+                        })();
 
                         html += `
                             <tr style="border-bottom: 1px solid #333;">
-                                <td style="padding: 10px;">${cmd.order_number}</td>
-                                <td>${dateFR}</td>
-                                <td>${cmd.artist_id || '—'}</td>
-                                <td style="color: #ffc107; font-weight: bold;">
+                                <td style="padding: 10px; font-weight:700; color:#d4af37;">${cmd.order_number}</td>
+                                <td style="padding:8px;">${dateFR}</td>
+                                <td style="padding:8px;">
+                                    <div style="font-weight:700;">${artisteNom}</div>
+                                    ${cmd.artist_id ? `<div style="font-size:10px;opacity:0.45;margin-top:2px;">ID: ${cmd.artist_id}</div>` : ''}
+                                </td>
+                                <td style="padding:8px;">
+                                    <div style="font-size:12px;opacity:0.7;">${cmd.items && cmd.items.length > 0 ? cmd.items.map(i => i.title||'—').join(', ') : '—'}</div>
+                                    <div style="font-size:11px;color:#aaa;margin-top:2px;">Client : ${cmd.user_name||cmd.user_email||'—'}</div>
+                                </td>
+                                <td style="color: #ffc107; font-weight: bold; padding:8px;">
                                     ${montantTotal} FCFA
                                     <br><span style="font-size: 11px; color: #aaa; font-weight: normal;">
                                         (Art: ${partArt} + Port: ${transport})
                                     </span>
                                 </td>
-                                <td>
-                                    <button class="btn-pay-confirm" onclick="ouvrirModalePaiement(${cmd.id}, encodeURIComponent(cmd.artist_id || '—'), '${montantTotal}')" style="background: #d4af37; color: black; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                                <td style="padding:8px;">
+                                    <button class="btn-pay-confirm"
+                                        data-order-id="${cmd.id}"
+                                        data-artist="${encodeURIComponent(artisteNom)}"
+                                        data-montant="${montantTotal}"
+                                        data-cmd='${JSON.stringify(cmd).replace(/'/g,"&#39;")}'
+                                        onclick="ouvrirModalePaiement(this.dataset.orderId, decodeURIComponent(this.dataset.artist), this.dataset.montant, JSON.parse(this.dataset.cmd.replace(/&#39;/g,\"'\")))"
+                                        style="background: #d4af37; color: black; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; white-space:nowrap;">
                                         💸 Virer l'artiste
                                     </button>
                                 </td>
@@ -11855,55 +11892,19 @@ window.enterGallery = function enterGallery() {
         }
 
         // ── Modale de confirmation de paiement artiste ──────────────
-        function ouvrirModalePaiement(orderId, artistName, montantTotal) {
-            // Créer ou réutiliser la modale
-            let modal = document.getElementById('modalePaiementArtiste');
-            if (!modal) {
-                modal = document.createElement('div');
-                modal.id = 'modalePaiementArtiste';
-                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;';
-                document.body.appendChild(modal);
+        async function ouvrirModalePaiement(orderId, artistName, montantTotal, cmdData) {
+            // Décoder le nom artiste si encodé
+            let artiste = artistName;
+            try { artiste = decodeURIComponent(artistName); } catch(e) {}
+
+            // Extraire les données commande si disponibles
+            let cmd = {};
+            if (cmdData && typeof cmdData === 'object') {
+                cmd = cmdData;
+            } else if (typeof cmdData === 'string') {
+                try { cmd = JSON.parse(cmdData.replace(/&quot;/g, '"')); } catch(e) {}
             }
-            modal.innerHTML = `
-                <div style="background:#1a1a2e;border:1px solid rgba(212,175,55,0.4);border-radius:20px;padding:32px;max-width:480px;width:90%;color:white;font-family:'Inter',sans-serif;">
-                    <h3 style="margin:0 0 6px;font-size:20px;color:#d4af37;">💸 Confirmer le virement</h3>
-                    <p style="margin:0 0 22px;opacity:0.7;font-size:13px;">Artiste : <strong style="color:white;">${artistName}</strong> — <strong style="color:#d4af37;">${montantTotal} FCFA</strong></p>
 
-                    <div style="display:flex;flex-direction:column;gap:12px;">
-                        <div>
-                            <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:5px;">💳 Moyen de paiement *</label>
-                            <select id="mp-method" style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:14px;">
-                                <option value="Virement bancaire">🏦 Virement bancaire</option>
-                                <option value="Mobile Money">📱 Mobile Money (Orange/MTN/Wave)</option>
-                                <option value="Espèces">💵 Espèces</option>
-                                <option value="Autre">🔧 Autre</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:5px;">🔢 Référence / N° de transaction</label>
-                            <input id="mp-reference" type="text" placeholder="Ex: TXN-2024-00123 ou numéro de reçu"
-                                style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:14px;box-sizing:border-box;">
-                        </div>
-                        <div>
-                            <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:5px;">📝 Note (optionnelle)</label>
-                            <input id="mp-note" type="text" placeholder="Ex: Virement effectué le 03/03/2026 via BNI"
-                                style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:14px;box-sizing:border-box;">
-                        </div>
-                    </div>
-
-                    <div style="display:flex;gap:12px;margin-top:24px;">
-                        <button onclick="document.getElementById('modalePaiementArtiste').remove()"
-                            style="flex:1;padding:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:14px;cursor:pointer;">
-                            Annuler
-                        </button>
-                        <button onclick="confirmerPaiementArtiste('${orderId}')"
-                            style="flex:2;padding:12px;background:linear-gradient(135deg,#d4af37,#a07820);border:none;border-radius:10px;color:black;font-size:14px;font-weight:700;cursor:pointer;">
-                            ✅ Confirmer le virement
-                        </button>
-                    </div>
-                </div>
-            `;
-            modal.style.display = 'flex';
         }
 
         async function confirmerPaiementArtiste(orderId) {

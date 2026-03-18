@@ -1270,43 +1270,13 @@ window.enterGallery = function enterGallery() {
         let orbitalOpen = false;
 
         function positionOrbitalItems() {
-            const allItems = document.querySelectorAll('#hamburgerDropdown .hamburger-menu-item');
-            const items = Array.from(allItems).filter(el => {
-                const computed = window.getComputedStyle(el);
-                return el.style.display !== 'none' && computed.display !== 'none';
-            });
-
-            // Items principaux à gauche (excl. authContainer)
-            const mainItems = items.filter(el => el.id !== 'authContainer');
-            const n = mainItems.length;
-            const navbarHeight = 80;
-            const itemSpacing = 44;
-            const startY = navbarHeight + 20;
-
-            mainItems.forEach((item, i) => {
-                item.style.top = (startY + i * itemSpacing) + 'px';
-                if (orbitalOpen) {
-                    item.style.transform = 'translateX(0) scale(1)';
-                    item.style.opacity = '1';
-                    item.style.pointerEvents = 'auto';
-                    item.style.transitionDelay = (i * 0.05) + 's';
-                } else {
-                    item.style.transform = 'translateX(-120%) scale(0.9)';
-                    item.style.opacity = '0';
-                    item.style.pointerEvents = 'none';
-                    item.style.transitionDelay = ((n - i - 1) * 0.03) + 's';
-                }
-            });
-
-            // authContainer à droite — séparé, indépendant
+            // Système orbital remplacé par panneau latéral — rien à positionner
             const authItem = document.getElementById('authContainer');
             if (authItem) {
                 if (orbitalOpen) {
                     authItem.classList.add('orbital-visible');
-                    authItem.style.transitionDelay = '0.1s';
                 } else {
                     authItem.classList.remove('orbital-visible');
-                    authItem.style.transitionDelay = '0s';
                 }
             }
         }
@@ -1314,9 +1284,11 @@ window.enterGallery = function enterGallery() {
         function toggleHamburgerMenu() {
             const btn = document.getElementById('hamburgerBtn');
             const dropdown = document.getElementById('hamburgerDropdown');
+            const overlay = document.getElementById('hamburgerOverlay') || createHamburgerOverlay();
             orbitalOpen = !orbitalOpen;
             btn.classList.toggle('active', orbitalOpen);
             dropdown.classList.toggle('open', orbitalOpen);
+            overlay.classList.toggle('active', orbitalOpen);
             positionOrbitalItems();
             if (orbitalOpen) updateHamburgerOrderBadges();
         }
@@ -1324,10 +1296,23 @@ window.enterGallery = function enterGallery() {
         function closeHamburgerMenu() {
             const btn = document.getElementById('hamburgerBtn');
             const dropdown = document.getElementById('hamburgerDropdown');
+            const overlay = document.getElementById('hamburgerOverlay');
             orbitalOpen = false;
             btn.classList.remove('active');
             dropdown.classList.remove('open');
+            if (overlay) overlay.classList.remove('active');
             positionOrbitalItems();
+        }
+
+        function createHamburgerOverlay() {
+            let overlay = document.getElementById('hamburgerOverlay');
+            if (overlay) return overlay;
+            overlay = document.createElement('div');
+            overlay.id = 'hamburgerOverlay';
+            overlay.className = 'hamburger-overlay';
+            overlay.onclick = closeHamburgerMenu;
+            document.body.appendChild(overlay);
+            return overlay;
         }
 
         // Fermer le menu hamburger en cliquant ailleurs

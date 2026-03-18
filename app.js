@@ -100,9 +100,8 @@ window.enterGallery = function enterGallery() {
                 Object.assign(boliaBtn.style, {
                     background: 'linear-gradient(135deg, rgba(212,175,55,0.12) 0%, rgba(160,120,32,0.08) 100%)',
                     border: '1.5px solid rgba(212,175,55,0.4)',
-                    borderRadius: '8px',
+                    borderRadius: '12px',
                     boxShadow: '0 0 12px rgba(212,175,55,0.15), inset 0 1px 0 rgba(255,255,255,0.1)',
-                    position: 'relative',
                     overflow: 'hidden',
                     transition: 'all 0.3s ease'
                 });
@@ -1281,14 +1280,29 @@ window.enterGallery = function enterGallery() {
             }
         }
 
+        function _clearHamburgerInlineStyles() {
+            // Supprimer tous les styles inline que l'ancien système orbital avait appliqués
+            document.querySelectorAll('#hamburgerDropdown .hamburger-menu-item').forEach(el => {
+                el.style.removeProperty('top');
+                el.style.removeProperty('left');
+                el.style.removeProperty('position');
+                el.style.removeProperty('opacity');
+                el.style.removeProperty('transform');
+                el.style.removeProperty('pointer-events');
+                el.style.removeProperty('transition-delay');
+                el.style.removeProperty('width');
+            });
+        }
+
         function toggleHamburgerMenu() {
             const btn = document.getElementById('hamburgerBtn');
             const dropdown = document.getElementById('hamburgerDropdown');
-            const overlay = document.getElementById('hamburgerOverlay') || createHamburgerOverlay();
+            const overlay = document.getElementById('hamburgerOverlay');
             orbitalOpen = !orbitalOpen;
+            _clearHamburgerInlineStyles();
             btn.classList.toggle('active', orbitalOpen);
             dropdown.classList.toggle('open', orbitalOpen);
-            overlay.classList.toggle('active', orbitalOpen);
+            if (overlay) overlay.classList.toggle('active', orbitalOpen);
             positionOrbitalItems();
             if (orbitalOpen) updateHamburgerOrderBadges();
         }
@@ -1305,14 +1319,7 @@ window.enterGallery = function enterGallery() {
         }
 
         function createHamburgerOverlay() {
-            let overlay = document.getElementById('hamburgerOverlay');
-            if (overlay) return overlay;
-            overlay = document.createElement('div');
-            overlay.id = 'hamburgerOverlay';
-            overlay.className = 'hamburger-overlay';
-            overlay.onclick = closeHamburgerMenu;
-            document.body.appendChild(overlay);
-            return overlay;
+            return document.getElementById('hamburgerOverlay');
         }
 
         // Fermer le menu hamburger en cliquant ailleurs
@@ -5133,7 +5140,7 @@ window.enterGallery = function enterGallery() {
             if (confirmBtn) {
                 confirmBtn.style.display = hasShipped ? 'flex' : 'none';
                 // Recalculer les positions après changement de visibilité
-                setTimeout(() => positionOrbitalItems(), 10);
+                setTimeout(() => _clearHamburgerInlineStyles(), 10);
             }
         }
 

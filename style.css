@@ -849,84 +849,76 @@
         .hamburger-btn.active span:nth-child(2) { opacity: 0; transform: scaleX(0); }
         .hamburger-btn.active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-        /* ===== MENU PANNEAU LATÉRAL (slide-in gauche) ===== */
+        /* ===== MENU ORBITAL ===== */
+        /* Conteneur fixe côté gauche */
         .hamburger-dropdown {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 260px;
-            height: 100vh;
-            background: rgba(15, 12, 8, 0.92);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
-            border-right: 1px solid rgba(212, 175, 55, 0.2);
-            z-index: 1002;
+            top: 0; left: 0;
+            width: 0; height: 0;
+            z-index: 1001;
             pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            padding: 90px 12px 24px;
-            gap: 6px;
-            box-shadow: 4px 0 40px rgba(0,0,0,0.6);
-            transform: translateX(-100%);
-            opacity: 0;
-            transition: transform 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease;
-            overflow-y: auto;
-            overflow-x: hidden;
+            display: block !important;
         }
-        .hamburger-dropdown.open {
-            transform: translateX(0);
-            opacity: 1;
-            pointer-events: auto;
-        }
+        .hamburger-dropdown.open { pointer-events: auto; }
 
-        /* Items dans le panneau */
+        /* Items verticaux côté gauche */
         .hamburger-menu-item {
-            position: relative !important;
-            top: auto !important;
-            left: auto !important;
-            display: flex !important;
-            flex-direction: row !important;
-            align-items: center !important;
-            gap: 10px !important;
-            width: 100% !important;
-            padding: 11px 14px !important;
-            background: rgba(255, 255, 255, 0.04) !important;
-            backdrop-filter: none !important;
-            border: 1px solid rgba(255, 255, 255, 0.08) !important;
-            border-radius: 12px !important;
-            color: rgba(255, 255, 255, 0.88) !important;
-            font-size: 13px !important;
-            font-weight: 600 !important;
-            cursor: pointer !important;
-            white-space: nowrap !important;
-            font-family: inherit !important;
-            box-shadow: none !important;
-            opacity: 1 !important;
-            transform: none !important;
-            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease !important;
-            pointer-events: auto !important;
-            text-shadow: none !important;
-            box-sizing: border-box !important;
+            position: fixed;
+            left: 12px;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.9);
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            font-size: 10.5px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            font-family: inherit;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            opacity: 0;
+            transform: translateX(-120%) scale(0.9);
+            transition:
+                opacity 0.3s ease,
+                transform 0.3s ease,
+                background 0.2s ease;
+            pointer-events: none;
         }
         .hamburger-menu-item:hover {
-            background: rgba(212, 175, 55, 0.12) !important;
-            border-color: rgba(212, 175, 55, 0.5) !important;
-            color: #d4af37 !important;
-            transform: none !important;
+            background: rgba(212, 175, 55, 0.2);
+            border-color: rgba(212, 175, 55, 0.7);
+            box-shadow: 0 6px 24px rgba(212,175,55,0.25);
+            color: #d4af37;
+            transform: translateX(0) scale(1.04) !important;
         }
 
-        /* Override states */
+        /* Positions gérées dynamiquement par JS orbital */
+        .hamburger-dropdown.open .hamburger-menu-item {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(0) scale(1);
+        }
+
+        /* ===== OVERRIDE : neutralise tout effet .active/.nav-link sur les items du hamburger ===== */
         .hamburger-menu-item.active,
         .hamburger-menu-item.nav-link,
         .hamburger-menu-item.nav-link.active,
         .hamburger-menu-item.current,
         .hamburger-menu-item.selected {
-            background: rgba(255, 255, 255, 0.04) !important;
-            border: 1px solid rgba(255, 255, 255, 0.08) !important;
-            color: rgba(255, 255, 255, 0.88) !important;
+            background: rgba(0, 0, 0, 0.85) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+            color: rgba(255, 255, 255, 0.9) !important;
             background-image: none !important;
-            box-shadow: none !important;
         }
+
 
         .hamburger-menu-item svg {
             filter: drop-shadow(0 0 4px rgba(212,175,55,0.4));
@@ -934,6 +926,24 @@
         }
         .hamburger-menu-item:hover svg {
             filter: drop-shadow(0 0 8px rgba(212,175,55,0.9));
+        }
+
+        /* Trait orbital décoratif */
+        .hamburger-dropdown::before {
+            content: '';
+            position: absolute;
+            top: 20px; left: 20px;
+            width: 280px;
+            height: 120px;
+            border: 1px dashed rgba(212, 175, 55, 0.2);
+            border-radius: 50%;
+            transform: rotate(-15deg);
+            opacity: 0;
+            transition: opacity 0.4s ease 0.1s;
+            pointer-events: none;
+        }
+        .hamburger-dropdown.open::before {
+            opacity: 1;
         }
 
         .logo-container {

@@ -849,22 +849,30 @@
         .hamburger-btn.active span:nth-child(2) { opacity: 0; transform: scaleX(0); }
         .hamburger-btn.active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-        /* ===== MENU ORBITAL ===== */
-        /* Conteneur fixe côté gauche */
+        /* ===== MENU PANNEAU LATÉRAL ===== */
+        /* Conteneur fixe côté gauche — panneau vertical */
         .hamburger-dropdown {
             position: fixed;
-            top: 0; left: 0;
-            width: 0; height: 0;
+            top: 0;
+            left: 0;
+            width: max-content;
+            height: 100%;
             z-index: 1001;
             pointer-events: none;
-            display: block !important;
+            display: flex !important;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+            padding-top: 130px;
+            padding-left: 12px;
+            gap: 10px;
         }
         .hamburger-dropdown.open { pointer-events: auto; }
 
         /* Items verticaux côté gauche */
         .hamburger-menu-item {
-            position: fixed;
-            left: 12px;
+            position: relative;
+            left: auto;
             display: flex;
             flex-direction: row;
             align-items: center;

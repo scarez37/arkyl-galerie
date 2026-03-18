@@ -1281,14 +1281,11 @@ window.enterGallery = function enterGallery() {
         }
 
         function _clearHamburgerInlineStyles() {
-            // Supprimer tous les styles inline que l'ancien système orbital avait appliqués
+            // Supprimer uniquement les styles inline résiduels de l'ancien système orbital
             document.querySelectorAll('#hamburgerDropdown .hamburger-menu-item').forEach(el => {
                 el.style.removeProperty('top');
                 el.style.removeProperty('left');
                 el.style.removeProperty('position');
-                el.style.removeProperty('opacity');
-                el.style.removeProperty('transform');
-                el.style.removeProperty('pointer-events');
                 el.style.removeProperty('transition-delay');
                 el.style.removeProperty('width');
             });
@@ -1303,6 +1300,16 @@ window.enterGallery = function enterGallery() {
             btn.classList.toggle('active', orbitalOpen);
             dropdown.classList.toggle('open', orbitalOpen);
             if (overlay) overlay.classList.toggle('active', orbitalOpen);
+            // Délai d'animation échelonné pour chaque item
+            if (orbitalOpen) {
+                document.querySelectorAll('#hamburgerDropdown .hamburger-menu-item').forEach((el, i) => {
+                    el.style.transitionDelay = (i * 50) + 'ms';
+                });
+            } else {
+                document.querySelectorAll('#hamburgerDropdown .hamburger-menu-item').forEach(el => {
+                    el.style.transitionDelay = '0ms';
+                });
+            }
             positionOrbitalItems();
             if (orbitalOpen) updateHamburgerOrderBadges();
         }

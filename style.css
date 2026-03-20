@@ -705,16 +705,22 @@
             transform: translateX(-50%);
             width: 90%;
             max-width: 900px;
-            background: rgba(255, 255, 255, 0.15);
+            background: linear-gradient(135deg,
+                rgba(15, 40, 90, 0.92) 0%,
+                rgba(20, 60, 130, 0.88) 40%,
+                rgba(10, 30, 75, 0.93) 100%);
             backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border-radius: 50px;
             padding: 12px 25px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             z-index: 1000;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(80, 140, 255, 0.25);
+            box-shadow:
+                0 8px 32px rgba(10, 30, 100, 0.35),
+                inset 0 1px 0 rgba(120, 180, 255, 0.15);
         }
 
         /* Hamburger Menu Button */
@@ -849,30 +855,22 @@
         .hamburger-btn.active span:nth-child(2) { opacity: 0; transform: scaleX(0); }
         .hamburger-btn.active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-        /* ===== MENU PANNEAU LATÉRAL ===== */
-        /* Conteneur fixe côté gauche — panneau vertical */
+        /* ===== MENU ORBITAL ===== */
+        /* Conteneur fixe côté gauche */
         .hamburger-dropdown {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: max-content;
-            height: 100%;
+            top: 0; left: 0;
+            width: 0; height: 0;
             z-index: 1001;
             pointer-events: none;
-            display: flex !important;
-            flex-direction: column;
-            justify-content: flex-start;
-            align-items: flex-start;
-            padding-top: 130px;
-            padding-left: 12px;
-            gap: 10px;
+            display: block !important;
         }
         .hamburger-dropdown.open { pointer-events: auto; }
 
         /* Items verticaux côté gauche */
         .hamburger-menu-item {
-            position: relative;
-            left: auto;
+            position: fixed;
+            left: 12px;
             display: flex;
             flex-direction: row;
             align-items: center;

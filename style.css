@@ -705,10 +705,7 @@
             transform: translateX(-50%);
             width: 90%;
             max-width: 900px;
-            background: linear-gradient(135deg,
-                rgba(15, 40, 90, 0.92) 0%,
-                rgba(20, 60, 130, 0.88) 40%,
-                rgba(10, 30, 75, 0.93) 100%);
+            background: rgba(255, 255, 255, 0.15);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border-radius: 50px;
@@ -717,10 +714,8 @@
             justify-content: space-between;
             align-items: center;
             z-index: 1000;
-            border: 1px solid rgba(80, 140, 255, 0.25);
-            box-shadow:
-                0 8px 32px rgba(10, 30, 100, 0.35),
-                inset 0 1px 0 rgba(120, 180, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
 
         /* Hamburger Menu Button */
@@ -765,8 +760,8 @@
             top: 16px !important;
             right: 16px !important;
             left: auto !important;
-            max-width: calc(100vw - 80px) !important; /* ne dépasse jamais sur mobile */
-            width: max-content !important;            /* colle au contenu, pas de stretch */
+            max-width: 200px !important;
+            width: max-content !important;
             white-space: nowrap !important;
             z-index: 1003;
             display: flex !important;
@@ -789,7 +784,7 @@
             pointer-events: auto;
         }
 
-        /* Sur mobile : réduire la taille du texte et de l'avatar pour que ça tienne */
+        /* Sur mobile : réduire et décaler vers le bas pour ne pas chevaucher les items */
         @media (max-width: 600px) {
             #authContainer {
                 padding: 5px 8px !important;
@@ -797,7 +792,7 @@
                 left: auto !important;
                 right: 8px !important;
                 top: 8px !important;
-                max-width: calc(100vw - 65px) !important;
+                max-width: 160px !important;
             }
             #authContainer img,
             #authContainer .auth-avatar,
@@ -855,22 +850,28 @@
         .hamburger-btn.active span:nth-child(2) { opacity: 0; transform: scaleX(0); }
         .hamburger-btn.active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-        /* ===== MENU ORBITAL ===== */
-        /* Conteneur fixe côté gauche */
+        /* ===== MENU PANNEAU LATÉRAL ===== */
         .hamburger-dropdown {
             position: fixed;
             top: 0; left: 0;
-            width: 0; height: 0;
+            width: max-content;
+            height: 100%;
             z-index: 1001;
             pointer-events: none;
-            display: block !important;
+            display: flex !important;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: flex-start;
+            padding-top: 100px;
+            padding-left: 12px;
+            gap: 10px;
         }
         .hamburger-dropdown.open { pointer-events: auto; }
 
         /* Items verticaux côté gauche */
         .hamburger-menu-item {
-            position: fixed;
-            left: 12px;
+            position: relative;
+            left: auto;
             display: flex;
             flex-direction: row;
             align-items: center;
@@ -904,7 +905,7 @@
             transform: translateX(0) scale(1.04) !important;
         }
 
-        /* Positions gérées dynamiquement par JS orbital */
+        /* Items visibles quand le menu est ouvert */
         .hamburger-dropdown.open .hamburger-menu-item {
             opacity: 1;
             pointer-events: auto;

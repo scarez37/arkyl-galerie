@@ -1,20 +1,25 @@
 FROM php:8.2-apache
 
-# 1. On récupère Composer (l'installateur de paquets PHP)
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
-# 2. On installe les outils PostgreSQL + zip/unzip (nécessaires pour Composer)
+# 1. Installer les outils PostgreSQL et unzip
 RUN apt-get update && apt-get install -y libpq-dev unzip git \
     && docker-php-ext-install pdo pdo_pgsql pgsql
 
-# 3. On copie tout ton code (y compris composer.json) dans le serveur
+# 2. Activer le module de réécriture Apache (souvent utile en PHP)
+RUN a2enmod rewrite
+
+# 3. Récupérer Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# 4. Copier le code
 COPY . /var/www/html/
 
-# 4. 🚀 LA NOUVELLE MAGIE : On installe Stripe avec Composer !
+# 5. Installer les dépendances (Stripe, etc.)
 RUN cd /var/www/html && composer install --no-dev --optimize-autoloader
 
-# 5. On donne les bonnes permissions
-RUN chown -R www-data:www-data /var/www/html
-RUN chmod -R 755 /var/www/html
+# 6. Donner les permissions
+RUN chown -R www-data:www-data /var/www/html && chmod -R 755 /var/www/html
 
-EXPOSE 80
+# 🚀 FIX POUR RAILWAY : Configurer le port dynamiquement
+RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf
+
+CMD ["apache2-foreground"]

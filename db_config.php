@@ -5,7 +5,7 @@ function getDatabase() {
         $port     = '5432';
         $dbname   = 'postgres';
         $user     = 'postgres';
-        $password = 'Apia!2026#Xr9vLq';
+        $password = 'Arkyl2006DIEU';
 
         $dsn = "pgsql:host=$host;port=$port;dbname=$dbname;sslmode=require";
 

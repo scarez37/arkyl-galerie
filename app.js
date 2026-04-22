@@ -10703,6 +10703,11 @@ window.enterGallery = function enterGallery() {
         var currentOffset = 0;
         var ITEMS_PER_LOAD = 50;
         var isLoading = false;
+        // ⭐ Circuit breaker : stoppe les retries automatiques si le serveur est down
+        var _serverErrorCount = 0;
+        var _serverRetryAfter = 0; // timestamp avant lequel on ne réessaie pas
+        const _SERVER_MAX_ERRORS = 3;
+        const _SERVER_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes
         window.hasMoreData = true;
 
         function init() {
@@ -11110,6 +11115,9 @@ window.enterGallery = function enterGallery() {
         currentOffset = 0;
         window.hasMoreData = true;
         window.toutesLesOeuvres = [];
+        // ⭐ Rechargement manuel — réinitialiser le circuit breaker pour permettre la tentative
+        _serverErrorCount = 0;
+        _serverRetryAfter = 0;
 
         // Charger le premier lot
         await chargerPlusOeuvres();
@@ -11117,6 +11125,13 @@ window.enterGallery = function enterGallery() {
 
     async function chargerPlusOeuvres() {
         if (isLoading || !window.hasMoreData) return;
+
+        // ⭐ Circuit breaker : si trop d'erreurs récentes, on attend avant de réessayer
+        if (_serverErrorCount >= _SERVER_MAX_ERRORS && Date.now() < _serverRetryAfter) {
+            const remaining = Math.ceil((_serverRetryAfter - Date.now()) / 60000);
+            console.warn(`⏸️ Serveur indisponible — nouvelle tentative dans ~${remaining} min`);
+            return;
+        }
         
         const grille = document.getElementById('productsContainer');
         if (!grille) return;
@@ -11152,6 +11167,7 @@ window.enterGallery = function enterGallery() {
                 window.afficherOeuvresFiltrees();
                 
                 console.log(`✅ ${resultat.data.length} œuvres chargées. Total: ${window.toutesLesOeuvres.length}`);
+                _serverErrorCount = 0; // ⭐ Succès — réinitialiser le circuit breaker
                 
                 // Remettre le sentinel global si encore des données à charger depuis le serveur
                 if (window.hasMoreData) {
@@ -11165,6 +11181,11 @@ window.enterGallery = function enterGallery() {
             }
 
         } catch (erreur) {
+            _serverErrorCount++;
+            if (_serverErrorCount >= _SERVER_MAX_ERRORS) {
+                _serverRetryAfter = Date.now() + _SERVER_RETRY_DELAY;
+                console.warn(`🔴 Serveur down (${_SERVER_MAX_ERRORS} erreurs) — pause de 5 min`);
+            }
             console.error("Erreur de communication :", erreur);
             if (currentOffset === 0) {
                 grille.innerHTML = '<p style="color:red; text-align:center;">Serveur injoignable pour le moment.</p>';

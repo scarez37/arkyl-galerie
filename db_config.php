@@ -2,27 +2,34 @@
 // db_config.php
 
 function getDatabase() {
+    // Sur Render, l'URL interne est injectée automatiquement via cette variable
     $url = getenv('DATABASE_URL');
-    if (!$url) throw new Exception("DATABASE_URL manquante.");
 
+    if (!$url) {
+        throw new Exception("Erreur : La variable DATABASE_URL est introuvable. Vérifiez la liaison de la base dans Render.");
+    }
+
+    // Découpage de l'URL (format postgresql://user:pass@host:port/dbname)
     $parts = parse_url($url);
-    $host   = $parts['host'];
-    $port   = $parts['port'] ?? 6543; // Utilise 6543 par défaut pour le pooler
-    $user   = $parts['user'];
-    $pass   = $parts['pass'];
-    $dbname = ltrim($parts['path'], '/');
+    
+    $host     = $parts['host'];
+    $port     = $parts['port'] ?? 5432;
+    $user     = $parts['user'];
+    $pass     = $parts['pass'];
+    $dbname   = ltrim($parts['path'], '/');
 
     try {
+        // Connexion simplifiée (plus besoin d'émuler les requêtes préparées ici)
         $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
         $options = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            // OBLIGATOIRE pour le mode Transaction de Supabase
-            PDO::ATTR_EMULATE_PREPARES   => true, 
+            PDO::ATTR_TIMEOUT            => 5,
         ];
 
         return new PDO($dsn, $user, $pass, $options);
+        
     } catch (PDOException $e) {
-        throw new Exception("Erreur de connexion : " . $e->getMessage());
+        throw new Exception("Connexion à la base Render échouée : " . $e->getMessage());
     }
 }

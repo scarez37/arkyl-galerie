@@ -469,7 +469,7 @@
                 }));
                 successMsg.textContent = "🎉 " + result.message + " Redirection vers l'espace artiste...";
                 successMsg.style.display = 'block';
-                setTimeout(() => { window.location.href = 'app.js?mode=artist'; }, 2000);
+                setTimeout(() => { window.location.href = 'index.html?mode=artist'; }, 2000);
             } else {
                 errorMsg.textContent = "❌ " + result.message;
                 errorMsg.style.display = 'block';

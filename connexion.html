@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Connexion Artiste - ARKYL</title>
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
         * {
@@ -206,7 +207,7 @@
     
     <div class="links">
         <a href="inscription.html" class="link link-primary">Créer un nouveau compte</a>
-        <a href="index.html" class="link">Retour à la galerie</a>
+        <a href="galerie_publique.html" class="link">Retour à la galerie</a>
     </div>
 </div>
 
@@ -234,6 +235,7 @@
         console.log('🔑 Tentative de connexion pour:', data.email);
 
         try {
+            // ✅ URL CORRIGÉE — pointe vers le bon serveur Render
             const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_connexion.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -254,11 +256,9 @@
             console.log('📥 Réponse parsée:', result);
 
             if (result.success) {
-                // Logger tous les champs retournés par l'API pour debug
                 console.log('📦 Champs retournés par api_connexion.php:', Object.keys(result));
                 console.log('📦 result complet:', JSON.stringify(result));
 
-                // ⭐ FIX : Forcer en String pour éviter les comparaisons === ratées (PHP retourne des int)
                 const userId   = String(result.user_id   || result.id        || result.artist_id || result.userId || '');
                 const userName = result.user_name  || result.name      || result.username  || result.artist_name;
                 const userEmail= result.user_email || result.email     || result.user_mail;
@@ -272,7 +272,6 @@
                     return;
                 }
 
-                // Compte artiste — structure attendue par app.js
                 const artistAccount = {
                     id:      String(userId),
                     name:    userName,
@@ -284,8 +283,6 @@
                     isArtist: true
                 };
 
-                // currentUser — structure attendue par app.js
-                // ⭐ FIX : id et googleId toujours en String (évite === raté avec entiers PHP)
                 const currentUser = {
                     id:        String(userId),
                     googleId:  String(userId),
@@ -297,33 +294,20 @@
                     isAdmin:   result.role === 'admin'
                 };
 
-                // ── Sauvegarder sous TOUTES les clés attendues ──
-                // 1. Clé par ID (clé principale de app.js)
-                localStorage.setItem(
-                    `arkyl_artist_account_${userId}`,
-                    JSON.stringify(artistAccount)
-                );
-                // 2. Clé par email (fallback de app.js)
-                localStorage.setItem(
-                    `arkyl_artist_account_email_${userEmail.toLowerCase()}`,
-                    JSON.stringify(artistAccount)
-                );
-                // 3. currentUser (pour restoreSession dans app.js)
+                localStorage.setItem(`arkyl_artist_account_${userId}`, JSON.stringify(artistAccount));
+                localStorage.setItem(`arkyl_artist_account_email_${userEmail.toLowerCase()}`, JSON.stringify(artistAccount));
                 localStorage.setItem('arkyl_current_user', JSON.stringify(currentUser));
-                
-                // 4. 🔐 Clés simples attendues par artist_dashboard.html
                 localStorage.setItem('user_id', String(userId));
                 localStorage.setItem('user_name', userName);
                 localStorage.setItem('user_email', userEmail);
 
                 console.log('✅ Connexion réussie! ID:', userId);
-                console.log('✅ Clés sauvegardées:', `arkyl_artist_account_${userId}`);
 
                 successMsg.textContent = "✅ " + result.message + " Redirection vers votre espace artiste...";
                 successMsg.style.display = 'block';
 
                 setTimeout(() => {
-                    window.location.href = 'index.html?mode=artist'; // ⭐ FIX : site principal + mode artiste
+                    window.location.href = 'galerie_publique.html?mode=artist';
                 }, 1500);
                 
             } else {
@@ -331,7 +315,6 @@
                 errorMsg.style.display = 'block';
                 btn.textContent = "Se connecter";
                 btn.disabled = false;
-                
                 console.error('❌ Échec connexion:', result.message);
             }
         } catch (erreur) {
@@ -339,7 +322,6 @@
             errorMsg.style.display = 'block';
             btn.textContent = "Se connecter";
             btn.disabled = false;
-            
             console.error('❌ Erreur technique:', erreur);
         }
     });

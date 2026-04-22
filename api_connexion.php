@@ -1,9 +1,11 @@
 <?php
+// ✅ CORS — Autorise uniquement arkyl.site à appeler cette API
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: https://arkyl.site');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
+// ✅ Répondre immédiatement aux requêtes preflight OPTIONS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -29,19 +31,18 @@ try {
     if ($artist) {
         // On vérifie le mot de passe
         if (password_verify($data['password'], $artist['password'])) {
-            // ✅ FIX : Forcer le cast en integer pour éviter les type mismatch
             $artistId = (int) $artist['id'];
             
             echo json_encode([
-                'success' => true,
-                'message' => 'Connexion réussie !',
-                'user_id' => $artistId,           // Cast en int
-                'artist_id' => $artistId,         // ID utilisé dans artworks.artist_id
-                'id' => $artistId,                // Fallback pour compatibilité
-                'user_name' => !empty($artist['artist_name']) ? $artist['artist_name'] : $artist['name'],
+                'success'    => true,
+                'message'    => 'Connexion réussie !',
+                'user_id'    => $artistId,
+                'artist_id'  => $artistId,
+                'id'         => $artistId,
+                'user_name'  => !empty($artist['artist_name']) ? $artist['artist_name'] : $artist['name'],
                 'user_email' => $artist['email'],
-                'avatar' => $artist['avatar'] ?? '',
-                'country' => $artist['country'] ?? 'Côte d\'Ivoire'
+                'avatar'     => $artist['avatar'] ?? '',
+                'country'    => $artist['country'] ?? 'Côte d\'Ivoire'
             ]);
         } else {
             throw new Exception("Mot de passe incorrect.");

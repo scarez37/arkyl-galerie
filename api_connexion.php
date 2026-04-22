@@ -17,40 +17,40 @@ try {
         throw new Exception("Veuillez remplir tous les champs.");
     }
 
+    // Connexion au nouveau Cerveau PostgreSQL
     require_once __DIR__ . '/db_config.php';
     $db = getDatabase();
 
+    // On cherche l'artiste
     $stmt = $db->prepare("SELECT * FROM artists WHERE email = :email");
-    $stmt->execute([':email' => trim($data['email'])]);
+    $stmt->execute([':email' => $data['email']]);
     $artist = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$artist) {
+    if ($artist) {
+        // On vérifie le mot de passe
+        if (password_verify($data['password'], $artist['password'])) {
+            // ✅ FIX : Forcer le cast en integer pour éviter les type mismatch
+            $artistId = (int) $artist['id'];
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Connexion réussie !',
+                'user_id' => $artistId,           // Cast en int
+                'artist_id' => $artistId,         // ID utilisé dans artworks.artist_id
+                'id' => $artistId,                // Fallback pour compatibilité
+                'user_name' => !empty($artist['artist_name']) ? $artist['artist_name'] : $artist['name'],
+                'user_email' => $artist['email'],
+                'avatar' => $artist['avatar'] ?? '',
+                'country' => $artist['country'] ?? 'Côte d\'Ivoire'
+            ]);
+        } else {
+            throw new Exception("Mot de passe incorrect.");
+        }
+    } else {
         throw new Exception("Aucun compte trouvé avec cet email.");
     }
 
-    if (!password_verify($data['password'], $artist['password'])) {
-        throw new Exception("Mot de passe incorrect.");
-    }
-
-    $artistId = (int) $artist['id'];
-
-    echo json_encode([
-        'success'    => true,
-        'message'    => 'Connexion réussie !',
-        'user_id'    => $artistId,
-        'artist_id'  => $artistId,
-        'id'         => $artistId,
-        'user_name'  => !empty($artist['artist_name']) ? $artist['artist_name'] : $artist['name'],
-        'user_email' => $artist['email'],
-        'avatar'     => $artist['avatar'] ?? '',
-        'country'    => $artist['country'] ?? "Côte d'Ivoire"
-    ], JSON_UNESCAPED_UNICODE);
-
 } catch (Exception $e) {
-    http_response_code(400);
-    echo json_encode([
-        'success' => false,
-        'message' => $e->getMessage()
-    ], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['success' => false, 'message' => "Erreur : " . $e->getMessage()]);
 }
 ?>

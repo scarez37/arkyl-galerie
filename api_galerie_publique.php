@@ -25,7 +25,11 @@ try {
         // ===== MODE : UNE SEULE ŒUVRE =====
         $artworkId = intval($_GET['artwork_id']);
         
-        $stmt = $db->prepare("SELECT * FROM artworks WHERE id = :id LIMIT 1");
+        $stmt = $db->prepare("SELECT id, title, price, category, technique, technique_custom,
+                                     width, height, depth, dimensions, description,
+                                     artist_id, artist_name, artist_country,
+                                     badge, status, image_url, photos, created_at, weight_g
+                              FROM artworks WHERE id = :id LIMIT 1");
         $stmt->execute([':id' => $artworkId]);
         $oeuvre = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -64,14 +68,20 @@ try {
         $offset = max(0, $offset); // Minimum 0
         // ====================================================
 
+        // Colonnes strictement nécessaires — pas de SELECT * pour éviter les données lourdes inutiles
+        $cols = "id, title, price, category, technique, technique_custom,
+                 width, height, depth, dimensions, description,
+                 artist_id, artist_name, artist_country,
+                 badge, status, image_url, photos, created_at, weight_g";
+
         if ($isAdmin) {
-            $sql = "SELECT * FROM artworks WHERE 1=1";
+            $sql = "SELECT $cols FROM artworks WHERE 1=1";
         } elseif ($includeSold) {
             // Page artiste ou mes artistes : montrer toutes les œuvres publiées (vendues incluses)
-            $sql = "SELECT * FROM artworks WHERE status = 'publiée'";
+            $sql = "SELECT $cols FROM artworks WHERE status = 'publiée'";
         } else {
             // Galerie publique : uniquement les œuvres disponibles
-            $sql = "SELECT * FROM artworks WHERE status = 'publiée' AND (is_sold IS NULL OR is_sold = FALSE)";
+            $sql = "SELECT $cols FROM artworks WHERE status = 'publiée' AND (is_sold IS NULL OR is_sold = FALSE)";
         }
 
         $params = [];
@@ -187,19 +197,19 @@ function formatArtwork($oeuvre) {
         $dimensions = $oeuvre['dimensions'];
     }
     
-    // Gérer les photos
-    $photos = [];
+    // Gérer les photos — on extrait uniquement la première URL (évite de renvoyer un tableau lourd)
+    $firstPhoto = null;
     if (!empty($oeuvre['photos'])) {
         $decoded = json_decode($oeuvre['photos'], true);
-        if (is_array($decoded)) {
-            $photos = $decoded;
+        if (is_array($decoded) && !empty($decoded)) {
+            $firstPhoto = $decoded[0];
         } else {
-            $photos = [$oeuvre['photos']];
+            $firstPhoto = $oeuvre['photos']; // Fallback si c'est une URL brute
         }
-    } elseif (!empty($oeuvre['image'])) {
-        $photos = [$oeuvre['image']];
     } elseif (!empty($oeuvre['image_url'])) {
-        $photos = [$oeuvre['image_url']];
+        $firstPhoto = $oeuvre['image_url'];
+    } elseif (!empty($oeuvre['image'])) {
+        $firstPhoto = $oeuvre['image'];
     }
     
     // Construire l'objet formaté
@@ -219,9 +229,9 @@ function formatArtwork($oeuvre) {
         'artist_country' => $oeuvre['artist_country'] ?? null,
         'badge' => $oeuvre['badge'] ?? 'Disponible',
         'status' => $oeuvre['status'] ?? 'active',
-        'image' => !empty($photos) ? $photos[0] : null,
-        'image_url' => !empty($photos) ? $photos[0] : null,
-        'photos' => $photos,
+        'image' => $firstPhoto,
+        'image_url' => $firstPhoto,
+        'photos' => $firstPhoto ? [$firstPhoto] : [],
         'created_at' => $oeuvre['created_at'] ?? null,
         'weight_g'   => isset($oeuvre['weight_g']) ? intval($oeuvre['weight_g']) : 0,
     ];

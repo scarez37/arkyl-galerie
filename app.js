@@ -706,7 +706,7 @@ window.enterGallery = function enterGallery() {
             try {
                 safeStorage.remove("arkyl_products"); safeStorage.remove("arkyl_artists_data"); artistsData = {};
                 // 1. Charger TOUTES les œuvres (sans filtre artist_id)
-                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?admin=1&t=${Date.now()}`);
+                const resp = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?admin=1&t=${Date.now()}`);
                 const result = await resp.json();
 
                 if (!result.success || !result.data) return;
@@ -739,7 +739,7 @@ window.enterGallery = function enterGallery() {
                     // Essayer de charger le profil complet depuis l'API
                     let serverProfile = null;
                     try {
-                        const pResp = await fetch(`https://arkyl-galerie.onrender.com/api_modifier_profil.php?artist_name=${encodeURIComponent(name)}&t=${Date.now()}`);
+                        const pResp = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_modifier_profil.php?artist_name=${encodeURIComponent(name)}&t=${Date.now()}`);
                         if (pResp.ok) {
                             const pResult = await pResp.json();
                             if (pResult.success && pResult.artist) serverProfile = pResult.artist;
@@ -1034,7 +1034,7 @@ window.enterGallery = function enterGallery() {
             if (!userId) return;
             try {
                 const response = await fetch(
-                    `https://arkyl-galerie.onrender.com/api_get_panier.php?user_id=${encodeURIComponent(userId)}`
+                    `https://arkyl-galerie-nvwn.onrender.com/api_get_panier.php?user_id=${encodeURIComponent(userId)}`
                 );
                 const data = await response.json();
                 if (!data.success) return;
@@ -1762,7 +1762,7 @@ window.enterGallery = function enterGallery() {
             
             // ⭐ FIX : Chiffre d'affaires RÉEL depuis le serveur (pas les prix du catalogue)
             try {
-                const resp = await fetch('https://arkyl-galerie.onrender.com/api_commandes.php?action=list&admin=1');
+                const resp = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_commandes.php?action=list&admin=1');
                 const json = await resp.json();
                 if (json.success && json.orders) {
                     const commandes = json.orders.filter(o => o.status !== 'annulée');
@@ -2042,7 +2042,7 @@ window.enterGallery = function enterGallery() {
             
             try {
                 // Appel API pour supprimer de la base de données PostgreSQL
-                const resp = await fetch('https://arkyl-galerie.onrender.com/api_supprimer_oeuvre.php', {
+                const resp = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_supprimer_oeuvre.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: id })
@@ -2793,7 +2793,7 @@ window.enterGallery = function enterGallery() {
             // Appel API en arrière-plan (sans bloquer l'UI)
             try {
                 const userId = currentUser?.id || createGuestSession();
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_ajouter_favoris.php', {
+                const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_ajouter_favoris.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ artwork_id: productId, user_id: userId })
@@ -2889,7 +2889,7 @@ window.enterGallery = function enterGallery() {
             btn.disabled = true;
 
             try {
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_ajouter_panier.php', {
+                const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_ajouter_panier.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ artwork_id: productId, user_id: currentUser.id || currentUser.googleId || currentUser.email, quantity: 1 })
@@ -2967,7 +2967,7 @@ window.enterGallery = function enterGallery() {
 
             try {
                 const resp = await fetch(
-                    `https://arkyl-galerie.onrender.com/api_get_favoris.php?user_id=${encodeURIComponent(userId)}&t=${Date.now()}`
+                    `https://arkyl-galerie-nvwn.onrender.com/api_get_favoris.php?user_id=${encodeURIComponent(userId)}&t=${Date.now()}`
                 );
                 const data = await resp.json();
 
@@ -3414,7 +3414,7 @@ window.enterGallery = function enterGallery() {
             if (cartItems.length === 0) return;
             const ids = cartItems.map(i => i.id || i.artwork_id).filter(Boolean);
             try {
-                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?ids=${ids.join(',')}`);
+                const resp = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?ids=${ids.join(',')}`);
                 const data = await resp.json();
                 if (!data.artworks && !data.oeuvres) return;
                 const artworks = data.artworks || data.oeuvres || [];
@@ -4025,7 +4025,7 @@ window.enterGallery = function enterGallery() {
             // Sync BDD en arrière-plan (si connecté)
             const _userId = currentUser?.id || currentUser?.googleId || currentUser?.email;
             if (_userId) {
-                fetch('https://arkyl-galerie.onrender.com/api_supprimer_panier.php', {
+                fetch('https://arkyl-galerie-nvwn.onrender.com/api_supprimer_panier.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'quantite', user_id: _userId, artwork_id: itemId, quantity: newQty })
@@ -4065,7 +4065,7 @@ window.enterGallery = function enterGallery() {
             showToast(`✅ "${item.title}" retiré du panier`);
             const _userId = currentUser?.id || currentUser?.googleId || currentUser?.email;
             if (_userId) {
-                fetch('https://arkyl-galerie.onrender.com/api_supprimer_panier.php', {
+                fetch('https://arkyl-galerie-nvwn.onrender.com/api_supprimer_panier.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'supprimer', user_id: _userId, artwork_id: itemId })
@@ -4395,7 +4395,7 @@ window.enterGallery = function enterGallery() {
             document.body.appendChild(modal);
         }
 
-        const API_BASE   = 'https://arkyl-galerie.onrender.com';
+        const API_BASE   = 'https://arkyl-galerie-nvwn.onrender.com';
         const ORDERS_API = `${API_BASE}/api_commandes.php`;
         // ⭐ POSTS_API déclaré tôt pour éviter undefined dans fetchArtistPostsFromServer
         window.POSTS_API = `${API_BASE}/api_artist_posts.php`;
@@ -6134,7 +6134,7 @@ window.enterGallery = function enterGallery() {
             // Récupérer les œuvres : depuis l'API et depuis getProducts()
             let artistWorks = [];
             try {
-                const response = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?t=${Date.now()}`);
+                const response = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?t=${Date.now()}`);
                 const result = await response.json();
                 if (result.success && result.data) {
                     artistWorks = result.data.filter(a =>
@@ -6158,7 +6158,7 @@ window.enterGallery = function enterGallery() {
             // ⭐ Récupérer le profil artiste depuis l'API (avatar, bio, spécialité)
             let serverArtistProfile = null;
             try {
-                const profileResp = await fetch(`https://arkyl-galerie.onrender.com/api_modifier_profil.php?artist_name=${encodeURIComponent(artistName)}&t=${Date.now()}`);
+                const profileResp = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_modifier_profil.php?artist_name=${encodeURIComponent(artistName)}&t=${Date.now()}`);
                 if (profileResp.ok) {
                     const profileResult = await profileResp.json();
                     if (profileResult.success && profileResult.artist) {
@@ -6368,7 +6368,7 @@ window.enterGallery = function enterGallery() {
             // Charger les œuvres depuis l'API et/ou local
             let allProducts = [];
             try {
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?include_sold=1&t=' + Date.now());
+                const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?include_sold=1&t=' + Date.now());
                 const contentType = response.headers.get('content-type');
                 
                 if (response.ok && contentType && contentType.includes('application/json')) {
@@ -7341,7 +7341,7 @@ window.enterGallery = function enterGallery() {
                 allProducts = window._boliaCache.products;
             } else {
                 try {
-                    const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?include_sold=1');
+                    const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?include_sold=1');
                     const contentType = response.headers.get('content-type');
                     if (response.ok && contentType && contentType.includes('application/json')) {
                         const result = await response.json();
@@ -7757,7 +7757,7 @@ window.enterGallery = function enterGallery() {
                 allProducts = window._boliaCache.products;
             } else {
                 try {
-                    const response = await fetch('https://arkyl-galerie.onrender.com/api_galerie_publique.php?include_sold=1');
+                    const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?include_sold=1');
                     const contentType = response.headers.get('content-type');
                     
                     if (response.ok && contentType && contentType.includes('application/json')) {
@@ -8703,7 +8703,7 @@ window.enterGallery = function enterGallery() {
             _artworksLoading = true;
             showSkeletonLoader('artworksGrid', 6, 'grid');
             try {
-                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(artistServerId)}&t=${Date.now()}`);
+                const resp = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?artist_id=${encodeURIComponent(artistServerId)}&t=${Date.now()}`);
                 const result = await resp.json();
                 if (result.success && result.data && result.data.length > 0) {
                     console.log('🔍 Champs API galerie:', Object.keys(result.data[0]));
@@ -8876,7 +8876,7 @@ window.enterGallery = function enterGallery() {
             let serverSales = [];
             try {
                 const artistId = currentUser?.id || db.artistId;
-                const resp = await fetch(`https://arkyl-galerie.onrender.com/api_commandes.php?action=list&artist_id=${artistId}`);
+                const resp = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_commandes.php?action=list&artist_id=${artistId}`);
                 const json = await resp.json();
                 if (json.success && Array.isArray(json.orders)) {
                     serverSales = json.orders.filter(o => o.status !== 'annulée');
@@ -9306,7 +9306,7 @@ window.enterGallery = function enterGallery() {
                             country: artwork.country || '',
                             city: artwork.city || ''
                         };
-                        const resp = await fetch('https://arkyl-galerie.onrender.com/api_modifier_oeuvre.php', {
+                        const resp = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_modifier_oeuvre.php', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(updateData)
@@ -9352,7 +9352,7 @@ window.enterGallery = function enterGallery() {
                         console.log('📤 Données envoyées à l\'API:', dataToSend);
                         console.log('👤 currentUser:', currentUser);
                         
-                        const response = await fetch('https://arkyl-galerie.onrender.com/api_ajouter_oeuvre.php', {
+                        const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_ajouter_oeuvre.php', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -9468,7 +9468,7 @@ window.enterGallery = function enterGallery() {
             
             try {
                 // Appel API pour supprimer de la base de données PostgreSQL
-                const resp = await fetch('https://arkyl-galerie.onrender.com/api_supprimer_oeuvre.php', {
+                const resp = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_supprimer_oeuvre.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: id })
@@ -9982,7 +9982,7 @@ window.enterGallery = function enterGallery() {
                         avatar: acc.avatar || null,
                         avatar_style: acc.avatarStyle || 'slices'
                     };
-                    const resp = await fetch('https://arkyl-galerie.onrender.com/api_modifier_profil.php', {
+                    const resp = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_modifier_profil.php', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(profileData)
@@ -10626,7 +10626,7 @@ window.enterGallery = function enterGallery() {
             let serverSuccess = false;
             for (const artworkId of artworkIds) {
                 try {
-                    const resp = await fetch('https://arkyl-galerie.onrender.com/api_marquer_vendu.php', {
+                    const resp = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_marquer_vendu.php', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ artwork_id: artworkId })
@@ -10746,7 +10746,7 @@ window.enterGallery = function enterGallery() {
         
         try {
             // Charger les détails depuis l'API
-            const response = await fetch(`https://arkyl-galerie.onrender.com/api_galerie_publique.php?artwork_id=${artworkId}`);
+            const response = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?artwork_id=${artworkId}`);
             const result = await response.json();
             
             if (!result.success || !result.data) {
@@ -11090,7 +11090,7 @@ window.enterGallery = function enterGallery() {
 
         try {
             // Ajouter les paramètres de pagination à l'API
-            const urlAPI = `https://arkyl-galerie.onrender.com/api_galerie_publique.php?limit=${ITEMS_PER_LOAD}&offset=${currentOffset}&t=${Date.now()}`;
+            const urlAPI = `https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?limit=${ITEMS_PER_LOAD}&offset=${currentOffset}&t=${Date.now()}`;
             
             console.log(`📥 Chargement des œuvres ${currentOffset} à ${currentOffset + ITEMS_PER_LOAD}...`);
             
@@ -11652,7 +11652,7 @@ window.enterGallery = function enterGallery() {
 
             try {
                 // 2. On envoie un signal au serveur PHP
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_commandes.php', {
+                const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_commandes.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -11691,7 +11691,7 @@ window.enterGallery = function enterGallery() {
         async function chargerTresorerieAdmin() {
             try {
                 // ⭐ Utilise api_commandes.php (qui existe) au lieu de api_admin_tresorerie.php (inexistant)
-                const response = await fetch('https://arkyl-galerie.onrender.com/api_commandes.php?action=list&admin=1');
+                const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_commandes.php?action=list&admin=1');
 
                 // Vérifier que la réponse est bien du JSON avant de parser
                 const contentType = response.headers.get('content-type') || '';

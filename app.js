@@ -8721,6 +8721,7 @@ window.enterGallery = function enterGallery() {
             try {
                 const url = `https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php`
                     + `?artist_id=${encodeURIComponent(artistServerId)}`
+                    + `&include_sold=1`
                     + `&limit=${_ARTWORKS_PER_PAGE}&offset=${_artworksOffset}`
                     + `&t=${Date.now()}`;
 

@@ -4849,14 +4849,28 @@ window.enterGallery = function enterGallery() {
         async function renderArtistOrders() {
             const container = document.getElementById('artistOrdersContainer');
             if (!container) return;
-            const artistId = currentUser?.id || currentUser?.googleId || currentUser?.email;
-            if (!artistId) return;
+
+            // ✅ FIX mismatch artist_id :
+            // currentUser.id = Google Sub (ex: "115827349...") ≠ art.artist_id BDD (ex: "3")
+            // On utilise artist_name comme filtre principal, + le DB artist_id récupéré
+            // depuis les produits déjà chargés comme filtre secondaire.
+            const artistName = currentUser?.artistName || '';
+            if (!artistName) return;
+
+            // Chercher le DB artist_id depuis les produits déjà en cache
+            let dbArtistId = '';
+            const myProduct = getProducts().find(p =>
+                ((p.artist_name || p.artist) === artistName) && p.artist_id
+            );
+            if (myProduct) dbArtistId = String(myProduct.artist_id);
 
             container.innerHTML = '<div style="text-align:center;padding:40px;opacity:0.6;">⏳ Chargement de vos ventes...</div>';
 
             let orders = [];
             try {
-                const resp = await fetch(`${ORDERS_API}?action=list&artist_id=${encodeURIComponent(artistId)}&t=${Date.now()}`);
+                const params = new URLSearchParams({ action: 'list', artist_name: artistName, t: Date.now() });
+                if (dbArtistId) params.set('artist_id', dbArtistId);
+                const resp = await fetch(`${ORDERS_API}?${params.toString()}`);
                 const data = await resp.json();
                 if (data.success) orders = data.orders;
             } catch(e) {}
@@ -4873,9 +4887,8 @@ window.enterGallery = function enterGallery() {
 
             const totalRevenue = orders.reduce((s, o) => {
                 const myItems = (o.items||[]).filter(i =>
-                    String(i.artist_id) === String(artistId) ||
-                    i.artist_name === currentUser?.artistName ||
-                    i.artist === currentUser?.artistName
+                    (dbArtistId && String(i.artist_id) === dbArtistId) ||
+                    (i.artist_name || i.artist) === artistName
                 );
                 return s + myItems.reduce((ss, i) => ss + (parseFloat(i.price)||0) * (i.quantity||1), 0);
             }, 0);
@@ -4885,7 +4898,7 @@ window.enterGallery = function enterGallery() {
                     <div class="orders-stat-card"><div class="orders-stat-icon">🛒</div><div class="orders-stat-value">${orders.length}</div><div class="orders-stat-label">Ventes</div></div>
                     <div class="orders-stat-card"><div class="orders-stat-icon">💰</div><div class="orders-stat-value">${formatPrice(totalRevenue)}</div><div class="orders-stat-label">Revenus</div></div>
                 </div>
-                ${orders.map(order => renderArtistOrderCard(order, artistId)).join('')}
+                ${orders.map(order => renderArtistOrderCard(order, dbArtistId)).join('')}
             `;
         }
 
@@ -8588,10 +8601,14 @@ window.enterGallery = function enterGallery() {
         let _notifPollInterval = null;
 
         async function loadArtistNotifications() {
-            const artistId = currentUser?.id || currentUser?.artist_id;
-            if (!artistId) return;
+            const artistName = currentUser?.artistName || '';
+            const artistId   = currentUser?.id || currentUser?.artist_id || '';
+            if (!artistName && !artistId) return;
             try {
-                const resp = await fetch(`${NOTIF_API}?action=get_notifications&artist_id=${encodeURIComponent(artistId)}&t=${Date.now()}`);
+                const params = new URLSearchParams({ action: 'get_notifications', t: Date.now() });
+                if (artistName) params.set('artist_name', artistName);
+                if (artistId)   params.set('artist_id', artistId);
+                const resp = await fetch(`${NOTIF_API}?${params.toString()}`);
                 const result = await resp.json();
                 if (!result.success) return;
                 const count = result.unread_count || 0;
@@ -8614,13 +8631,14 @@ window.enterGallery = function enterGallery() {
         }
 
         async function markNotifsRead() {
-            const artistId = currentUser?.id || currentUser?.artist_id;
-            if (!artistId) return;
+            const artistId   = currentUser?.id || currentUser?.artist_id || '';
+            const artistName = currentUser?.artistName || '';
+            if (!artistId && !artistName) return;
             try {
                 await fetch(NOTIF_API, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'mark_notifications_read', artist_id: String(artistId) })
+                    body: JSON.stringify({ action: 'mark_notifications_read', artist_id: String(artistId), artist_name: artistName })
                 });
                 updateNotifBadge(0);
             } catch (e) {}

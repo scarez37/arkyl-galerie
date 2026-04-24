@@ -36,7 +36,7 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
 }
 
 // 🔑 Clé secrète Stripe (test)
-\Stripe\Stripe::setApiKey('');
+\Stripe\Stripe::setApiKey('sk_test_51T2gpFF55lBdracChUzrVSa166Skh4ob49dtF3j0pa27zcWMk1YLnvt5Wz788K7O0CpIMJPMZcaKDqG241vgQ8tj00EY87nxyZ');
 
 try {
     $db = getDatabase();

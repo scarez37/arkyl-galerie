@@ -554,11 +554,40 @@ window.enterGallery = function enterGallery() {
                 try {
                     const raw = localStorage.getItem('arkyl_arkyl_current_user')
                              || localStorage.getItem('arkyl_current_user');
-                    if (!raw) return;
-                    const savedUser = JSON.parse(raw);
-                    if (!savedUser || !savedUser.email) return;
-                    currentUser = savedUser;
-                    console.log('✅ Session restaurée :', savedUser.name || savedUser.email);
+
+                    if (raw) {
+                        const savedUser = JSON.parse(raw);
+                        if (savedUser && savedUser.email) {
+                            currentUser = savedUser;
+                            console.log('✅ Session restaurée :', savedUser.name || savedUser.email);
+                        }
+                    }
+
+                    // ⭐ FIX — Nouvel appareil : arkyl_current_user est vide mais connexion.html
+                    // a écrit user_id / user_name / user_email dans le localStorage.
+                    // On reconstruit currentUser depuis ces clés simples.
+                    if (!currentUser) {
+                        const uid   = localStorage.getItem('user_id');
+                        const name  = localStorage.getItem('user_name');
+                        const email = localStorage.getItem('user_email');
+                        if (uid && email) {
+                            currentUser = {
+                                id:         String(uid),
+                                googleId:   String(uid),
+                                email:      email,
+                                name:       name || email,
+                                picture:    '',
+                                isArtist:   true,
+                                artistName: name || email,
+                                isAdmin:    false
+                            };
+                            // Persister pour les prochains chargements
+                            safeStorage.set('arkyl_current_user', currentUser);
+                            console.log('✅ Session reconstruite depuis user_id/user_email (nouvel appareil) :', email);
+                        }
+                    }
+
+                    if (!currentUser) return;
 
                     // Re-vérifier si compte artiste existe (au cas où isArtist manquant)
                     if (!currentUser.isArtist) {
@@ -574,7 +603,7 @@ window.enterGallery = function enterGallery() {
                     // Mettre à jour l'interface (avatar, nom, menus)
                     if (typeof updateAuthUI === 'function') updateAuthUI();
                     // Charger le panier depuis la BDD
-                    const uid = savedUser.id || savedUser.googleId || savedUser.email;
+                    const uid = currentUser.id || currentUser.googleId || currentUser.email;
                     if (typeof chargerPanierUtilisateur === 'function') chargerPanierUtilisateur(uid);
                     if (typeof chargerAdresseUtilisateur === 'function') chargerAdresseUtilisateur(uid);
                     // Charger la ville La Poste
@@ -621,9 +650,12 @@ window.enterGallery = function enterGallery() {
             const urlParams = new URLSearchParams(window.location.search);
 
             if (urlParams.get('mode') === 'artist') {
-                // Vérifier que l'artiste a bien un compte
-                const hasArtistAccount = getArtistAccount();
-                if (hasArtistAccount) {
+                // ⭐ FIX — Sur nouvel appareil, getArtistAccount() retourne null car le localStorage
+                // est vide. On accepte aussi currentUser.isArtist ou la présence de user_id.
+                const hasArtistSession = getArtistAccount()
+                    || (currentUser && currentUser.isArtist)
+                    || localStorage.getItem('user_id');
+                if (hasArtistSession) {
                     console.log('🎨 Mode artiste détecté via URL - Activation automatique...');
                     setTimeout(() => {
                         switchToArtistMode();
@@ -8744,8 +8776,9 @@ window.enterGallery = function enterGallery() {
 
         async function loadArtistArtworksFromServer(reset = true) {
             // Vérifier que l'ID artiste est bien défini (jamais charger sans filtre)
-            const artistServerId = currentUser?.id || currentUser?.googleId;
-            if (!currentUser || !artistServerId || String(artistServerId) === 'undefined') {
+            // ⭐ FIX — Accepter l'email en dernier recours si id/googleId sont absents
+            const artistServerId = currentUser?.id || currentUser?.googleId || currentUser?.email;
+            if (!currentUser || !artistServerId || String(artistServerId) === 'undefined' || String(artistServerId) === 'null') {
                 console.warn('⚠️ loadArtistArtworksFromServer: artist_id manquant, chargement annulé');
                 return;
             }

@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/db_config.php';
 require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/notify_helpers.php';
 
 \Stripe\Stripe::setApiKey('sk_test_51T2gpFF55lBdracChUzrVSa166Skh4ob49dtF3j0pa27zcWMk1YLnvt5Wz788K7O0CpIMJPMZcaKDqG241vgQ8tj00EY87nxyZ');
 
@@ -214,78 +215,29 @@ try {
     $db->commit();
 
     // ─────────────────────────────────────────────────────────────────
-    // ÉTAPE 7 — Notifier chaque artiste concerné en BDD
+    // ÉTAPE 7 — Notifier chaque artiste via notifyArtists() (notify_helpers.php)
+    // Email + notification BDD avec les mêmes templates que api_commandes.php
     // ─────────────────────────────────────────────────────────────────
-    // Regrouper les articles par artiste
-    $artistsMap = [];
-    foreach ($cartItems as $item) {
-        $aid = (string)($item['artist_id'] ?? '');
-        if (empty($aid)) continue;
-        if (!isset($artistsMap[$aid])) {
-            $artistsMap[$aid] = [
-                'artist_name' => $item['artist_name'] ?? 'Artiste',
-                'items'       => [],
-                'total'       => 0,
-            ];
-        }
-        $artistsMap[$aid]['items'][] = $item['title'];
-        $artistsMap[$aid]['total'] += floatval($item['price']) * intval($item['quantity']);
-    }
-
-    // Migration : créer la table notifications si elle n'existe pas
     try {
-        $db->exec("CREATE TABLE IF NOT EXISTS artist_notifications (
-            id SERIAL PRIMARY KEY,
-            artist_id VARCHAR(255) NOT NULL,
-            title VARCHAR(255) NOT NULL,
-            message TEXT NOT NULL,
-            type VARCHAR(50) DEFAULT 'sale',
-            order_id VARCHAR(100),
-            is_read BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-        )");
-    } catch (Exception $e) { /* table déjà présente */ }
-
-    $insertNotif = $db->prepare("
-        INSERT INTO artist_notifications (artist_id, title, message, type, order_id)
-        VALUES (:artist_id, :title, :message, :type, :order_id)
-    ");
-
-    foreach ($artistsMap as $aid => $info) {
-        $itemsList   = implode(', ', $info['items']);
-        $payout      = round($info['total'] * 0.65);
-        $totalFormatted   = number_format($info['total'], 0, ',', ' ');
-        $payoutFormatted  = number_format($payout, 0, ',', ' ');
-
-        $title   = '🎨 Nouvelle vente !';
-        $message = "Votre œuvre a été achetée !\n"
-                 . "• Commande : {$order_id}\n"
-                 . "• Article(s) : {$itemsList}\n"
-                 . "• Montant total : {$totalFormatted} FCFA\n"
-                 . "• Votre part (65%) : {$payoutFormatted} FCFA\n"
-                 . "• Livraison : {$shipping_mode}\n"
-                 . "• Acheteur : {$user_name} ({$user_email})\n"
-                 . "Préparez l'envoi dans les meilleurs délais.";
-
-        try {
-            $insertNotif->execute([
-                ':artist_id' => $aid,
-                ':title'     => $title,
-                ':message'   => $message,
-                ':type'      => 'sale',
-                ':order_id'  => $order_id,
-            ]);
-        } catch (Exception $e) {
-            error_log("⚠️ Notif artiste échouée pour artist_id={$aid} : " . $e->getMessage());
-        }
+        notifyArtists(
+            $db,
+            $new_order_db_id,  // INTEGER id de la commande en BDD
+            $order_id,         // numéro lisible ex: ARKYL-XXXXXXXX
+            $cartItems,        // items avec artist_id, title, price, quantity
+            $user_name ?: $user_email,
+            $subtotal_fcfa + $shipping_cost,
+            $shipping_address,
+            $shipping_mode
+        );
+    } catch (Exception $e) {
+        error_log("⚠️ Webhook ARKYL — notifyArtists échouée : " . $e->getMessage());
     }
 
     error_log("✅ Webhook ARKYL — Commande $order_id créée (db_id: $new_order_db_id) | "
         . count($cartItems) . " article(s) | "
         . "Commission ARKYL (35%) : {$commission_amount} FCFA | "
         . "Reversement artiste (65%) : {$artist_payout} FCFA | "
-        . "Livraison (non taxée) : {$shipping_cost} FCFA | "
-        . count($artistsMap) . " artiste(s) notifié(s)");
+        . "Livraison (non taxée) : {$shipping_cost} FCFA");
 
 } catch (Exception $e) {
     if (isset($db) && $db->inTransaction()) {

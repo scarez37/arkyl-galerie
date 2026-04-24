@@ -248,6 +248,49 @@ window.enterGallery = function enterGallery() {
                 /* .page box-sizing pour que padding ne réduise pas la largeur utile */
                 .page.active { box-sizing: border-box; }
 
+                /* ===== LAZY-LOAD : image fade-in ===== */
+                .product-card .lazy-img {
+                    opacity: 0;
+                    transition: opacity 0.45s ease;
+                }
+                .product-card .lazy-img.lazy-loaded {
+                    opacity: 1;
+                }
+
+                /* ===== BULLES DE TÉLÉCHARGEMENT ===== */
+                @keyframes bubble-rise {
+                    0%   { transform: translateY(0)    scale(1);   opacity: 0.8; }
+                    80%  { transform: translateY(-28px) scale(0.6); opacity: 0.4; }
+                    100% { transform: translateY(-40px) scale(0.2); opacity: 0; }
+                }
+                @keyframes bubble-pop-in {
+                    0%   { transform: scale(0); opacity: 0; }
+                    60%  { transform: scale(1.2); }
+                    100% { transform: scale(1);   opacity: 0.8; }
+                }
+                .img-bubble-loader {
+                    position: absolute;
+                    inset: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 7px;
+                    background: rgba(15,15,15,0.82);
+                    backdrop-filter: blur(3px);
+                    border-radius: inherit;
+                    z-index: 4;
+                    pointer-events: none;
+                }
+                .img-bubble-loader .bbl {
+                    width: 10px; height: 10px;
+                    border-radius: 50%;
+                    animation: bubble-pop-in 0.3s ease forwards, bubble-rise 1.1s 0.3s ease-in infinite;
+                }
+                .img-bubble-loader .bbl:nth-child(1) { background: rgba(212,175,55,0.85); animation-delay: 0s,   0.3s; }
+                .img-bubble-loader .bbl:nth-child(2) { background: rgba(255,255,255,0.6); animation-delay: 0.15s, 0.45s; }
+                .img-bubble-loader .bbl:nth-child(3) { background: rgba(212,175,55,0.5);  animation-delay: 0.3s,  0.6s; }
+                .img-bubble-loader .bbl:nth-child(4) { background: rgba(180,120,40,0.7);  animation-delay: 0.45s, 0.75s; }
+
             `;
             document.head.appendChild(style);
         })();
@@ -2465,10 +2508,12 @@ window.enterGallery = function enterGallery() {
                         btn.style.opacity = '0';
                         btn.style.pointerEvents = '';
                     });
+                    cats.inert = true; // ⭐ Remettre inert après fermeture
                 }, 500);
             } else {
                 // Ouverture : depuis la direction avec spring
                 cats.dataset.open = '1';
+                cats.inert = false; // ⭐ Retirer inert avant l'animation
                 btns.forEach((btn, i) => {
                     const d = directions[i % directions.length];
                     btn.style.setProperty('--tx', d.tx);
@@ -10702,7 +10747,7 @@ window.enterGallery = function enterGallery() {
         // ==================== INIT ====================
         // Déclarations nécessaires avant init() (évite le TDZ)
         var currentOffset = 0;
-        var ITEMS_PER_LOAD = 50;
+        var ITEMS_PER_LOAD = 25;   // premier lot de 25 — lazy-load image par image
         var isLoading = false;
         // ⭐ Circuit breaker : stoppe les retries automatiques si le serveur est down
         var _serverErrorCount = 0;
@@ -11036,6 +11081,41 @@ window.enterGallery = function enterGallery() {
             return;
         }
         const PAGE_SIZE=16; let currentPage=0;
+
+        /* ── Observateur unique réutilisé pour toute la session ── */
+        if (!window._lazyImgObserver) {
+            window._lazyImgObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (!entry.isIntersecting) return;
+                    window._lazyImgObserver.unobserve(entry.target);
+                    const card = entry.target;
+                    const img  = card.querySelector('.lazy-img');
+                    if (!img || img.dataset.loading) return;
+                    img.dataset.loading = '1';
+
+                    const dataSrc = img.dataset.src || '';
+                    if (!dataSrc) {
+                        const bbl = card.querySelector('.img-bubble-loader');
+                        if (bbl) bbl.remove();
+                        return;
+                    }
+
+                    /* Démarrer le téléchargement */
+                    img.src = dataSrc;
+                    img.onload = () => {
+                        img.classList.add('lazy-loaded');
+                        const bbl = card.querySelector('.img-bubble-loader');
+                        if (bbl) { bbl.style.transition = 'opacity 0.3s'; bbl.style.opacity = '0'; setTimeout(() => bbl.remove(), 300); }
+                    };
+                    img.onerror = () => {
+                        img.style.minHeight = '80px';
+                        const bbl = card.querySelector('.img-bubble-loader');
+                        if (bbl) bbl.remove();
+                    };
+                });
+            }, { rootMargin: '180px' });
+        }
+
         function renderPage(page) {
             const debut = page * PAGE_SIZE, lot = oeuvres.slice(debut, debut + PAGE_SIZE);
             if (!lot.length) return;
@@ -11050,9 +11130,14 @@ window.enterGallery = function enterGallery() {
                 const artistName = oeuvre.artist_name || oeuvre.artist || 'Artiste inconnu';
                 const title = oeuvre.title || 'Sans titre';
                 const price = oeuvre.price || 0;
+                /* Bulles de chargement — retirées automatiquement quand l'image arrive */
+                const bubblesHTML = imgSrc
+                    ? `<div class="img-bubble-loader" aria-hidden="true"><span class="bbl"></span><span class="bbl"></span><span class="bbl"></span><span class="bbl"></span></div>`
+                    : '';
                 return `<div class="product-card" style="${soldStyle}" onclick="viewProductDetailFromAPI(${oeuvre.id})">
                     <div class="product-image" style="position:relative;">
-                        <img src="${imgSrc}" alt="${title}" loading="lazy" style="width:100%;height:auto;display:block;" onerror="this.style.minHeight='80px'">
+                        <img class="lazy-img" data-src="${imgSrc}" alt="${title}" style="width:100%;height:auto;display:block;">
+                        ${bubblesHTML}
                         ${dotsHTML}
                         <!-- Like haut droite -->
                         <button onclick="toggleFavorite(event,${oeuvre.id})"
@@ -11075,6 +11160,12 @@ window.enterGallery = function enterGallery() {
                 </div>`;
             }).join('');
             grille.insertAdjacentHTML('beforeend', fragment);
+
+            /* Enregistrer les nouvelles cartes dans l'observateur lazy */
+            grille.querySelectorAll('.product-card:not([data-observed])').forEach(card => {
+                card.dataset.observed = '1';
+                window._lazyImgObserver.observe(card);
+            });
 
             // Sentinel local pour pagination interne (œuvres filtrées)
             const oldLocalSentinel = document.getElementById('localGalerieSentinel');
@@ -11204,6 +11295,8 @@ window.enterGallery = function enterGallery() {
         const grille = document.getElementById('productsContainer');
         if (!grille || !window.hasMoreData) return;
 
+        /* Sentinel placé AVANT la fin de la grille (80 % du scroll)
+           en utilisant une marge rootMargin élevée vers le bas. */
         const sentinel = document.createElement('div');
         sentinel.id = 'loadMoreGlobalBtn';
         sentinel.style.cssText = 'height:1px;width:100%;';
@@ -11215,7 +11308,11 @@ window.enterGallery = function enterGallery() {
                 window._globalGalerieObserver.disconnect();
                 chargerPlusOeuvres();
             }
-        }, { rootMargin: '300px' });
+        }, {
+            /* rootMargin '600px' = déclenche le fetch quand il reste ~600 px
+               avant d'atteindre le bas — correspond à ~80 % du scroll visible */
+            rootMargin: '600px'
+        });
         window._globalGalerieObserver.observe(sentinel);
     }
 

@@ -23,7 +23,7 @@
         event.stopPropagation();
         
         try {
-            const response = await fetch('https://arkyl-galerie.onrender.com/api_ajouter_favoris.php', {
+            const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_ajouter_favoris.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

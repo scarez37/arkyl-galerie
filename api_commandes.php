@@ -1,868 +1,254 @@
 <?php
-/**
- * api_commandes.php
- * CRUD complet pour les commandes ARKYL
- */
-
-header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
+// ==================== WEBHOOK STRIPE ====================
+// Stripe appelle ce fichier silencieusement après chaque paiement réussi.
+// C'est lui qui CRÉE la commande en base et vide le panier.
+// ⚠️  Ne jamais appeler ce fichier manuellement — uniquement via Stripe.
 
 require_once __DIR__ . '/db_config.php';
+require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/notify_helpers.php';
+
+\Stripe\Stripe::setApiKey('sk_test_51T2gpFF55lBdracChUzrVSa166Skh4ob49dtF3j0pa27zcWMk1YLnvt5Wz788K7O0CpIMJPMZcaKDqG241vgQ8tj00EY87nxyZ');
+
+// 🔐 Secret webhook — à copier depuis ton tableau de bord Stripe
+$endpoint_secret = 'whsec_yjPEMxUgwPmuDWvS48z4fFQz7PpqcLaP';
 
 // ─────────────────────────────────────────────────────────────────
-// MIGRATIONS
+// ÉTAPE 1 — Lire et vérifier la signature cryptographique de Stripe
 // ─────────────────────────────────────────────────────────────────
-function runMigrations($db) {
-    $cols = [
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(255)",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_url VARCHAR(500)",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS carrier VARCHAR(100)",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_proof_url TEXT",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes TEXT",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipped_at TIMESTAMPTZ",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS escrow_released_at TIMESTAMPTZ",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS escrow_auto_release_date TIMESTAMPTZ",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_by VARCHAR(50)",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS escrow_status VARCHAR(50) DEFAULT 'payée_en_attente'",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_mode VARCHAR(50)",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_address TEXT",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_name VARCHAR(255)",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)",
+$payload    = @file_get_contents('php://input');
+$sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
+
+try {
+    $event = \Stripe\Webhook::constructEvent($payload, $sig_header, $endpoint_secret);
+} catch (\UnexpectedValueException $e) {
+    http_response_code(400);
+    exit();
+} catch (\Stripe\Exception\SignatureVerificationException $e) {
+    http_response_code(400);
+    exit();
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ÉTAPE 2 — On ne traite que l'événement "paiement réussi"
+// ─────────────────────────────────────────────────────────────────
+if ($event->type !== 'checkout.session.completed') {
+    http_response_code(200);
+    exit();
+}
+
+$session = $event->data->object;
+
+// 🆕 RÉCUPÉRATION DE TOUTES LES METADATA
+$order_id          = $session->metadata->order_id          ?? '';
+$user_id           = $session->metadata->user_id           ?? $session->client_reference_id ?? '';
+$user_name         = $session->metadata->user_name         ?? ($session->customer_details->name ?? '');
+$user_email        = $session->metadata->user_email        ?? ($session->customer_details->email ?? $session->customer_email ?? '');
+$artist_id         = $session->metadata->artist_id         ?? null;
+$shipping_cost     = floatval($session->metadata->shipping_cost     ?? 3000);
+$shipping_mode     = $session->metadata->shipping_mode     ?? 'La Poste';
+$shipping_address  = $session->metadata->shipping_address  ?? '';
+$commission_amount = floatval($session->metadata->commission_amount ?? 0); // Part ARKYL (35%)
+$artist_payout     = floatval($session->metadata->artist_payout     ?? 0); // Part artiste (65%)
+
+$payment_method = 'Carte bancaire (Stripe)';
+
+if (empty($order_id) || empty($user_id)) {
+    error_log("⚠️ Webhook ARKYL — order_id ou user_id manquant. Session ID : " . $session->id);
+    http_response_code(200);
+    exit();
+}
+
+try {
+    $db = getDatabase();
+
+    // ─────────────────────────────────────────────────────────────────
+    // MIGRATION SAFE — Ajouter les colonnes manquantes si nécessaire
+    // ─────────────────────────────────────────────────────────────────
+    $migrations = [
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS commission_amount NUMERIC(12,2) DEFAULT 0",
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS artist_payout NUMERIC(12,2) DEFAULT 0",
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS stripe_session_id VARCHAR(255)",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(12,2) DEFAULT 0",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_name VARCHAR(255)",
-        "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS artist_id VARCHAR(255)",
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_address TEXT",
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_name VARCHAR(255)",
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)",
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS artist_id VARCHAR(255)",
         "ALTER TABLE artworks ADD COLUMN IF NOT EXISTS is_sold BOOLEAN DEFAULT FALSE",
         "ALTER TABLE artworks ADD COLUMN IF NOT EXISTS sold_at TIMESTAMPTZ",
+        "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS artist_id VARCHAR(255)",
     ];
-    foreach ($cols as $sql) {
-        try { $db->exec($sql); } catch (Exception $e) { }
+    foreach ($migrations as $sql) {
+        try { $db->exec($sql); } catch (Exception $e) { /* colonne déjà présente */ }
     }
 
-    $db->exec("CREATE TABLE IF NOT EXISTS orders (
-        id SERIAL PRIMARY KEY,
-        order_number VARCHAR(20) UNIQUE,
-        user_id VARCHAR(255) NOT NULL,
-        user_name VARCHAR(255),
-        user_email VARCHAR(255),
-        status VARCHAR(50) DEFAULT 'En préparation',
-        escrow_status VARCHAR(50) DEFAULT 'payée_en_attente',
-        subtotal NUMERIC(12,2) DEFAULT 0,
-        tax NUMERIC(12,2) DEFAULT 0,
-        shipping_cost NUMERIC(12,2) DEFAULT 0,
-        total NUMERIC(12,2) DEFAULT 0,
-        shipping_name VARCHAR(255),
-        shipping_mode VARCHAR(50),
-        shipping_address TEXT,
-        payment_method VARCHAR(100),
-        tracking_number VARCHAR(255),
-        tracking_url VARCHAR(500),
-        shipping_proof_url TEXT,
-        carrier VARCHAR(100),
-        notes TEXT,
-        commission_amount NUMERIC(12,2) DEFAULT 0,
-        artist_payout NUMERIC(12,2) DEFAULT 0,
-        stripe_session_id VARCHAR(255),
-        shipped_at TIMESTAMPTZ,
-        delivered_at TIMESTAMPTZ,
-        confirmed_at TIMESTAMPTZ,
-        escrow_released_at TIMESTAMPTZ,
-        escrow_auto_release_date TIMESTAMPTZ,
-        updated_by VARCHAR(50),
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-    )");
+    // ─────────────────────────────────────────────────────────────────
+    // ÉTAPE 3 — Vérifier l'idempotence (éviter les doublons)
+    // ─────────────────────────────────────────────────────────────────
+    $checkStmt = $db->prepare("SELECT id FROM orders WHERE order_number = :order_number LIMIT 1");
+    $checkStmt->execute([':order_number' => $order_id]);
+    if ($checkStmt->fetch()) {
+        error_log("ℹ️ Webhook ARKYL — Commande $order_id déjà traitée, ignorée (idempotence)");
+        http_response_code(200);
+        exit();
+    }
 
-    $db->exec("CREATE TABLE IF NOT EXISTS order_items (
-        id SERIAL PRIMARY KEY,
-        order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
-        artwork_id INTEGER,
-        title VARCHAR(255),
-        artist_name VARCHAR(255),
-        artist_id VARCHAR(255),
-        price NUMERIC(12,2),
-        quantity INTEGER DEFAULT 1,
-        image_url TEXT
-    )");
-
-    $db->exec("CREATE TABLE IF NOT EXISTS order_timeline (
-        id SERIAL PRIMARY KEY,
-        order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
-        status VARCHAR(50),
-        note TEXT,
-        updated_by VARCHAR(255),
-        updated_by_role VARCHAR(50),
-        created_at TIMESTAMPTZ DEFAULT NOW()
-    )");
-
-    // ⭐ NOUVEAU : Table notifications artiste
-    $db->exec("CREATE TABLE IF NOT EXISTS artist_notifications (
-        id SERIAL PRIMARY KEY,
-        artist_id VARCHAR(255) NOT NULL,
-        type VARCHAR(50) DEFAULT 'new_order',
-        title VARCHAR(255),
-        message TEXT,
-        order_id INTEGER,
-        order_number VARCHAR(20),
-        is_read BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-    )");
-
-    // ⭐ Table des transactions de paiement artistes
-    $db->exec("CREATE TABLE IF NOT EXISTS payment_transactions (
-        id SERIAL PRIMARY KEY,
-        order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-        order_number VARCHAR(20),
-        artist_id VARCHAR(255),
-        artist_name VARCHAR(255),
-        artist_email VARCHAR(255),
-        amount_artwork NUMERIC(12,2) DEFAULT 0,
-        amount_shipping NUMERIC(12,2) DEFAULT 0,
-        amount_total NUMERIC(12,2) DEFAULT 0,
-        payment_method VARCHAR(100),
-        payment_reference VARCHAR(255),
-        payment_note TEXT,
-        paid_by VARCHAR(255),
-        created_at TIMESTAMPTZ DEFAULT NOW()
-    )");
-    foreach ([
-        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(100)",
-        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255)",
-        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS payment_note TEXT",
-        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS paid_by VARCHAR(255)",
-    ] as $sql) { try { $db->exec($sql); } catch (Exception $e) {} }
-}
-
-// ─────────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────────
-function fetchOrderItems($db, $orderId) {
-    $stmt = $db->prepare("
-        SELECT oi.id, oi.artwork_id, oi.title,
-               oi.artist_name AS artist, oi.artist_name,
-               COALESCE(oi.artist_id, '') AS artist_id,
-               oi.price, oi.quantity,
-               oi.image_url AS image, oi.image_url
-        FROM order_items oi
-        WHERE oi.order_id = ?
-        ORDER BY oi.id
+    // ─────────────────────────────────────────────────────────────────
+    // ÉTAPE 4 — Récupérer le contenu du panier + artist_id de chaque œuvre
+    // ─────────────────────────────────────────────────────────────────
+    $cartStmt = $db->prepare("
+        SELECT c.quantity, c.artwork_id,
+               a.title, a.price, a.image_url, a.artist_name,
+               a.artist_id
+        FROM cart c
+        INNER JOIN artworks a ON c.artwork_id = a.id
+        WHERE c.user_id = :user_id
     ");
-    $stmt->execute([$orderId]);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
+    $cartStmt->execute([':user_id' => $user_id]);
+    $cartItems = $cartStmt->fetchAll(PDO::FETCH_ASSOC);
 
-function fetchTimeline($db, $orderId) {
-    $stmt = $db->prepare("SELECT * FROM order_timeline WHERE order_id = ? ORDER BY created_at ASC");
-    $stmt->execute([$orderId]);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
-// ─────────────────────────────────────────────────────────────────
-// ⭐ NOUVEAU : Alertes artiste — email + notification BDD
-// ─────────────────────────────────────────────────────────────────
-function notifyArtists($db, $orderId, $orderNumber, $items, $buyerName, $total, $shippingAddress = '', $shippingName = '') {
-
-    // Regrouper les items par artist_id
-    $byArtist = [];
-    foreach ($items as $item) {
-        $aid = COALESCE_str($item['artist_id'] ?? '');
-        if (!$aid) continue;
-        if (!isset($byArtist[$aid])) $byArtist[$aid] = [];
-        $byArtist[$aid][] = $item;
+    if (empty($cartItems)) {
+        error_log("⚠️ Webhook ARKYL — Panier vide pour user_id: $user_id, order_id: $order_id");
+        http_response_code(200);
+        exit();
     }
 
-    foreach ($byArtist as $artistId => $artistItems) {
-
-        // 1. Récupérer email + nom de l'artiste depuis la table artists
-        $stmt = $db->prepare("SELECT email, artist_name, name FROM artists WHERE id::text = ? LIMIT 1");
-        $stmt->execute([$artistId]);
-        $artist = $stmt->fetch(PDO::FETCH_ASSOC);
-        $artistEmail = $artist['email'] ?? null;
-        $artistName  = $artist['artist_name'] ?? $artist['name'] ?? 'Artiste';
-
-        // Construire le résumé des œuvres vendues
-        $titlesArr = array_map(fn($i) => '"' . ($i['title'] ?? 'Œuvre') . '"', $artistItems);
-        $titlesStr = implode(', ', $titlesArr);
-        $itemsTotal = array_sum(array_map(fn($i) => ($i['price'] ?? 0) * ($i['quantity'] ?? 1), $artistItems));
-
-        $notifTitle   = "🎉 Nouvelle commande — {$orderNumber}";
-        $adresseStr   = $shippingAddress ? " | 📍 Adresse : {$shippingAddress}" : '';
-        $notifMessage = "Bonne nouvelle {$artistName} ! {$buyerName} vient de commander {$titlesStr} pour un montant de " . number_format($itemsTotal, 0, ',', ' ') . " FCFA.{$adresseStr}";
-
-        // ── 2. Notification en base de données ──────────────────
-        try {
-            $db->prepare("
-                INSERT INTO artist_notifications (artist_id, type, title, message, order_id, order_number)
-                VALUES (?, 'new_order', ?, ?, ?, ?)
-            ")->execute([$artistId, $notifTitle, $notifMessage, $orderId, $orderNumber]);
-        } catch (Exception $e) {
-            error_log("⚠️ Notification BDD artiste {$artistId} : " . $e->getMessage());
-        }
-
-        // ── 3. Email à l'artiste ─────────────────────────────────
-        if ($artistEmail) {
-            try {
-                $subject = "=?UTF-8?B?" . base64_encode("🎉 ARKYL — Nouvelle commande {$orderNumber}") . "?=";
-
-                // Tableau HTML des œuvres
-                $itemsHtml = '';
-                foreach ($artistItems as $item) {
-                    $itemsHtml .= '<tr>
-                        <td style="padding:8px;border-bottom:1px solid #2a2a2a;">' . htmlspecialchars($item['title'] ?? '') . '</td>
-                        <td style="padding:8px;border-bottom:1px solid #2a2a2a;text-align:right;">' . number_format($item['price'] ?? 0, 0, ',', ' ') . ' FCFA</td>
-                    </tr>';
-                }
-
-                $htmlBody = '<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#0f0f0f;font-family:Montserrat,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f0f;padding:40px 20px;">
-  <tr><td align="center">
-    <table width="600" cellpadding="0" cellspacing="0" style="background:#1a1a1a;border-radius:16px;overflow:hidden;border:1px solid #9333ea44;">
-      <!-- Header -->
-      <tr><td style="background:linear-gradient(135deg,#9333ea,#c026d3);padding:32px;text-align:center;">
-        <h1 style="margin:0;color:#fff;font-size:28px;letter-spacing:2px;">ARKYL</h1>
-        <p style="margin:8px 0 0;color:#fff;opacity:.85;font-size:14px;">Galerie d\'Art Contemporain</p>
-      </td></tr>
-      <!-- Body -->
-      <tr><td style="padding:32px;">
-        <h2 style="color:#9333ea;margin:0 0 8px;">🎉 Nouvelle commande !</h2>
-        <p style="color:#ccc;font-size:15px;line-height:1.6;">
-          Bonjour <strong style="color:#fff;">' . htmlspecialchars($artistName) . '</strong>,<br>
-          Excellente nouvelle ! Une de vos œuvres vient d\'être commandée.
-        </p>
-        <!-- Détails commande -->
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#111;border-radius:12px;padding:20px;margin:20px 0;">
-          <tr>
-            <td style="color:#888;font-size:13px;padding:4px 0;">Numéro de commande</td>
-            <td style="color:#9333ea;font-size:13px;text-align:right;font-weight:700;">' . htmlspecialchars($orderNumber) . '</td>
-          </tr>
-          <tr>
-            <td style="color:#888;font-size:13px;padding:4px 0;">Acheteur</td>
-            <td style="color:#fff;font-size:13px;text-align:right;">' . htmlspecialchars($buyerName) . '</td>
-          </tr>
-          ' . ($shippingAddress ? '
-          <tr>
-            <td style="color:#888;font-size:13px;padding:4px 0;">Mode de livraison</td>
-            <td style="color:#fff;font-size:13px;text-align:right;">' . htmlspecialchars($shippingName) . '</td>
-          </tr>' : '') . '
-        </table>
-        ' . ($shippingAddress ? '
-        <!-- Adresse de livraison -->
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a0a2e;border:1.5px solid #d4af3766;border-radius:12px;padding:20px;margin:0 0 20px;">
-          <tr>
-            <td>
-              <p style="color:#d4af37;font-size:12px;font-weight:700;letter-spacing:1px;margin:0 0 10px;text-transform:uppercase;">📍 Adresse de livraison du client</p>
-              <p style="color:#fff;font-size:14px;font-weight:600;line-height:1.8;margin:0;">' . nl2br(htmlspecialchars(str_replace(', ', "\n", $shippingAddress))) . '</p>
-              <p style="color:#aaa;font-size:12px;margin:10px 0 0;">Utilisez cette adresse pour préparer et expédier votre œuvre.</p>
-            </td>
-          </tr>
-        </table>' : '') . '
-        <!-- Œuvres -->
-        <p style="color:#aaa;font-size:13px;margin:0 0 8px;">Œuvres commandées :</p>
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#111;border-radius:12px;overflow:hidden;">
-          <tr style="background:#1f1f1f;">
-            <th style="padding:10px 8px;color:#888;font-size:12px;text-align:left;">Titre</th>
-            <th style="padding:10px 8px;color:#888;font-size:12px;text-align:right;">Prix</th>
-          </tr>
-          ' . $itemsHtml . '
-          <tr>
-            <td style="padding:10px 8px;color:#fff;font-weight:700;">Total artiste</td>
-            <td style="padding:10px 8px;color:#9333ea;font-weight:700;text-align:right;">' . number_format($itemsTotal, 0, ',', ' ') . ' FCFA</td>
-          </tr>
-        </table>
-        <p style="color:#aaa;font-size:13px;margin:24px 0 0;line-height:1.6;">
-          Connectez-vous à votre espace artiste pour suivre l\'évolution de cette commande.
-        </p>
-      </td></tr>
-      <!-- Footer -->
-      <tr><td style="background:#111;padding:20px;text-align:center;border-top:1px solid #222;">
-        <p style="color:#555;font-size:12px;margin:0;">© ARKYL — Galerie d\'Art Contemporain</p>
-      </td></tr>
-    </table>
-  </td></tr>
-</table>
-</body></html>';
-
-                $headers  = "MIME-Version: 1.0\r\n";
-                $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                $headers .= "From: ARKYL Galerie <noreply@arkyl-galerie.com>\r\n";
-                $headers .= "X-Mailer: PHP/" . phpversion();
-
-                mail($artistEmail, $subject, $htmlBody, $headers);
-                error_log("✅ Email commande envoyé à {$artistEmail} pour commande {$orderNumber}");
-
-            } catch (Exception $e) {
-                error_log("❌ Email artiste {$artistEmail} : " . $e->getMessage());
-            }
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────
-// MAIN
-// ─────────────────────────────────────────────────────────────────
-try {
-    $db = getDatabase();
-    runMigrations($db);
-
-    $action = $_GET['action'] ?? '';
-    if (!$action && $_SERVER['REQUEST_METHOD'] === 'POST') {
-        $body   = json_decode(file_get_contents('php://input'), true) ?? [];
-        $action = $body['action'] ?? '';
-    } else {
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    // ─────────────────────────────────────────────────────────────────
+    // ÉTAPE 5 — Calculer les totaux
+    // ─────────────────────────────────────────────────────────────────
+    $subtotal_fcfa = 0;
+    foreach ($cartItems as $item) {
+        $subtotal_fcfa += floatval($item['price']) * intval($item['quantity']);
     }
 
-    // ── GET list ──────────────────────────────────────────────────
-    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'list') {
-        $userId   = $_GET['user_id']   ?? '';
-        $artistId = (string)($_GET['artist_id'] ?? '');
-        $isAdmin  = isset($_GET['admin']) && $_GET['admin'] == '1';
+    $tva_rate   = 0.18;
+    $tax_fcfa   = round($subtotal_fcfa * $tva_rate);
+    $total_fcfa = $subtotal_fcfa + $shipping_cost;
 
-        if ($isAdmin) {
-            $stmt = $db->query("SELECT * FROM orders ORDER BY created_at DESC");
-            $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } elseif ($artistId !== '') {
-            $stmt = $db->prepare("SELECT DISTINCT order_id FROM order_items WHERE COALESCE(artist_id, '') = ?");
-            $stmt->execute([$artistId]);
-            $orderIds = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'order_id');
-            if (empty($orderIds)) { echo json_encode(['success' => true, 'orders' => []]); exit; }
-            $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
-            $stmt = $db->prepare("SELECT * FROM orders WHERE id IN ($placeholders) ORDER BY created_at DESC");
-            $stmt->execute($orderIds);
-            $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } else {
-            $stmt = $db->prepare("SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC");
-            $stmt->execute([$userId]);
-            $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        }
+    $auto_release_date = (new DateTime())->modify('+21 days')->format('Y-m-d H:i:s');
 
-        foreach ($orders as &$order) {
-            $allItems = fetchOrderItems($db, $order['id']);
-            if ($artistId !== '' && !$isAdmin) {
-                $order['items'] = array_values(array_filter($allItems, fn($i) => COALESCE_str($i['artist_id']) === $artistId));
-            } else {
-                $order['items'] = $allItems;
-            }
-            $order['timeline'] = fetchTimeline($db, $order['id']);
-        }
-        unset($order);
-        echo json_encode(['success' => true, 'orders' => $orders], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
+    // ─────────────────────────────────────────────────────────────────
+    // ÉTAPE 6 — Créer la commande + items + marquer vendues + vider panier
+    // Répartition : Commission ARKYL 35% | Artiste 65% | Port non taxé
+    // ─────────────────────────────────────────────────────────────────
+    $db->beginTransaction();
 
-    // ── GET single ────────────────────────────────────────────────
-    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'get') {
-        $orderId = $_GET['order_id'] ?? '';
-        $stmt = $db->prepare("SELECT * FROM orders WHERE order_number = ? OR id::text = ?");
-        $stmt->execute([$orderId, $orderId]);
-        $order = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$order) { echo json_encode(['success' => false, 'error' => 'Commande non trouvée']); exit; }
-        $order['items']    = fetchOrderItems($db, $order['id']);
-        $order['timeline'] = fetchTimeline($db, $order['id']);
-        echo json_encode(['success' => true, 'order' => $order], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
+    // 6a. Insérer la commande
+    $insertOrder = $db->prepare("
+        INSERT INTO orders (
+            order_number, user_id, user_name, user_email,
+            artist_id, status, escrow_status, escrow_auto_release_date,
+            subtotal, tax, shipping_cost, shipping_name, shipping_address,
+            payment_method, total,
+            commission_amount, artist_payout,
+            stripe_session_id, created_at
+        ) VALUES (
+            :order_number, :user_id, :user_name, :user_email,
+            :artist_id, 'En préparation', 'payée_en_attente', :auto_release_date,
+            :subtotal, :tax, :shipping_cost, :shipping_name, :shipping_address,
+            :payment_method, :total,
+            :commission_amount, :artist_payout,
+            :stripe_session_id, CURRENT_TIMESTAMP
+        )
+        RETURNING id
+    ");
 
-    // ── GET notifications artiste (ou admin) ─────────────────────
-    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'get_notifications') {
-        $artistId = $_GET['artist_id'] ?? '';
-        $isAdmin  = ($artistId === 'admin') || (isset($_GET['admin']) && $_GET['admin'] == '1');
-        if (!$artistId && !$isAdmin) { echo json_encode(['success' => false, 'error' => 'artist_id manquant']); exit; }
-        $targetId = $isAdmin ? 'admin' : $artistId;
-        $stmt = $db->prepare("
-            SELECT * FROM artist_notifications
-            WHERE artist_id = ?
-            ORDER BY created_at DESC
-            LIMIT 50
-        ");
-        $stmt->execute([$targetId]);
-        $notifs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        $unread = array_filter($notifs, fn($n) => !$n['is_read']);
-        echo json_encode(['success' => true, 'notifications' => $notifs, 'unread_count' => count($unread)], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
+    $insertOrder->execute([
+        ':order_number'      => $order_id,
+        ':user_id'           => $user_id,
+        ':user_name'         => $user_name,
+        ':user_email'        => $user_email,
+        ':artist_id'         => $artist_id,
+        ':auto_release_date' => $auto_release_date,
+        ':subtotal'          => $subtotal_fcfa,
+        ':tax'               => $tax_fcfa,
+        ':shipping_cost'     => $shipping_cost,
+        ':shipping_name'     => $shipping_mode,
+        ':shipping_address'  => $shipping_address,
+        ':payment_method'    => $payment_method,
+        ':total'             => $total_fcfa,
+        ':commission_amount' => $commission_amount, // 35% — calculé dans api_stripe_checkout.php
+        ':artist_payout'     => $artist_payout,     // 65% — calculé dans api_stripe_checkout.php
+        ':stripe_session_id' => $session->id,
+    ]);
 
-    // ── POST mark_notifications_read ──────────────────────────────
-    if ($action === 'mark_notifications_read') {
-        $artistId = $body['artist_id'] ?? '';
-        if (!$artistId) { echo json_encode(['success' => false, 'error' => 'artist_id manquant']); exit; }
-        $db->prepare("UPDATE artist_notifications SET is_read = TRUE WHERE artist_id = ?")->execute([$artistId]);
-        echo json_encode(['success' => true]);
-        exit;
-    }
+    $new_order_db_id = $insertOrder->fetchColumn();
 
-    // ── POST create ───────────────────────────────────────────────
-    if ($action === 'create') {
-        $orderNum = 'ARK-' . strtoupper(substr(md5(uniqid()), 0, 8));
+    // 6b. Insérer chaque article avec son artist_id
+    $insertItem = $db->prepare("
+        INSERT INTO order_items
+            (order_id, artwork_id, title, artist_name, artist_id, price, quantity, image_url)
+        VALUES
+            (:order_id, :artwork_id, :title, :artist_name, :artist_id, :price, :quantity, :image_url)
+    ");
 
-        // Calculer artist_payout = 65% du sous-total (hors livraison)
-        $subtotalVal   = (float)($body['subtotal']      ?? 0);
-        $shippingVal   = (float)($body['shipping_cost'] ?? 0);
-        $artistPayoutV = round($subtotalVal * 0.65, 2);
-        $payoutTotal   = round($artistPayoutV + $shippingVal, 2);
-
-        $stmt = $db->prepare("
-            INSERT INTO orders (
-                order_number, user_id, user_name, user_email,
-                status, escrow_status,
-                subtotal, tax, shipping_cost, shipping_name, total,
-                shipping_mode, shipping_address, payment_method,
-                artist_payout
-            ) VALUES (
-                :num, :uid, :uname, :uemail,
-                'En préparation', 'payée_en_attente',
-                :subtotal, :tax, :shipping_cost, :shipping_name, :total,
-                :shipping_mode, :shipping_address, :payment_method,
-                :artist_payout
-            ) RETURNING id
-        ");
-        $stmt->execute([
-            ':num'              => $orderNum,
-            ':uid'              => $body['user_id']           ?? '',
-            ':uname'            => $body['user_name']         ?? '',
-            ':uemail'           => $body['user_email']        ?? '',
-            ':subtotal'         => $subtotalVal,
-            ':tax'              => $body['tax']               ?? 0,
-            ':shipping_cost'    => $shippingVal,
-            ':shipping_name'    => $body['shipping_name']     ?? '',
-            ':total'            => $body['total']             ?? 0,
-            ':shipping_mode'    => $body['shipping_mode']     ?? '',
-            ':shipping_address' => $body['shipping_address']  ?? '',
-            ':payment_method'   => $body['payment_method']    ?? '',
-            ':artist_payout'    => $artistPayoutV,
+    foreach ($cartItems as $item) {
+        $insertItem->execute([
+            ':order_id'    => $new_order_db_id,
+            ':artwork_id'  => $item['artwork_id'],
+            ':title'       => $item['title'],
+            ':artist_name' => $item['artist_name'] ?? '',
+            ':artist_id'   => (string)($item['artist_id'] ?? ''),
+            ':price'       => $item['price'],
+            ':quantity'    => $item['quantity'],
+            ':image_url'   => $item['image_url'] ?? '',
         ]);
-        $orderId = $stmt->fetchColumn();
-
-        $insertItem = $db->prepare("
-            INSERT INTO order_items (order_id, artwork_id, title, artist_name, artist_id, price, quantity, image_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-        $itemsInserted = [];
-        foreach (($body['items'] ?? []) as $item) {
-            $insertItem->execute([
-                $orderId,
-                $item['artwork_id'] ?? $item['id'] ?? null,
-                $item['title']      ?? '',
-                $item['artist']     ?? $item['artist_name'] ?? '',
-                (string)($item['artist_id'] ?? ''),
-                $item['price']      ?? 0,
-                $item['quantity']   ?? 1,
-                $item['image']      ?? $item['image_url'] ?? '',
-            ]);
-            $itemsInserted[] = $item;
-        }
-
-        // Marquer les œuvres comme vendues
-        $markSold = $db->prepare("UPDATE artworks SET is_sold = TRUE, sold_at = NOW() WHERE id = ? AND (is_sold IS NULL OR is_sold = FALSE)");
-        foreach (($body['items'] ?? []) as $item) {
-            $artworkId = intval($item['artwork_id'] ?? $item['id'] ?? 0);
-            if ($artworkId > 0) $markSold->execute([$artworkId]);
-        }
-
-        $db->prepare("
-            INSERT INTO order_timeline (order_id, status, note, updated_by_role)
-            VALUES (?, 'En préparation', 'Commande créée et paiement validé', 'system')
-        ")->execute([$orderId]);
-
-        // ⭐ Envoyer alertes aux artistes concernés
-        $buyerName       = $body['user_name'] ?? $body['user_email'] ?? 'Un acheteur';
-        $total           = $body['total'] ?? 0;
-        $shippingAddress = $body['shipping_address'] ?? '';
-        $shippingName    = $body['shipping_name'] ?? '';
-        notifyArtists($db, $orderId, $orderNum, $itemsInserted, $buyerName, $total, $shippingAddress, $shippingName);
-
-        echo json_encode(['success' => true, 'order_id' => $orderId, 'order_number' => $orderNum]);
-        exit;
     }
 
-    // ── POST update_status ────────────────────────────────────────
-    if ($action === 'update_status') {
-        $orderId        = $body['order_id']           ?? '';
-        $newStatus      = $body['status']             ?? '';
-        $trackingNumber = $body['tracking_number']    ?? null;
-        $trackingUrl    = $body['tracking_url']       ?? null;
-        $carrier        = $body['carrier']            ?? null;
-        $note           = $body['note']               ?? null;
-        $updatedBy      = $body['updated_by']         ?? '';
-        $updatedByRole  = $body['updated_by_role']    ?? 'admin';
-        $proofUrl       = $body['shipping_proof_url'] ?? null;
-
-        $escrowMap = [
-            'En préparation' => 'payée_en_attente',
-            'Préparée'       => 'payée_en_attente',
-            'Expédiée'       => 'expédiée',
-            'En transit'     => 'expédiée',
-            'Livrée'         => 'livrée_confirmée',
-            'Annulée'        => 'annulée',
-        ];
-        $escrowStatus = $escrowMap[$newStatus] ?? 'payée_en_attente';
-
-        $setFields = "status = :status, escrow_status = :escrow, updated_at = NOW(), updated_by = :by";
-        $params    = [':status' => $newStatus, ':escrow' => $escrowStatus, ':by' => $updatedByRole, ':id' => $orderId];
-
-        if ($trackingNumber) { $setFields .= ", tracking_number = :tn";      $params[':tn']      = $trackingNumber; }
-        if ($trackingUrl)    { $setFields .= ", tracking_url = :tu";          $params[':tu']      = $trackingUrl; }
-        if ($carrier)        { $setFields .= ", carrier = :carrier";          $params[':carrier'] = $carrier; }
-        if ($proofUrl)       { $setFields .= ", shipping_proof_url = :proof"; $params[':proof']   = $proofUrl; }
-
-        if ($newStatus === 'Expédiée' || $newStatus === 'En transit') {
-            $setFields .= ", shipped_at = NOW()";
-            $autoRelease = date('Y-m-d H:i:s', strtotime('+21 days'));
-            $setFields .= ", escrow_auto_release_date = '$autoRelease'";
-        }
-        if ($newStatus === 'Livrée') { $setFields .= ", delivered_at = NOW()"; }
-
-        $db->prepare("UPDATE orders SET $setFields WHERE order_number = :id OR id::text = :id")->execute($params);
-
-        $tlNote = $note ?: "Statut mis à jour : $newStatus";
-        if ($trackingNumber) $tlNote .= " | Tracking: $trackingNumber";
-        if ($carrier)        $tlNote .= " ($carrier)";
-
-        $row = $db->prepare("SELECT id FROM orders WHERE order_number = ? OR id::text = ? LIMIT 1");
-        $row->execute([$orderId, $orderId]);
-        $dbOrderId = $row->fetchColumn();
-
-        if ($dbOrderId) {
-            $db->prepare("
-                INSERT INTO order_timeline (order_id, status, note, updated_by, updated_by_role)
-                VALUES (?, ?, ?, ?, ?)
-            ")->execute([$dbOrderId, $newStatus, $tlNote, $updatedBy, $updatedByRole]);
-        }
-
-        echo json_encode(['success' => true, 'message' => 'Statut mis à jour']);
-        exit;
+    // 6c. Marquer les œuvres comme vendues (is_sold + sold_at)
+    $markSold = $db->prepare("
+        UPDATE artworks SET is_sold = TRUE, sold_at = NOW() WHERE id = :artwork_id
+    ");
+    foreach ($cartItems as $item) {
+        $markSold->execute([':artwork_id' => $item['artwork_id']]);
     }
 
-    // ── POST confirm_reception ────────────────────────────────────
-    if ($action === 'confirm_reception') {
-        $orderId = $body['order_id'] ?? '';
-        $userId  = $body['user_id']  ?? '';
+    // 6d. Créer l'entrée dans order_timeline
+    $db->prepare("
+        INSERT INTO order_timeline (order_id, status, note, updated_by_role)
+        VALUES (:order_id, 'En préparation', 'Commande créée — paiement Stripe validé', 'system')
+    ")->execute([':order_id' => $new_order_db_id]);
 
-        if (!$orderId) { echo json_encode(['success' => false, 'error' => 'order_id manquant']); exit; }
+    // 6e. Vider le panier
+    $db->prepare("DELETE FROM cart WHERE user_id = :user_id")
+       ->execute([':user_id' => $user_id]);
 
-        // Vérifier que l'utilisateur est bien l'acheteur de cette commande
-        if ($userId) {
-            $check = $db->prepare("SELECT id FROM orders WHERE (order_number = ? OR id::text = ?) AND user_id = ? LIMIT 1");
-            $check->execute([$orderId, (string)$orderId, $userId]);
-            if (!$check->fetch()) {
-                echo json_encode(['success' => false, 'error' => 'Non autorisé : vous n\'êtes pas l\'acheteur de cette commande']);
-                exit;
-            }
-        }
+    $db->commit();
 
-        $db->prepare("
-            UPDATE orders SET status = 'Livrée', escrow_status = 'livrée_confirmée',
-            confirmed_at = NOW(), updated_at = NOW()
-            WHERE order_number = ? OR id::text = ?
-        ")->execute([$orderId, (string)$orderId]);
-
-        $row = $db->prepare("SELECT id FROM orders WHERE order_number = ? OR id::text = ? LIMIT 1");
-        $row->execute([$orderId, $orderId]);
-        $dbOrderId = $row->fetchColumn();
-        if ($dbOrderId) {
-            $db->prepare("
-                INSERT INTO order_timeline (order_id, status, note, updated_by_role)
-                VALUES (?, 'Livrée', 'Réception confirmée par l''acheteur — en attente de virement artiste', 'buyer')
-            ")->execute([$dbOrderId]);
-        }
-        echo json_encode(['success' => true]);
-        exit;
+    // ─────────────────────────────────────────────────────────────────
+    // ÉTAPE 7 — Notifier chaque artiste via notifyArtists() (notify_helpers.php)
+    // Email + notification BDD avec les mêmes templates que api_commandes.php
+    // ─────────────────────────────────────────────────────────────────
+    try {
+        notifyArtists(
+            $db,
+            $new_order_db_id,  // INTEGER id de la commande en BDD
+            $order_id,         // numéro lisible ex: ARKYL-XXXXXXXX
+            $cartItems,        // items avec artist_id, title, price, quantity
+            $user_name ?: $user_email,
+            $subtotal_fcfa + $shipping_cost,
+            $shipping_address,
+            $shipping_mode
+        );
+    } catch (Exception $e) {
+        error_log("⚠️ Webhook ARKYL — notifyArtists échouée : " . $e->getMessage());
     }
 
-    // ── POST liberer_fonds ────────────────────────────────────────
-    if ($action === 'liberer_fonds') {
-        $orderId          = $body['order_id']          ?? '';
-        $paymentMethod    = $body['payment_method']    ?? 'Virement manuel';
-        $paymentReference = $body['payment_reference'] ?? null;
-        $paymentNote      = $body['payment_note']      ?? null;
-        $paidBy           = $body['paid_by']           ?? 'admin';
-
-        if (!$orderId) { echo json_encode(['success' => false, 'error' => 'order_id manquant']); exit; }
-
-        // 1. Mettre à jour le statut de la commande
-        $db->prepare("
-            UPDATE orders SET escrow_status = 'fonds_libérés', escrow_released_at = NOW(), updated_at = NOW()
-            WHERE id::text = ? OR order_number = ?
-        ")->execute([(string)$orderId, (string)$orderId]);
-
-        // 2. Récupérer les données complètes de la commande pour la trace
-        $row = $db->prepare("
-            SELECT o.id, o.order_number, o.artist_payout, o.shipping_cost,
-                   oi.artist_id, oi.artist_name,
-                   a.email AS artist_email, a.artist_name AS artist_display_name
-            FROM orders o
-            LEFT JOIN order_items oi ON oi.order_id = o.id
-            LEFT JOIN artists a ON a.id::text = oi.artist_id
-            WHERE o.id::text = ? OR o.order_number = ?
-            LIMIT 1
-        ");
-        $row->execute([(string)$orderId, (string)$orderId]);
-        $cmd = $row->fetch(PDO::FETCH_ASSOC);
-
-        if ($cmd) {
-            $dbOrderId     = $cmd['id'];
-            $artistId      = $cmd['artist_id']            ?? '';
-            $artistName    = $cmd['artist_display_name']  ?? $cmd['artist_name'] ?? 'Inconnu';
-            $artistEmail   = $cmd['artist_email']         ?? '';
-            $amountArtwork = (float)($cmd['artist_payout']  ?? 0);
-            $amountShip    = (float)($cmd['shipping_cost']  ?? 0);
-            $amountTotal   = $amountArtwork + $amountShip;
-            $refNote       = trim(($paymentNote ?? '') . ($paymentReference ? " | Réf: $paymentReference" : ''));
-
-            // 3. Insérer dans l'historique de la commande
-            $db->prepare("
-                INSERT INTO order_timeline (order_id, status, note, updated_by, updated_by_role)
-                VALUES (?, 'Fonds libérés', ?, ?, 'admin')
-            ")->execute([
-                $dbOrderId,
-                'Virement artiste confirmé par admin' . ($refNote ? " — $refNote" : ''),
-                $paidBy
-            ]);
-
-            // 4. Insérer la trace dans payment_transactions
-            $db->prepare("
-                INSERT INTO payment_transactions
-                    (order_id, order_number, artist_id, artist_name, artist_email,
-                     amount_artwork, amount_shipping, amount_total,
-                     payment_method, payment_reference, payment_note, paid_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ")->execute([
-                $dbOrderId,
-                $cmd['order_number'],
-                $artistId,
-                $artistName,
-                $artistEmail,
-                $amountArtwork,
-                $amountShip,
-                $amountTotal,
-                $paymentMethod,
-                $paymentReference,
-                $paymentNote,
-                $paidBy
-            ]);
-
-            // 5. Notifier l'artiste
-            try {
-                $db->prepare("
-                    INSERT INTO artist_notifications (artist_id, type, title, message, order_id, order_number)
-                    VALUES (?, 'payment_released', ?, ?, ?, ?)
-                ")->execute([
-                    $artistId,
-                    '💸 Paiement reçu — ' . $cmd['order_number'],
-                    'Votre virement de ' . number_format($amountTotal, 0, ',', ' ') . ' FCFA pour la commande ' . $cmd['order_number'] . ' a été effectué.',
-                    $dbOrderId,
-                    $cmd['order_number']
-                ]);
-            } catch (Exception $e) {}
-        }
-
-        echo json_encode(['success' => true, 'message' => 'Fonds libérés et transaction enregistrée']);
-        exit;
-    }
-
-    // ── POST update_shipping (artiste uniquement) ─────────────────
-    if ($action === 'update_shipping') {
-        $orderId   = $body['order_id']        ?? '';
-        $artistId  = $body['artist_id']       ?? '';
-        $tracking  = $body['tracking_number'] ?? null;
-        $carrier   = $body['carrier']         ?? null;
-        $note      = $body['note']            ?? null;
-        $proofUrl  = $body['shipping_proof_url'] ?? null;
-
-        if (!$orderId)  { echo json_encode(['success' => false, 'error' => 'order_id manquant']); exit; }
-        if (!$artistId) { echo json_encode(['success' => false, 'error' => 'artist_id manquant']); exit; }
-
-        // Vérifier que l'artiste a bien une œuvre dans cette commande
-        $check = $db->prepare("
-            SELECT COUNT(*) FROM order_items oi
-            JOIN orders o ON o.id = oi.order_id
-            WHERE (o.order_number = ? OR o.id::text = ?)
-            AND COALESCE(oi.artist_id, '') = ?
-        ");
-        $check->execute([$orderId, $orderId, $artistId]);
-        if ((int)$check->fetchColumn() === 0) {
-            echo json_encode(['success' => false, 'error' => 'Non autorisé : aucune de vos œuvres dans cette commande']);
-            exit;
-        }
-
-        // Vérifier que la commande est bien en état "payée_en_attente" (pas encore expédiée)
-        $stateCheck = $db->prepare("SELECT escrow_status FROM orders WHERE order_number = ? OR id::text = ? LIMIT 1");
-        $stateCheck->execute([$orderId, $orderId]);
-        $currentEscrow = $stateCheck->fetchColumn();
-        if ($currentEscrow && $currentEscrow !== 'payée_en_attente') {
-            echo json_encode(['success' => false, 'error' => 'Cette commande a déjà été expédiée ou traitée']);
-            exit;
-        }
-
-        $setFields = "status = 'Expédiée', escrow_status = 'expédiée', shipped_at = NOW(), updated_at = NOW(), updated_by = 'artist'";
-        $params    = [];
-
-        if ($tracking) { $setFields .= ", tracking_number = :tn"; $params[':tn'] = $tracking; }
-        if ($carrier)  { $setFields .= ", carrier = :carrier";     $params[':carrier'] = $carrier; }
-        if ($proofUrl) { $setFields .= ", shipping_proof_url = :proof"; $params[':proof'] = $proofUrl; }
-
-        $autoRelease = date('Y-m-d H:i:s', strtotime('+21 days'));
-        $setFields .= ", escrow_auto_release_date = '$autoRelease'";
-
-        $params[':id'] = $orderId;
-        $db->prepare("UPDATE orders SET $setFields WHERE order_number = :id OR id::text = :id")->execute($params);
-
-        // Récupérer l'id numérique pour la timeline
-        $row = $db->prepare("SELECT id FROM orders WHERE order_number = ? OR id::text = ? LIMIT 1");
-        $row->execute([$orderId, $orderId]);
-        $dbOrderId = $row->fetchColumn();
-
-        if ($dbOrderId) {
-            $tlNote = $note ?: 'Commande expédiée par l\'artiste';
-            if ($tracking) $tlNote .= " | Tracking: $tracking";
-            if ($carrier)  $tlNote .= " ($carrier)";
-            $db->prepare("
-                INSERT INTO order_timeline (order_id, status, note, updated_by, updated_by_role)
-                VALUES (?, 'Expédiée', ?, ?, 'artist')
-            ")->execute([$dbOrderId, $tlNote, $artistId]);
-        }
-
-        echo json_encode(['success' => true, 'message' => 'Expédition enregistrée']);
-        exit;
-    }
-
-    // ── POST refuser_commande (artiste) ──────────────────────────
-    if ($action === 'refuser_commande') {
-        $orderId    = $body['order_id']    ?? '';
-        $artistId   = $body['artist_id']   ?? '';
-        $artistName = $body['artist_name'] ?? "L'artiste";
-        $raison     = $body['raison']      ?? 'Commande refusée par l\'artiste';
-
-        if (!$orderId) { echo json_encode(['success' => false, 'error' => 'order_id manquant']); exit; }
-
-        // Vérifier que l'artiste a bien une œuvre dans cette commande
-        if ($artistId) {
-            $check = $db->prepare("
-                SELECT COUNT(*) FROM order_items oi
-                JOIN orders o ON o.id = oi.order_id
-                WHERE (o.order_number = ? OR o.id::text = ?)
-                AND COALESCE(oi.artist_id,'') = ?
-            ");
-            $check->execute([$orderId, $orderId, $artistId]);
-            if ((int)$check->fetchColumn() === 0) {
-                echo json_encode(['success' => false, 'error' => 'Non autorisé']);
-                exit;
-            }
-        }
-
-        // Récupérer les infos de la commande
-        $row = $db->prepare("
-            SELECT o.id, o.order_number, o.user_id, o.user_name, o.user_email
-            FROM orders o
-            WHERE o.order_number = ? OR o.id::text = ?
-            LIMIT 1
-        ");
-        $row->execute([$orderId, $orderId]);
-        $cmd = $row->fetch(PDO::FETCH_ASSOC);
-
-        if (!$cmd) { echo json_encode(['success' => false, 'error' => 'Commande introuvable']); exit; }
-
-        $dbOrderId   = $cmd['id'];
-        $orderNumber = $cmd['order_number'];
-        $buyerId     = $cmd['user_id']    ?? '';
-        $buyerName   = $cmd['user_name']  ?? 'l\'acheteur';
-        $buyerEmail  = $cmd['user_email'] ?? '';
-
-        // 1. Mettre à jour le statut
-        $db->prepare("
-            UPDATE orders SET status = 'Refusée', escrow_status = 'refusée',
-            updated_at = NOW(), updated_by = 'artist'
-            WHERE id = ?
-        ")->execute([$dbOrderId]);
-
-        // 2. Timeline
-        $db->prepare("
-            INSERT INTO order_timeline (order_id, status, note, updated_by, updated_by_role)
-            VALUES (?, 'Refusée', ?, ?, 'artist')
-        ")->execute([$dbOrderId, "Commande refusée par l'artiste $artistName : $raison", $artistId]);
-
-        // 3. Notifier l'acheteur
-        try {
-            $db->prepare("
-                INSERT INTO artist_notifications (artist_id, type, title, message, order_id, order_number)
-                VALUES (?, 'order_refused', ?, ?, ?, ?)
-            ")->execute([
-                $buyerId,
-                "❌ Commande refusée — $orderNumber",
-                "Votre commande $orderNumber a été refusée par l'artiste. Motif : $raison. L'administrateur prendra contact pour votre remboursement.",
-                $dbOrderId,
-                $orderNumber
-            ]);
-        } catch (Exception $e) {}
-
-        // 4. Notifier l'admin (artist_id = 'admin' comme convention)
-        try {
-            $db->prepare("
-                INSERT INTO artist_notifications (artist_id, type, title, message, order_id, order_number)
-                VALUES ('admin', 'order_refused', ?, ?, ?, ?)
-            ")->execute([
-                "⚠️ Commande refusée à rembourser — $orderNumber",
-                "L'artiste $artistName a refusé la commande $orderNumber de $buyerName. Motif : $raison. Action requise : déclencher le remboursement.",
-                $dbOrderId,
-                $orderNumber
-            ]);
-        } catch (Exception $e) {}
-
-        echo json_encode(['success' => true, 'message' => 'Commande refusée, notifications envoyées']);
-        exit;
-    }
-
-    // ── POST delete_order ─────────────────────────────────────────
-    if ($action === 'delete_order') {
-        $orderId = $body['order_id'] ?? '';
-        if (!$orderId) { echo json_encode(['success' => false, 'error' => 'order_id manquant']); exit; }
-        $db->prepare("DELETE FROM orders WHERE id::text = ? OR order_number = ?")->execute([$orderId, $orderId]);
-        echo json_encode(['success' => true]);
-        exit;
-    }
-
-    // ── GET list_transactions ─────────────────────────────────────
-    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'list_transactions') {
-        $artistId = $_GET['artist_id'] ?? '';
-        $limit    = min((int)($_GET['limit'] ?? 50), 200);
-
-        if ($artistId) {
-            $stmt = $db->prepare("
-                SELECT * FROM payment_transactions
-                WHERE artist_id = ?
-                ORDER BY created_at DESC LIMIT ?
-            ");
-            $stmt->execute([$artistId, $limit]);
-        } else {
-            // Admin : toutes les transactions
-            $stmt = $db->prepare("SELECT * FROM payment_transactions ORDER BY created_at DESC LIMIT ?");
-            $stmt->execute([$limit]);
-        }
-        $transactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo json_encode(['success' => true, 'transactions' => $transactions], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-
-    echo json_encode(['success' => false, 'error' => 'Action non reconnue: ' . $action]);
+    error_log("✅ Webhook ARKYL — Commande $order_id créée (db_id: $new_order_db_id) | "
+        . count($cartItems) . " article(s) | "
+        . "Commission ARKYL (35%) : {$commission_amount} FCFA | "
+        . "Reversement artiste (65%) : {$artist_payout} FCFA | "
+        . "Livraison (non taxée) : {$shipping_cost} FCFA");
 
 } catch (Exception $e) {
-    error_log("❌ api_commandes.php — " . $e->getMessage());
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    if (isset($db) && $db->inTransaction()) {
+        $db->rollBack();
+    }
+    error_log("❌ Webhook ARKYL — Erreur BDD : " . $e->getMessage());
 }
 
-function COALESCE_str($val) {
-    return $val === null ? '' : (string)$val;
-}
+// ─────────────────────────────────────────────────────────────────
+// ÉTAPE 7 — Toujours répondre 200 à Stripe
+// ─────────────────────────────────────────────────────────────────
+http_response_code(200);
+echo json_encode(['received' => true]);
 ?>

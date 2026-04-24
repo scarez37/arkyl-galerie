@@ -4326,23 +4326,69 @@ window.enterGallery = function enterGallery() {
         // ===== RETOUR STRIPE : traiter commande en attente =====
         async function processStripeReturn(sessionId, arkylOrderId) {
             console.log('🔄 processStripeReturn appelé — session:', sessionId, 'order:', arkylOrderId);
-            const pending = safeStorage.get('arkyl_pending_order', null);
+
+            // ✅ FIX : si currentUser est encore null (session Google pas encore restaurée),
+            // on attend jusqu'à 5 secondes avant d'abandonner.
+            if (!currentUser) {
+                let waited = 0;
+                await new Promise(resolve => {
+                    const poll = setInterval(() => {
+                        waited += 200;
+                        if (currentUser || waited >= 5000) {
+                            clearInterval(poll);
+                            resolve();
+                        }
+                    }, 200);
+                });
+                if (!currentUser) {
+                    // Dernier recours : reconstruire depuis localStorage brut
+                    const rawUser = localStorage.getItem('arkyl_current_user')
+                                 || localStorage.getItem('arkyl_arkyl_current_user');
+                    if (rawUser) {
+                        try { currentUser = JSON.parse(rawUser); } catch(e) {}
+                    }
+                    if (!currentUser) {
+                        const uid   = localStorage.getItem('user_id');
+                        const email = localStorage.getItem('user_email');
+                        const name  = localStorage.getItem('user_name');
+                        if (uid || email) {
+                            currentUser = { id: uid||email, googleId: uid||email, email: email||'', name: name||'' };
+                        }
+                    }
+                }
+            }
+
+            // ✅ FIX : si la pending order est absente (localStorage perdu pendant la redirection),
+            // essayer de la retrouver dans l'historique local via l'order_number Stripe
+            let pending = safeStorage.get('arkyl_pending_order', null);
+            if (!pending && arkylOrderId) {
+                const history = safeStorage.get('arkyl_orders', []);
+                const found = history.find(o =>
+                    o.order_number === arkylOrderId ||
+                    o.stripe_session_id === sessionId
+                );
+                if (found) {
+                    console.log('\u2139\ufe0f Commande retrouvée dans l\'historique via order_number');
+                    pending = { ...found, processed: false };
+                }
+            }
 
             if (!pending) {
-                // Pas de commande locale — mais paiement confirmé par Stripe
-                // Créer une commande minimale à partir des infos disponibles
-                console.log('⚠️ Pas de commande en attente — création minimale');
+                // Paiement confirmé par Stripe mais aucune donnée locale disponible.
+                // Le webhook a déjà créé la commande en BDD — on affiche juste la confirmation.
+                console.log('\u26a0\ufe0f Pas de commande en attente — création minimale (webhook BDD déjà effectué)');
+                const userId    = currentUser?.id || currentUser?.googleId || currentUser?.email
+                               || localStorage.getItem('user_id') || '';
                 const minOrder = {
                     id: Date.now(),
                     order_number: arkylOrderId || ('ARK-' + Date.now().toString(36).toUpperCase()),
                     stripe_session_id: sessionId,
-                    user_id: currentUser?.id || currentUser?.googleId || currentUser?.email || '',
-                    user_name: currentUser?.name || '',
-                    user_email: currentUser?.email || '',
+                    user_id:    userId,
+                    user_name:  currentUser?.name  || localStorage.getItem('user_name')  || '',
+                    user_email: currentUser?.email || localStorage.getItem('user_email') || '',
                     items: cartItems.length > 0 ? cartItems.map(i => ({...i, artwork_id: i.id})) : [],
                     subtotal: cartItems.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
-                    tax: 0,
-                    shippingCost: 0,
+                    tax: 0, shippingCost: 0,
                     total: cartItems.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
                     shippingName: 'À confirmer',
                     paymentMethod: 'Stripe',
@@ -4351,12 +4397,20 @@ window.enterGallery = function enterGallery() {
                     date: new Date().toLocaleDateString('fr-FR', {day:'2-digit',month:'long',year:'numeric'}),
                 };
                 orderHistory = safeStorage.get('arkyl_orders', []);
-                orderHistory.unshift(minOrder);
-                safeStorage.set('arkyl_orders', orderHistory);
-                cartItems = []; safeStorage.set('arkyl_cart', []); updateBadges();
-                syncOrderToServer(minOrder).catch(() => {});
+                // Éviter doublon si déjà présent
+                const alreadyMin = orderHistory.some(o =>
+                    o.order_number === minOrder.order_number ||
+                    (sessionId && o.stripe_session_id === sessionId)
+                );
+                if (!alreadyMin) {
+                    orderHistory.unshift(minOrder);
+                    safeStorage.set('arkyl_orders', orderHistory);
+                    cartItems = []; safeStorage.set('arkyl_cart', []); updateBadges();
+                    // sync seulement si on a un userId exploitable
+                    if (userId) syncOrderToServer(minOrder).catch(() => {});
+                }
                 setTimeout(() => {
-                    showToast('🎉 Paiement confirmé ! Commande ' + minOrder.order_number + ' créée.');
+                    showToast('\ud83c\udf89 Paiement confirm\u00e9 ! Commande ' + minOrder.order_number + ' cr\u00e9\u00e9e.');
                     navigateTo('orders');
                     showOrderSuccessModal(minOrder);
                 }, 300);
@@ -4516,9 +4570,13 @@ window.enterGallery = function enterGallery() {
         }
 
         async function syncOrderToServer(order) {
-            const userId = currentUser?.id || currentUser?.googleId || currentUser?.email || '';
+            // ✅ FIX : utiliser user_id de la commande elle-même si currentUser n'est pas encore chargé
+            // (retour Stripe avant que la session Google soit restaurée)
+            const userId = currentUser?.id || currentUser?.googleId || currentUser?.email
+                        || order?.user_id || order?.userId
+                        || localStorage.getItem('user_id') || '';
             if (!userId) {
-                console.error('❌ syncOrderToServer — user_id manquant, sync annulée');
+                console.error('\u274c syncOrderToServer \u2014 user_id introuvable (currentUser + order + localStorage vides)');
                 return false;
             }
 
@@ -10837,9 +10895,10 @@ window.enterGallery = function enterGallery() {
 
             if (window._isStripeReturn || window._pendingStripeSession || window._pendingStripeOrderId) {
                 // Retour Stripe → ignorer la dernière page, traiter le paiement
+                // ✅ FIX : délai plus long pour laisser restoreSession() + Google Sign-In s'initialiser
                 safeStorage.remove('arkyl_last_page');
                 updateNavigationHistory('home');
-                setTimeout(() => processStripeReturn(window._pendingStripeSession, window._pendingStripeOrderId), 1200);
+                setTimeout(() => processStripeReturn(window._pendingStripeSession, window._pendingStripeOrderId), 2500);
             } else if (lastPage && (Date.now() - lastPage.timestamp) < 5000) {
                 startPage = lastPage.pageId.replace('Page', '');
                 setTimeout(() => {

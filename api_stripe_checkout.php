@@ -205,8 +205,8 @@ try {
             'artist_payout'     => $artist_payout,     // Part Artiste (65%)
         ],
         // 🆕 IMPORTANT : Modification en index.php au lieu de index.html
-        'success_url' => 'https://arkyl-galerie.onrender.com/index.php?order_id=' . $order_id . '&session_id={CHECKOUT_SESSION_ID}',
-        'cancel_url'  => 'https://arkyl-galerie.onrender.com/index.php',
+        'success_url' => 'https://arkyl-galerie-nvwn.onrender.com/index.php?order_id=' . $order_id . '&session_id={CHECKOUT_SESSION_ID}',
+        'cancel_url'  => 'https://arkyl-galerie-nvwn.onrender.com/index.php',
     ]);
 
     echo json_encode([

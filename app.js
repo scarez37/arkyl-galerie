@@ -11195,30 +11195,104 @@ window.enterGallery = function enterGallery() {
 
     // ==================== CHARGEMENT PROGRESSIF DE LA GALERIE ====================
 
+    const _GALERIE_CACHE_KEY = 'arkyl_galerie_v3';
+    const _GALERIE_CACHE_TTL = 4 * 60 * 1000; // 4 minutes : fraîcheur acceptable
+
+    /* ── Lecture cache ── */
+    function _lireCache() {
+        try {
+            const raw = localStorage.getItem(_GALERIE_CACHE_KEY);
+            if (!raw) return null;
+            const obj = JSON.parse(raw);
+            if (!obj || !Array.isArray(obj.data) || !obj.data.length) return null;
+            return obj; // { data, ts, hasMore }
+        } catch(e) { return null; }
+    }
+
+    /* ── Écriture cache (garde seulement les 80 premières œuvres) ── */
+    function _ecrireCache(data, hasMore) {
+        try {
+            localStorage.setItem(_GALERIE_CACHE_KEY, JSON.stringify({
+                data: data.slice(0, 80),
+                ts: Date.now(),
+                hasMore: hasMore !== false
+            }));
+        } catch(e) {} // quota plein → on ignore
+    }
 
     async function chargerLaVraieGalerie() {
-        const grille = document.getElementById('productsContainer'); 
-        if (!grille) return; 
+        const grille = document.getElementById('productsContainer');
+        if (!grille) return;
 
-        // Afficher un indicateur de chargement initial
-        grille.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-size:48px;margin-bottom:20px;animation:pulse 1.5s ease-in-out infinite;">⏳</div><p style="color:rgba(255,255,255,0.7);">Chargement de la galerie...</p></div>';
-
-        // Réinitialiser pour le premier chargement
+        // Réinitialiser l'état
         currentOffset = 0;
         window.hasMoreData = true;
         window.toutesLesOeuvres = [];
-        // ⭐ Rechargement manuel — réinitialiser le circuit breaker pour permettre la tentative
         _serverErrorCount = 0;
         _serverRetryAfter = 0;
 
-        // Charger le premier lot
+        // ── ÉTAPE 1 : squelettes visibles en <10 ms ─────────────────────
+        _afficherSquelettes(grille);
+
+        // ── ÉTAPE 2 : cache-first ────────────────────────────────────────
+        const cache = _lireCache();
+        if (cache) {
+            // Afficher le cache immédiatement (< 1 ms)
+            window.toutesLesOeuvres = cache.data;
+            currentOffset = cache.data.length;
+            window.afficherOeuvresFiltrees();
+            console.log(`⚡ Cache affiché instantanément : ${cache.data.length} œuvres`);
+
+            if (Date.now() - cache.ts < _GALERIE_CACHE_TTL) {
+                // Cache frais → on garde juste le sentinel pour paginer la suite
+                window.hasMoreData = cache.hasMore !== false;
+                if (window.hasMoreData) ajouterBoutonChargerPlus();
+                return;
+            }
+            // Cache périmé → revalide en arrière-plan (l'utilisateur voit déjà les œuvres)
+            _revaliderEnArrierePlan();
+            return;
+        }
+
+        // ── ÉTAPE 3 : premier chargement (pas de cache) ──────────────────
         await chargerPlusOeuvres();
+    }
+
+    /* Revalidation silencieuse — ne touche pas au DOM tant que les données sont identiques */
+    async function _revaliderEnArrierePlan() {
+        try {
+            const urlAPI = `https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?limit=${ITEMS_PER_LOAD}&offset=0&t=${Date.now()}`;
+            const reponse = await fetch(urlAPI);
+            const resultat = await reponse.json();
+            if (resultat.success && resultat.data?.length > 0) {
+                _ecrireCache(resultat.data, resultat.data.length >= ITEMS_PER_LOAD);
+                console.log('🔄 Cache mis à jour en arrière-plan');
+                // Si l'utilisateur est encore sur la galerie, on peut optionnellement re-render,
+                // mais on ne le fait pas pour ne pas perturber le scroll.
+            }
+        } catch(e) {}
+    }
+
+    /* Squelettes dans la bonne grille colonnes */
+    function _afficherSquelettes(grille) {
+        const w = window.innerWidth;
+        const cols = w >= 1100 ? 5 : w >= 800 ? 4 : w >= 500 ? 3 : 2;
+        const count = cols * 3; // 3 lignes de squelettes
+        grille.innerHTML = Array.from({ length: count }, () => `
+            <div class="product-card skeleton-card" style="break-inside:avoid;margin-bottom:7px;">
+                <div class="sk-img skeleton-base" style="width:100%;aspect-ratio:3/4;border-radius:12px 12px 0 0;"></div>
+                <div class="sk-body" style="padding:10px;display:flex;flex-direction:column;gap:7px;">
+                    <div class="sk-title skeleton-base" style="height:13px;width:68%;border-radius:6px;"></div>
+                    <div class="sk-sub   skeleton-base" style="height:11px;width:42%;border-radius:6px;"></div>
+                    <div class="sk-price skeleton-base" style="height:15px;width:33%;border-radius:6px;margin-top:3px;"></div>
+                </div>
+            </div>`).join('');
     }
 
     async function chargerPlusOeuvres() {
         if (isLoading || !window.hasMoreData) return;
 
-        // ⭐ Circuit breaker : si trop d'erreurs récentes, on attend avant de réessayer
+        // ⭐ Circuit breaker
         if (_serverErrorCount >= _SERVER_MAX_ERRORS && Date.now() < _serverRetryAfter) {
             const remaining = Math.ceil((_serverRetryAfter - Date.now()) / 60000);
             console.warn(`⏸️ Serveur indisponible — nouvelle tentative dans ~${remaining} min`);
@@ -11231,7 +11305,6 @@ window.enterGallery = function enterGallery() {
         isLoading = true;
 
         try {
-            // Ajouter les paramètres de pagination à l'API
             const urlAPI = `https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?limit=${ITEMS_PER_LOAD}&offset=${currentOffset}&t=${Date.now()}`;
             
             console.log(`📥 Chargement des œuvres ${currentOffset} à ${currentOffset + ITEMS_PER_LOAD}...`);
@@ -11240,28 +11313,26 @@ window.enterGallery = function enterGallery() {
             const resultat = await reponse.json();
 
             if (currentOffset === 0) {
-                grille.innerHTML = ''; // Vider seulement au premier chargement
+                grille.innerHTML = ''; // Vider les squelettes au premier chargement réel
             }
 
             if (resultat.success && resultat.data && resultat.data.length > 0) {
-                // Ajouter les nouvelles œuvres à la liste globale
                 window.toutesLesOeuvres = [...(window.toutesLesOeuvres || []), ...resultat.data];
                 
-                // Vérifier s'il reste des données
                 if (resultat.data.length < ITEMS_PER_LOAD) {
                     window.hasMoreData = false;
                 }
                 
-                // Incrémenter l'offset pour le prochain chargement
                 currentOffset += resultat.data.length;
                 
-                // Afficher les œuvres
+                // Sauvegarder en cache pour la prochaine visite
+                _ecrireCache(window.toutesLesOeuvres, window.hasMoreData);
+                
                 window.afficherOeuvresFiltrees();
                 
                 console.log(`✅ ${resultat.data.length} œuvres chargées. Total: ${window.toutesLesOeuvres.length}`);
-                _serverErrorCount = 0; // ⭐ Succès — réinitialiser le circuit breaker
+                _serverErrorCount = 0;
                 
-                // Remettre le sentinel global si encore des données à charger depuis le serveur
                 if (window.hasMoreData) {
                     ajouterBoutonChargerPlus();
                 }
@@ -11280,7 +11351,11 @@ window.enterGallery = function enterGallery() {
             }
             console.error("Erreur de communication :", erreur);
             if (currentOffset === 0) {
-                grille.innerHTML = '<p style="color:red; text-align:center;">Serveur injoignable pour le moment.</p>';
+                // Même en erreur réseau, si on avait un cache périmé on l'a déjà affiché — pas de message d'erreur
+                const hasContent = grille.querySelectorAll('.product-card:not(.skeleton-card)').length > 0;
+                if (!hasContent) {
+                    grille.innerHTML = '<p style="color:rgba(255,255,255,0.5); text-align:center;padding:40px;">Connexion lente… réessaie dans un instant.</p>';
+                }
             }
             window.hasMoreData = false;
         } finally {

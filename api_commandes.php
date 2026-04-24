@@ -1,43 +1,497 @@
 <?php
-// ==================== WEBHOOK STRIPE ====================
-// Stripe appelle ce fichier silencieusement après chaque paiement réussi.
-// C'est lui qui CRÉE la commande en base et vide le panier.
-// ⚠️  Ne jamais appeler ce fichier manuellement — uniquement via Stripe.
+// ==================== API COMMANDES — ROUTER ====================
+// Ce fichier gère deux types de requêtes :
+//   • GET  → API REST (list commandes, notifications)
+//   • POST + HTTP_STRIPE_SIGNATURE → Webhook Stripe (création commande)
+//   • POST sans signature → Actions app (update_status, expédition, etc.)
 
 require_once __DIR__ . '/db_config.php';
 require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/notify_helpers.php';
 
-\Stripe\Stripe::setApiKey('sk_test_51T2gpFF55lBdracChUzrVSa166Skh4ob49dtF3j0pa27zcWMk1YLnvt5Wz788K7O0CpIMJPMZcaKDqG241vgQ8tj00EY87nxyZ');
+// ── CORS ──────────────────────────────────────────────────────────
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
-// 🔐 Secret webhook — à copier depuis ton tableau de bord Stripe
-$endpoint_secret = 'whsec_yjPEMxUgwPmuDWvS48z4fFQz7PpqcLaP';
+$method = $_SERVER['REQUEST_METHOD'];
 
-// ─────────────────────────────────────────────────────────────────
-// ÉTAPE 1 — Lire et vérifier la signature cryptographique de Stripe
-// ─────────────────────────────────────────────────────────────────
-$payload    = @file_get_contents('php://input');
-$sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
-
-try {
-    $event = \Stripe\Webhook::constructEvent($payload, $sig_header, $endpoint_secret);
-} catch (\UnexpectedValueException $e) {
-    http_response_code(400);
-    exit();
-} catch (\Stripe\Exception\SignatureVerificationException $e) {
-    http_response_code(400);
+// ─── ROUTER ──────────────────────────────────────────────────────
+if ($method === 'GET') {
+    header('Content-Type: application/json');
+    handleApiGet();
     exit();
 }
 
-// ─────────────────────────────────────────────────────────────────
-// ÉTAPE 2 — On ne traite que l'événement "paiement réussi"
-// ─────────────────────────────────────────────────────────────────
-if ($event->type !== 'checkout.session.completed') {
-    http_response_code(200);
+if ($method === 'POST') {
+    // Webhook Stripe = présence du header de signature
+    if (!empty($_SERVER['HTTP_STRIPE_SIGNATURE'])) {
+        handleStripeWebhook();
+        exit();
+    }
+    // Sinon → appel depuis l'app
+    header('Content-Type: application/json');
+    handleApiPost();
     exit();
 }
 
-$session = $event->data->object;
+http_response_code(405);
+echo json_encode(['error' => 'Method not allowed']);
+exit();
+
+// ═══════════════════════════════════════════════════════════════════
+// GET — API REST
+// ═══════════════════════════════════════════════════════════════════
+function handleApiGet() {
+    $action = $_GET['action'] ?? '';
+
+    try {
+        $db = getDatabase();
+
+        // ── action=list ──────────────────────────────────────────
+        if ($action === 'list') {
+            $isAdmin     = !empty($_GET['admin']);
+            $artist_id   = trim($_GET['artist_id']   ?? '');
+            $artist_name = trim($_GET['artist_name'] ?? '');
+
+            // Récupérer toutes les commandes avec leurs items (JSON agrégé)
+            $sql = "
+                SELECT
+                    o.id, o.order_number, o.user_id, o.user_name, o.user_email,
+                    o.status, o.escrow_status, o.escrow_auto_release_date,
+                    o.subtotal, o.tax, o.shipping_cost, o.shipping_name,
+                    o.shipping_address, o.payment_method, o.total,
+                    o.commission_amount, o.artist_payout,
+                    o.tracking_number, o.carrier, o.shipping_proof_url,
+                    o.created_at, o.updated_at,
+                    COALESCE(
+                        json_agg(
+                            json_build_object(
+                                'id',          oi.id,
+                                'artwork_id',  oi.artwork_id,
+                                'title',       oi.title,
+                                'artist',      oi.artist_name,
+                                'artist_name', oi.artist_name,
+                                'artist_id',   oi.artist_id,
+                                'price',       oi.price,
+                                'quantity',    oi.quantity,
+                                'image',       oi.image_url,
+                                'image_url',   oi.image_url
+                            )
+                        ) FILTER (WHERE oi.id IS NOT NULL),
+                        '[]'
+                    ) AS items
+                FROM orders o
+                LEFT JOIN order_items oi ON oi.order_id = o.id
+                GROUP BY o.id
+                ORDER BY o.created_at DESC
+            ";
+
+            $stmt = $db->query($sql);
+            $allOrders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Décoder les items JSON
+            foreach ($allOrders as &$order) {
+                $order['items'] = json_decode($order['items'] ?? '[]', true) ?: [];
+            }
+            unset($order);
+
+            // ── Filtre artiste ──────────────────────────────────
+            // ✅ FIX : on filtre par artist_id (BDD) OU artist_name
+            // car le front envoie tantôt l'un, tantôt l'autre
+            if (!$isAdmin && ($artist_id !== '' || $artist_name !== '')) {
+                $allOrders = array_values(array_filter($allOrders, function($order) use ($artist_id, $artist_name) {
+                    foreach ($order['items'] as $item) {
+                        $itemArtistId   = (string)($item['artist_id']   ?? '');
+                        $itemArtistName = mb_strtolower(trim($item['artist_name'] ?? $item['artist'] ?? ''));
+                        $queryName      = mb_strtolower(trim($artist_name));
+
+                        $matchById   = $artist_id !== '' && $itemArtistId === $artist_id;
+                        $matchByName = $queryName  !== '' && $itemArtistName === $queryName;
+
+                        if ($matchById || $matchByName) return true;
+                    }
+                    return false;
+                }));
+            }
+
+            echo json_encode(['success' => true, 'orders' => $allOrders]);
+            return;
+        }
+
+        // ── action=get_notifications ─────────────────────────────
+        if ($action === 'get_notifications') {
+            $artist_id   = trim($_GET['artist_id']   ?? '');
+            $artist_name = trim($_GET['artist_name'] ?? '');
+
+            // Créer la table notifications si elle n'existe pas encore
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS artist_notifications (
+                    id           SERIAL PRIMARY KEY,
+                    artist_id    VARCHAR(255),
+                    artist_name  VARCHAR(255),
+                    order_id     INTEGER,
+                    order_number VARCHAR(255),
+                    title        VARCHAR(255),
+                    message      TEXT,
+                    is_read      BOOLEAN DEFAULT FALSE,
+                    created_at   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                )
+            ");
+
+            // ✅ FIX : chercher par artist_id OU artist_name
+            $where  = [];
+            $params = [];
+            if ($artist_id !== '') {
+                $where[]  = 'artist_id = :artist_id';
+                $params[':artist_id'] = $artist_id;
+            }
+            if ($artist_name !== '') {
+                $where[]  = 'LOWER(artist_name) = LOWER(:artist_name)';
+                $params[':artist_name'] = $artist_name;
+            }
+            $whereSQL = $where ? 'WHERE (' . implode(' OR ', $where) . ')' : 'WHERE 1=0';
+
+            $stmt = $db->prepare("
+                SELECT id, order_id, order_number, title, message, is_read, created_at
+                FROM artist_notifications
+                $whereSQL
+                ORDER BY created_at DESC
+                LIMIT 50
+            ");
+            $stmt->execute($params);
+            $notifs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $unread = count(array_filter($notifs, fn($n) => !$n['is_read']));
+
+            echo json_encode([
+                'success'      => true,
+                'notifications' => $notifs,
+                'unread_count' => $unread
+            ]);
+            return;
+        }
+
+        echo json_encode(['success' => false, 'error' => "Action '$action' inconnue"]);
+
+    } catch (Exception $e) {
+        error_log('❌ api_commandes GET : ' . $e->getMessage());
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// POST — Actions depuis l'app (non-webhook)
+// ═══════════════════════════════════════════════════════════════════
+function handleApiPost() {
+    $raw    = file_get_contents('php://input');
+    $body   = json_decode($raw, true) ?: [];
+    $action = $body['action'] ?? '';
+
+    try {
+        $db = getDatabase();
+
+        // ── Migrations minimales ──────────────────────────────────
+        $migrations = [
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS escrow_status VARCHAR(50) DEFAULT 'payée_en_attente'",
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(255)",
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS carrier VARCHAR(100)",
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_proof_url TEXT",
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ",
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_by VARCHAR(255)",
+            "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS artist_id VARCHAR(255)",
+            "CREATE TABLE IF NOT EXISTS order_timeline (
+                id SERIAL PRIMARY KEY, order_id INTEGER, status VARCHAR(100),
+                note TEXT, updated_by_role VARCHAR(50), created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )",
+            "CREATE TABLE IF NOT EXISTS artist_notifications (
+                id SERIAL PRIMARY KEY, artist_id VARCHAR(255), artist_name VARCHAR(255),
+                order_id INTEGER, order_number VARCHAR(255), title VARCHAR(255),
+                message TEXT, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )",
+        ];
+        foreach ($migrations as $sql) {
+            try { $db->exec($sql); } catch (Exception $e) {}
+        }
+
+        // ── update_status (admin) ─────────────────────────────────
+        if ($action === 'update_status') {
+            $order_id     = $body['order_id'] ?? '';
+            $status       = $body['status'] ?? '';
+            $escrow       = $body['escrow_status'] ?? null;
+            $tracking     = $body['tracking_number'] ?? null;
+            $carrier      = $body['carrier'] ?? null;
+            $note         = $body['note'] ?? null;
+            $updated_by   = $body['updated_by'] ?? 'admin';
+            $updated_role = $body['updated_by_role'] ?? 'admin';
+            $proof_url    = $body['shipping_proof_url'] ?? null;
+
+            if (!$order_id || !$status) {
+                echo json_encode(['success' => false, 'error' => 'order_id et status requis']);
+                return;
+            }
+
+            $stmt = $db->prepare("
+                UPDATE orders SET
+                    status = :status,
+                    escrow_status = COALESCE(:escrow, escrow_status),
+                    tracking_number = COALESCE(:tracking, tracking_number),
+                    carrier = COALESCE(:carrier, carrier),
+                    shipping_proof_url = COALESCE(:proof, shipping_proof_url),
+                    updated_by = :updated_by,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :order_id OR order_number = :order_number
+                RETURNING id, order_number
+            ");
+            $stmt->execute([
+                ':status'   => $status,
+                ':escrow'   => $escrow,
+                ':tracking' => $tracking,
+                ':carrier'  => $carrier,
+                ':proof'    => $proof_url,
+                ':updated_by' => $updated_by,
+                ':order_id' => $order_id,
+                ':order_number' => $order_id,
+            ]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($row && $note) {
+                $db->prepare("
+                    INSERT INTO order_timeline (order_id, status, note, updated_by_role)
+                    VALUES (:oid, :status, :note, :role)
+                ")->execute([':oid' => $row['id'], ':status' => $status, ':note' => $note, ':role' => $updated_role]);
+            }
+
+            echo json_encode(['success' => (bool)$row]);
+            return;
+        }
+
+        // ── update_shipping (artiste confirme expédition) ─────────
+        if ($action === 'update_shipping') {
+            $order_id = $body['order_id'] ?? '';
+            $tracking = $body['tracking_number'] ?? null;
+            $carrier  = $body['carrier'] ?? null;
+            $note     = $body['note'] ?? 'Commande expédiée par l\'artiste';
+            $proof    = $body['shipping_proof_url'] ?? null;
+
+            if (!$order_id) {
+                echo json_encode(['success' => false, 'error' => 'order_id requis']);
+                return;
+            }
+
+            $stmt = $db->prepare("
+                UPDATE orders SET
+                    status = 'Expédiée',
+                    escrow_status = 'expédiée',
+                    tracking_number = COALESCE(:tracking, tracking_number),
+                    carrier = COALESCE(:carrier, carrier),
+                    shipping_proof_url = COALESCE(:proof, shipping_proof_url),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :oid OR order_number = :onum
+                RETURNING id, order_number, user_id
+            ");
+            $stmt->execute([
+                ':tracking' => $tracking,
+                ':carrier'  => $carrier,
+                ':proof'    => $proof,
+                ':oid'      => $order_id,
+                ':onum'     => $order_id,
+            ]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($row) {
+                $db->prepare("
+                    INSERT INTO order_timeline (order_id, status, note, updated_by_role)
+                    VALUES (:oid, 'Expédiée', :note, 'artist')
+                ")->execute([':oid' => $row['id'], ':note' => $note]);
+            }
+
+            echo json_encode(['success' => (bool)$row, 'order' => $row]);
+            return;
+        }
+
+        // ── confirm_reception (client confirme réception) ─────────
+        if ($action === 'confirm_reception') {
+            $order_id = $body['order_id'] ?? '';
+            $user_id  = $body['user_id']  ?? '';
+
+            if (!$order_id) {
+                echo json_encode(['success' => false, 'error' => 'order_id requis']);
+                return;
+            }
+
+            $stmt = $db->prepare("
+                UPDATE orders SET
+                    status = 'Livrée',
+                    escrow_status = 'fonds_libérés',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE (id = :oid OR order_number = :onum)
+                  AND (user_id = :uid OR :uid = '')
+                RETURNING id, order_number
+            ");
+            $stmt->execute([':oid' => $order_id, ':onum' => $order_id, ':uid' => $user_id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($row) {
+                $db->prepare("
+                    INSERT INTO order_timeline (order_id, status, note, updated_by_role)
+                    VALUES (:oid, 'Livrée', 'Réception confirmée par le client — fonds libérés', 'client')
+                ")->execute([':oid' => $row['id']]);
+            }
+
+            echo json_encode(['success' => (bool)$row]);
+            return;
+        }
+
+        // ── refuser_commande (artiste refuse) ─────────────────────
+        if ($action === 'refuser_commande') {
+            $order_id    = $body['order_id'] ?? '';
+            $raison      = $body['raison'] ?? 'Refus sans motif';
+            $artist_name = $body['artist_name'] ?? '';
+
+            if (!$order_id) {
+                echo json_encode(['success' => false, 'error' => 'order_id requis']);
+                return;
+            }
+
+            $stmt = $db->prepare("
+                UPDATE orders SET
+                    status = 'Annulée',
+                    escrow_status = 'refusée',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :oid OR order_number = :onum
+                RETURNING id, order_number, user_id, user_email
+            ");
+            $stmt->execute([':oid' => $order_id, ':onum' => $order_id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($row) {
+                $db->prepare("
+                    INSERT INTO order_timeline (order_id, status, note, updated_by_role)
+                    VALUES (:oid, 'Annulée', :note, 'artist')
+                ")->execute([':oid' => $row['id'], ':note' => "Refus artiste : $raison"]);
+            }
+
+            echo json_encode(['success' => (bool)$row]);
+            return;
+        }
+
+        // ── mark_notifications_read ───────────────────────────────
+        if ($action === 'mark_notifications_read') {
+            $artist_id   = $body['artist_id']   ?? '';
+            $artist_name = $body['artist_name'] ?? '';
+
+            $db->prepare("
+                UPDATE artist_notifications
+                SET is_read = TRUE
+                WHERE artist_id = :aid OR LOWER(artist_name) = LOWER(:aname)
+            ")->execute([':aid' => $artist_id, ':aname' => $artist_name]);
+
+            echo json_encode(['success' => true]);
+            return;
+        }
+
+        // ── create (fallback manuel, hors webhook Stripe) ─────────
+        if ($action === 'create') {
+            // Traité uniquement si l'ordre n'existe pas encore (idempotence)
+            $order_number = $body['order_number'] ?? $body['order_id'] ?? '';
+            if ($order_number) {
+                $check = $db->prepare("SELECT id FROM orders WHERE order_number = :on LIMIT 1");
+                $check->execute([':on' => $order_number]);
+                if ($check->fetch()) {
+                    echo json_encode(['success' => true, 'info' => 'already_exists']);
+                    return;
+                }
+            }
+            // Création simplifiée (le webhook Stripe est la voie principale)
+            $stmt = $db->prepare("
+                INSERT INTO orders
+                    (order_number, user_id, user_name, user_email, status, escrow_status,
+                     subtotal, tax, shipping_cost, shipping_name, shipping_address,
+                     payment_method, total, created_at)
+                VALUES
+                    (:on, :uid, :uname, :uemail, 'En préparation', 'payée_en_attente',
+                     :sub, :tax, :ship, :sname, :saddr, :pm, :total, CURRENT_TIMESTAMP)
+                RETURNING id, order_number
+            ");
+            $stmt->execute([
+                ':on'    => $order_number ?: ('ARKYL-' . strtoupper(substr(uniqid(), -8))),
+                ':uid'   => $body['user_id']   ?? '',
+                ':uname' => $body['user_name']  ?? '',
+                ':uemail'=> $body['user_email'] ?? '',
+                ':sub'   => $body['subtotal']   ?? 0,
+                ':tax'   => $body['tax']        ?? 0,
+                ':ship'  => $body['shipping_cost'] ?? 0,
+                ':sname' => $body['shipping_name'] ?? '',
+                ':saddr' => $body['shipping_address'] ?? '',
+                ':pm'    => $body['payment_method'] ?? 'Stripe',
+                ':total' => $body['total'] ?? 0,
+            ]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // Insérer les items
+            if ($row && !empty($body['items'])) {
+                $ins = $db->prepare("
+                    INSERT INTO order_items
+                        (order_id, artwork_id, title, artist_name, artist_id, price, quantity, image_url)
+                    VALUES (:oid, :aid, :title, :aname, :artid, :price, :qty, :img)
+                ");
+                foreach ($body['items'] as $item) {
+                    $ins->execute([
+                        ':oid'   => $row['id'],
+                        ':aid'   => $item['artwork_id'] ?? $item['id'] ?? null,
+                        ':title' => $item['title'] ?? '',
+                        ':aname' => $item['artist_name'] ?? $item['artist'] ?? '',
+                        ':artid' => (string)($item['artist_id'] ?? ''),
+                        ':price' => $item['price'] ?? 0,
+                        ':qty'   => $item['quantity'] ?? 1,
+                        ':img'   => $item['image_url'] ?? $item['image'] ?? '',
+                    ]);
+                }
+            }
+
+            echo json_encode([
+                'success'      => (bool)$row,
+                'order_id'     => $row['id'] ?? null,
+                'order_number' => $row['order_number'] ?? null,
+            ]);
+            return;
+        }
+
+        echo json_encode(['success' => false, 'error' => "Action '$action' inconnue"]);
+
+    } catch (Exception $e) {
+        error_log('❌ api_commandes POST : ' . $e->getMessage());
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// POST — Webhook Stripe (signature vérifiée)
+// ═══════════════════════════════════════════════════════════════════
+function handleStripeWebhook() {
+    \Stripe\Stripe::setApiKey('sk_test_51T2gpFF55lBdracChUzrVSa166Skh4ob49dtF3j0pa27zcWMk1YLnvt5Wz788K7O0CpIMJPMZcaKDqG241vgQ8tj00EY87nxyZ');
+    $endpoint_secret = 'whsec_yjPEMxUgwPmuDWvS48z4fFQz7PpqcLaP';
+
+    $payload    = @file_get_contents('php://input');
+    $sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
+
+    try {
+        $event = \Stripe\Webhook::constructEvent($payload, $sig_header, $endpoint_secret);
+    } catch (\UnexpectedValueException $e) {
+        http_response_code(400); exit();
+    } catch (\Stripe\Exception\SignatureVerificationException $e) {
+        http_response_code(400); exit();
+    }
+
+    if ($event->type !== 'checkout.session.completed') {
+        http_response_code(200);
+        echo json_encode(['received' => true]);
+        exit();
+    }
+
+    $session = $event->data->object;
 
 // 🆕 RÉCUPÉRATION DE TOUTES LES METADATA
 $order_id          = $session->metadata->order_id          ?? '';
@@ -239,16 +693,15 @@ try {
         . "Reversement artiste (65%) : {$artist_payout} FCFA | "
         . "Livraison (non taxée) : {$shipping_cost} FCFA");
 
-} catch (Exception $e) {
-    if (isset($db) && $db->inTransaction()) {
-        $db->rollBack();
+    } catch (Exception $e) {
+        if (isset($db) && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        error_log("❌ Webhook ARKYL — Erreur BDD : " . $e->getMessage());
     }
-    error_log("❌ Webhook ARKYL — Erreur BDD : " . $e->getMessage());
-}
 
-// ─────────────────────────────────────────────────────────────────
-// ÉTAPE 7 — Toujours répondre 200 à Stripe
-// ─────────────────────────────────────────────────────────────────
-http_response_code(200);
-echo json_encode(['received' => true]);
+    // Toujours répondre 200 à Stripe
+    http_response_code(200);
+    echo json_encode(['received' => true]);
+} // end handleStripeWebhook
 ?>

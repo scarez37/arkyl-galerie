@@ -63,7 +63,7 @@
         if (typeof showLoading === 'function') showLoading();
         
         try {
-            const response = await fetch(`https://arkyl-galerie.onrender.com/api_get_favoris.php?user_id=${getUserId()}`);
+            const response = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_get_favoris.php?user_id=${getUserId()}`);
             const result = await response.json();
             
             if (typeof hideLoading === 'function') hideLoading();
@@ -118,7 +118,7 @@
         if (event) event.stopPropagation();
         
         try {
-            const response = await fetch('https://arkyl-galerie.onrender.com/api_ajouter_panier.php', {
+            const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_ajouter_panier.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -158,7 +158,7 @@
         if (typeof showLoading === 'function') showLoading();
         
         try {
-            const response = await fetch(`https://arkyl-galerie.onrender.com/api_get_panier.php?user_id=${getUserId()}`);
+            const response = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_get_panier.php?user_id=${getUserId()}`);
             const result = await response.json();
             
             if (typeof hideLoading === 'function') hideLoading();
@@ -241,11 +241,11 @@
         const userId = getUserId();
         
         try {
-            const favResponse = await fetch(`https://arkyl-galerie.onrender.com/api_get_favoris.php?user_id=${userId}`);
+            const favResponse = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_get_favoris.php?user_id=${userId}`);
             const favResult = await favResponse.json();
             const favCount = favResult.success ? (favResult.count || 0) : 0;
             
-            const cartResponse = await fetch(`https://arkyl-galerie.onrender.com/api_get_panier.php?user_id=${userId}`);
+            const cartResponse = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_get_panier.php?user_id=${userId}`);
             const cartResult = await cartResponse.json();
             const cartCount = cartResult.success ? (cartResult.total_items || 0) : 0;
             

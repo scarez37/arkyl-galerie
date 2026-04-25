@@ -4409,20 +4409,26 @@ window.enterGallery = function enterGallery() {
                              || localStorage.getItem('user_id') || '';
 
                 // ✅ FIX CRITIQUE : récupérer la commande + ses items depuis la BDD
-                // car cartItems est vide au retour Stripe quand pending est absent
+                // Chercher par order_number ARKYL (plus fiable que user_id qui peut avoir des formats différents)
                 let serverItems = [];
                 let serverOrder = null;
                 try {
-                    const params = new URLSearchParams({ action: 'list', t: Date.now() });
-                    if (userId) params.set('user_id', userId);
+                    // Essai 1 : chercher par order_number ou session_id via la liste admin restreinte
+                    const params = new URLSearchParams({ action: 'list', admin: '1', t: Date.now() });
                     const resp = await fetch(`${ORDERS_API}?${params.toString()}`);
                     const data = await resp.json();
                     if (data.success && data.orders?.length > 0) {
-                        // Chercher la commande qui correspond à cet achat
                         serverOrder = data.orders.find(o =>
                             o.order_number === arkylOrderId ||
                             o.stripe_session_id === sessionId
-                        ) || data.orders[0]; // fallback : commande la plus récente
+                        );
+                        if (!serverOrder && userId) {
+                            // Fallback : première commande qui correspond au user_id (plusieurs formats)
+                            serverOrder = data.orders.find(o =>
+                                String(o.user_id) === String(userId) ||
+                                o.user_email === (currentUser?.email || localStorage.getItem('user_email'))
+                            );
+                        }
                         if (serverOrder) serverItems = serverOrder.items || [];
                     }
                 } catch(e) {
@@ -8612,6 +8618,8 @@ window.enterGallery = function enterGallery() {
 
 
         // ==================== ARTISTE DATABASE ====================
+        // ✅ FIX double-chargement : ne redéclarer ArtistDatabase que si pas déjà définie
+        if (typeof window.ArtistDatabase === 'undefined') {
         class ArtistDatabase {
             constructor(artistId = 'default') {
                 this.artistId = artistId;
@@ -8719,14 +8727,22 @@ window.enterGallery = function enterGallery() {
                 this.nextId = 1;
             }
         }
+        window.ArtistDatabase = ArtistDatabase;
+        } // end if ArtistDatabase not defined
+
         // ⭐ FIX ISOLATION : charger le bon slot artiste dès l'instanciation
         // (restoreSession() a déjà restauré currentUser avant cette ligne)
-        const _initArtistId = currentUser?.id || currentUser?.googleId || currentUser?.email || 'default';
-        const db = new ArtistDatabase(_initArtistId);
+        if (typeof window._artistDb === 'undefined') {
+            const _initArtistId = currentUser?.id || currentUser?.googleId || currentUser?.email || 'default';
+            window._artistDb = new window.ArtistDatabase(_initArtistId);
+        }
+        var db = window._artistDb;
         // Note: données rechargées via switchArtist() à chaque changement d'artiste
         
-        let editingArtworkId = null;
-        let currentGalleryFilter = 'all';
+        if (typeof window.editingArtworkId === 'undefined') window.editingArtworkId = null;
+        var editingArtworkId = window.editingArtworkId;
+        if (typeof window.currentGalleryFilter === 'undefined') window.currentGalleryFilter = 'all';
+        var currentGalleryFilter = window.currentGalleryFilter;
 
         // ==================== MODE SWITCHING ====================
 

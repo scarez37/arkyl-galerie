@@ -738,11 +738,29 @@ window.enterGallery = function enterGallery() {
 
         // ==================== SAFE STORAGE HELPERS ====================
         // Persiste dans localStorage avec fallback mémoire
-        window.currentCategory = 'all';
-        let currentCategory = 'all';
-        let favorites = safeStorage.get('arkyl_favorites', []);
-        let cartItems = [];
-        let orderHistory = safeStorage.get('arkyl_orders', []);
+        // ✅ FIX double-chargement : toutes les variables globales passent par window.*
+        // pour éviter "Identifier already declared" si le script s'exécute deux fois.
+        if (typeof window.currentCategory === 'undefined') window.currentCategory = 'all';
+        var currentCategory = window.currentCategory;
+
+        if (typeof window._favoritesInit === 'undefined') {
+            window._favoritesInit = true;
+            window.favorites = safeStorage.get('arkyl_favorites', []);
+        }
+        var favorites = window.favorites;
+
+        if (typeof window._cartItemsInit === 'undefined') {
+            window._cartItemsInit = true;
+            window.cartItems = [];
+        }
+        var cartItems = window.cartItems;
+
+        if (typeof window._orderHistoryInit === 'undefined') {
+            window._orderHistoryInit = true;
+            window.orderHistory = safeStorage.get('arkyl_orders', []);
+        }
+        var orderHistory = window.orderHistory;
+
         // FIX Bug 3: window.notifications évite le TDZ quand updateBadges est appelé avant initialisation
         if (!window._notificationsInit) {
             window._notificationsInit = true;
@@ -754,25 +772,23 @@ window.enterGallery = function enterGallery() {
         }
         var notifications = window.notifications;
 
-        const sampleProducts = [];
+        if (typeof window._sampleProductsInit === 'undefined') { window._sampleProductsInit = true; window.sampleProducts = []; }
+        var sampleProducts = window.sampleProducts;
 
         // Cache des données
-        let appData = {
-            artworks: [],
-            artists: {},
-            news: [],
-            orders: [],
-            users: [],
-            interactions: { likes: [], comments: [] },
-            settings: {},
-            metadata: {}
-        };
+        if (typeof window._appDataInit === 'undefined') {
+            window._appDataInit = true;
+            window.appData = { artworks: [], artists: {}, news: [], orders: [], users: [], interactions: { likes: [], comments: [] }, settings: {}, metadata: {} };
+        }
+        var appData = window.appData;
 
         // ==================== GOOGLE AUTHENTICATION ====================
-        const ADMIN_EMAILS = ['scarez37@gmail.com', 'arkyl.app@gmail.com'];
+        if (typeof window.ADMIN_EMAILS === 'undefined') window.ADMIN_EMAILS = ['scarez37@gmail.com', 'arkyl.app@gmail.com'];
+        var ADMIN_EMAILS = window.ADMIN_EMAILS;
         
         // ==================== ARTISTS DATA ====================
-        let artistsData = {};
+        if (typeof window.artistsData === 'undefined') window.artistsData = {};
+        var artistsData = window.artistsData;
 
         // ⭐ FIX : saveArtistsData était appelée partout mais jamais définie → crash silencieux
         function saveArtistsData() {
@@ -861,7 +877,8 @@ window.enterGallery = function enterGallery() {
         
         // Configuration Google Sign-In
        
-        const GOOGLE_CLIENT_ID = '814095132615-nug0r3e9cgdc5kv4uj2du10e7dkas88b.apps.googleusercontent.com';
+        if (typeof window.GOOGLE_CLIENT_ID === 'undefined') window.GOOGLE_CLIENT_ID = '814095132615-nug0r3e9cgdc5kv4uj2du10e7dkas88b.apps.googleusercontent.com';
+        var GOOGLE_CLIENT_ID = window.GOOGLE_CLIENT_ID;
         
         // Initialiser Google Sign-In
         function initializeGoogleSignIn() {
@@ -1344,7 +1361,8 @@ window.enterGallery = function enterGallery() {
         }
 
         // === SYSTÈME ORBITAL HAMBURGER ===
-        let orbitalOpen = false;
+        if (typeof window.orbitalOpen === 'undefined') window.orbitalOpen = false;
+        var orbitalOpen = window.orbitalOpen;
 
         function positionOrbitalItems() {
             // Système orbital remplacé par panneau latéral — rien à positionner
@@ -3408,7 +3426,8 @@ window.enterGallery = function enterGallery() {
         // ==================== PANIER — STYLE JUMIA ARKYL ====================
 
         // ── Adresse client (liée au compte utilisateur) ──────────────────
-        let clientAddress = null; // chargée au login via chargerAdresseUtilisateur()
+        if (typeof window.clientAddress === 'undefined') window.clientAddress = null; // chargée au login via chargerAdresseUtilisateur()
+        var clientAddress = window.clientAddress;
 
         function _addressKey(userId) {
             return 'arkyl_address_' + (userId || 'guest');
@@ -3718,7 +3737,7 @@ window.enterGallery = function enterGallery() {
         }
 
         // ── Compagnies transport interurbain CI ─────────────────────────
-        const COMPAGNIES_TRANSPORT_CI = [
+        if (typeof window.COMPAGNIES_TRANSPORT_CI === 'undefined') window.COMPAGNIES_TRANSPORT_CI = [
             { nom: 'Océan',          desc: 'Océan Transport — réseau Abidjan & intérieur' },
             { nom: 'SBTA',           desc: 'Société de Bus et Transport en Afrique — national' },
             { nom: 'CTE',            desc: 'Compagnie de Transport de l\'Est — Abengourou & Est CI' },
@@ -3734,14 +3753,16 @@ window.enterGallery = function enterGallery() {
             { nom: 'SOTRA',          desc: 'Transport urbain Abidjan & grandes villes' },
             { nom: 'Autre',          desc: 'Autre compagnie / taxi-brousse' },
         ];
+        var COMPAGNIES_TRANSPORT_CI = window.COMPAGNIES_TRANSPORT_CI;
 
-        let transportCompagnie = (function() {
+        if (typeof window.transportCompagnie === 'undefined') window.transportCompagnie = (function() {
             try {
                 const uid = currentUser?.id || currentUser?.googleId || currentUser?.email || 'guest';
                 const raw = localStorage.getItem('arkyl_transport_cie_' + uid);
                 return raw ? JSON.parse(raw) : '';
             } catch(e) { return ''; }
         })();
+        var transportCompagnie = window.transportCompagnie;
 
         function _saveTransportCompagnie(nom) {
             transportCompagnie = nom;
@@ -3756,13 +3777,14 @@ window.enterGallery = function enterGallery() {
         // selectionnerCompagnie — géré par la modale ouvrirModeLivraison()
 
         // ── Lieu Main propre — persisté par compte ─────────────────────
-        let mainPropreLieu = (function() {
+        if (typeof window.mainPropreLieu === 'undefined') window.mainPropreLieu = (function() {
             try {
                 const uid = currentUser?.id || currentUser?.googleId || currentUser?.email || 'guest';
                 const raw = localStorage.getItem('arkyl_mainpropre_lieu_' + uid);
                 return raw ? JSON.parse(raw) : '';
             } catch(e) { return ''; }
         })();
+        var mainPropreLieu = window.mainPropreLieu;
 
         function _saveMainPropreLieu(lieu) {
             mainPropreLieu = lieu;
@@ -3775,13 +3797,14 @@ window.enterGallery = function enterGallery() {
         // confirmerLieuMainPropre — géré par la modale ouvrirModeLivraison()
 
         // Ville La Poste — persistée par compte
-        let posteVille = (function() {
+        if (typeof window.posteVille === 'undefined') window.posteVille = (function() {
             try {
                 const uid = currentUser?.id || currentUser?.googleId || currentUser?.email || 'guest';
                 const raw = localStorage.getItem('arkyl_poste_ville_' + uid);
                 return raw ? JSON.parse(raw) : '';
             } catch(e) { return ''; }
         })();
+        var posteVille = window.posteVille;
 
         function _savePosteVille(ville) {
             posteVille = ville;
@@ -3870,7 +3893,8 @@ window.enterGallery = function enterGallery() {
             }
         }
 
-        let _modeEnCours = null;
+        if (typeof window._modeEnCours === 'undefined') window._modeEnCours = null;
+        var _modeEnCours = window._modeEnCours;
 
         function selectionnerModeLivraison(mode, el) {
             _modeEnCours = mode;
@@ -4113,7 +4137,8 @@ window.enterGallery = function enterGallery() {
             }
         }
 
-        const _removeTimers = {};
+        if (typeof window._removeTimers === 'undefined') window._removeTimers = {};
+        var _removeTimers = window._removeTimers;
 
         function confirmRemoveFromCart(itemId, btn) {
             if (btn.classList.contains('confirming')) {
@@ -4378,29 +4403,68 @@ window.enterGallery = function enterGallery() {
 
             if (!pending) {
                 // Paiement confirmé par Stripe mais aucune donnée locale disponible.
-                // Le webhook a déjà créé la commande en BDD — on affiche juste la confirmation.
-                console.log('\u26a0\ufe0f Pas de commande en attente — création minimale (webhook BDD déjà effectué)');
-                const userId    = currentUser?.id || currentUser?.googleId || currentUser?.email
-                               || localStorage.getItem('user_id') || '';
+                // Le webhook a déjà créé la commande en BDD — on récupère les items depuis le serveur.
+                console.log('\u26a0\ufe0f Pas de commande en attente \u2014 r\u00e9cup\u00e9ration depuis la BDD (webhook d\u00e9j\u00e0 effectu\u00e9)');
+                const userId = currentUser?.id || currentUser?.googleId || currentUser?.email
+                             || localStorage.getItem('user_id') || '';
+
+                // ✅ FIX CRITIQUE : récupérer la commande + ses items depuis la BDD
+                // car cartItems est vide au retour Stripe quand pending est absent
+                let serverItems = [];
+                let serverOrder = null;
+                try {
+                    const params = new URLSearchParams({ action: 'list', t: Date.now() });
+                    if (userId) params.set('user_id', userId);
+                    const resp = await fetch(`${ORDERS_API}?${params.toString()}`);
+                    const data = await resp.json();
+                    if (data.success && data.orders?.length > 0) {
+                        // Chercher la commande qui correspond à cet achat
+                        serverOrder = data.orders.find(o =>
+                            o.order_number === arkylOrderId ||
+                            o.stripe_session_id === sessionId
+                        ) || data.orders[0]; // fallback : commande la plus récente
+                        if (serverOrder) serverItems = serverOrder.items || [];
+                    }
+                } catch(e) {
+                    console.warn('\u26a0\ufe0f Impossible de r\u00e9cup\u00e9rer la commande depuis le serveur:', e.message);
+                }
+
                 const minOrder = {
-                    id: Date.now(),
-                    order_number: arkylOrderId || ('ARK-' + Date.now().toString(36).toUpperCase()),
+                    id: serverOrder?.id || Date.now(),
+                    order_number: serverOrder?.order_number || arkylOrderId || ('ARK-' + Date.now().toString(36).toUpperCase()),
                     stripe_session_id: sessionId,
                     user_id:    userId,
-                    user_name:  currentUser?.name  || localStorage.getItem('user_name')  || '',
-                    user_email: currentUser?.email || localStorage.getItem('user_email') || '',
-                    items: cartItems.length > 0 ? cartItems.map(i => ({...i, artwork_id: i.id})) : [],
-                    subtotal: cartItems.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
-                    tax: 0, shippingCost: 0,
-                    total: cartItems.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
-                    shippingName: 'À confirmer',
+                    user_name:  currentUser?.name  || localStorage.getItem('user_name')  || serverOrder?.user_name  || '',
+                    user_email: currentUser?.email || localStorage.getItem('user_email') || serverOrder?.user_email || '',
+                    items: serverItems.length > 0 ? serverItems : (cartItems.length > 0 ? cartItems.map(i => ({...i, artwork_id: i.id})) : []),
+                    subtotal: serverOrder?.subtotal || cartItems.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
+                    tax: serverOrder?.tax || 0,
+                    shippingCost: serverOrder?.shipping_cost || 0,
+                    total: serverOrder?.total || cartItems.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
+                    shippingName: serverOrder?.shipping_name || 'À confirmer',
                     paymentMethod: 'Stripe',
-                    status: 'En préparation',
-                    escrow_status: 'payée_en_attente',
+                    status: serverOrder?.status || 'En préparation',
+                    escrow_status: serverOrder?.escrow_status || 'payée_en_attente',
                     date: new Date().toLocaleDateString('fr-FR', {day:'2-digit',month:'long',year:'numeric'}),
                 };
+
+                // ✅ Vider le panier local
+                cartItems = []; safeStorage.set('arkyl_cart', []); updateBadges();
+
+                // ✅ Invalider le cache galerie pour forcer le rechargement depuis le serveur
+                try { localStorage.removeItem('arkyl_galerie_v3'); } catch(e) {}
+                window.toutesLesOeuvres = [];
+
+                // ✅ Marquer les œuvres achetées comme vendues (supprime de la galerie)
+                if (minOrder.items.length > 0) {
+                    await marquerOeuvresVendues(minOrder.items);
+                } else {
+                    // Aucun item récupéré — recharger quand même la galerie depuis le serveur
+                    window._galerieEnCours = false;
+                    if (typeof chargerLaVraieGalerie === 'function') chargerLaVraieGalerie();
+                }
+
                 orderHistory = safeStorage.get('arkyl_orders', []);
-                // Éviter doublon si déjà présent
                 const alreadyMin = orderHistory.some(o =>
                     o.order_number === minOrder.order_number ||
                     (sessionId && o.stripe_session_id === sessionId)
@@ -4408,10 +4472,11 @@ window.enterGallery = function enterGallery() {
                 if (!alreadyMin) {
                     orderHistory.unshift(minOrder);
                     safeStorage.set('arkyl_orders', orderHistory);
-                    cartItems = []; safeStorage.set('arkyl_cart', []); updateBadges();
-                    // sync seulement si on a un userId exploitable
-                    if (userId) syncOrderToServer(minOrder).catch(() => {});
                 }
+
+                // Notifier les artistes côté front (BDD déjà notifiée par le webhook)
+                if (minOrder.items.length > 0) sendOrderNotifications(minOrder);
+
                 setTimeout(() => {
                     showToast('\ud83c\udf89 Paiement confirm\u00e9 ! Commande ' + minOrder.order_number + ' cr\u00e9\u00e9e.');
                     navigateTo('orders');
@@ -4436,7 +4501,8 @@ window.enterGallery = function enterGallery() {
             // Construire l'objet commande final
             const order = {
                 ...pending,
-                order_number: 'ARK-' + Date.now().toString(36).toUpperCase(),
+                // ✅ FIX : conserver l'order_number ARKYL original au lieu d'en générer un nouveau
+                order_number: pending.order_number || arkylOrderId || ('ARKYL-' + Date.now().toString(36).toUpperCase()),
                 stripe_session_id: sessionId || pending.stripe_session_id,
             };
 
@@ -4457,6 +4523,11 @@ window.enterGallery = function enterGallery() {
                 cartItems = [];
                 safeStorage.set('arkyl_cart', []);
                 updateBadges();
+
+                // ✅ FIX : invalider le cache galerie pour forcer rechargement depuis le serveur
+                try { localStorage.removeItem('arkyl_galerie_v3'); } catch(e) {}
+                window.toutesLesOeuvres = [];
+                window._galerieEnCours = false;
 
                 // ⭐ Marquer les œuvres achetées comme vendues → les retirer de la galerie
                 marquerOeuvresVendues(order.items || []);
@@ -4529,20 +4600,23 @@ window.enterGallery = function enterGallery() {
             document.body.appendChild(modal);
         }
 
-        const API_BASE   = 'https://arkyl-galerie-nvwn.onrender.com';
-        const ORDERS_API = `${API_BASE}/api_commandes.php`;
+        if (typeof window.API_BASE === 'undefined') window.API_BASE = 'https://arkyl-galerie-nvwn.onrender.com';
+        var API_BASE = window.API_BASE;
+        if (typeof window.ORDERS_API === 'undefined') window.ORDERS_API = `${API_BASE}/api_commandes.php`;
+        var ORDERS_API = window.ORDERS_API;
         // ⭐ POSTS_API déclaré tôt pour éviter undefined dans fetchArtistPostsFromServer
         window.POSTS_API = `${API_BASE}/api_artist_posts.php`;
 
-        const DELIVERY_STATUSES = [
+        if (typeof window.DELIVERY_STATUSES === 'undefined') window.DELIVERY_STATUSES = [
             { key: 'En préparation', icon: '📦', label: 'En préparation', color: '#ff9800' },
             { key: 'Préparée',       icon: '✅', label: 'Préparée',       color: '#ff9800' },
             { key: 'Expédiée',       icon: '🚚', label: 'Expédiée',       color: '#2196f3' },
             { key: 'En transit',     icon: '🛵', label: 'En transit',     color: '#2196f3' },
             { key: 'Livrée',         icon: '📬', label: 'Livrée',         color: '#4caf50' },
         ];
+        var DELIVERY_STATUSES = window.DELIVERY_STATUSES;
 
-        const CARRIERS = [
+        if (typeof window.CARRIERS === 'undefined') window.CARRIERS = [
             { id: 'laposte_ci',  name: '🇨🇮 La Poste CI',     url: 'https://www.laposte.ci/suivi-de-colis?num=' },
             { id: 'dhl',         name: 'DHL',                  url: 'https://www.dhl.com/fr-fr/home/tracking.html?tracking-id=' },
             { id: 'chronopost',  name: 'Chronopost',           url: 'https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT=' },
@@ -4554,6 +4628,7 @@ window.enterGallery = function enterGallery() {
             { id: 'nsia',        name: 'NSIA Transport',        url: '' },
             { id: 'other',       name: 'Autre transporteur',   url: '' },
         ];
+        var CARRIERS = window.CARRIERS;
 
         function getTrackingUrl(carrier, trackingNumber) {
             if (!trackingNumber) return null;
@@ -8331,7 +8406,8 @@ window.enterGallery = function enterGallery() {
             }
         }
 
-        let toastTimeout;
+        if (typeof window.toastTimeout === 'undefined') window.toastTimeout = undefined;
+        var toastTimeout = window.toastTimeout;
         function showToast(message) {
             const toast = document.getElementById('toast');
             document.getElementById('toastText').textContent = message;
@@ -9939,8 +10015,10 @@ window.enterGallery = function enterGallery() {
         }
 
         // ==================== NAVIGATION HISTORY ====================
-        const navigationHistory = [];
-        let currentHistoryIndex = -1;
+        if (typeof window._navigationHistory === 'undefined') window._navigationHistory = [];
+        var navigationHistory = window._navigationHistory;
+        if (typeof window._currentHistoryIndex === 'undefined') window._currentHistoryIndex = -1;
+        var currentHistoryIndex = window._currentHistoryIndex;
 
         function updateNavigationHistory(page) {
             // Remove any forward history when navigating to a new page
@@ -10256,8 +10334,10 @@ window.enterGallery = function enterGallery() {
         // ==================== NEWS MANAGEMENT (ADMIN) ====================
         
         // ========== ACTUALITÉS : stockage côté serveur (partagé entre tous les utilisateurs) ==========
-        const NEWS_API = `${API_BASE}/api_news.php`;
-        let newsItems = [];
+        if (typeof window.NEWS_API === 'undefined') window.NEWS_API = `${API_BASE}/api_news.php`;
+        var NEWS_API = window.NEWS_API;
+        if (typeof window.newsItems === 'undefined') window.newsItems = [];
+        var newsItems = window.newsItems;
 
         async function fetchNewsFromServer() {
             try {

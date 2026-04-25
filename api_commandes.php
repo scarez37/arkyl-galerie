@@ -54,6 +54,7 @@ function handleApiGet() {
             $isAdmin     = !empty($_GET['admin']);
             $artist_id   = trim($_GET['artist_id']   ?? '');
             $artist_name = trim($_GET['artist_name'] ?? '');
+            $user_id     = trim($_GET['user_id']     ?? ''); // ✅ filtre acheteur
 
             // Récupérer toutes les commandes avec leurs items (JSON agrégé)
             $sql = "
@@ -96,6 +97,13 @@ function handleApiGet() {
                 $order['items'] = json_decode($order['items'] ?? '[]', true) ?: [];
             }
             unset($order);
+
+            // ── Filtre acheteur (retour Stripe) ─────────────────
+            if (!$isAdmin && $user_id !== '') {
+                $allOrders = array_values(array_filter($allOrders, fn($o) =>
+                    (string)($o['user_id'] ?? '') === $user_id
+                ));
+            }
 
             // ── Filtre artiste ──────────────────────────────────
             // ✅ FIX : on filtre par artist_id (BDD) OU artist_name

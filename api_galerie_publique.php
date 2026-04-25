@@ -28,7 +28,8 @@ try {
         $stmt = $db->prepare("SELECT id, title, price, category, technique, technique_custom,
                                      width, height, depth, dimensions, description,
                                      artist_id, artist_name, artist_country,
-                                     badge, status, image_url, photos, created_at, weight_g
+                                     badge, status, image_url, photos, created_at, weight_g,
+                                     COALESCE(is_sold, FALSE) AS is_sold
                               FROM artworks WHERE id = :id LIMIT 1");
         $stmt->execute([':id' => $artworkId]);
         $oeuvre = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -72,7 +73,8 @@ try {
         $cols = "id, title, price, category, technique, technique_custom,
                  width, height, depth, dimensions, description,
                  artist_id, artist_name, artist_country,
-                 badge, status, image_url, photos, created_at, weight_g";
+                 badge, status, image_url, photos, created_at, weight_g,
+                 COALESCE(is_sold, FALSE) AS is_sold";
 
         if ($isAdmin) {
             $sql = "SELECT $cols FROM artworks WHERE 1=1";
@@ -234,6 +236,8 @@ function formatArtwork($oeuvre) {
         'photos' => $firstPhoto ? [$firstPhoto] : [],
         'created_at' => $oeuvre['created_at'] ?? null,
         'weight_g'   => isset($oeuvre['weight_g']) ? intval($oeuvre['weight_g']) : 0,
+        // ✅ FIX : retourner is_sold pour que le front puisse filtrer la galerie correctement
+        'is_sold'    => !empty($oeuvre['is_sold']) && $oeuvre['is_sold'] !== 'f' && $oeuvre['is_sold'] !== '0',
     ];
 }
 ?>

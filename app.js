@@ -700,18 +700,21 @@ window.enterGallery = function enterGallery() {
             }
         });
 
-        const logoContainer = document.querySelector('.logo-container');
-        if (logoContainer) {
-            let lastLogoTap = 0;
-            logoContainer.addEventListener('click', (e) => {
-                const now = Date.now();
-                const timeSinceLastTap = now - lastLogoTap;
-                if (timeSinceLastTap < 300 && timeSinceLastTap > 0) {
-                    e.preventDefault();
-                    triggerManualRefresh();
-                }
-                lastLogoTap = now;
-            });
+        if (!window._logoContainerBound) {
+            window._logoContainerBound = true;
+            const logoContainer = document.querySelector('.logo-container');
+            if (logoContainer) {
+                let lastLogoTap = 0;
+                logoContainer.addEventListener('click', (e) => {
+                    const now = Date.now();
+                    const timeSinceLastTap = now - lastLogoTap;
+                    if (timeSinceLastTap < 300 && timeSinceLastTap > 0) {
+                        e.preventDefault();
+                        triggerManualRefresh();
+                    }
+                    lastLogoTap = now;
+                });
+            }
         }
 
         document.addEventListener('keydown', (e) => {
@@ -11301,7 +11304,11 @@ window.enterGallery = function enterGallery() {
         }
         renderPage(0);
     }
-    document.addEventListener('DOMContentLoaded', chargerLaVraieGalerie);
+    // ✅ FIX double script : ne brancher DOMContentLoaded qu'une seule fois
+    if (!window._galerieDOMListenerAdded) {
+        window._galerieDOMListenerAdded = true;
+        document.addEventListener('DOMContentLoaded', chargerLaVraieGalerie);
+    }
 
     // ==================== CHARGEMENT PROGRESSIF DE LA GALERIE ====================
 
@@ -11331,8 +11338,13 @@ window.enterGallery = function enterGallery() {
     }
 
     async function chargerLaVraieGalerie() {
+        // ✅ FIX doublons : verrou anti-appel concurrent
+        // (navigateTo + DOMContentLoaded peuvent se déclencher en même temps)
+        if (window._galerieEnCours) return;
+        window._galerieEnCours = true;
+
         const grille = document.getElementById('productsContainer');
-        if (!grille) return;
+        if (!grille) { window._galerieEnCours = false; return; }
 
         // Réinitialiser l'état
         currentOffset = 0;
@@ -11357,15 +11369,18 @@ window.enterGallery = function enterGallery() {
                 // Cache frais → on garde juste le sentinel pour paginer la suite
                 window.hasMoreData = cache.hasMore !== false;
                 if (window.hasMoreData) ajouterBoutonChargerPlus();
+                window._galerieEnCours = false;
                 return;
             }
             // Cache périmé → revalide en arrière-plan (l'utilisateur voit déjà les œuvres)
             _revaliderEnArrierePlan();
+            window._galerieEnCours = false;
             return;
         }
 
         // ── ÉTAPE 3 : premier chargement (pas de cache) ──────────────────
         await chargerPlusOeuvres();
+        window._galerieEnCours = false;
     }
 
     /* Revalidation silencieuse — ne touche pas au DOM tant que les données sont identiques */

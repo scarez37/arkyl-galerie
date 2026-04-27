@@ -9696,9 +9696,15 @@ window.enterGallery = function enterGallery() {
                 _artworksRetryCount = 0;
                 setTimeout(() => loadArtistArtworksFromServer(), 1500);
                 
-                // Rafraîchir la galerie publique
-                if (typeof renderProducts === 'function') {
-                    (typeof afficherOeuvresFiltrees === 'function' && window.toutesLesOeuvres?.length > 0) ? afficherOeuvresFiltrees() : (typeof chargerLaVraieGalerie === 'function' ? chargerLaVraieGalerie() : null);
+                // ✅ FIX : invalider le cache galerie pour que la nouvelle œuvre apparaisse
+                // (sans ça, afficherOeuvresFiltrees relit le cache périmé qui n'a pas encore la nouvelle œuvre)
+                try { localStorage.removeItem('arkyl_galerie_v3'); } catch(e) {}
+                window.toutesLesOeuvres = [];
+                window._galerieEnCours = false;
+                
+                // Rafraîchir la galerie publique depuis le serveur
+                if (typeof chargerLaVraieGalerie === 'function') {
+                    setTimeout(() => chargerLaVraieGalerie(), 800);
                 }
                 
             } catch (error) {
@@ -9768,9 +9774,15 @@ window.enterGallery = function enterGallery() {
                 removeFromPublicProducts(id);
                 db.deleteArtwork(id);
 
+                // ✅ FIX : invalider le cache galerie
+                try { localStorage.removeItem('arkyl_galerie_v3'); } catch(e) {}
+                window.toutesLesOeuvres = [];
+                window._galerieEnCours = false;
+
                 showToast('✅ Œuvre supprimée de votre portfolio et de la galerie');
                 renderArtworks();
                 updateDashboard();
+                if (typeof chargerLaVraieGalerie === 'function') setTimeout(() => chargerLaVraieGalerie(), 500);
             } catch (error) {
                 showToast('❌ ' + error.message);
                 console.error('Erreur de suppression:', error);

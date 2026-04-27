@@ -200,7 +200,88 @@ function handleApiPost() {
     try {
         $db = getDatabase();
 
-        // ── Migrations minimales ──────────────────────────────────
+        // ── Création des tables (si BDD vierge après perte Render) ────
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS orders (
+                id                  SERIAL PRIMARY KEY,
+                order_number        VARCHAR(255) UNIQUE,
+                user_id             VARCHAR(255),
+                user_name           VARCHAR(255),
+                user_email          VARCHAR(255),
+                artist_id           VARCHAR(255),
+                status              VARCHAR(100) DEFAULT 'En préparation',
+                escrow_status       VARCHAR(50)  DEFAULT 'payée_en_attente',
+                escrow_auto_release_date TIMESTAMPTZ,
+                subtotal            NUMERIC(12,2) DEFAULT 0,
+                tax                 NUMERIC(12,2) DEFAULT 0,
+                shipping_cost       NUMERIC(12,2) DEFAULT 0,
+                shipping_name       VARCHAR(255),
+                shipping_address    TEXT,
+                payment_method      VARCHAR(100),
+                total               NUMERIC(12,2) DEFAULT 0,
+                commission_amount   NUMERIC(12,2) DEFAULT 0,
+                artist_payout       NUMERIC(12,2) DEFAULT 0,
+                stripe_session_id   VARCHAR(255),
+                tracking_number     VARCHAR(255),
+                carrier             VARCHAR(100),
+                shipping_proof_url  TEXT,
+                updated_by          VARCHAR(255),
+                updated_at          TIMESTAMPTZ,
+                created_at          TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS order_items (
+                id          SERIAL PRIMARY KEY,
+                order_id    INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+                artwork_id  INTEGER,
+                title       VARCHAR(255),
+                artist_name VARCHAR(255),
+                artist_id   VARCHAR(255),
+                price       NUMERIC(12,2) DEFAULT 0,
+                quantity    INTEGER DEFAULT 1,
+                image_url   TEXT,
+                created_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS cart (
+                id         SERIAL PRIMARY KEY,
+                user_id    VARCHAR(255),
+                artwork_id INTEGER,
+                quantity   INTEGER DEFAULT 1,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, artwork_id)
+            )
+        ");
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS artworks (
+                id               SERIAL PRIMARY KEY,
+                title            VARCHAR(255),
+                price            NUMERIC(12,2),
+                category         VARCHAR(100),
+                technique        VARCHAR(100),
+                technique_custom VARCHAR(100),
+                width            NUMERIC(8,2),
+                height           NUMERIC(8,2),
+                depth            NUMERIC(8,2),
+                dimensions       TEXT,
+                description      TEXT,
+                artist_id        VARCHAR(255),
+                artist_name      VARCHAR(255),
+                artist_country   VARCHAR(100),
+                badge            VARCHAR(100) DEFAULT 'Disponible',
+                status           VARCHAR(50)  DEFAULT 'publiée',
+                image_url        TEXT,
+                photos           TEXT,
+                weight_g         INTEGER DEFAULT 0,
+                is_sold          BOOLEAN DEFAULT FALSE,
+                sold_at          TIMESTAMPTZ,
+                created_at       TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+
+        // ── Migrations additionnelles (colonnes ajoutées après création initiale) ─
         $migrations = [
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS escrow_status VARCHAR(50) DEFAULT 'payée_en_attente'",
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(255)",
@@ -209,6 +290,9 @@ function handleApiPost() {
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ",
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_by VARCHAR(255)",
             "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS artist_id VARCHAR(255)",
+            "ALTER TABLE artworks ADD COLUMN IF NOT EXISTS is_sold BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE artworks ADD COLUMN IF NOT EXISTS sold_at TIMESTAMPTZ",
+            "ALTER TABLE artworks ADD COLUMN IF NOT EXISTS weight_g INTEGER DEFAULT 0",
             "CREATE TABLE IF NOT EXISTS order_timeline (
                 id SERIAL PRIMARY KEY, order_id INTEGER, status VARCHAR(100),
                 note TEXT, updated_by_role VARCHAR(50), created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -524,9 +608,70 @@ if (empty($order_id) || empty($user_id)) {
 try {
     $db = getDatabase();
 
-    // ─────────────────────────────────────────────────────────────────
-    // MIGRATION SAFE — Ajouter les colonnes manquantes si nécessaire
-    // ─────────────────────────────────────────────────────────────────
+    // ── Création des tables si BDD vierge (perte Render) ─────────────
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS orders (
+            id SERIAL PRIMARY KEY, order_number VARCHAR(255) UNIQUE,
+            user_id VARCHAR(255), user_name VARCHAR(255), user_email VARCHAR(255),
+            artist_id VARCHAR(255), status VARCHAR(100) DEFAULT 'En préparation',
+            escrow_status VARCHAR(50) DEFAULT 'payée_en_attente',
+            escrow_auto_release_date TIMESTAMPTZ,
+            subtotal NUMERIC(12,2) DEFAULT 0, tax NUMERIC(12,2) DEFAULT 0,
+            shipping_cost NUMERIC(12,2) DEFAULT 0, shipping_name VARCHAR(255),
+            shipping_address TEXT, payment_method VARCHAR(100),
+            total NUMERIC(12,2) DEFAULT 0, commission_amount NUMERIC(12,2) DEFAULT 0,
+            artist_payout NUMERIC(12,2) DEFAULT 0, stripe_session_id VARCHAR(255),
+            tracking_number VARCHAR(255), carrier VARCHAR(100),
+            shipping_proof_url TEXT, updated_by VARCHAR(255),
+            updated_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
+    ");
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS order_items (
+            id SERIAL PRIMARY KEY, order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+            artwork_id INTEGER, title VARCHAR(255), artist_name VARCHAR(255),
+            artist_id VARCHAR(255), price NUMERIC(12,2) DEFAULT 0,
+            quantity INTEGER DEFAULT 1, image_url TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
+    ");
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS cart (
+            id SERIAL PRIMARY KEY, user_id VARCHAR(255), artwork_id INTEGER,
+            quantity INTEGER DEFAULT 1, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, artwork_id)
+        )
+    ");
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS artworks (
+            id SERIAL PRIMARY KEY, title VARCHAR(255), price NUMERIC(12,2),
+            category VARCHAR(100), technique VARCHAR(100), technique_custom VARCHAR(100),
+            width NUMERIC(8,2), height NUMERIC(8,2), depth NUMERIC(8,2),
+            dimensions TEXT, description TEXT, artist_id VARCHAR(255),
+            artist_name VARCHAR(255), artist_country VARCHAR(100),
+            badge VARCHAR(100) DEFAULT 'Disponible', status VARCHAR(50) DEFAULT 'publiée',
+            image_url TEXT, photos TEXT, weight_g INTEGER DEFAULT 0,
+            is_sold BOOLEAN DEFAULT FALSE, sold_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
+    ");
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS order_timeline (
+            id SERIAL PRIMARY KEY, order_id INTEGER, status VARCHAR(100),
+            note TEXT, updated_by_role VARCHAR(50),
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
+    ");
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS artist_notifications (
+            id SERIAL PRIMARY KEY, artist_id VARCHAR(255), artist_name VARCHAR(255),
+            order_id INTEGER, order_number VARCHAR(255), title VARCHAR(255),
+            message TEXT, is_read BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
+    ");
+
+    // ─── MIGRATIONS — colonnes ajoutées après création initiale ──────
     $migrations = [
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS commission_amount NUMERIC(12,2) DEFAULT 0",
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS artist_payout NUMERIC(12,2) DEFAULT 0",

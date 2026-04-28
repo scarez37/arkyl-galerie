@@ -11380,28 +11380,45 @@ window.enterGallery = function enterGallery() {
                 const badgeLabel = isSold ? '🔴 Vendu' : (oeuvre.badge || 'Disponible');
                 const soldStyle = isSold ? 'filter:grayscale(50%);opacity:0.8;' : '';
                 const btnHTML = isSold ? `<span style="font-size:10px;opacity:0.55;">Vendu</span>` : `<button class="add-cart-btn" onclick="addToCart(event,${oeuvre.id})">+ Panier</button>`;
-                const dotsHTML = photos.length > 1 ? `<div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);display:flex;gap:3px;z-index:2;">${photos.map((_,i)=>`<div style="width:5px;height:5px;border-radius:50%;background:${i===0?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.35)'};"></div>`).join('')}</div>` : '';
                 const artistName = oeuvre.artist_name || oeuvre.artist || 'Artiste inconnu';
                 const title = oeuvre.title || 'Sans titre';
                 const price = oeuvre.price || 0;
+                const cardId = oeuvre.id;
+                const hasMultiple = photos.length > 1;
                 /* Bulles de chargement — retirées automatiquement quand l'image arrive */
                 const bubblesHTML = imgSrc
                     ? `<div class="img-bubble-loader" aria-hidden="true"><span class="bbl"></span><span class="bbl"></span><span class="bbl"></span><span class="bbl"></span></div>`
                     : '';
-                return `<div class="product-card" style="${soldStyle}" onclick="viewProductDetailFromAPI(${oeuvre.id})">
-                    <div class="product-image" style="position:relative;">
-                        <img class="lazy-img" data-src="${imgSrc}" alt="${title}" style="width:100%;height:auto;display:block;">
+                /* Images empilées : la première visible, les autres masquées */
+                const stackedImgs = photos.map((src, i) => `<img id="card-img-${cardId}-${i}"
+                    class="${i===0?'lazy-img':''}"
+                    data-src="${src}"
+                    alt="${title}"
+                    style="position:${i===0?'relative':'absolute'};top:0;left:0;width:100%;height:100%;object-fit:cover;display:block;opacity:${i===0?1:0};transition:opacity 0.3s ease;">`).join('');
+                /* Boutons de navigation + indicateur + points (uniquement si plusieurs photos) */
+                const navHTML = hasMultiple ? `
+                    <button class="card-nav-prev-${cardId}" onclick="event.stopPropagation();previousCardPhoto(${cardId},${photos.length})"
+                        style="display:none;position:absolute;left:6px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);border:none;border-radius:50%;width:28px;height:28px;align-items:center;justify-content:center;cursor:pointer;color:white;font-size:16px;line-height:1;z-index:5;">&#8249;</button>
+                    <button class="card-nav-next-${cardId}" onclick="event.stopPropagation();nextCardPhoto(${cardId},${photos.length})"
+                        style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);border:none;border-radius:50%;width:28px;height:28px;align-items:center;justify-content:center;cursor:pointer;color:white;font-size:16px;line-height:1;z-index:5;">&#8250;</button>
+                    <div id="card-indicator-${cardId}" style="position:absolute;bottom:4px;right:8px;background:rgba(0,0,0,0.5);color:white;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;z-index:5;">1/${photos.length}</div>
+                    <div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);display:flex;gap:3px;z-index:4;">${photos.map((_,i)=>`<div id="card-dot-${cardId}-${i}" style="width:5px;height:5px;border-radius:50%;background:${i===0?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.35)'};transition:background 0.2s;"></div>`).join('')}</div>` : '';
+                return `<div class="product-card" style="${soldStyle}"
+                    onclick="viewProductDetailFromAPI(${oeuvre.id})"
+                    ${hasMultiple ? `onmouseenter="showCardNavButtons(${cardId})" onmouseleave="hideCardNavButtons(${cardId})"` : ''}>
+                    <div class="product-image" style="position:relative;overflow:hidden;">
+                        ${stackedImgs}
                         ${bubblesHTML}
-                        ${dotsHTML}
+                        ${navHTML}
                         <!-- Like haut droite -->
                         <button onclick="toggleFavorite(event,${oeuvre.id})"
-                            style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);border:none;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;transition:transform 0.15s;"
+                            style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);border:none;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;transition:transform 0.15s;z-index:5;"
                             onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform=''">🤍</button>
                         <!-- Commentaire bas image -->
                         <button onclick="event.stopPropagation();viewProductDetailFromAPI(${oeuvre.id})"
-                            style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);border:none;border-radius:20px;padding:4px 12px;display:flex;align-items:center;gap:4px;cursor:pointer;font-size:14px;color:white;transition:transform 0.15s;white-space:nowrap;"
+                            style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);border:none;border-radius:20px;padding:4px 12px;display:flex;align-items:center;gap:4px;cursor:pointer;font-size:14px;color:white;transition:transform 0.15s;white-space:nowrap;z-index:5;"
                             onmouseover="this.style.transform='translateX(-50%) scale(1.08)'" onmouseout="this.style.transform='translateX(-50%)'">💬</button>
-                        ${isSold ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,0.35);border-radius:inherit;display:flex;align-items:center;justify-content:center;"><span style="font-size:12px;font-weight:800;color:#fff;background:rgba(200,0,0,0.8);padding:3px 10px;border-radius:20px;">VENDU</span></div>' : ''}
+                        ${isSold ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,0.35);border-radius:inherit;display:flex;align-items:center;justify-content:center;z-index:6;"><span style="font-size:12px;font-weight:800;color:#fff;background:rgba(200,0,0,0.8);padding:3px 10px;border-radius:20px;">VENDU</span></div>' : ''}
                     </div>
                     <div class="product-info">
                         <div class="product-title">${title}</div>
@@ -11680,52 +11697,44 @@ window.enterGallery = function enterGallery() {
         if (nextBtn) nextBtn.style.display = 'none';
     }
     
-    function nextCardPhoto(cardId, totalPhotos) {
-        if (!window.cardPhotoIndexes[cardId]) {
-            window.cardPhotoIndexes[cardId] = 0;
+    function _switchCardPhoto(cardId, newIndex, totalPhotos) {
+        const currentIndex = window.cardPhotoIndexes[cardId] || 0;
+        if (currentIndex === newIndex) return;
+
+        // Lazy-load de l'image cible si pas encore chargée
+        const newImg = document.getElementById(`card-img-${cardId}-${newIndex}`);
+        if (newImg && newImg.dataset.src && !newImg.src.startsWith('data:') && newImg.src !== newImg.dataset.src) {
+            newImg.src = newImg.dataset.src;
         }
-        
-        const currentIndex = window.cardPhotoIndexes[cardId];
-        const nextIndex = (currentIndex + 1) % totalPhotos;
-        
-        // Cacher l'image actuelle
+
+        // Transition opacity
         const currentImg = document.getElementById(`card-img-${cardId}-${currentIndex}`);
         if (currentImg) currentImg.style.opacity = '0';
-        
-        // Afficher la nouvelle image
-        const nextImg = document.getElementById(`card-img-${cardId}-${nextIndex}`);
-        if (nextImg) nextImg.style.opacity = '1';
-        
-        // Mettre à jour l'indicateur
+        if (newImg) newImg.style.opacity = '1';
+
+        // Indicateur numérique
         const indicator = document.getElementById(`card-indicator-${cardId}`);
-        if (indicator) indicator.textContent = `${nextIndex + 1}/${totalPhotos}`;
-        
-        // Sauvegarder le nouvel index
-        window.cardPhotoIndexes[cardId] = nextIndex;
+        if (indicator) indicator.textContent = `${newIndex + 1}/${totalPhotos}`;
+
+        // Points de navigation
+        const oldDot = document.getElementById(`card-dot-${cardId}-${currentIndex}`);
+        const newDot = document.getElementById(`card-dot-${cardId}-${newIndex}`);
+        if (oldDot) oldDot.style.background = 'rgba(255,255,255,0.35)';
+        if (newDot) newDot.style.background = 'rgba(255,255,255,0.9)';
+
+        window.cardPhotoIndexes[cardId] = newIndex;
+    }
+
+    function nextCardPhoto(cardId, totalPhotos) {
+        if (window.cardPhotoIndexes[cardId] == null) window.cardPhotoIndexes[cardId] = 0;
+        const nextIndex = (window.cardPhotoIndexes[cardId] + 1) % totalPhotos;
+        _switchCardPhoto(cardId, nextIndex, totalPhotos);
     }
     
     function previousCardPhoto(cardId, totalPhotos) {
-        if (!window.cardPhotoIndexes[cardId]) {
-            window.cardPhotoIndexes[cardId] = 0;
-        }
-        
-        const currentIndex = window.cardPhotoIndexes[cardId];
-        const prevIndex = (currentIndex - 1 + totalPhotos) % totalPhotos;
-        
-        // Cacher l'image actuelle
-        const currentImg = document.getElementById(`card-img-${cardId}-${currentIndex}`);
-        if (currentImg) currentImg.style.opacity = '0';
-        
-        // Afficher la nouvelle image
-        const prevImg = document.getElementById(`card-img-${cardId}-${prevIndex}`);
-        if (prevImg) prevImg.style.opacity = '1';
-        
-        // Mettre à jour l'indicateur
-        const indicator = document.getElementById(`card-indicator-${cardId}`);
-        if (indicator) indicator.textContent = `${prevIndex + 1}/${totalPhotos}`;
-        
-        // Sauvegarder le nouvel index
-        window.cardPhotoIndexes[cardId] = prevIndex;
+        if (window.cardPhotoIndexes[cardId] == null) window.cardPhotoIndexes[cardId] = 0;
+        const prevIndex = (window.cardPhotoIndexes[cardId] - 1 + totalPhotos) % totalPhotos;
+        _switchCardPhoto(cardId, prevIndex, totalPhotos);
     }
 
 

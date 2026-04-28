@@ -8647,13 +8647,22 @@ window.enterGallery = function enterGallery() {
             _save(k, v) {
                 try {
                     const json = JSON.stringify(v);
-                    // Vérifier approximativement la taille avant de sauvegarder
-                    if (json.length > 1000000) { // > 1MB - trop volumineux
+                    // ✅ FIX : tenter le localStorage même pour les données > 1MB
+                    // (les images sont maintenant compressées à ~300-500KB)
+                    // On ne passe en fallback mémoire qu'au-delà de 4MB OU si QuotaExceededError
+                    if (json.length > 4 * 1024 * 1024) {
                         console.warn('⚠️ Données trop volumineuses (' + (json.length/1024/1024).toFixed(2) + 'MB), fallback mémoire:', k);
                         _memStore[this._key(k)] = v;
                         return true;
                     }
-                    localStorage.setItem(this._key(k), json);
+                    try {
+                        localStorage.setItem(this._key(k), json);
+                    } catch(quotaErr) {
+                        if (quotaErr.name === 'QuotaExceededError' || quotaErr.code === 22) {
+                            console.warn('⚠️ localStorage plein, fallback mémoire:', k);
+                        }
+                        // Stocker quand même en mémoire
+                    }
                     _memStore[this._key(k)] = v;
                     return true;
                 } catch(e) {
@@ -9268,16 +9277,40 @@ window.enterGallery = function enterGallery() {
                     return;
                 }
 
-                // Read and store the image
+                // Read and compress the image before storing
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    currentPhotosData.push(e.target.result);
-                    filesProcessed++;
-                    
-                    if (filesProcessed === files.length) {
-                        updatePhotosPreview();
-                        showToast(`✅ ${files.length} photo(s) ajoutée(s)`);
-                    }
+                    // ✅ FIX : compresser l'image via canvas avant stockage
+                    // évite le warning "Données trop volumineuses" en réduisant à max 1200px / qualité 0.82
+                    const img = new Image();
+                    img.onload = function() {
+                        const MAX_DIM = 1200;
+                        let w = img.width, h = img.height;
+                        if (w > MAX_DIM || h > MAX_DIM) {
+                            if (w > h) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+                            else       { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w; canvas.height = h;
+                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        const compressed = canvas.toDataURL('image/jpeg', 0.82);
+                        currentPhotosData.push(compressed);
+                        filesProcessed++;
+                        if (filesProcessed === files.length) {
+                            updatePhotosPreview();
+                            showToast(`✅ ${files.length} photo(s) ajoutée(s)`);
+                        }
+                    };
+                    img.onerror = function() {
+                        // Fallback sans compression si l'image ne charge pas
+                        currentPhotosData.push(e.target.result);
+                        filesProcessed++;
+                        if (filesProcessed === files.length) {
+                            updatePhotosPreview();
+                            showToast(`✅ ${files.length} photo(s) ajoutée(s)`);
+                        }
+                    };
+                    img.src = e.target.result;
                 };
                 reader.onerror = function() {
                     showToast('⚠️ Erreur lors du chargement d\'une photo');

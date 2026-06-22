@@ -120,7 +120,22 @@ function handleApiGet() {
                             )
                         ) FILTER (WHERE oi.id IS NOT NULL),
                         '[]'
-                    ) AS items
+                    ) AS items,
+                    COALESCE(
+                        (
+                            SELECT json_agg(
+                                json_build_object(
+                                    'status',          tl.status,
+                                    'note',            tl.note,
+                                    'updated_by_role', tl.updated_by_role,
+                                    'created_at',      tl.created_at
+                                ) ORDER BY tl.created_at ASC
+                            )
+                            FROM order_timeline tl
+                            WHERE tl.order_id = o.id
+                        ),
+                        '[]'
+                    ) AS timeline
                 FROM orders o
                 LEFT JOIN order_items oi ON oi.order_id = o.id
                 $whereSQL
@@ -134,7 +149,8 @@ function handleApiGet() {
 
             // Décoder les items JSON
             foreach ($allOrders as &$order) {
-                $order['items'] = json_decode($order['items'] ?? '[]', true) ?: [];
+                $order['items']    = json_decode($order['items']    ?? '[]', true) ?: [];
+                $order['timeline'] = json_decode($order['timeline'] ?? '[]', true) ?: [];
                 // ── Pour un artiste : masquer l'adresse de livraison complète si pas admin
                 // L'artiste voit l'adresse de livraison (il doit expédier)
                 // Mais on retire les infos de paiement sensibles
@@ -505,7 +521,21 @@ function handleApiPost() {
                 ")->execute([':oid' => $row['id'], ':note' => $note]);
             }
 
-            echo json_encode(['success' => (bool)$row, 'order' => $row]);
+            if ($row) {
+                // Retourner les données complètes de la commande avec timeline
+                $fullStmt = $db->prepare("
+                    SELECT o.*, COALESCE(
+                        (SELECT json_agg(json_build_object('status',tl.status,'note',tl.note,'updated_by_role',tl.updated_by_role,'created_at',tl.created_at) ORDER BY tl.created_at ASC)
+                         FROM order_timeline tl WHERE tl.order_id = o.id), '[]'
+                    ) AS timeline
+                    FROM orders o WHERE o.id = :oid
+                ");
+                $fullStmt->execute([':oid' => $row['id']]);
+                $fullOrder = $fullStmt->fetch(PDO::FETCH_ASSOC);
+                if ($fullOrder) $fullOrder['timeline'] = json_decode($fullOrder['timeline'] ?? '[]', true) ?: [];
+            }
+
+            echo json_encode(['success' => (bool)$row, 'order' => $fullOrder ?? $row]);
             return;
         }
 
@@ -536,9 +566,53 @@ function handleApiPost() {
                     INSERT INTO order_timeline (order_id, status, note, updated_by_role)
                     VALUES (:oid, 'Livrée', 'Réception confirmée par le client — fonds libérés', 'client')
                 ")->execute([':oid' => $row['id']]);
+
+                // ── Notifier l'artiste que le client a confirmé la réception ──
+                // Récupérer les infos commande + artiste pour la notification
+                try {
+                    $db->exec("
+                        CREATE TABLE IF NOT EXISTS artist_notifications (
+                            id SERIAL PRIMARY KEY, artist_id VARCHAR(255), artist_name VARCHAR(255),
+                            type VARCHAR(100) DEFAULT 'new_order', order_id INTEGER, order_number VARCHAR(255),
+                            title VARCHAR(255), message TEXT, is_read BOOLEAN DEFAULT FALSE,
+                            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ");
+                    try { $db->exec("ALTER TABLE artist_notifications ADD COLUMN IF NOT EXISTS type VARCHAR(100) DEFAULT 'new_order'"); } catch (Exception $ex) {}
+
+                    // Récupérer les artistes liés à cette commande
+                    $artStmt = $db->prepare("
+                        SELECT DISTINCT oi.artist_id, oi.artist_name, o.order_number, o.user_name, o.artist_payout
+                        FROM order_items oi
+                        JOIN orders o ON o.id = oi.order_id
+                        WHERE oi.order_id = :oid AND oi.artist_id IS NOT NULL
+                    ");
+                    $artStmt->execute([':oid' => $row['id']]);
+                    $artRows = $artStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    $orderNum   = $row['order_number'];
+                    $notifStmt  = $db->prepare("
+                        INSERT INTO artist_notifications (artist_id, artist_name, type, order_id, order_number, title, message)
+                        VALUES (:artist_id, :artist_name, 'reception_confirmed', :order_id, :order_number, :title, :message)
+                    ");
+
+                    foreach ($artRows as $artRow) {
+                        $buyer = $user_id ?: 'Le client';
+                        $notifStmt->execute([
+                            ':artist_id'    => $artRow['artist_id'],
+                            ':artist_name'  => $artRow['artist_name'],
+                            ':order_id'     => $row['id'],
+                            ':order_number' => $orderNum,
+                            ':title'        => '🎉 Réception confirmée — fonds libérés !',
+                            ':message'      => "Le client a confirmé la réception de la commande #{$orderNum}. Vos fonds sont maintenant libérés. Merci pour cette belle vente !",
+                        ]);
+                    }
+                } catch (Exception $notifEx) {
+                    error_log("⚠️ Notification artiste échouée (confirm_reception) : " . $notifEx->getMessage());
+                }
             }
 
-            echo json_encode(['success' => (bool)$row]);
+            echo json_encode(['success' => (bool)$row, 'order_number' => $row['order_number'] ?? '']);
             return;
         }
 

@@ -5269,6 +5269,30 @@ window.enterGallery = function enterGallery() {
 
                     <!-- Bouton d'action artiste -->
                     ${actionBtn}
+
+                    <!-- Timeline de la commande -->
+                    ${order.timeline && order.timeline.length > 0 ? `
+                    <details style="margin-top:14px;" ${order.timeline.length > 0 && order.escrow_status !== 'payée_en_attente' ? 'open' : ''}>
+                        <summary style="cursor:pointer;font-size:13px;font-weight:600;opacity:0.75;padding:8px 0;list-style:none;display:flex;align-items:center;gap:6px;">
+                            <span style="font-size:16px;">🕐</span> Suivi de la commande (${order.timeline.length} étape${order.timeline.length > 1 ? 's' : ''})
+                        </summary>
+                        <div style="margin-top:10px;display:flex;flex-direction:column;gap:0;">
+                            ${order.timeline.map((t, i) => `
+                            <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;${i < order.timeline.length - 1 ? 'border-bottom:1px solid rgba(255,255,255,0.07);' : ''}">
+                                <div style="display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0;">
+                                    <div style="width:32px;height:32px;border-radius:50%;background:${t.updated_by_role === 'client' ? 'rgba(76,175,80,0.25)' : t.updated_by_role === 'artist' ? 'rgba(33,150,243,0.25)' : 'rgba(212,175,55,0.15)'};border:2px solid ${t.updated_by_role === 'client' ? '#4caf50' : t.updated_by_role === 'artist' ? '#2196f3' : 'rgba(212,175,55,0.4)'};display:flex;align-items:center;justify-content:center;font-size:14px;">
+                                        ${t.updated_by_role === 'client' ? '👤' : t.updated_by_role === 'artist' ? '🎨' : t.updated_by_role === 'system' ? '⚙️' : '🏛️'}
+                                    </div>
+                                    ${i < order.timeline.length - 1 ? '<div style="width:2px;flex:1;min-height:16px;background:rgba(255,255,255,0.1);margin-top:3px;"></div>' : ''}
+                                </div>
+                                <div style="flex:1;padding-top:4px;">
+                                    <div style="font-weight:700;font-size:13px;color:${statusColor(t.status)};">${statusIcon(t.status)} ${t.status}</div>
+                                    ${t.note ? `<div style="font-size:12px;opacity:0.75;margin-top:3px;line-height:1.5;">${t.note}</div>` : ''}
+                                    <div style="font-size:11px;opacity:0.45;margin-top:4px;">${t.created_at ? new Date(t.created_at).toLocaleString('fr-FR', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : ''} · <span style="opacity:0.8;">${t.updated_by_role === 'client' ? 'Client' : t.updated_by_role === 'artist' ? 'Vous' : t.updated_by_role === 'system' ? 'Système' : 'Admin'}</span></div>
+                                </div>
+                            </div>`).join('')}
+                        </div>
+                    </details>` : ''}
                 </div>
             `;
         }
@@ -5411,6 +5435,22 @@ window.enterGallery = function enterGallery() {
                 if (data.success) {
                     showToast('🚚 Expédition confirmée ! L\'acheteur a été notifié.');
                     addNotification('📦 Commande expédiée', `Commande #${orderId} marquée comme expédiée.`);
+                    // Mettre à jour localement avec les données retournées (timeline incluse)
+                    if (data.order) {
+                        const ord = data.order;
+                        const note = document.getElementById(`art-note-${orderId}`)?.value?.trim() || '';
+                        const tracking = document.getElementById(`art-tracking-${orderId}`)?.value?.trim() || null;
+                        // Mettre à jour l'historique local artiste
+                        const storedOrders = safeStorage.get('arkyl_artist_orders', []);
+                        const idx = storedOrders.findIndex(o => String(o.id) === String(orderId) || o.order_number === orderId);
+                        if (idx >= 0) {
+                            storedOrders[idx].status        = 'Expédiée';
+                            storedOrders[idx].escrow_status = 'expédiée';
+                            storedOrders[idx].tracking_number = tracking || storedOrders[idx].tracking_number;
+                            if (ord.timeline) storedOrders[idx].timeline = ord.timeline;
+                            safeStorage.set('arkyl_artist_orders', storedOrders);
+                        }
+                    }
                 } else {
                     showToast('❌ Erreur : ' + (data.error || 'Inconnue'));
                     if (btn) { btn.disabled = false; btn.innerHTML = '🚚 Confirmer l\'expédition'; }
@@ -8985,19 +9025,41 @@ window.enterGallery = function enterGallery() {
                 if (count > _lastKnownUnreadCount && _lastKnownUnreadCount >= 0) {
                     const newest = result.notifications?.[0];
                     if (newest && !newest.is_read) {
-                        // Toast d'alerte + son (si dispo)
-                        showToast('🎉 ' + (newest.title || 'Nouvelle commande !'));
+                        const isReceptionConfirmed = newest.type === 'reception_confirmed';
+                        // Toast d'alerte
+                        showToast((isReceptionConfirmed ? '🎉 ' : '🛒 ') + (newest.title || 'Nouvelle notification !'));
                         // Mettre en avant la cloche visuellement
                         const bell = document.getElementById('notifBell');
                         if (bell) {
                             bell.style.animation = 'none';
                             setTimeout(() => { bell.style.animation = 'ring 0.6s ease 3'; }, 10);
                         }
-                        // Rafraîchir la liste des ventes artiste si elle est visible
-                        const salesSection = document.getElementById('salesSection');
-                        if (salesSection && salesSection.classList.contains('active')) {
-                            if (typeof renderArtistOrders === 'function') renderArtistOrders();
+                        // Si confirmation de réception : afficher une modale dans le dashboard artiste
+                        if (isReceptionConfirmed) {
+                            const artDiv = document.createElement('div');
+                            artDiv.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99998;display:flex;align-items:center;justify-content:center;padding:20px;';
+                            artDiv.innerHTML = `
+                                <div style="background:linear-gradient(135deg,#1a2e1a,#0d1f0d);border:1px solid rgba(76,175,80,0.5);border-radius:24px;padding:40px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+                                    <div style="font-size:64px;margin-bottom:16px;">🎉</div>
+                                    <h2 style="font-size:22px;font-weight:800;color:#a5d6a7;margin-bottom:10px;">Réception confirmée !</h2>
+                                    <p style="opacity:0.85;font-size:14px;line-height:1.7;margin-bottom:8px;">${newest.message || 'Le client a confirmé la réception de votre œuvre.'}</p>
+                                    <p style="font-size:13px;color:#4caf50;font-weight:700;margin-bottom:24px;">💰 Vos fonds ont été libérés !</p>
+                                    <div style="display:flex;gap:10px;justify-content:center;">
+                                        <button onclick="this.closest('div').parentElement.remove(); navigateTo('artistSpace'); setTimeout(()=>switchArtistTab('sales'),200);"
+                                            style="padding:12px 24px;border:none;border-radius:12px;background:linear-gradient(135deg,#4caf50,#2e7d32);color:white;font-size:14px;font-weight:700;cursor:pointer;">
+                                            📦 Voir mes ventes
+                                        </button>
+                                        <button onclick="this.closest('div').parentElement.remove()"
+                                            style="padding:12px 24px;border:none;border-radius:12px;background:rgba(255,255,255,0.1);color:white;font-size:14px;cursor:pointer;">
+                                            Fermer
+                                        </button>
+                                    </div>
+                                </div>`;
+                            document.body.appendChild(artDiv);
+                            setTimeout(() => artDiv.remove(), 15000);
                         }
+                        // Toujours rafraîchir la liste des ventes artiste
+                        if (typeof renderArtistOrders === 'function') renderArtistOrders();
                     }
                 }
                 _lastKnownUnreadCount = count;
@@ -12266,16 +12328,35 @@ window.enterGallery = function enterGallery() {
                 const data = await response.json();
 
                 if (data.success) {
-                    showToast('🎉 Merci ! La réception est confirmée. L\'artiste va recevoir son argent.');
-                    // Retirer l'œuvre de la galerie locale
-                    const ordre = orderHistory.find(o => String(o.server_id || o.id) === String(orderId));
-                    if (ordre) marquerOeuvresVendues(ordre.items || []);
-                    // Recharger les commandes pour mettre à jour l'affichage
+                    showToast('🎉 Merci ! Réception confirmée — les fonds sont libérés à l\'artiste.');
+                    // Mettre à jour l'historique local avec le nouveau statut
+                    const idx = orderHistory.findIndex(o => String(o.server_id || o.id) === String(orderId) || o.order_number === orderId);
+                    if (idx >= 0) {
+                        orderHistory[idx].status        = 'Livrée';
+                        orderHistory[idx].escrow_status = 'fonds_libérés';
+                        safeStorage.set('arkyl_orders', orderHistory);
+                    }
+                    // Recharger les commandes (rafraîchit la timeline et les boutons)
                     if (typeof renderOrders === 'function') {
                         await renderOrders();
-                    } else {
-                        location.reload();
                     }
+                    // Afficher une modale de confirmation claire
+                    const successDiv = document.createElement('div');
+                    successDiv.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+                    successDiv.innerHTML = `
+                        <div style="background:linear-gradient(135deg,#1a2e1a,#0d1f0d);border:1px solid rgba(76,175,80,0.5);border-radius:24px;padding:40px;max-width:400px;width:100%;text-align:center;">
+                            <div style="font-size:64px;margin-bottom:16px;">🎉</div>
+                            <h2 style="font-size:22px;font-weight:800;color:#a5d6a7;margin-bottom:10px;">Réception confirmée !</h2>
+                            <p style="opacity:0.8;font-size:14px;line-height:1.7;margin-bottom:24px;">
+                                Merci d'avoir confirmé la réception de votre œuvre.<br>
+                                <strong style="color:#4caf50;">Les fonds ont été libérés à l'artiste.</strong>
+                            </p>
+                            <button onclick="this.closest('div').parentElement.remove()" style="padding:14px 32px;border:none;border-radius:12px;background:linear-gradient(135deg,#4caf50,#2e7d32);color:white;font-size:15px;font-weight:700;cursor:pointer;">
+                                Fermer
+                            </button>
+                        </div>`;
+                    document.body.appendChild(successDiv);
+                    setTimeout(() => successDiv.remove(), 8000);
                 } else {
                     showToast('❌ Erreur : ' + (data.message || 'Erreur inconnue'));
                 }

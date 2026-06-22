@@ -56,8 +56,46 @@ function handleApiGet() {
             $artist_name = trim($_GET['artist_name'] ?? '');
             $user_id     = trim($_GET['user_id']     ?? ''); // ✅ filtre acheteur
 
-            // Récupérer toutes les commandes avec leurs items (JSON agrégé)
-            $sql = "
+            // ── Contrôle d'accès : refuser si aucun contexte valide ────
+            // Un appel sans admin=1, sans user_id et sans artist_id/name n'a pas de sens
+            if (!$isAdmin && $user_id === '' && $artist_id === '' && $artist_name === '') {
+                echo json_encode(['success' => false, 'error' => 'Accès non autorisé']);
+                return;
+            }
+
+            // ── Construction de la requête SQL avec filtrage direct en BDD ──
+            // Pour éviter de tout charger puis filtrer en PHP (fuite de données)
+            $whereClauses = [];
+            $sqlParams    = [];
+
+            if (!$isAdmin) {
+                if ($user_id !== '') {
+                    // Acheteur : uniquement SES commandes
+                    $whereClauses[] = 'o.user_id = :user_id';
+                    $sqlParams[':user_id'] = $user_id;
+                } elseif ($artist_id !== '' || $artist_name !== '') {
+                    // Artiste : uniquement les commandes qui contiennent SES œuvres
+                    // On filtre via une sous-requête sur order_items
+                    $artistSub = [];
+                    if ($artist_id !== '') {
+                        $artistSub[] = 'oi2.artist_id = :artist_id';
+                        $sqlParams[':artist_id'] = $artist_id;
+                    }
+                    if ($artist_name !== '') {
+                        $artistSub[] = 'LOWER(oi2.artist_name) = LOWER(:artist_name)';
+                        $sqlParams[':artist_name'] = $artist_name;
+                    }
+                    $artistSubSQL = implode(' OR ', $artistSub);
+                    $whereClauses[] = "EXISTS (
+                        SELECT 1 FROM order_items oi2
+                        WHERE oi2.order_id = o.id AND ($artistSubSQL)
+                    )";
+                }
+            }
+
+            $whereSQL = $whereClauses ? 'WHERE ' . implode(' AND ', $whereClauses) : '';
+
+            $cols = "
                 SELECT
                     o.id, o.order_number, o.user_id, o.user_name, o.user_email,
                     o.status, o.escrow_status, o.escrow_auto_release_date,
@@ -85,44 +123,27 @@ function handleApiGet() {
                     ) AS items
                 FROM orders o
                 LEFT JOIN order_items oi ON oi.order_id = o.id
+                $whereSQL
                 GROUP BY o.id
                 ORDER BY o.created_at DESC
             ";
 
-            $stmt = $db->query($sql);
+            $stmt = $db->prepare($cols);
+            $stmt->execute($sqlParams);
             $allOrders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Décoder les items JSON
             foreach ($allOrders as &$order) {
                 $order['items'] = json_decode($order['items'] ?? '[]', true) ?: [];
+                // ── Pour un artiste : masquer l'adresse de livraison complète si pas admin
+                // L'artiste voit l'adresse de livraison (il doit expédier)
+                // Mais on retire les infos de paiement sensibles
+                if (!$isAdmin && $user_id !== '') {
+                    // Acheteur : masquer les infos artiste/commission
+                    unset($order['commission_amount'], $order['artist_payout']);
+                }
             }
             unset($order);
-
-            // ── Filtre acheteur (retour Stripe) ─────────────────
-            if (!$isAdmin && $user_id !== '') {
-                $allOrders = array_values(array_filter($allOrders, fn($o) =>
-                    (string)($o['user_id'] ?? '') === $user_id
-                ));
-            }
-
-            // ── Filtre artiste ──────────────────────────────────
-            // ✅ FIX : on filtre par artist_id (BDD) OU artist_name
-            // car le front envoie tantôt l'un, tantôt l'autre
-            if (!$isAdmin && ($artist_id !== '' || $artist_name !== '')) {
-                $allOrders = array_values(array_filter($allOrders, function($order) use ($artist_id, $artist_name) {
-                    foreach ($order['items'] as $item) {
-                        $itemArtistId   = (string)($item['artist_id']   ?? '');
-                        $itemArtistName = mb_strtolower(trim($item['artist_name'] ?? $item['artist'] ?? ''));
-                        $queryName      = mb_strtolower(trim($artist_name));
-
-                        $matchById   = $artist_id !== '' && $itemArtistId === $artist_id;
-                        $matchByName = $queryName  !== '' && $itemArtistName === $queryName;
-
-                        if ($matchById || $matchByName) return true;
-                    }
-                    return false;
-                }));
-            }
 
             echo json_encode(['success' => true, 'orders' => $allOrders]);
             return;
@@ -180,6 +201,86 @@ function handleApiGet() {
                 'success'      => true,
                 'notifications' => $notifs,
                 'unread_count' => $unread
+            ]);
+            return;
+        }
+
+        // ── action=get_timeline ──────────────────────────────
+        // Retourne la timeline d'une commande : accessible uniquement à
+        // l'acheteur (user_id) OU à l'artiste concerné (artist_id/name) OU admin
+        if ($action === 'get_timeline') {
+            $order_number = trim($_GET['order_number'] ?? '');
+            $order_id_q   = trim($_GET['order_id']     ?? '');
+            $req_user_id  = trim($_GET['user_id']      ?? '');
+            $req_artist_id = trim($_GET['artist_id']   ?? '');
+            $req_artist_name = trim($_GET['artist_name'] ?? '');
+            $isAdminTl    = !empty($_GET['admin']);
+
+            if (!$order_number && !$order_id_q) {
+                echo json_encode(['success' => false, 'error' => 'order_number ou order_id requis']);
+                return;
+            }
+
+            // Récupérer la commande
+            $q = $db->prepare("
+                SELECT o.id, o.order_number, o.user_id, o.artist_id, o.status, o.escrow_status,
+                       o.tracking_number, o.carrier, o.shipping_address, o.shipping_name
+                FROM orders o
+                WHERE o.order_number = :on OR o.id::text = :oid
+                LIMIT 1
+            ");
+            $q->execute([':on' => $order_number, ':oid' => $order_id_q ?: '-1']);
+            $order = $q->fetch(PDO::FETCH_ASSOC);
+
+            if (!$order) {
+                echo json_encode(['success' => false, 'error' => 'Commande introuvable']);
+                return;
+            }
+
+            // ── Vérification accès ──────────────────────────────────────
+            $isOwner     = $req_user_id !== '' && (string)$order['user_id'] === $req_user_id;
+            $isArtistTl  = false;
+            if ($req_artist_id !== '' || $req_artist_name !== '') {
+                // Vérifier qu'un item de la commande appartient bien à cet artiste
+                $aCheck = $db->prepare("
+                    SELECT 1 FROM order_items oi
+                    WHERE oi.order_id = :oid
+                      AND (oi.artist_id = :aid OR LOWER(oi.artist_name) = LOWER(:aname))
+                    LIMIT 1
+                ");
+                $aCheck->execute([':oid' => $order['id'], ':aid' => $req_artist_id, ':aname' => $req_artist_name]);
+                $isArtistTl = (bool)$aCheck->fetch();
+            }
+
+            if (!$isAdminTl && !$isOwner && !$isArtistTl) {
+                echo json_encode(['success' => false, 'error' => 'Accès non autorisé à cette commande']);
+                return;
+            }
+
+            // Récupérer la timeline
+            $tlStmt = $db->prepare("
+                SELECT status, note, updated_by_role, created_at
+                FROM order_timeline
+                WHERE order_id = :oid
+                ORDER BY created_at ASC
+            ");
+            $tlStmt->execute([':oid' => $order['id']]);
+            $timeline = $tlStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode([
+                'success'  => true,
+                'timeline' => $timeline,
+                'order'    => [
+                    'id'              => $order['id'],
+                    'order_number'    => $order['order_number'],
+                    'status'          => $order['status'],
+                    'escrow_status'   => $order['escrow_status'],
+                    'tracking_number' => $order['tracking_number'],
+                    'carrier'         => $order['carrier'],
+                    // Adresse visible uniquement par artiste et admin (pas client)
+                    'shipping_address' => ($isArtistTl || $isAdminTl) ? $order['shipping_address'] : null,
+                    'shipping_name'    => $order['shipping_name'],
+                ],
             ]);
             return;
         }
@@ -891,4 +992,5 @@ try {
     echo json_encode(['received' => true]);
 } // end handleStripeWebhook
 ?>
+
 

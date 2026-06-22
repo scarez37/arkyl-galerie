@@ -4230,7 +4230,7 @@ window.enterGallery = function enterGallery() {
                 };
                 const shippingLabel = shippingNames[shippingMode] || 'Frais de livraison';
 
-                const response = await fetch('api_stripe_checkout.php', {
+                const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_stripe_checkout.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -4238,7 +4238,11 @@ window.enterGallery = function enterGallery() {
                         cart_items:    cartFallback,
                         shipping_cost: shippingCost,
                         shipping_mode: shippingMode,
-                        shipping_label: shippingLabel
+                        shipping_label: shippingLabel,
+                        // ✅ FIX : adresse de livraison transmise au serveur → metadata Stripe → webhook → artiste
+                        shipping_address: clientAddress
+                            ? [clientAddress.nom, clientAddress.tel, clientAddress.quartier, clientAddress.ville, clientAddress.pays].filter(Boolean).join(', ')
+                            : ''
                     })
                 });
 
@@ -12452,3 +12456,4 @@ window.enterGallery = function enterGallery() {
             const montantText = row?.cells?.[3]?.textContent?.trim()?.split(' ')[0] || '?';
             ouvrirModalePaiement(orderId, artistName, montantText);
         }
+

@@ -196,7 +196,7 @@ try {
 
     // 6c. Marquer les œuvres comme vendues (is_sold + sold_at)
     $markSold = $db->prepare("
-        UPDATE artworks SET is_sold = TRUE, sold_at = NOW() WHERE id = :artwork_id
+        UPDATE artworks SET is_sold = TRUE, sold_at = NOW(), badge = 'Vendu', status = 'vendue' WHERE id = :artwork_id
     ");
     foreach ($cartItems as $item) {
         $markSold->execute([':artwork_id' => $item['artwork_id']]);
@@ -252,3 +252,4 @@ try {
 http_response_code(200);
 echo json_encode(['received' => true]);
 ?>
+

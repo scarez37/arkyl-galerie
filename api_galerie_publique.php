@@ -199,20 +199,23 @@ function formatArtwork($oeuvre) {
         $dimensions = $oeuvre['dimensions'];
     }
     
-    // Gérer les photos — on extrait uniquement la première URL (évite de renvoyer un tableau lourd)
-    $firstPhoto = null;
+    // Gérer les photos — retourner TOUTES les photos pour le carrousel front
+    $allPhotos = [];
     if (!empty($oeuvre['photos'])) {
         $decoded = json_decode($oeuvre['photos'], true);
         if (is_array($decoded) && !empty($decoded)) {
-            $firstPhoto = $decoded[0];
+            $allPhotos = $decoded;
         } else {
-            $firstPhoto = $oeuvre['photos']; // Fallback si c'est une URL brute
+            $allPhotos = [$oeuvre['photos']]; // Fallback URL brute
         }
-    } elseif (!empty($oeuvre['image_url'])) {
-        $firstPhoto = $oeuvre['image_url'];
-    } elseif (!empty($oeuvre['image'])) {
-        $firstPhoto = $oeuvre['image'];
     }
+    // Ajouter image_url en tête si absente du tableau
+    if (!empty($oeuvre['image_url']) && !in_array($oeuvre['image_url'], $allPhotos)) {
+        array_unshift($allPhotos, $oeuvre['image_url']);
+    }
+    // Nettoyer les entrées vides
+    $allPhotos = array_values(array_filter($allPhotos));
+    $firstPhoto = $allPhotos[0] ?? null;
     
     // Construire l'objet formaté
     return [
@@ -233,7 +236,7 @@ function formatArtwork($oeuvre) {
         'status' => $oeuvre['status'] ?? 'active',
         'image' => $firstPhoto,
         'image_url' => $firstPhoto,
-        'photos' => $firstPhoto ? [$firstPhoto] : [],
+        'photos' => $allPhotos,  // ✅ FIX : tableau complet pour le carrousel
         'created_at' => $oeuvre['created_at'] ?? null,
         'weight_g'   => isset($oeuvre['weight_g']) ? intval($oeuvre['weight_g']) : 0,
         // ✅ FIX : retourner is_sold pour que le front puisse filtrer la galerie correctement

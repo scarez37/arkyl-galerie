@@ -139,6 +139,7 @@ function handleApiGet() {
                     id           SERIAL PRIMARY KEY,
                     artist_id    VARCHAR(255),
                     artist_name  VARCHAR(255),
+                    type         VARCHAR(100) DEFAULT 'new_order',
                     order_id     INTEGER,
                     order_number VARCHAR(255),
                     title        VARCHAR(255),
@@ -147,6 +148,8 @@ function handleApiGet() {
                     created_at   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                 )
             ");
+            // Migration: ajouter colonne type si absente (tables créées avant ce fix)
+            try { $db->exec("ALTER TABLE artist_notifications ADD COLUMN IF NOT EXISTS type VARCHAR(100) DEFAULT 'new_order'"); } catch (Exception $e) {}
 
             // ✅ FIX : chercher par artist_id OU artist_name
             $where  = [];
@@ -299,9 +302,11 @@ function handleApiPost() {
             )",
             "CREATE TABLE IF NOT EXISTS artist_notifications (
                 id SERIAL PRIMARY KEY, artist_id VARCHAR(255), artist_name VARCHAR(255),
+                type VARCHAR(100) DEFAULT 'new_order',
                 order_id INTEGER, order_number VARCHAR(255), title VARCHAR(255),
                 message TEXT, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )",
+            "ALTER TABLE artist_notifications ADD COLUMN IF NOT EXISTS type VARCHAR(100) DEFAULT 'new_order'",
         ];
         foreach ($migrations as $sql) {
             try { $db->exec($sql); } catch (Exception $e) {}
@@ -543,6 +548,32 @@ function handleApiPost() {
                 }
             }
 
+            // ✅ FIX : Marquer les œuvres comme vendues + notifier les artistes
+            if ($row && !empty($body['items'])) {
+                // Marquer chaque œuvre vendue
+                $markSold = $db->prepare("
+                    UPDATE artworks SET is_sold = TRUE, sold_at = NOW(), badge = 'Vendu', status = 'vendue'
+                    WHERE id = :artwork_id
+                ");
+                foreach ($body['items'] as $item) {
+                    $aid = $item['artwork_id'] ?? $item['id'] ?? null;
+                    if ($aid) $markSold->execute([':artwork_id' => intval($aid)]);
+                }
+
+                // Notifier les artistes via notify_helpers
+                require_once __DIR__ . '/notify_helpers.php';
+                $orderNum   = $row['order_number'] ?? $order_number;
+                $buyerName  = $body['user_name'] ?? $body['user_email'] ?? 'Client';
+                $totalOrder = $body['total'] ?? 0;
+                $shipAddr   = $body['shipping_address'] ?? '';
+                $shipName   = $body['shipping_name'] ?? '';
+                try {
+                    notifyArtists($db, (int)$row['id'], $orderNum, $body['items'], $buyerName, $totalOrder, $shipAddr, $shipName);
+                } catch (Exception $e) {
+                    error_log('⚠️ notifyArtists (create fallback) : ' . $e->getMessage());
+                }
+            }
+
             echo json_encode([
                 'success'      => (bool)$row,
                 'order_id'     => $row['id'] ?? null,
@@ -665,11 +696,13 @@ try {
     $db->exec("
         CREATE TABLE IF NOT EXISTS artist_notifications (
             id SERIAL PRIMARY KEY, artist_id VARCHAR(255), artist_name VARCHAR(255),
+            type VARCHAR(100) DEFAULT 'new_order',
             order_id INTEGER, order_number VARCHAR(255), title VARCHAR(255),
             message TEXT, is_read BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         )
     ");
+    try { $db->exec("ALTER TABLE artist_notifications ADD COLUMN IF NOT EXISTS type VARCHAR(100) DEFAULT 'new_order'"); } catch (Exception $e) {}
 
     // ─── MIGRATIONS — colonnes ajoutées après création initiale ──────
     $migrations = [
@@ -858,3 +891,4 @@ try {
     echo json_encode(['received' => true]);
 } // end handleStripeWebhook
 ?>
+

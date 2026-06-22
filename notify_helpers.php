@@ -3,6 +3,8 @@
  * notify_helpers.php
  * Fonctions partagées de notification artiste.
  * Inclus par api_commandes.php ET webhook_stripe.php
+ *
+ * FIX : colonne 'type' ajoutée dans artist_notifications (était absente du schéma)
  */
 
 if (!function_exists('COALESCE_str')) {
@@ -11,7 +13,36 @@ if (!function_exists('COALESCE_str')) {
     }
 }
 
+/**
+ * S'assure que la table artist_notifications existe avec toutes ses colonnes.
+ * Appelée avant chaque INSERT pour éviter les erreurs de colonne manquante.
+ */
+function ensureNotificationsTable($db) {
+    // Création complète (avec colonne 'type')
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS artist_notifications (
+            id           SERIAL PRIMARY KEY,
+            artist_id    VARCHAR(255),
+            artist_name  VARCHAR(255),
+            type         VARCHAR(100) DEFAULT 'new_order',
+            order_id     INTEGER,
+            order_number VARCHAR(255),
+            title        VARCHAR(255),
+            message      TEXT,
+            is_read      BOOLEAN      DEFAULT FALSE,
+            created_at   TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP
+        )
+    ");
+    // Migration : ajouter 'type' sur les tables créées avant ce fix
+    try {
+        $db->exec("ALTER TABLE artist_notifications ADD COLUMN IF NOT EXISTS type VARCHAR(100) DEFAULT 'new_order'");
+    } catch (Exception $e) { /* colonne déjà présente */ }
+}
+
 function notifyArtists($db, $orderId, $orderNumber, $items, $buyerName, $total, $shippingAddress = '', $shippingName = '') {
+
+    // S'assurer que la table est à jour
+    ensureNotificationsTable($db);
 
     // Regrouper les items par artist_id
     $byArtist = [];
@@ -40,7 +71,7 @@ function notifyArtists($db, $orderId, $orderNumber, $items, $buyerName, $total, 
         $adresseStr   = $shippingAddress ? " | 📍 Adresse : {$shippingAddress}" : '';
         $notifMessage = "Bonne nouvelle {$artistName} ! {$buyerName} vient de commander {$titlesStr} pour un montant de " . number_format($itemsTotal, 0, ',', ' ') . " FCFA.{$adresseStr}";
 
-        // ── 2. Notification en base de données ──────────────────
+        // ── 2. Notification en base de données (avec colonne 'type') ──
         try {
             $db->prepare("
                 INSERT INTO artist_notifications (artist_id, type, title, message, order_id, order_number)
@@ -50,12 +81,11 @@ function notifyArtists($db, $orderId, $orderNumber, $items, $buyerName, $total, 
             error_log("⚠️ Notification BDD artiste {$artistId} : " . $e->getMessage());
         }
 
-        // ── 3. Email à l'artiste ─────────────────────────────────
+        // ── 3. Email à l'artiste ──────────────────────────────────────
         if ($artistEmail) {
             try {
                 $subject = "=?UTF-8?B?" . base64_encode("🎉 ARKYL — Nouvelle commande {$orderNumber}") . "?=";
 
-                // Tableau HTML des œuvres
                 $itemsHtml = '';
                 foreach ($artistItems as $item) {
                     $itemsHtml .= '<tr>
@@ -70,47 +100,39 @@ function notifyArtists($db, $orderId, $orderNumber, $items, $buyerName, $total, 
 <body style="margin:0;padding:0;background:#0f0f0f;font-family:Montserrat,Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f0f;padding:40px 20px;">
   <tr><td align="center">
-    <table width="600" cellpadding="0" cellspacing="0" style="background:#1a1a1a;border-radius:16px;overflow:hidden;border:1px solid #9333ea44;">
-      <!-- Header -->
-      <tr><td style="background:linear-gradient(135deg,#9333ea,#c026d3);padding:32px;text-align:center;">
+    <table width="600" cellpadding="0" cellspacing="0" style="background:#1a1a1a;border-radius:16px;overflow:hidden;border:1px solid #d4af3744;">
+      <tr><td style="background:linear-gradient(135deg,#c46a4b,#8b3a20);padding:32px;text-align:center;">
         <h1 style="margin:0;color:#fff;font-size:28px;letter-spacing:2px;">ARKYL</h1>
-        <p style="margin:8px 0 0;color:#fff;opacity:.85;font-size:14px;">Galerie d\'Art Contemporain</p>
+        <p style="margin:8px 0 0;color:#fff;opacity:.85;font-size:14px;">Galerie d\'Art Africain</p>
       </td></tr>
-      <!-- Body -->
       <tr><td style="padding:32px;">
-        <h2 style="color:#9333ea;margin:0 0 8px;">🎉 Nouvelle commande !</h2>
+        <h2 style="color:#d4af37;margin:0 0 8px;">🎉 Nouvelle commande !</h2>
         <p style="color:#ccc;font-size:15px;line-height:1.6;">
           Bonjour <strong style="color:#fff;">' . htmlspecialchars($artistName) . '</strong>,<br>
           Excellente nouvelle ! Une de vos œuvres vient d\'être commandée.
         </p>
-        <!-- Détails commande -->
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#111;border-radius:12px;padding:20px;margin:20px 0;">
           <tr>
             <td style="color:#888;font-size:13px;padding:4px 0;">Numéro de commande</td>
-            <td style="color:#9333ea;font-size:13px;text-align:right;font-weight:700;">' . htmlspecialchars($orderNumber) . '</td>
+            <td style="color:#d4af37;font-size:13px;text-align:right;font-weight:700;">' . htmlspecialchars($orderNumber) . '</td>
           </tr>
           <tr>
             <td style="color:#888;font-size:13px;padding:4px 0;">Acheteur</td>
             <td style="color:#fff;font-size:13px;text-align:right;">' . htmlspecialchars($buyerName) . '</td>
           </tr>
-          ' . ($shippingAddress ? '
-          <tr>
+          ' . ($shippingName ? '<tr>
             <td style="color:#888;font-size:13px;padding:4px 0;">Mode de livraison</td>
             <td style="color:#fff;font-size:13px;text-align:right;">' . htmlspecialchars($shippingName) . '</td>
           </tr>' : '') . '
         </table>
         ' . ($shippingAddress ? '
-        <!-- Adresse de livraison -->
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a0a2e;border:1.5px solid #d4af3766;border-radius:12px;padding:20px;margin:0 0 20px;">
-          <tr>
-            <td>
-              <p style="color:#d4af37;font-size:12px;font-weight:700;letter-spacing:1px;margin:0 0 10px;text-transform:uppercase;">📍 Adresse de livraison du client</p>
-              <p style="color:#fff;font-size:14px;font-weight:600;line-height:1.8;margin:0;">' . nl2br(htmlspecialchars(str_replace(', ', "\n", $shippingAddress))) . '</p>
-              <p style="color:#aaa;font-size:12px;margin:10px 0 0;">Utilisez cette adresse pour préparer et expédier votre œuvre.</p>
-            </td>
-          </tr>
+          <tr><td>
+            <p style="color:#d4af37;font-size:12px;font-weight:700;letter-spacing:1px;margin:0 0 10px;text-transform:uppercase;">📍 Adresse de livraison du client</p>
+            <p style="color:#fff;font-size:14px;font-weight:600;line-height:1.8;margin:0;">' . nl2br(htmlspecialchars(str_replace(', ', "\n", $shippingAddress))) . '</p>
+            <p style="color:#aaa;font-size:12px;margin:10px 0 0;">Utilisez cette adresse pour préparer et expédier votre œuvre.</p>
+          </td></tr>
         </table>' : '') . '
-        <!-- Œuvres -->
         <p style="color:#aaa;font-size:13px;margin:0 0 8px;">Œuvres commandées :</p>
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#111;border-radius:12px;overflow:hidden;">
           <tr style="background:#1f1f1f;">
@@ -119,17 +141,16 @@ function notifyArtists($db, $orderId, $orderNumber, $items, $buyerName, $total, 
           </tr>
           ' . $itemsHtml . '
           <tr>
-            <td style="padding:10px 8px;color:#fff;font-weight:700;">Total artiste</td>
-            <td style="padding:10px 8px;color:#9333ea;font-weight:700;text-align:right;">' . number_format($itemsTotal, 0, ',', ' ') . ' FCFA</td>
+            <td style="padding:10px 8px;color:#fff;font-weight:700;">Total artiste (65%)</td>
+            <td style="padding:10px 8px;color:#d4af37;font-weight:700;text-align:right;">' . number_format($itemsTotal * 0.65, 0, ',', ' ') . ' FCFA</td>
           </tr>
         </table>
         <p style="color:#aaa;font-size:13px;margin:24px 0 0;line-height:1.6;">
-          Connectez-vous à votre espace artiste pour suivre l\'évolution de cette commande.
+          Connectez-vous à votre espace artiste pour confirmer l\'expédition.
         </p>
       </td></tr>
-      <!-- Footer -->
       <tr><td style="background:#111;padding:20px;text-align:center;border-top:1px solid #222;">
-        <p style="color:#555;font-size:12px;margin:0;">© ARKYL — Galerie d\'Art Contemporain</p>
+        <p style="color:#555;font-size:12px;margin:0;">© ARKYL — Galerie d\'Art Africain</p>
       </td></tr>
     </table>
   </td></tr>

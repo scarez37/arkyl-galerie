@@ -42,6 +42,15 @@ window.enterGallery = function enterGallery() {
             const style = document.createElement('style');
             style.id = 'galerie-bolia-styles';
             style.textContent = `
+                /* Animation cloche notification */
+                @keyframes ring {
+                    0%   { transform: rotate(0deg);  }
+                    20%  { transform: rotate(-25deg); }
+                    40%  { transform: rotate(25deg);  }
+                    60%  { transform: rotate(-15deg); }
+                    80%  { transform: rotate(15deg);  }
+                    100% { transform: rotate(0deg);  }
+                }
                 /* Animation shimmer pour Galerie BOLIA */
                 @keyframes bolia-shimmer {
                     0% { left: -100%; }
@@ -5180,13 +5189,18 @@ window.enterGallery = function enterGallery() {
                     <div style="font-size:13px;color:#f87171;">⚠️ Adresse de livraison non renseignée — contactez l'admin</div>
                 </div>`;
 
+            // ── Badge "Nouvelle" si commande < 24h ────────────────────
+            const isNew = order.created_at && (Date.now() - new Date(order.created_at).getTime()) < 86400000;
+            const newBadge = isNew ? `<span style="background:linear-gradient(135deg,#c46a4b,#8b3a20);color:white;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;letter-spacing:0.5px;margin-left:8px;animation:pulse 2s infinite;">NOUVELLE</span>` : '';
+            const cardBorder = isNew ? 'border:1.5px solid rgba(196,106,75,0.6);box-shadow:0 0 18px rgba(196,106,75,0.18);' : '';
+
             return `
-                <div class="admin-order-card" style="margin-bottom:20px;">
+                <div class="admin-order-card" style="margin-bottom:20px;${cardBorder}">
 
                     <!-- En-tête commande -->
                     <div style="display:flex;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
                         <div>
-                            <div style="font-size:16px;font-weight:700;color:var(--ocre);">📦 ${order.order_number || '#' + orderId}</div>
+                            <div style="font-size:16px;font-weight:700;color:var(--ocre);">📦 ${order.order_number || '#' + orderId}${newBadge}</div>
                             <div style="font-size:13px;opacity:0.7;margin-top:3px;">👤 ${order.user_name || 'Acheteur'}</div>
                             <div style="font-size:12px;opacity:0.5;">📅 ${order.created_at ? new Date(order.created_at).toLocaleDateString('fr-FR') : ''}</div>
                         </div>
@@ -8767,22 +8781,8 @@ window.enterGallery = function enterGallery() {
         let _notifPollInterval = null;
 
         async function loadArtistNotifications() {
-            const artistName = currentUser?.artistName || '';
-            const artistId   = currentUser?.id || currentUser?.artist_id || '';
-            if (!artistName && !artistId) return;
-            try {
-                const params = new URLSearchParams({ action: 'get_notifications', t: Date.now() });
-                if (artistName) params.set('artist_name', artistName);
-                if (artistId)   params.set('artist_id', artistId);
-                const resp = await fetch(`${NOTIF_API}?${params.toString()}`);
-                const result = await resp.json();
-                if (!result.success) return;
-                const count = result.unread_count || 0;
-                updateNotifBadge(count);
-                if (count > 0) renderNotifDropdown(result.notifications);
-            } catch (e) {
-                console.warn('⚠️ Notifications non disponibles:', e.message);
-            }
+            // Déléguer à la version avec alerte
+            return loadArtistNotificationsWithAlert();
         }
 
         function updateNotifBadge(count) {
@@ -8818,10 +8818,10 @@ window.enterGallery = function enterGallery() {
                 dropdown.innerHTML = '<p style="color:#888;text-align:center;padding:20px;font-size:13px;">Aucune notification</p>';
                 return;
             }
-            dropdown.innerHTML = recent.map(n => {
+            const items = recent.map(n => {
                 const date = new Date(n.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-                const unread = !n.is_read ? 'background:rgba(147,51,234,0.12);border-left:3px solid #9333ea;' : 'border-left:3px solid transparent;';
-                return `<div style="${unread}padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="openNotifOrder('${n.order_number}')">
+                const unread = !n.is_read ? 'background:rgba(196,106,75,0.12);border-left:3px solid var(--terre-cuite,#c46a4b);' : 'border-left:3px solid transparent;';
+                return `<div style="${unread}padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;transition:background 0.15s;" onclick="openNotifOrder('${n.order_number}')" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='${!n.is_read ? 'rgba(196,106,75,0.12)' : 'transparent'}'">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
                         <span style="font-size:13px;font-weight:600;color:#fff;line-height:1.4;">${n.title}</span>
                         <span style="font-size:11px;color:#666;white-space:nowrap;">${date}</span>
@@ -8829,6 +8829,14 @@ window.enterGallery = function enterGallery() {
                     <p style="margin:4px 0 0;font-size:12px;color:#aaa;line-height:1.4;">${n.message}</p>
                 </div>`;
             }).join('');
+            // CTA bas du dropdown
+            dropdown.innerHTML = items + `
+                <div style="padding:10px 16px;text-align:center;border-top:1px solid rgba(255,255,255,0.08);">
+                    <button onclick="showArtistSection('orders');toggleNotifDropdown(true);"
+                        style="background:linear-gradient(135deg,var(--terre-cuite,#c46a4b),#8b3a20);color:white;border:none;border-radius:8px;padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer;width:100%;">
+                        📦 Voir toutes mes commandes
+                    </button>
+                </div>`;
         }
 
         function openNotifOrder(orderNumber) {
@@ -8908,10 +8916,56 @@ window.enterGallery = function enterGallery() {
             </div>`;
         }
 
+        // Compteur de notifications connu pour détecter les nouvelles arrivées
+        let _lastKnownUnreadCount = 0;
+
         function startNotifPolling() {
-            loadArtistNotifications();
+            loadArtistNotificationsWithAlert();
             if (_notifPollInterval) clearInterval(_notifPollInterval);
-            _notifPollInterval = setInterval(loadArtistNotifications, 60000);
+            // Poll toutes les 30s pour réactivité
+            _notifPollInterval = setInterval(loadArtistNotificationsWithAlert, 30000);
+        }
+
+        // Version améliorée : alerte visuelle si nouvelle commande détectée
+        async function loadArtistNotificationsWithAlert() {
+            const artistName = currentUser?.artistName || '';
+            const artistId   = currentUser?.id || currentUser?.artist_id || '';
+            if (!artistName && !artistId) return;
+            try {
+                const params = new URLSearchParams({ action: 'get_notifications', t: Date.now() });
+                if (artistName) params.set('artist_name', artistName);
+                if (artistId)   params.set('artist_id', artistId);
+                const resp = await fetch(`${NOTIF_API}?${params.toString()}`);
+                const result = await resp.json();
+                if (!result.success) return;
+
+                const count = result.unread_count || 0;
+                updateNotifBadge(count);
+                if (result.notifications?.length > 0) renderNotifDropdown(result.notifications);
+
+                // 🔔 Si une NOUVELLE notification est arrivée depuis la dernière vérification
+                if (count > _lastKnownUnreadCount && _lastKnownUnreadCount >= 0) {
+                    const newest = result.notifications?.[0];
+                    if (newest && !newest.is_read) {
+                        // Toast d'alerte + son (si dispo)
+                        showToast('🎉 ' + (newest.title || 'Nouvelle commande !'));
+                        // Mettre en avant la cloche visuellement
+                        const bell = document.getElementById('notifBell');
+                        if (bell) {
+                            bell.style.animation = 'none';
+                            setTimeout(() => { bell.style.animation = 'ring 0.6s ease 3'; }, 10);
+                        }
+                        // Rafraîchir la liste des ventes artiste si elle est visible
+                        const salesSection = document.getElementById('salesSection');
+                        if (salesSection && salesSection.classList.contains('active')) {
+                            if (typeof renderArtistOrders === 'function') renderArtistOrders();
+                        }
+                    }
+                }
+                _lastKnownUnreadCount = count;
+            } catch (e) {
+                console.warn('⚠️ Notifications non disponibles:', e.message);
+            }
         }
 
         function stopNotifPolling() {
@@ -12456,4 +12510,5 @@ window.enterGallery = function enterGallery() {
             const montantText = row?.cells?.[3]?.textContent?.trim()?.split(' ')[0] || '?';
             ouvrirModalePaiement(orderId, artistName, montantText);
         }
+
 

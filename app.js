@@ -4416,73 +4416,42 @@ window.enterGallery = function enterGallery() {
 
             if (!pending) {
                 // Paiement confirmé par Stripe mais aucune donnée locale disponible.
-                // Le webhook a déjà créé la commande en BDD — on récupère les items depuis le serveur.
-                console.log('\u26a0\ufe0f Pas de commande en attente \u2014 r\u00e9cup\u00e9ration depuis la BDD (webhook d\u00e9j\u00e0 effectu\u00e9)');
+                // ✅ FIX PERFORMANCE : afficher la confirmation IMMÉDIATEMENT avec les données disponibles
+                // puis récupérer les détails serveur en arrière-plan (sans bloquer l'affichage)
+                console.log('\u26a0\ufe0f Pas de commande en attente \u2014 affichage imm\u00e9diat + r\u00e9cup\u00e9ration serveur en arri\u00e8re-plan');
                 const userId = currentUser?.id || currentUser?.googleId || currentUser?.email
                              || localStorage.getItem('user_id') || '';
 
-                // ✅ FIX CRITIQUE : récupérer la commande + ses items depuis la BDD
-                // Chercher par order_number ARKYL (plus fiable que user_id qui peut avoir des formats différents)
-                let serverItems = [];
-                let serverOrder = null;
-                try {
-                    // Essai 1 : chercher par order_number ou session_id via la liste admin restreinte
-                    const params = new URLSearchParams({ action: 'list', admin: '1', t: Date.now() });
-                    const resp = await fetch(`${ORDERS_API}?${params.toString()}`);
-                    const data = await resp.json();
-                    if (data.success && data.orders?.length > 0) {
-                        serverOrder = data.orders.find(o =>
-                            o.order_number === arkylOrderId ||
-                            o.stripe_session_id === sessionId
-                        );
-                        if (!serverOrder && userId) {
-                            // Fallback : première commande qui correspond au user_id (plusieurs formats)
-                            serverOrder = data.orders.find(o =>
-                                String(o.user_id) === String(userId) ||
-                                o.user_email === (currentUser?.email || localStorage.getItem('user_email'))
-                            );
-                        }
-                        if (serverOrder) serverItems = serverOrder.items || [];
-                    }
-                } catch(e) {
-                    console.warn('\u26a0\ufe0f Impossible de r\u00e9cup\u00e9rer la commande depuis le serveur:', e.message);
-                }
+                // ✅ Vider le panier local IMMÉDIATEMENT
+                const cartSnapshot = [...cartItems];
+                cartItems = []; safeStorage.set('arkyl_cart', []); updateBadges();
 
+                // ✅ Invalider le cache galerie IMMÉDIATEMENT
+                try { localStorage.removeItem('arkyl_galerie_v3'); } catch(e) {}
+                window.toutesLesOeuvres = [];
+                window._galerieEnCours = false;
+
+                // ✅ Construire commande minimale avec ce qu'on a MAINTENANT (panier local)
                 const minOrder = {
-                    id: serverOrder?.id || Date.now(),
-                    order_number: serverOrder?.order_number || arkylOrderId || ('ARK-' + Date.now().toString(36).toUpperCase()),
+                    id: Date.now(),
+                    order_number: arkylOrderId || ('ARKYL-' + Date.now().toString(36).toUpperCase()),
                     stripe_session_id: sessionId,
                     user_id:    userId,
-                    user_name:  currentUser?.name  || localStorage.getItem('user_name')  || serverOrder?.user_name  || '',
-                    user_email: currentUser?.email || localStorage.getItem('user_email') || serverOrder?.user_email || '',
-                    items: serverItems.length > 0 ? serverItems : (cartItems.length > 0 ? cartItems.map(i => ({...i, artwork_id: i.id})) : []),
-                    subtotal: serverOrder?.subtotal || cartItems.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
-                    tax: serverOrder?.tax || 0,
-                    shippingCost: serverOrder?.shipping_cost || 0,
-                    total: serverOrder?.total || cartItems.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
-                    shippingName: serverOrder?.shipping_name || 'À confirmer',
+                    user_name:  currentUser?.name  || localStorage.getItem('user_name')  || '',
+                    user_email: currentUser?.email || localStorage.getItem('user_email') || '',
+                    items: cartSnapshot.length > 0 ? cartSnapshot.map(i => ({...i, artwork_id: i.id})) : [],
+                    subtotal: cartSnapshot.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
+                    tax: 0,
+                    shippingCost: 0,
+                    total: cartSnapshot.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
+                    shippingName: 'En cours de traitement',
                     paymentMethod: 'Stripe',
-                    status: serverOrder?.status || 'En préparation',
-                    escrow_status: serverOrder?.escrow_status || 'payée_en_attente',
+                    status: 'En préparation',
+                    escrow_status: 'payée_en_attente',
                     date: new Date().toLocaleDateString('fr-FR', {day:'2-digit',month:'long',year:'numeric'}),
                 };
 
-                // ✅ Vider le panier local
-                cartItems = []; safeStorage.set('arkyl_cart', []); updateBadges();
-
-                // ✅ Invalider le cache galerie pour forcer le rechargement depuis le serveur
-                try { localStorage.removeItem('arkyl_galerie_v3'); } catch(e) {}
-                window.toutesLesOeuvres = [];
-
-                // ✅ Marquer les œuvres achetées comme vendues (supprime de la galerie)
-                if (minOrder.items.length > 0) {
-                    await marquerOeuvresVendues(minOrder.items);
-                } else {
-                    // Aucun item récupéré — recharger quand même la galerie depuis le serveur
-                    window._galerieEnCours = false;
-                    if (typeof chargerLaVraieGalerie === 'function') chargerLaVraieGalerie();
-                }
-
+                // ✅ Sauvegarder dans l'historique local immédiatement
                 orderHistory = safeStorage.get('arkyl_orders', []);
                 const alreadyMin = orderHistory.some(o =>
                     o.order_number === minOrder.order_number ||
@@ -4493,14 +4462,86 @@ window.enterGallery = function enterGallery() {
                     safeStorage.set('arkyl_orders', orderHistory);
                 }
 
-                // Notifier les artistes côté front (BDD déjà notifiée par le webhook)
-                if (minOrder.items.length > 0) sendOrderNotifications(minOrder);
+                // ✅ Afficher le modal de succès IMMÉDIATEMENT (sans attendre le serveur)
+                showToast('\ud83c\udf89 Paiement confirm\u00e9 ! Commande ' + minOrder.order_number + ' cr\u00e9\u00e9e.');
+                navigateTo('orders');
+                showOrderSuccessModal(minOrder);
 
-                setTimeout(() => {
-                    showToast('\ud83c\udf89 Paiement confirm\u00e9 ! Commande ' + minOrder.order_number + ' cr\u00e9\u00e9e.');
-                    navigateTo('orders');
-                    showOrderSuccessModal(minOrder);
-                }, 300);
+                // ✅ Marquer les œuvres vendues dans le cache local immédiatement
+                if (minOrder.items.length > 0 && window.toutesLesOeuvres) {
+                    const soldIds = minOrder.items.map(i => String(i.id || i.artwork_id)).filter(Boolean);
+                    window.toutesLesOeuvres = window.toutesLesOeuvres.filter(o => !soldIds.includes(String(o.id)));
+                }
+
+                // ✅ EN ARRIÈRE-PLAN : récupérer les vrais détails depuis la BDD + marquer vendues côté serveur
+                (async () => {
+                    try {
+                        // Attendre max 8s que le webhook Stripe ait créé la commande en BDD
+                        let serverOrder = null;
+                        let serverItems = [];
+                        for (let attempt = 0; attempt < 4; attempt++) {
+                            if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
+                            try {
+                                const params = new URLSearchParams({ action: 'list', admin: '1', t: Date.now() });
+                                const resp = await fetch(`${ORDERS_API}?${params.toString()}`);
+                                const data = await resp.json();
+                                if (data.success && data.orders?.length > 0) {
+                                    serverOrder = data.orders.find(o =>
+                                        o.order_number === arkylOrderId ||
+                                        o.stripe_session_id === sessionId
+                                    );
+                                    if (!serverOrder && userId) {
+                                        serverOrder = data.orders.find(o =>
+                                            String(o.user_id) === String(userId) ||
+                                            o.user_email === (currentUser?.email || localStorage.getItem('user_email'))
+                                        );
+                                    }
+                                    if (serverOrder) { serverItems = serverOrder.items || []; break; }
+                                }
+                            } catch(e) { console.warn('Tentative', attempt+1, 'échouée:', e.message); }
+                        }
+
+                        // Mettre à jour la commande dans l'historique avec les vraies données serveur
+                        if (serverOrder) {
+                            const updatedOrder = {
+                                ...minOrder,
+                                id: serverOrder.id || minOrder.id,
+                                order_number: serverOrder.order_number || minOrder.order_number,
+                                items: serverItems.length > 0 ? serverItems : minOrder.items,
+                                subtotal: serverOrder.subtotal || minOrder.subtotal,
+                                tax: serverOrder.tax || 0,
+                                shippingCost: serverOrder.shipping_cost || 0,
+                                total: serverOrder.total || minOrder.total,
+                                shippingName: serverOrder.shipping_name || minOrder.shippingName,
+                                status: serverOrder.status || minOrder.status,
+                            };
+                            orderHistory = safeStorage.get('arkyl_orders', []);
+                            const idx = orderHistory.findIndex(o =>
+                                o.order_number === minOrder.order_number ||
+                                (sessionId && o.stripe_session_id === sessionId)
+                            );
+                            if (idx >= 0) orderHistory[idx] = updatedOrder;
+                            else orderHistory.unshift(updatedOrder);
+                            safeStorage.set('arkyl_orders', orderHistory);
+                        }
+
+                        // Marquer les œuvres vendues côté serveur
+                        const itemsToMark = serverItems.length > 0 ? serverItems : minOrder.items;
+                        if (itemsToMark.length > 0) {
+                            await marquerOeuvresVendues(itemsToMark);
+                        } else {
+                            // Recharger la galerie depuis le serveur pour refléter les ventes
+                            window._galerieEnCours = false;
+                            if (typeof chargerLaVraieGalerie === 'function') chargerLaVraieGalerie();
+                        }
+                    } catch(e) {
+                        console.warn('\u26a0\ufe0f Erreur r\u00e9cup\u00e9ration arri\u00e8re-plan:', e.message);
+                        // Même en cas d'erreur, recharger la galerie
+                        window._galerieEnCours = false;
+                        if (typeof chargerLaVraieGalerie === 'function') chargerLaVraieGalerie();
+                    }
+                })();
+
                 return;
             }
 
@@ -4567,13 +4608,10 @@ window.enterGallery = function enterGallery() {
                 const cleanUrl = window.location.pathname;
                 window.history.replaceState({}, document.title, cleanUrl);
 
-                // Afficher la page commandes avec confirmation
-                setTimeout(() => {
-                    showToast('🎉 Paiement confirmé ! Commande ' + order.order_number + ' créée.');
-                    navigateTo('orders');
-                    // Afficher modal de succès
-                    showOrderSuccessModal(order);
-                }, 400);
+                // ✅ FIX PERFORMANCE : afficher le modal immédiatement sans délai inutile
+                showToast('🎉 Paiement confirmé ! Commande ' + order.order_number + ' créée.');
+                navigateTo('orders');
+                showOrderSuccessModal(order);
 
             } else {
                 console.log('ℹ️ Commande déjà dans l\'historique');
@@ -11097,10 +11135,11 @@ window.enterGallery = function enterGallery() {
 
             if (window._isStripeReturn || window._pendingStripeSession || window._pendingStripeOrderId) {
                 // Retour Stripe → ignorer la dernière page, traiter le paiement
-                // ✅ FIX : délai plus long pour laisser restoreSession() + Google Sign-In s'initialiser
+                // ✅ FIX : délai réduit — la session est restaurée depuis localStorage immédiatement
+                // Google Sign-In n'est pas nécessaire car processStripeReturn reconstruit currentUser depuis localStorage si besoin
                 safeStorage.remove('arkyl_last_page');
                 updateNavigationHistory('home');
-                setTimeout(() => processStripeReturn(window._pendingStripeSession, window._pendingStripeOrderId), 2500);
+                setTimeout(() => processStripeReturn(window._pendingStripeSession, window._pendingStripeOrderId), 500);
             } else if (lastPage && (Date.now() - lastPage.timestamp) < 5000) {
                 startPage = lastPage.pageId.replace('Page', '');
                 setTimeout(() => {

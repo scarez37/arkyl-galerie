@@ -3246,8 +3246,8 @@ window.enterGallery = function enterGallery() {
                         <span class="order-status" style="background:${statusColor(order.status)}22;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}44;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;">
                             ${statusIcon(order.status)} ${order.status}
                         </span>
-                        <span class="${es === 'fonds_libérés' ? 'funds-released-badge' : 'funds-locked-badge'}">
-                            ${es === 'fonds_libérés' ? '✅ Fonds libérés' : '🔒 Fonds sécurisés'}
+                        <span class="${es === 'fonds_déversés' ? 'funds-released-badge' : es === 'fonds_libérés' ? 'funds-released-badge' : 'funds-locked-badge'}">
+                            ${es === 'fonds_déversés' ? '💰 Fond délivré' : es === 'fonds_libérés' ? '✅ Fonds libérés' : '🔒 Fonds sécurisés'}
                         </span>
                     </div>
                 </div>
@@ -3290,10 +3290,11 @@ window.enterGallery = function enterGallery() {
 
             // ── Barre de progression escrow ──────────────────────────────────
             const escrowSteps = [
-                { key: 'payée_en_attente', icon: '💳', label: 'Payée'        },
-                { key: 'expédiée',         icon: '🚚', label: 'Expédiée'     },
-                { key: 'livrée_confirmée', icon: '📬', label: 'Reçue'        },
-                { key: 'fonds_libérés',    icon: '✅', label: 'Fonds libérés' },
+                { key: 'payée_en_attente', icon: '💳', label: 'Payée'         },
+                { key: 'expédiée',         icon: '🚚', label: 'Expédiée'      },
+                { key: 'livrée_confirmée', icon: '📬', label: 'Reçue'         },
+                { key: 'fonds_libérés',    icon: '✅', label: 'Fonds libérés'  },
+                { key: 'fonds_déversés',   icon: '💰', label: 'Fond délivré'   },
             ];
             const stepIdx = escrowSteps.map(s => s.key).indexOf(es);
             const escrowBar = `
@@ -3373,6 +3374,17 @@ window.enterGallery = function enterGallery() {
                 </div>
 
                 ${historyBlock}
+
+                <!-- Bouton Interrompre la livraison (admin) -->
+                ${order.status !== 'Annulée' && order.status !== 'Interrompue' && order.status !== 'Livrée' ? `
+                <div style="margin-top:8px;border-top:1px solid rgba(255,100,80,0.2);padding-top:14px;">
+                    <button onclick="interrompreLivraison('${orderId}', '${order.order_number}')"
+                        style="background:rgba(220,53,69,0.15);border:1px solid rgba(220,53,69,0.4);color:#ff6b6b;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;width:100%;transition:all 0.2s;"
+                        onmouseover="this.style.background='rgba(220,53,69,0.3)'"
+                        onmouseout="this.style.background='rgba(220,53,69,0.15)'">
+                        ⛔ Interrompre la livraison
+                    </button>
+                </div>` : ''}
             </div>`;
         }
 
@@ -5108,10 +5120,11 @@ window.enterGallery = function enterGallery() {
 
             // ── Étapes visuelles ──────────────────────────────────────────
             const escrowSteps = [
-                { key: 'payée_en_attente', icon: '💳', label: 'Payée'        },
-                { key: 'expédiée',         icon: '🚚', label: 'Expédiée'     },
-                { key: 'livrée_confirmée', icon: '📬', label: 'Reçue'        },
-                { key: 'fonds_libérés',    icon: '✅', label: 'Fonds libérés' },
+                { key: 'payée_en_attente', icon: '💳', label: 'Payée'         },
+                { key: 'expédiée',         icon: '🚚', label: 'Expédiée'      },
+                { key: 'livrée_confirmée', icon: '📬', label: 'Reçue'         },
+                { key: 'fonds_libérés',    icon: '✅', label: 'Fonds libérés'  },
+                { key: 'fonds_déversés',   icon: '💰', label: 'Fond délivré'   },
             ];
             const escrowOrder = escrowSteps.map(s => s.key);
             const stepIdx = escrowOrder.indexOf(es);
@@ -5591,6 +5604,15 @@ window.enterGallery = function enterGallery() {
             } else if (notif.type === 'order-artist') {
                 icon = '🎨';
                 typeName = 'Vente Artiste';
+            } else if (notif.type === 'payout_confirmed') {
+                icon = '💰';
+                typeName = 'Fond délivré';
+            } else if (notif.type === 'reception_confirmed') {
+                icon = '🎉';
+                typeName = 'Réception confirmée';
+            } else if (notif.type === 'interruption') {
+                icon = '⛔';
+                typeName = 'Livraison interrompue';
             }
 
             document.getElementById('notificationModalIcon').textContent = icon;
@@ -9026,8 +9048,11 @@ window.enterGallery = function enterGallery() {
                     const newest = result.notifications?.[0];
                     if (newest && !newest.is_read) {
                         const isReceptionConfirmed = newest.type === 'reception_confirmed';
+                        const isPayoutConfirmed = newest.type === 'payout_confirmed';
+                        const isInterruption = newest.type === 'interruption';
                         // Toast d'alerte
-                        showToast((isReceptionConfirmed ? '🎉 ' : '🛒 ') + (newest.title || 'Nouvelle notification !'));
+                        const toastPrefix = isPayoutConfirmed ? '💰 ' : isInterruption ? '⛔ ' : isReceptionConfirmed ? '🎉 ' : '🛒 ';
+                        showToast(toastPrefix + (newest.title || 'Nouvelle notification !'));
                         // Mettre en avant la cloche visuellement
                         const bell = document.getElementById('notifBell');
                         if (bell) {
@@ -12586,6 +12611,53 @@ window.enterGallery = function enterGallery() {
                 try { cmd = JSON.parse(cmdData.replace(/&quot;/g, '"')); } catch(e) {}
             }
 
+            // Supprimer une ancienne modale si existante
+            document.getElementById('modalePaiementArtiste')?.remove();
+
+            const modal = document.createElement('div');
+            modal.id = 'modalePaiementArtiste';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+            modal.innerHTML = `
+                <div style="background:#1a1a1a;border-radius:20px;padding:36px;width:90%;max-width:500px;border:1px solid rgba(212,175,55,0.35);box-shadow:0 24px 64px rgba(0,0,0,0.6);">
+                    <h3 style="color:#d4af37;font-size:20px;font-weight:800;margin:0 0 6px;">💸 Confirmer le versement</h3>
+                    <p style="color:#aaa;font-size:13px;margin:0 0 24px;">Artiste : <strong style="color:#fff;">${artiste}</strong> — Montant : <strong style="color:#ffc107;">${montantTotal} FCFA</strong></p>
+
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;color:rgba(255,255,255,0.6);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;">Moyen de paiement</label>
+                        <select id="mp-method" style="width:100%;padding:12px 16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:14px;outline:none;">
+                            <option value="Wave">Wave</option>
+                            <option value="Orange Money">Orange Money</option>
+                            <option value="MTN Money">MTN Money</option>
+                            <option value="Virement bancaire">Virement bancaire</option>
+                            <option value="Espèces">Espèces</option>
+                            <option value="Autre">Autre</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;color:rgba(255,255,255,0.6);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;">Référence / Numéro de transaction</label>
+                        <input type="text" id="mp-reference" placeholder="Ex: WV-2024-XXXXXX" style="width:100%;padding:12px 16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:14px;outline:none;box-sizing:border-box;">
+                    </div>
+
+                    <div style="margin-bottom:24px;">
+                        <label style="display:block;color:rgba(255,255,255,0.6);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;">Note (optionnel)</label>
+                        <input type="text" id="mp-note" placeholder="Ex: Versement commande ARKYL-XXXX" style="width:100%;padding:12px 16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:14px;outline:none;box-sizing:border-box;">
+                    </div>
+
+                    <div style="display:flex;gap:12px;">
+                        <button onclick="document.getElementById('modalePaiementArtiste').remove()"
+                            style="flex:1;padding:13px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:14px;font-weight:600;cursor:pointer;">
+                            Annuler
+                        </button>
+                        <button onclick="confirmerPaiementArtiste('${orderId}')"
+                            style="flex:2;padding:13px;background:linear-gradient(135deg,#d4af37,#a0824a);border:none;border-radius:10px;color:#1a1a2e;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 4px 15px rgba(212,175,55,0.35);">
+                            ✅ Confirmer le versement
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
         }
 
         async function confirmerPaiementArtiste(orderId) {
@@ -12602,7 +12674,7 @@ window.enterGallery = function enterGallery() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        action: 'liberer_fonds',
+                        action: 'confirmer_versement',
                         order_id: orderId,
                         payment_method: method,
                         payment_reference: reference,
@@ -12622,7 +12694,40 @@ window.enterGallery = function enterGallery() {
             }
         }
 
-        // Alias conservé pour rétrocompatibilité (anciens appels éventuels)
+        // ==========================================
+        // INTERRUPTION DE LIVRAISON (ADMIN)
+        // ==========================================
+        async function interrompreLivraison(orderId, orderNumber) {
+            const raison = prompt(`⛔ Motif de l'interruption de la commande ${orderNumber} :\n(Ce message sera envoyé au client ET à l'artiste)`, 'Vérification nécessaire avant livraison');
+            if (raison === null) return; // annulé
+
+            const confirmed = confirm(`Confirmer l'interruption de la commande ${orderNumber} ?\n\nTous les intervenants seront notifiés.`);
+            if (!confirmed) return;
+
+            try {
+                const resp = await fetch(ORDERS_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'interrompre_livraison',
+                        order_id: orderId,
+                        raison: raison || 'Interruption décidée par l\'administration',
+                        admin: currentUser?.name || 'admin',
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('⛔ Livraison interrompue — Tous les intervenants ont été notifiés');
+                    await renderAdminOrders();
+                } else {
+                    showToast('❌ Erreur : ' + (data.error || 'inconnue'));
+                }
+            } catch(e) {
+                showToast('❌ Erreur réseau');
+            }
+        }
+
+                // Alias conservé pour rétrocompatibilité (anciens appels éventuels)
         async function marquerFondsLiberes(orderId) {
             // Récupérer le nom artiste et montant depuis le DOM pour la modale
             const row = document.querySelector(`[onclick*="marquerFondsLiberes(${orderId})"]`)?.closest('tr');

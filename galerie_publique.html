@@ -258,7 +258,8 @@
                     return;
                 }
 
-                const artworks = json.data;
+                // ✅ FIX : exclure les œuvres vendues (double sécurité côté client)
+                const artworks = (json.data || []).filter(a => !a.is_sold && a.badge !== 'Vendu');
 
                 // Si aucune œuvre
                 if (!artworks || artworks.length === 0) {

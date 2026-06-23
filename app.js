@@ -4484,6 +4484,9 @@ window.enterGallery = function enterGallery() {
                     const soldIds = minOrder.items.map(i => String(i.id || i.artwork_id)).filter(Boolean);
                     window.toutesLesOeuvres = window.toutesLesOeuvres.filter(o => !soldIds.includes(String(o.id)));
                 }
+                // ✅ FIX : vider le cache galerie localStorage pour que les autres utilisateurs
+                // ne voient plus les œuvres vendues au prochain chargement
+                try { localStorage.removeItem('arkyl_galerie_v3'); } catch(_) {}
 
                 // ✅ EN ARRIÈRE-PLAN : récupérer les vrais détails depuis la BDD + marquer vendues côté serveur
                 (async () => {
@@ -11497,8 +11500,10 @@ window.enterGallery = function enterGallery() {
         const cat = window.currentCategory || 'all';
         const selected = window.selectedCategories;
         let oeuvres;
-        // Exclure les œuvres vendues
-        const oeuvresDisponibles = window.toutesLesOeuvres.filter(o => !o.is_sold);
+        // Exclure les œuvres vendues (double vérification is_sold + badge + status)
+        const oeuvresDisponibles = window.toutesLesOeuvres.filter(o =>
+            !o.is_sold && o.badge !== 'Vendu' && o.status !== 'vendue'
+        );
 
         if (cat === '__multi__' && selected && selected.size > 0) {
             oeuvres = oeuvresDisponibles.filter(o => {
@@ -11732,7 +11737,9 @@ window.enterGallery = function enterGallery() {
             const reponse = await fetch(urlAPI);
             const resultat = await reponse.json();
             if (resultat.success && resultat.data?.length > 0) {
-                _ecrireCache(resultat.data, resultat.data.length >= ITEMS_PER_LOAD);
+                // ✅ FIX : ne jamais mettre en cache des œuvres vendues
+                const disponibles = resultat.data.filter(o => !o.is_sold && o.badge !== 'Vendu' && o.status !== 'vendue');
+                _ecrireCache(disponibles, resultat.data.length >= ITEMS_PER_LOAD);
                 console.log('🔄 Cache mis à jour en arrière-plan');
                 // Si l'utilisateur est encore sur la galerie, on peut optionnellement re-render,
                 // mais on ne le fait pas pour ne pas perturber le scroll.
@@ -11784,7 +11791,9 @@ window.enterGallery = function enterGallery() {
             }
 
             if (resultat.success && resultat.data && resultat.data.length > 0) {
-                window.toutesLesOeuvres = [...(window.toutesLesOeuvres || []), ...resultat.data];
+                // ✅ FIX : filtrer les œuvres vendues avant de les stocker
+                const nouvellesOeuvres = resultat.data.filter(o => !o.is_sold && o.badge !== 'Vendu' && o.status !== 'vendue');
+                window.toutesLesOeuvres = [...(window.toutesLesOeuvres || []), ...nouvellesOeuvres];
                 
                 if (resultat.data.length < ITEMS_PER_LOAD) {
                     window.hasMoreData = false;

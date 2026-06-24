@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         if ($artistId) {
             $stmt = $db->prepare("
                 SELECT id, name, email, phone, country, specialty, bio,
-                       website, social, avatar, avatar_style
+                       website, social, avatar, avatar_style, created_at
                 FROM artists
                 WHERE id::text = :id
                 LIMIT 1
@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         } else {
             $stmt = $db->prepare("
                 SELECT id, name, email, phone, country, specialty, bio,
-                       website, social, avatar, avatar_style
+                       website, social, avatar, avatar_style, created_at
                 FROM artists
                 WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name))
                    OR LOWER(TRIM(artist_name)) = LOWER(TRIM(:name))
@@ -87,6 +87,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $countStmt->execute([':id' => (string)$user['id']]);
         $countRow = $countStmt->fetch(PDO::FETCH_ASSOC);
 
+        // Statistiques de ventes
+        $salesStmt = $db->prepare("
+            SELECT COUNT(*) as total_ventes, COALESCE(SUM(oi.price * oi.quantity), 0) as total_revenus
+            FROM order_items oi
+            JOIN artworks a ON a.id::text = oi.artwork_id::text
+            WHERE a.artist_id::text = :id
+        ");
+        $salesStmt->execute([':id' => (string)$user['id']]);
+        $salesRow = $salesStmt->fetch(PDO::FETCH_ASSOC);
+
         // ⭐ FIX Bug 2 : retourner specialty désérialisée (tableau, pas string JSON)
         $specialtyArray = parseSpecialty($user['specialty']);
 
@@ -105,6 +115,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'website'       => $user['website'],
                 'social'        => $user['social'],
                 'artworks_count'=> (int)($countRow['total'] ?? 0),
+                'total_ventes'  => (int)($salesRow['total_ventes'] ?? 0),
+                'total_revenus' => (float)($salesRow['total_revenus'] ?? 0),
+                'created_at'    => $user['created_at'] ?? null,
             ]
         ]);
     } catch (Exception $e) {

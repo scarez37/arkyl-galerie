@@ -1838,11 +1838,129 @@ window.enterGallery = function enterGallery() {
                         </div>
                     </div>
                     <div class="admin-item-actions">
+                        <button class="admin-btn-secondary" style="background:rgba(212,175,55,0.15);color:#d4af37;border:1px solid rgba(212,175,55,0.3);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;" onclick="adminVoirProfilArtiste('${name}')">👁️ Voir profil</button>
                         <button class="admin-btn-edit" onclick="editArtist('${name}')">✏️ Modifier</button>
                         <button class="admin-btn-delete" onclick="deleteArtist('${name}')">🗑️ Supprimer</button>
                     </div>
                 </div>
             `).join('');
+        }
+
+        // ===== MODALE PROFIL COMPLET ARTISTE (ADMIN) =====
+        async function adminVoirProfilArtiste(name) {
+            const data = artistsData[name] || {};
+
+            // Créer ou réutiliser la modale
+            let modal = document.getElementById('adminProfilArtisteModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'adminProfilArtisteModal';
+                modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;';
+                modal.onclick = function(e){ if(e.target===this) this.style.display='none'; };
+                document.body.appendChild(modal);
+            }
+
+            modal.innerHTML = '<div style="text-align:center;color:#d4af37;padding:60px;font-size:18px;">⏳ Chargement du profil...</div>';
+            modal.style.display = 'flex';
+
+            // Charger les données fraîches depuis l'API
+            let artist = null;
+            try {
+                const resp = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_modifier_profil.php?artist_name=${encodeURIComponent(name)}&t=${Date.now()}`);
+                const result = await resp.json();
+                if (result.success && result.artist) artist = result.artist;
+            } catch(e) {}
+
+            // Fusionner avec données locales si API échoue
+            if (!artist) artist = { name, ...data };
+
+            const avatarHtml = (artist.avatar && (artist.avatar.startsWith('http') || artist.avatar.startsWith('data:')))
+                ? `<img src="${artist.avatar}" style="width:90px;height:90px;border-radius:50%;object-fit:cover;border:3px solid #d4af37;">`
+                : `<div style="font-size:70px;line-height:90px;">${artist.avatar || '👨🏿‍🎨'}</div>`;
+
+            const specialty = Array.isArray(artist.specialty) ? artist.specialty.join(', ') : (artist.specialty || '—');
+            const dateInscription = artist.created_at ? new Date(artist.created_at).toLocaleDateString('fr-FR', {day:'2-digit',month:'long',year:'numeric'}) : '—';
+            const revenus = typeof artist.total_revenus === 'number' ? artist.total_revenus.toLocaleString('fr-FR', {minimumFractionDigits:0}) + ' FCFA' : '—';
+
+            let social = {};
+            try { social = typeof artist.social === 'string' ? JSON.parse(artist.social) : (artist.social || {}); } catch(e) {}
+
+            const socialHtml = Object.entries(social).filter(([k,v])=>v).map(([k,v]) => `
+                <a href="${v}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;color:#d4af37;text-decoration:none;background:rgba(212,175,55,0.1);padding:5px 12px;border-radius:20px;font-size:13px;border:1px solid rgba(212,175,55,0.2);">
+                    ${k==='instagram'?'📸':k==='facebook'?'📘':k==='twitter'?'🐦':k==='tiktok'?'🎵':'🔗'} ${k}
+                </a>`).join('') || '<span style="opacity:0.5;font-size:13px;">Aucun réseau social</span>';
+
+            modal.innerHTML = `
+            <div style="background:#1a1a0e;border:1px solid rgba(212,175,55,0.3);border-radius:20px;width:90%;max-width:600px;max-height:90vh;overflow-y:auto;padding:0;">
+                <!-- Header -->
+                <div style="background:linear-gradient(135deg,rgba(212,175,55,0.15),rgba(139,90,43,0.2));padding:30px;border-radius:20px 20px 0 0;text-align:center;position:relative;">
+                    <button onclick="document.getElementById('adminProfilArtisteModal').style.display='none'" style="position:absolute;top:15px;right:15px;background:rgba(255,255,255,0.1);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;">×</button>
+                    <div style="margin-bottom:12px;">${avatarHtml}</div>
+                    <h2 style="color:#d4af37;margin:0 0 4px;font-size:22px;">${artist.name || name}</h2>
+                    <div style="color:rgba(255,255,255,0.6);font-size:14px;">${specialty}</div>
+                    ${artist.country ? `<div style="margin-top:6px;font-size:13px;opacity:0.7;">📍 ${artist.country}</div>` : ''}
+                </div>
+
+                <!-- Stats rapides -->
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(212,175,55,0.1);">
+                    <div style="background:#1a1a0e;text-align:center;padding:16px 8px;">
+                        <div style="color:#d4af37;font-size:22px;font-weight:700;">${artist.artworks_count ?? data.works ?? 0}</div>
+                        <div style="color:rgba(255,255,255,0.5);font-size:11px;">Œuvres</div>
+                    </div>
+                    <div style="background:#1a1a0e;text-align:center;padding:16px 8px;">
+                        <div style="color:#d4af37;font-size:22px;font-weight:700;">${artist.total_ventes ?? 0}</div>
+                        <div style="color:rgba(255,255,255,0.5);font-size:11px;">Ventes</div>
+                    </div>
+                    <div style="background:#1a1a0e;text-align:center;padding:16px 8px;">
+                        <div style="color:#d4af37;font-size:15px;font-weight:700;">${revenus}</div>
+                        <div style="color:rgba(255,255,255,0.5);font-size:11px;">Revenus</div>
+                    </div>
+                </div>
+
+                <!-- Détails -->
+                <div style="padding:24px;">
+                    <!-- Coordonnées -->
+                    <div style="margin-bottom:20px;">
+                        <div style="color:#d4af37;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;border-bottom:1px solid rgba(212,175,55,0.2);padding-bottom:6px;">📋 Coordonnées</div>
+                        <div style="display:grid;gap:10px;">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <span style="opacity:0.5;min-width:20px;">📧</span>
+                                <span style="color:rgba(255,255,255,0.9);font-size:14px;">${artist.email || '—'}</span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <span style="opacity:0.5;min-width:20px;">📞</span>
+                                <span style="color:rgba(255,255,255,0.9);font-size:14px;">${artist.phone || '—'}</span>
+                            </div>
+                            ${artist.website ? `<div style="display:flex;align-items:center;gap:10px;">
+                                <span style="opacity:0.5;min-width:20px;">🌐</span>
+                                <a href="${artist.website}" target="_blank" style="color:#d4af37;font-size:14px;text-decoration:none;">${artist.website}</a>
+                            </div>` : ''}
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <span style="opacity:0.5;min-width:20px;">📅</span>
+                                <span style="color:rgba(255,255,255,0.9);font-size:14px;">Inscrit le ${dateInscription}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bio -->
+                    ${artist.bio ? `<div style="margin-bottom:20px;">
+                        <div style="color:#d4af37;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;border-bottom:1px solid rgba(212,175,55,0.2);padding-bottom:6px;">📝 Biographie</div>
+                        <p style="color:rgba(255,255,255,0.75);font-size:14px;line-height:1.6;margin:0;">${artist.bio}</p>
+                    </div>` : ''}
+
+                    <!-- Réseaux sociaux -->
+                    <div style="margin-bottom:20px;">
+                        <div style="color:#d4af37;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;border-bottom:1px solid rgba(212,175,55,0.2);padding-bottom:6px;">🔗 Réseaux sociaux</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;">${socialHtml}</div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div style="display:flex;gap:10px;justify-content:center;margin-top:24px;">
+                        <button onclick="document.getElementById('adminProfilArtisteModal').style.display='none';editArtist('${name}')" style="background:rgba(212,175,55,0.15);color:#d4af37;border:1px solid rgba(212,175,55,0.4);padding:10px 20px;border-radius:10px;cursor:pointer;font-size:14px;">✏️ Modifier</button>
+                        <button onclick="document.getElementById('adminProfilArtisteModal').style.display='none'" style="background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.1);padding:10px 20px;border-radius:10px;cursor:pointer;font-size:14px;">Fermer</button>
+                    </div>
+                </div>
+            </div>`;
         }
         
         function clearArtistsSearch() {
@@ -2224,6 +2342,7 @@ window.enterGallery = function enterGallery() {
                         </div>
                     </div>
                     <div class="admin-item-actions">
+                        <button class="admin-btn-secondary" style="background:rgba(212,175,55,0.15);color:#d4af37;border:1px solid rgba(212,175,55,0.3);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;" onclick="adminVoirProfilArtiste('${name}')">👁️ Voir profil</button>
                         <button class="admin-btn-edit" onclick="editArtist('${name}')">✏️ Modifier</button>
                         <button class="admin-btn-delete" onclick="deleteArtist('${name}')">🗑️ Supprimer</button>
                     </div>
@@ -2231,6 +2350,7 @@ window.enterGallery = function enterGallery() {
             `).join('');
         }
 
+        // ===== MODALE PROFIL COMPLET ARTISTE (ADMIN) =====
         function openAddArtistModal() {
             document.getElementById('artistModalTitle').textContent = '➕ Nouvel Artiste';
             document.getElementById('artistName').value = '';

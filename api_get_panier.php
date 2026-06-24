@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/cors_helper.php';
+
 /**
  * API GET PANIER
  * Récupère le contenu du panier d'un utilisateur avec les détails des œuvres

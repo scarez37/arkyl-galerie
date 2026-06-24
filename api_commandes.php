@@ -26,13 +26,15 @@ function sendCorsHeaders() {
 register_shutdown_function(function() {
     $error = error_get_last();
     if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
-        ob_end_clean();
+        // Fatal error — vider le buffer et renvoyer CORS + JSON d'erreur
+        if (ob_get_level() > 0) ob_end_clean();
         sendCorsHeaders();
-        header('Content-Type: application/json');
+        if (!headers_sent()) header('Content-Type: application/json; charset=utf-8');
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => 'Erreur serveur: ' . $error['message']]);
     } else {
-        ob_end_flush();
+        // Fin normale — flush le buffer si encore actif
+        if (ob_get_level() > 0) ob_end_flush();
     }
 });
 
@@ -75,6 +77,11 @@ exit();
 // GET — API REST
 // ═══════════════════════════════════════════════════════════════════
 function handleApiGet() {
+    // ✅ FIX CORS : envoyer Content-Type immédiatement — AVANT tout appel DB
+    // Ainsi même si getDatabase() plante, le navigateur reçoit les headers CORS
+    if (!headers_sent()) {
+        header('Content-Type: application/json; charset=utf-8');
+    }
     $action = $_GET['action'] ?? '';
 
     try {
@@ -92,6 +99,22 @@ function handleApiGet() {
             if (!$isAdmin && $user_id === '' && $artist_id === '' && $artist_name === '') {
                 echo json_encode(['success' => false, 'error' => 'Accès non autorisé']);
                 return;
+            }
+
+            // ── Migration de sécurité : s'assurer que les colonnes existent ──
+            // (au cas où fix_orders_table.php n'a pas encore été exécuté en production)
+            try {
+                $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS artist_id VARCHAR(255)");
+                $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_name VARCHAR(255)");
+                $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)");
+                $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_address TEXT");
+                $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_name VARCHAR(255)");
+                $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(255)");
+                $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS carrier VARCHAR(100)");
+                $db->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_proof_url TEXT");
+                $db->exec("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS artist_id VARCHAR(255)");
+            } catch (Exception $migEx) {
+                error_log('Migration auto orders: ' . $migEx->getMessage());
             }
 
             // ── Construction de la requête SQL avec filtrage direct en BDD ──
@@ -360,6 +383,12 @@ function handleApiGet() {
 
     } catch (Exception $e) {
         error_log('❌ api_commandes GET : ' . $e->getMessage());
+        // Garantir les headers CORS même en cas d'exception DB
+        if (!headers_sent()) {
+            sendCorsHeaders();
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        if (ob_get_level() > 0) ob_end_clean();
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
 }
@@ -368,6 +397,10 @@ function handleApiGet() {
 // POST — Actions depuis l'app (non-webhook)
 // ═══════════════════════════════════════════════════════════════════
 function handleApiPost() {
+    // ✅ FIX CORS : Content-Type immédiatement avant tout traitement
+    if (!headers_sent()) {
+        header('Content-Type: application/json; charset=utf-8');
+    }
     $raw    = file_get_contents('php://input');
     $body   = json_decode($raw, true) ?: [];
     $action = $body['action'] ?? '';
@@ -1427,5 +1460,6 @@ try {
     echo json_encode(['received' => true]);
 } // end handleStripeWebhook
 ?>
+
 
 

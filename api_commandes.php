@@ -15,7 +15,7 @@ header('Access-Control-Allow-Credentials: true');
 header('Cross-Origin-Embedder-Policy: unsafe-none');
 header('Cross-Origin-Opener-Policy: unsafe-none');
 header('Cross-Origin-Resource-Policy: cross-origin');
-if (['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
 // ── REQUIRES après CORS ───────────────────────────────────────────
 require_once __DIR__ . '/db_config.php';

@@ -8800,9 +8800,17 @@ window.enterGallery = function enterGallery() {
             // Recharge les données pour un nouvel artiste sans recréer l'objet
             switchArtist(newArtistId) {
                 this.artistId = newArtistId;
-                this.artworks = this._load('artist_artworks') || [];
-                this.sales    = this._load('artist_sales')    || [];
+                // FIX ISOLATION : on vide toujours les artworks en mémoire au changement d'artiste.
+                // Le localStorage local n'est plus la source de vérité — c'est le serveur.
+                // loadArtistArtworksFromServer() rechargera les vraies données après.
+                this.artworks = [];
+                this.sales    = [];
                 this.nextId   = this._load('next_artwork_id') || 1;
+                // Nettoyer aussi le localStorage pour cet artiste (vieilles données obsolètes)
+                try {
+                    localStorage.removeItem(this._key('artist_artworks'));
+                    localStorage.removeItem(this._key('artist_sales'));
+                } catch(_) {}
             }
             
             addArtwork(a) { 
@@ -8865,9 +8873,13 @@ window.enterGallery = function enterGallery() {
         if (typeof window._artistDb === 'undefined') {
             const _initArtistId = currentUser?.id || currentUser?.googleId || currentUser?.email || 'default';
             window._artistDb = new window.ArtistDatabase(_initArtistId);
+            // FIX : vider immédiatement les artworks chargés depuis localStorage à l'init
+            // Le serveur est la seule source de vérité (loadArtistArtworksFromServer)
+            window._artistDb.artworks = [];
+            window._artistDb.sales = [];
         }
         var db = window._artistDb;
-        // Note: données rechargées via switchArtist() à chaque changement d'artiste
+        // Note: données rechargées via loadArtistArtworksFromServer() à chaque connexion artiste
         
         if (typeof window.editingArtworkId === 'undefined') window.editingArtworkId = null;
         var editingArtworkId = window.editingArtworkId;

@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/cors_helper.php';
+
 header('Cross-Origin-Embedder-Policy: unsafe-none');
 header('Cross-Origin-Opener-Policy: unsafe-none');
 header('Cross-Origin-Resource-Policy: cross-origin');

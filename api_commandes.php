@@ -752,309 +752,249 @@ function handleApiPost() {
             return;
         }
 
-        // ── confirmer_versement (admin confirme que l'argent a été viré à l'artiste) ──
-        if ($action === 'confirmer_versement') {
-            $order_id      = $body['order_id']        ?? '';
-            $payment_method= $body['payment_method']  ?? 'Wave/Orange Money';
-            $payment_ref   = $body['payment_reference']?? '';
-            $payment_note  = $body['payment_note']    ?? '';
-            $paid_by       = $body['paid_by']         ?? 'admin';
+
+        // ── liberer_fonds (admin confirme le virement à l'artiste) ───
+        if ($action === 'liberer_fonds') {
+            $order_id          = $body['order_id']          ?? '';
+            $payment_method    = $body['payment_method']    ?? 'Virement manuel';
+            $payment_reference = $body['payment_reference'] ?? null;
+            $payment_note      = $body['payment_note']      ?? null;
+            $paid_by           = $body['paid_by']           ?? 'admin';
 
             if (!$order_id) {
                 echo json_encode(['success' => false, 'error' => 'order_id requis']);
                 return;
             }
 
-            // Créer la table des transactions si absente
-            $db->exec("
-                CREATE TABLE IF NOT EXISTS artist_payouts (
-                    id               SERIAL PRIMARY KEY,
-                    order_id         INTEGER,
-                    order_number     VARCHAR(255),
-                    artist_id        VARCHAR(255),
-                    artist_name      VARCHAR(255),
-                    amount_artwork   NUMERIC(12,2) DEFAULT 0,
-                    amount_shipping  NUMERIC(12,2) DEFAULT 0,
-                    amount_total     NUMERIC(12,2) DEFAULT 0,
-                    payment_method   VARCHAR(100),
-                    payment_reference VARCHAR(255),
-                    payment_note     TEXT,
-                    paid_by          VARCHAR(255),
-                    created_at       TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                )
-            ");
-
-            // Récupérer la commande + items pour notifier l'artiste
-            $stmt = $db->prepare("
-                SELECT o.*, COALESCE(
-                    (SELECT json_agg(json_build_object(
-                        'artist_id',   oi2.artist_id,
-                        'artist_name', oi2.artist_name,
-                        'title',       oi2.title
-                    )) FROM order_items oi2 WHERE oi2.order_id = o.id),
-                    '[]'
-                ) AS items_json
+            // Récupérer la commande pour notifier l'artiste
+            $orderStmt = $db->prepare("
+                SELECT o.id, o.order_number, o.user_name, o.artist_payout, o.shipping_cost,
+                       oi.artist_id, oi.artist_name
                 FROM orders o
+                LEFT JOIN order_items oi ON oi.order_id = o.id
                 WHERE o.id = :oid OR o.order_number = :onum
                 LIMIT 1
             ");
-            $stmt->execute([':oid' => $order_id, ':onum' => $order_id]);
-            $order = $stmt->fetch(PDO::FETCH_ASSOC);
+            $orderStmt->execute([':oid' => $order_id, ':onum' => $order_id]);
+            $orderData = $orderStmt->fetch(PDO::FETCH_ASSOC);
 
-            if (!$order) {
+            if (!$orderData) {
                 echo json_encode(['success' => false, 'error' => 'Commande introuvable']);
                 return;
             }
 
-            // Mettre à jour le statut escrow -> fonds_déversés
-            $upd = $db->prepare("
+            $dbOrderId  = $orderData['id'];
+            $orderNum   = $orderData['order_number'];
+            $artistId   = $orderData['artist_id'];
+            $artistName = $orderData['artist_name'];
+            $payout     = floatval($orderData['artist_payout'] ?? 0);
+            $shipping   = floatval($orderData['shipping_cost'] ?? 0);
+            $totalVerse = $payout + $shipping;
+
+            // 1. Mettre à jour le statut de la commande
+            $db->prepare("
                 UPDATE orders SET
-                    escrow_status = 'fonds_déversés',
+                    escrow_status = 'fonds_libérés',
+                    status = 'Livrée',
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = :oid OR order_number = :onum
-                RETURNING id, order_number
-            ");
-            $upd->execute([':oid' => $order_id, ':onum' => $order_id]);
-            $row = $upd->fetch(PDO::FETCH_ASSOC);
+                WHERE id = :oid
+            ")->execute([':oid' => $dbOrderId]);
 
-            if ($row) {
-                // Enregistrer dans order_timeline
+            // 2. Enregistrer dans order_timeline
+            $noteTimeline = "Fonds versés à l'artiste par l'admin ($paid_by)"
+                . ($payment_method ? " via $payment_method" : '')
+                . ($payment_reference ? " — Réf: $payment_reference" : '');
+            $db->prepare("
+                INSERT INTO order_timeline (order_id, status, note, updated_by_role)
+                VALUES (:oid, 'Fonds libérés', :note, 'admin')
+            ")->execute([':oid' => $dbOrderId, ':note' => $noteTimeline]);
+
+            // 3. Enregistrer dans artist_payments (table de traçabilité)
+            try {
+                $db->exec("
+                    CREATE TABLE IF NOT EXISTS artist_payments (
+                        id SERIAL PRIMARY KEY,
+                        order_id INTEGER,
+                        order_number VARCHAR(255),
+                        artist_id VARCHAR(255),
+                        artist_name VARCHAR(255),
+                        amount_artwork NUMERIC(12,2) DEFAULT 0,
+                        amount_shipping NUMERIC(12,2) DEFAULT 0,
+                        amount_total NUMERIC(12,2) DEFAULT 0,
+                        payment_method VARCHAR(255),
+                        payment_reference VARCHAR(255),
+                        payment_note TEXT,
+                        paid_by VARCHAR(255),
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    )
+                ");
                 $db->prepare("
-                    INSERT INTO order_timeline (order_id, status, note, updated_by_role)
-                    VALUES (:oid, 'Fonds déversés', :note, 'admin')
-                ")->execute([
-                    ':oid'  => $row['id'],
-                    ':note' => "Versement confirmé par l'admin via {$payment_method}" . ($payment_ref ? " — Réf: {$payment_ref}" : '')
-                ]);
-
-                // Enregistrer la transaction dans artist_payouts
-                $artisanPay  = floatval($order['artist_payout']  ?? 0);
-                $shipping    = floatval($order['shipping_cost']   ?? 0);
-                $totalVerse  = $artisanPay + $shipping;
-
-                // Identifier l'artiste
-                $items = json_decode($order['items_json'] ?? '[]', true) ?: [];
-                $artistId   = '';
-                $artistName = '';
-                if (!empty($items)) {
-                    $artistId   = $items[0]['artist_id']   ?? '';
-                    $artistName = $items[0]['artist_name'] ?? '';
-                }
-
-                $db->prepare("
-                    INSERT INTO artist_payouts
-                        (order_id, order_number, artist_id, artist_name,
-                         amount_artwork, amount_shipping, amount_total,
-                         payment_method, payment_reference, payment_note, paid_by)
+                    INSERT INTO artist_payments
+                        (order_id, order_number, artist_id, artist_name, amount_artwork, amount_shipping, amount_total, payment_method, payment_reference, payment_note, paid_by)
                     VALUES
-                        (:oid, :onum, :artid, :artname,
-                         :amt_art, :amt_ship, :amt_total,
-                         :method, :ref, :note, :by)
+                        (:oid, :onum, :aid, :aname, :amt_art, :amt_ship, :amt_total, :method, :ref, :note, :by)
                 ")->execute([
-                    ':oid'      => $row['id'],
-                    ':onum'     => $row['order_number'],
-                    ':artid'    => $artistId,
-                    ':artname'  => $artistName,
-                    ':amt_art'  => $artisanPay,
+                    ':oid'      => $dbOrderId,
+                    ':onum'     => $orderNum,
+                    ':aid'      => $artistId,
+                    ':aname'    => $artistName,
+                    ':amt_art'  => $payout,
                     ':amt_ship' => $shipping,
                     ':amt_total'=> $totalVerse,
                     ':method'   => $payment_method,
-                    ':ref'      => $payment_ref,
+                    ':ref'      => $payment_reference,
                     ':note'     => $payment_note,
                     ':by'       => $paid_by,
                 ]);
-
-                // Notifier l'artiste : "Fond délivré !"
-                ensureNotificationsTable($db);
-                if ($artistId) {
-                    $montantFmt = number_format($totalVerse, 0, ',', ' ');
-                    $db->prepare("
-                        INSERT INTO artist_notifications
-                            (artist_id, artist_name, type, order_id, order_number, title, message)
-                        VALUES (:aid, :aname, 'payout_confirmed', :oid, :onum, :title, :msg)
-                    ")->execute([
-                        ':aid'   => $artistId,
-                        ':aname' => $artistName,
-                        ':oid'   => $row['id'],
-                        ':onum'  => $row['order_number'],
-                        ':title' => '💰 Fond délivré — Virement confirmé !',
-                        ':msg'   => "Bonne nouvelle ! L'admin ARKYL vient de confirmer le virement de {$montantFmt} FCFA pour la commande #{$row['order_number']}. Vérifiez votre compte {$payment_method}."
-                    ]);
-                }
+            } catch (Exception $e) {
+                error_log("⚠️ artist_payments insert: " . $e->getMessage());
             }
 
-            echo json_encode(['success' => (bool)$row]);
+            // 4. Notifier l'artiste via artist_notifications
+            try {
+                $db->exec("
+                    CREATE TABLE IF NOT EXISTS artist_notifications (
+                        id SERIAL PRIMARY KEY, artist_id VARCHAR(255), artist_name VARCHAR(255),
+                        type VARCHAR(100) DEFAULT 'new_order', order_id INTEGER, order_number VARCHAR(255),
+                        title VARCHAR(255), message TEXT, is_read BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    )
+                ");
+                try { $db->exec("ALTER TABLE artist_notifications ADD COLUMN IF NOT EXISTS type VARCHAR(100) DEFAULT 'new_order'"); } catch (Exception $ex) {}
+                $methodLabel = $payment_method ?: 'virement';
+                $refLabel    = $payment_reference ? " (Réf: $payment_reference)" : '';
+                $db->prepare("
+                    INSERT INTO artist_notifications (artist_id, artist_name, type, order_id, order_number, title, message)
+                    VALUES (:aid, :aname, 'fonds_liberes', :oid, :onum, :title, :message)
+                ")->execute([
+                    ':aid'     => $artistId,
+                    ':aname'   => $artistName,
+                    ':oid'     => $dbOrderId,
+                    ':onum'    => $orderNum,
+                    ':title'   => '💰 Fonds virés — ' . number_format($totalVerse, 0, ',', ' ') . ' FCFA',
+                    ':message' => "L'admin a confirmé le virement de " . number_format($totalVerse, 0, ',', ' ') . " FCFA pour la commande #{$orderNum} via {$methodLabel}{$refLabel}.",
+                ]);
+            } catch (Exception $e) {
+                error_log("⚠️ Notification artiste (liberer_fonds): " . $e->getMessage());
+            }
+
+            echo json_encode(['success' => true, 'order_number' => $orderNum, 'amount' => $totalVerse]);
             return;
         }
 
-        // ── interrompre_livraison (admin bloque et notifie tous les intervenants) ──
+        // ── list_transactions (historique des virements admin) ───────
+        if ($action === 'list_transactions') {
+            $limit = max(1, min(100, intval($_GET['limit'] ?? 30)));
+            try {
+                $db->exec("
+                    CREATE TABLE IF NOT EXISTS artist_payments (
+                        id SERIAL PRIMARY KEY, order_id INTEGER, order_number VARCHAR(255),
+                        artist_id VARCHAR(255), artist_name VARCHAR(255),
+                        amount_artwork NUMERIC(12,2) DEFAULT 0, amount_shipping NUMERIC(12,2) DEFAULT 0,
+                        amount_total NUMERIC(12,2) DEFAULT 0, payment_method VARCHAR(255),
+                        payment_reference VARCHAR(255), payment_note TEXT, paid_by VARCHAR(255),
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    )
+                ");
+                $stmt = $db->prepare("
+                    SELECT ap.*, o.order_number AS ord_num
+                    FROM artist_payments ap
+                    LEFT JOIN orders o ON o.id = ap.order_id
+                    ORDER BY ap.created_at DESC
+                    LIMIT :lim
+                ");
+                $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+                $stmt->execute();
+                $txs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                echo json_encode(['success' => true, 'transactions' => $txs]);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'transactions' => [], 'error' => $e->getMessage()]);
+            }
+            return;
+        }
+
+        // ── interrompre_livraison (admin bloque la procédure) ───────
         if ($action === 'interrompre_livraison') {
-            $order_id = $body['order_id'] ?? '';
-            $raison   = $body['raison']   ?? 'Interruption décidée par l'administration';
-            $admin    = $body['admin']    ?? 'admin';
+            $order_id   = $body['order_id']  ?? '';
+            $raison     = $body['raison']    ?? 'Litige en cours — procédure bloquée par l'admin';
+            $admin_name = $body['admin_name'] ?? 'admin';
 
             if (!$order_id) {
                 echo json_encode(['success' => false, 'error' => 'order_id requis']);
                 return;
             }
 
-            // Récupérer la commande complète
-            $stmt = $db->prepare("
-                SELECT o.*,
-                    COALESCE((SELECT json_agg(json_build_object(
-                        'artist_id',   oi2.artist_id,
-                        'artist_name', oi2.artist_name,
-                        'title',       oi2.title
-                    )) FROM order_items oi2 WHERE oi2.order_id = o.id), '[]') AS items_json
+            // Récupérer les infos de la commande pour notifier tous les intervenants
+            $orderStmt = $db->prepare("
+                SELECT o.id, o.order_number, o.user_id, o.user_name, o.user_email,
+                       o.escrow_status, o.status,
+                       oi.artist_id, oi.artist_name
                 FROM orders o
+                LEFT JOIN order_items oi ON oi.order_id = o.id
                 WHERE o.id = :oid OR o.order_number = :onum
                 LIMIT 1
             ");
-            $stmt->execute([':oid' => $order_id, ':onum' => $order_id]);
-            $order = $stmt->fetch(PDO::FETCH_ASSOC);
+            $orderStmt->execute([':oid' => $order_id, ':onum' => $order_id]);
+            $orderData = $orderStmt->fetch(PDO::FETCH_ASSOC);
 
-            if (!$order) {
+            if (!$orderData) {
                 echo json_encode(['success' => false, 'error' => 'Commande introuvable']);
                 return;
             }
 
-            // Mettre la commande en statut Interrompue
-            $upd = $db->prepare("
+            $dbOrderId  = $orderData['id'];
+            $orderNum   = $orderData['order_number'];
+            $artistId   = $orderData['artist_id'];
+            $artistName = $orderData['artist_name'];
+
+            // 1. Bloquer la commande
+            $db->prepare("
                 UPDATE orders SET
-                    status = 'Interrompue',
-                    escrow_status = 'interrompue',
+                    escrow_status = 'litige',
+                    status = 'En litige',
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = :oid OR order_number = :onum
-                RETURNING id, order_number, user_id, user_email, user_name
-            ");
-            $upd->execute([':oid' => $order_id, ':onum' => $order_id]);
-            $row = $upd->fetch(PDO::FETCH_ASSOC);
+                WHERE id = :oid
+            ")->execute([':oid' => $dbOrderId]);
 
-            if ($row) {
-                // Timeline
+            // 2. Timeline
+            $db->prepare("
+                INSERT INTO order_timeline (order_id, status, note, updated_by_role)
+                VALUES (:oid, 'En litige', :note, 'admin')
+            ")->execute([
+                ':oid'  => $dbOrderId,
+                ':note' => "Livraison interrompue par l'admin ($admin_name) : $raison",
+            ]);
+
+            // 3. Notifier l'artiste
+            try {
+                $db->exec("CREATE TABLE IF NOT EXISTS artist_notifications (
+                    id SERIAL PRIMARY KEY, artist_id VARCHAR(255), artist_name VARCHAR(255),
+                    type VARCHAR(100) DEFAULT 'new_order', order_id INTEGER, order_number VARCHAR(255),
+                    title VARCHAR(255), message TEXT, is_read BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP)");
+                try { $db->exec("ALTER TABLE artist_notifications ADD COLUMN IF NOT EXISTS type VARCHAR(100) DEFAULT 'new_order'"); } catch(Exception $ex) {}
                 $db->prepare("
-                    INSERT INTO order_timeline (order_id, status, note, updated_by_role)
-                    VALUES (:oid, 'Interrompue', :note, 'admin')
+                    INSERT INTO artist_notifications (artist_id, artist_name, type, order_id, order_number, title, message)
+                    VALUES (:aid, :aname, 'litige', :oid, :onum, :title, :msg)
                 ")->execute([
-                    ':oid'  => $row['id'],
-                    ':note' => "⛔ Livraison interrompue par l'admin : {$raison}"
+                    ':aid'   => $artistId,
+                    ':aname' => $artistName,
+                    ':oid'   => $dbOrderId,
+                    ':onum'  => $orderNum,
+                    ':title' => '⚠️ Livraison interrompue — Commande #' . $orderNum,
+                    ':msg'   => "L'admin a interrompu la procédure de la commande #{$orderNum}. Raison : {$raison}. Les fonds restent bloqués jusqu'à résolution. Contactez l'admin ARKYL pour plus d'informations.",
                 ]);
-
-                $items      = json_decode($order['items_json'] ?? '[]', true) ?: [];
-                $orderNum   = $row['order_number'];
-                $msgClient  = "⛔ La livraison de votre commande #{$orderNum} a été interrompue par l'administration ARKYL. Motif : {$raison}. Vous serez contacté prochainement.";
-                $msgArtiste = "⛔ La livraison de la commande #{$orderNum} a été interrompue par l'administration ARKYL. Motif : {$raison}. La procédure est suspendue jusqu'à nouvel ordre.";
-
-                // Notification client (via artist_notifications avec type client_alert)
-                $clientUserId = $row['user_id'] ?? '';
-                if ($clientUserId) {
-                    try {
-                        $db->exec("
-                            CREATE TABLE IF NOT EXISTS client_notifications (
-                                id           SERIAL PRIMARY KEY,
-                                user_id      VARCHAR(255),
-                                type         VARCHAR(100) DEFAULT 'alert',
-                                order_id     INTEGER,
-                                order_number VARCHAR(255),
-                                title        VARCHAR(255),
-                                message      TEXT,
-                                is_read      BOOLEAN DEFAULT FALSE,
-                                created_at   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                            )
-                        ");
-                        $db->prepare("
-                            INSERT INTO client_notifications (user_id, type, order_id, order_number, title, message)
-                            VALUES (:uid, 'interruption', :oid, :onum, :title, :msg)
-                        ")->execute([
-                            ':uid'   => $clientUserId,
-                            ':oid'   => $row['id'],
-                            ':onum'  => $orderNum,
-                            ':title' => '⛔ Livraison interrompue — Commande #' . $orderNum,
-                            ':msg'   => $msgClient
-                        ]);
-                    } catch (Exception $e) {
-                        error_log("Notification client interruption: " . $e->getMessage());
-                    }
-                }
-
-                // Notifications artiste(s)
-                ensureNotificationsTable($db);
-                $artistesDeja = [];
-                foreach ($items as $item) {
-                    $aId   = $item['artist_id']   ?? '';
-                    $aName = $item['artist_name']  ?? '';
-                    if (!$aId || in_array($aId, $artistesDeja)) continue;
-                    $artistesDeja[] = $aId;
-
-                    $db->prepare("
-                        INSERT INTO artist_notifications
-                            (artist_id, artist_name, type, order_id, order_number, title, message)
-                        VALUES (:aid, :aname, 'interruption', :oid, :onum, :title, :msg)
-                    ")->execute([
-                        ':aid'   => $aId,
-                        ':aname' => $aName,
-                        ':oid'   => $row['id'],
-                        ':onum'  => $orderNum,
-                        ':title' => '⛔ Livraison interrompue — Commande #' . $orderNum,
-                        ':msg'   => $msgArtiste
-                    ]);
-                }
-
-                // Email au client si disponible
-                if (!empty($order['user_email'])) {
-                    $subject = "=?UTF-8?B?" . base64_encode("⛔ ARKYL — Livraison interrompue #{$orderNum}") . "?=";
-                    $htmlBody = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="background:#0f0f0f;font-family:Arial,sans-serif;padding:40px 20px;">
-                        <table width="600" style="background:#1a1a1a;border-radius:16px;padding:32px;margin:auto;border:1px solid #c46a4b44;">
-                            <tr><td style="background:linear-gradient(135deg,#c46a4b,#8b3a20);padding:24px;border-radius:12px 12px 0 0;text-align:center;">
-                                <h1 style="color:#fff;margin:0;font-size:22px;letter-spacing:2px;">ARKYL — Galerie d'Art Africain</h1>
-                            </td></tr>
-                            <tr><td style="padding:28px;">
-                                <h2 style="color:#ff6b6b;">⛔ Livraison interrompue</h2>
-                                <p style="color:#ccc;line-height:1.7;">Bonjour ' . htmlspecialchars($order['user_name'] ?? 'Client') . ',</p>
-                                <p style="color:#ccc;line-height:1.7;">' . htmlspecialchars($msgClient) . '</p>
-                                <p style="color:#888;font-size:13px;margin-top:24px;">L'équipe ARKYL vous contactera sous peu pour vous informer de la suite.</p>
-                            </td></tr>
-                        </table>
-                    </body></html>';
-                    $headers = "MIME-Version: 1.0
-Content-Type: text/html; charset=UTF-8
-From: ARKYL Galerie <noreply@arkyl-galerie.com>
-";
-                    @mail($order['user_email'], $subject, $htmlBody, $headers);
-                }
+            } catch (Exception $e) {
+                error_log("⚠️ Notification artiste (interrompre): " . $e->getMessage());
             }
 
-            echo json_encode(['success' => (bool)$row]);
-            return;
-        }
-
-        // ── list_transactions (historique des versements artistes) ─
-        if ($action === 'list_transactions') {
-            $db->exec("
-                CREATE TABLE IF NOT EXISTS artist_payouts (
-                    id               SERIAL PRIMARY KEY,
-                    order_id         INTEGER,
-                    order_number     VARCHAR(255),
-                    artist_id        VARCHAR(255),
-                    artist_name      VARCHAR(255),
-                    amount_artwork   NUMERIC(12,2) DEFAULT 0,
-                    amount_shipping  NUMERIC(12,2) DEFAULT 0,
-                    amount_total     NUMERIC(12,2) DEFAULT 0,
-                    payment_method   VARCHAR(100),
-                    payment_reference VARCHAR(255),
-                    payment_note     TEXT,
-                    paid_by          VARCHAR(255),
-                    created_at       TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                )
-            ");
-            $limit = intval($body['limit'] ?? $_GET['limit'] ?? 50);
-            $stmt = $db->prepare("
-                SELECT * FROM artist_payouts ORDER BY created_at DESC LIMIT :lim
-            ");
-            $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
-            $stmt->execute();
-            $transactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            echo json_encode(['success' => true, 'transactions' => $transactions]);
+            echo json_encode([
+                'success'      => true,
+                'order_number' => $orderNum,
+                'artist_id'    => $artistId,
+                'artist_name'  => $artistName,
+                'user_email'   => $orderData['user_email'],
+            ]);
             return;
         }
 

@@ -12463,18 +12463,83 @@ window.enterGallery = function enterGallery() {
 
         // ── Modale de confirmation de paiement artiste ──────────────
         async function ouvrirModalePaiement(orderId, artistName, montantTotal, cmdData) {
-            // Décoder le nom artiste si encodé
             let artiste = artistName;
             try { artiste = decodeURIComponent(artistName); } catch(e) {}
 
-            // Extraire les données commande si disponibles
             let cmd = {};
-            if (cmdData && typeof cmdData === 'object') {
-                cmd = cmdData;
-            } else if (typeof cmdData === 'string') {
+            if (cmdData && typeof cmdData === 'object') cmd = cmdData;
+            else if (typeof cmdData === 'string') {
                 try { cmd = JSON.parse(cmdData.replace(/&quot;/g, '"')); } catch(e) {}
             }
 
+            // Détails de la commande
+            const payout   = parseFloat(cmd.artist_payout  || 0);
+            const shipping = parseFloat(cmd.shipping_cost   || 0);
+            const totalCalc = payout + shipping;
+            const montantAffiche = totalCalc > 0
+                ? totalCalc.toLocaleString('fr-FR') + ' FCFA'
+                : (montantTotal || '?') + ' FCFA';
+
+            const orderNum  = cmd.order_number || '#' + orderId;
+            const items     = (cmd.items || []).map(i => i.title || '—').join(', ') || '—';
+            const clientNom = cmd.user_name || cmd.user_email || '—';
+
+            // Supprimer modale existante
+            document.getElementById('modalePaiementArtiste')?.remove();
+
+            const modal = document.createElement('div');
+            modal.id = 'modalePaiementArtiste';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+            modal.innerHTML = `
+                <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid rgba(212,175,55,0.4);border-radius:24px;padding:36px;max-width:520px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,0.6);">
+                    <h2 style="font-size:20px;font-weight:800;color:#d4af37;margin-bottom:6px;">💸 Confirmer le virement artiste</h2>
+                    <p style="font-size:13px;opacity:0.6;margin-bottom:24px;">Cette action est irréversible et notifie l'artiste immédiatement.</p>
+
+                    <!-- Récap commande -->
+                    <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:16px;margin-bottom:20px;font-size:13px;line-height:2;">
+                        <div>📦 <strong>${orderNum}</strong> · Client : ${clientNom}</div>
+                        <div>🎨 Œuvres : ${items}</div>
+                        <div>🎨 Part artiste (65%) : <strong style="color:#d4af37;">${payout > 0 ? payout.toLocaleString('fr-FR') + ' FCFA' : '—'}</strong></div>
+                        <div>🚚 Frais de port : <strong>${shipping > 0 ? shipping.toLocaleString('fr-FR') + ' FCFA' : '0 FCFA'}</strong></div>
+                        <div style="border-top:1px solid rgba(255,255,255,0.1);margin-top:8px;padding-top:8px;font-size:15px;">
+                            💰 <strong>Total à virer : <span style="color:#4caf50;font-size:18px;">${montantAffiche}</span></strong>
+                        </div>
+                    </div>
+
+                    <!-- Moyen de paiement -->
+                    <label style="font-size:12px;font-weight:700;opacity:0.7;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Moyen de paiement</label>
+                    <select id="mp-method" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:14px;margin-bottom:14px;box-sizing:border-box;">
+                        <option value="Wave">Wave</option>
+                        <option value="Orange Money">Orange Money</option>
+                        <option value="Moov Money">Moov Money</option>
+                        <option value="MTN Mobile Money">MTN Mobile Money</option>
+                        <option value="Virement bancaire">Virement bancaire</option>
+                        <option value="Espèces">Espèces</option>
+                        <option value="Autre">Autre</option>
+                    </select>
+
+                    <!-- Référence -->
+                    <label style="font-size:12px;font-weight:700;opacity:0.7;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Référence de transaction</label>
+                    <input id="mp-reference" type="text" placeholder="Ex : WV-20250622-XXXXXX"
+                        style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:14px;margin-bottom:14px;box-sizing:border-box;">
+
+                    <!-- Note -->
+                    <label style="font-size:12px;font-weight:700;opacity:0.7;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Note interne (optionnel)</label>
+                    <input id="mp-note" type="text" placeholder="Ex : Virement du 22/06/2026"
+                        style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:14px;margin-bottom:24px;box-sizing:border-box;">
+
+                    <div style="display:flex;gap:12px;">
+                        <button onclick="confirmerPaiementArtiste('${orderId}')"
+                            style="flex:1;padding:14px;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#4caf50,#2e7d32);color:white;">
+                            ✅ Confirmer le virement
+                        </button>
+                        <button onclick="document.getElementById('modalePaiementArtiste').remove()"
+                            style="padding:14px 20px;border:1px solid rgba(255,255,255,0.2);border-radius:12px;font-size:14px;cursor:pointer;background:transparent;color:white;">
+                            Annuler
+                        </button>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
         }
 
         async function confirmerPaiementArtiste(orderId) {

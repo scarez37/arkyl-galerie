@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/cors_helper.php';
+
 /**
  * API AJOUTER AU PANIER
  * Ajoute une œuvre au panier d'un client

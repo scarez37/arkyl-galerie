@@ -9195,6 +9195,9 @@ window.enterGallery = function enterGallery() {
                 return;
             }
 
+            // Tag de l'artiste AVANT la requete async (detection changement de compte)
+            const _expectedArtistId = String(artistServerId);
+
             // Reset de la pagination si premier chargement
             if (reset) {
                 _artworksOffset = 0;

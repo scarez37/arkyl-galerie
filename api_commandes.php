@@ -1,23 +1,45 @@
 <?php
 // ==================== API COMMANDES — ROUTER ====================
-// Ce fichier gère deux types de requêtes :
-//   • GET  → API REST (list commandes, notifications)
-//   • POST + HTTP_STRIPE_SIGNATURE → Webhook Stripe (création commande)
-//   • POST sans signature → Actions app (update_status, expédition, etc.)
 
-// ── CORS EN PREMIER — avant tout require_once ─────────────────────
-// Sans ça, si vendor/autoload.php lève une erreur PHP, le header CORS
-// n'est jamais envoyé → navigateur bloque avec "No Access-Control-Allow-Origin"
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Access-Control-Allow-Credentials: true');
-header('Cross-Origin-Embedder-Policy: unsafe-none');
-header('Cross-Origin-Opener-Policy: unsafe-none');
-header('Cross-Origin-Resource-Policy: cross-origin');
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
+// ═══════════════════════════════════════════════════════════════
+// CORS ABSOLUMENT EN PREMIER — ob_start() pour capturer toute
+// sortie parasite (notices PHP, BOM, whitespace) qui empêcherait
+// les header() de s'exécuter. Le shutdown handler garantit les
+// headers CORS même en cas de fatal error dans les require_once.
+// ═══════════════════════════════════════════════════════════════
+ob_start();
 
-// ── REQUIRES après CORS ───────────────────────────────────────────
+// Supprimer TOUTE sortie parasite avant les headers
+function sendCorsHeaders() {
+    if (!headers_sent()) {
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization');
+        header('Access-Control-Allow-Credentials: true');
+        header('Cross-Origin-Embedder-Policy: unsafe-none');
+        header('Cross-Origin-Opener-Policy: unsafe-none');
+        header('Cross-Origin-Resource-Policy: cross-origin');
+    }
+}
+
+// Envoyer les headers CORS en cas de fatal error aussi
+register_shutdown_function(function() {
+    $error = error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        ob_end_clean();
+        sendCorsHeaders();
+        header('Content-Type: application/json');
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Erreur serveur: ' . $error['message']]);
+    } else {
+        ob_end_flush();
+    }
+});
+
+sendCorsHeaders();
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); ob_end_clean(); exit(); }
+
+// ── REQUIRES ─────────────────────────────────────────────────────
 require_once __DIR__ . '/db_config.php';
 if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';

@@ -500,40 +500,6 @@ window.enterGallery = function enterGallery() {
             }
         };        window.safeStorage = safeStorage;
 
-        // ═══════════════════════════════════════════════════════════
-        // PURGE LOCALE — nettoyer les vieilles données localStorage
-        // qui ne correspondent plus au serveur (artworks, sales, etc.)
-        // Version bumped = nettoyage automatique au prochain chargement
-        // ═══════════════════════════════════════════════════════════
-        (function purgeStaleLocalData() {
-            const CACHE_VERSION = 'arkyl_v4'; // Incrémenter pour forcer un nettoyage
-            const storedVersion = localStorage.getItem('arkyl_cache_version');
-            if (storedVersion !== CACHE_VERSION) {
-                console.log('[PURGE] Nouvelle version détectée — nettoyage du localStorage...');
-                const keysToDelete = [];
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
-                    // Supprimer toutes les clés d'artworks/sales stockées localement
-                    if (key && (
-                        key.includes('artist_artworks') ||
-                        key.includes('artist_sales') ||
-                        key.includes('next_artwork_id') ||
-                        key.includes('arkyl_galerie_v') ||  // vieux caches galerie
-                        key.includes('arkyl_products_cache') ||
-                        key.includes('arkyl_artworks_cache')
-                    )) {
-                        keysToDelete.push(key);
-                    }
-                }
-                keysToDelete.forEach(k => {
-                    try { localStorage.removeItem(k); } catch(_) {}
-                });
-                localStorage.setItem('arkyl_cache_version', CACHE_VERSION);
-                console.log('[PURGE] ' + keysToDelete.length + ' clés supprimées:', keysToDelete);
-            }
-        })();
-
-
 
         // ==================== DATA ====================
         // Retourne le compte artiste de l'utilisateur connecté (cherche par Google ID puis par email)
@@ -3280,8 +3246,8 @@ window.enterGallery = function enterGallery() {
                         <span class="order-status" style="background:${statusColor(order.status)}22;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}44;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;">
                             ${statusIcon(order.status)} ${order.status}
                         </span>
-                        <span class="${es === 'fonds_déversés' ? 'funds-released-badge' : es === 'fonds_libérés' ? 'funds-released-badge' : 'funds-locked-badge'}">
-                            ${es === 'fonds_déversés' ? '💰 Fond délivré' : es === 'fonds_libérés' ? '✅ Fonds libérés' : '🔒 Fonds sécurisés'}
+                        <span class="${es === 'fonds_libérés' ? 'funds-released-badge' : 'funds-locked-badge'}">
+                            ${es === 'fonds_libérés' ? '✅ Fonds libérés' : '🔒 Fonds sécurisés'}
                         </span>
                     </div>
                 </div>
@@ -3324,11 +3290,10 @@ window.enterGallery = function enterGallery() {
 
             // ── Barre de progression escrow ──────────────────────────────────
             const escrowSteps = [
-                { key: 'payée_en_attente', icon: '💳', label: 'Payée'         },
-                { key: 'expédiée',         icon: '🚚', label: 'Expédiée'      },
-                { key: 'livrée_confirmée', icon: '📬', label: 'Reçue'         },
-                { key: 'fonds_libérés',    icon: '✅', label: 'Fonds libérés'  },
-                { key: 'fonds_déversés',   icon: '💰', label: 'Fond délivré'   },
+                { key: 'payée_en_attente', icon: '💳', label: 'Payée'        },
+                { key: 'expédiée',         icon: '🚚', label: 'Expédiée'     },
+                { key: 'livrée_confirmée', icon: '📬', label: 'Reçue'        },
+                { key: 'fonds_libérés',    icon: '✅', label: 'Fonds libérés' },
             ];
             const stepIdx = escrowSteps.map(s => s.key).indexOf(es);
             const escrowBar = `
@@ -3408,17 +3373,6 @@ window.enterGallery = function enterGallery() {
                 </div>
 
                 ${historyBlock}
-
-                <!-- Bouton Interrompre la livraison (admin) -->
-                ${order.status !== 'Annulée' && order.status !== 'Interrompue' && order.status !== 'Livrée' ? `
-                <div style="margin-top:8px;border-top:1px solid rgba(255,100,80,0.2);padding-top:14px;">
-                    <button onclick="interrompreLivraison('${orderId}', '${order.order_number}')"
-                        style="background:rgba(220,53,69,0.15);border:1px solid rgba(220,53,69,0.4);color:#ff6b6b;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;width:100%;transition:all 0.2s;"
-                        onmouseover="this.style.background='rgba(220,53,69,0.3)'"
-                        onmouseout="this.style.background='rgba(220,53,69,0.15)'">
-                        ⛔ Interrompre la livraison
-                    </button>
-                </div>` : ''}
             </div>`;
         }
 
@@ -4420,12 +4374,12 @@ window.enterGallery = function enterGallery() {
                 let waited = 0;
                 await new Promise(resolve => {
                     const poll = setInterval(() => {
-                        waited += 200;
-                        if (currentUser || waited >= 5000) {
+                        waited += 50;
+                        if (currentUser || waited >= 2000) {  // max 2s au lieu de 5s
                             clearInterval(poll);
                             resolve();
                         }
-                    }, 200);
+                    }, 50);  // check toutes les 50ms au lieu de 200ms
                 });
                 if (!currentUser) {
                     // Dernier recours : reconstruire depuis localStorage brut
@@ -4462,42 +4416,73 @@ window.enterGallery = function enterGallery() {
 
             if (!pending) {
                 // Paiement confirmé par Stripe mais aucune donnée locale disponible.
-                // ✅ FIX PERFORMANCE : afficher la confirmation IMMÉDIATEMENT avec les données disponibles
-                // puis récupérer les détails serveur en arrière-plan (sans bloquer l'affichage)
-                console.log('\u26a0\ufe0f Pas de commande en attente \u2014 affichage imm\u00e9diat + r\u00e9cup\u00e9ration serveur en arri\u00e8re-plan');
+                // Le webhook a déjà créé la commande en BDD — on récupère les items depuis le serveur.
+                console.log('\u26a0\ufe0f Pas de commande en attente \u2014 r\u00e9cup\u00e9ration depuis la BDD (webhook d\u00e9j\u00e0 effectu\u00e9)');
                 const userId = currentUser?.id || currentUser?.googleId || currentUser?.email
                              || localStorage.getItem('user_id') || '';
 
-                // ✅ Vider le panier local IMMÉDIATEMENT
-                const cartSnapshot = [...cartItems];
-                cartItems = []; safeStorage.set('arkyl_cart', []); updateBadges();
+                // ✅ FIX CRITIQUE : récupérer la commande + ses items depuis la BDD
+                // Chercher par order_number ARKYL (plus fiable que user_id qui peut avoir des formats différents)
+                let serverItems = [];
+                let serverOrder = null;
+                try {
+                    // Essai 1 : chercher par order_number ou session_id via la liste admin restreinte
+                    const params = new URLSearchParams({ action: 'list', admin: '1', t: Date.now() });
+                    const resp = await fetch(`${ORDERS_API}?${params.toString()}`);
+                    const data = await resp.json();
+                    if (data.success && data.orders?.length > 0) {
+                        serverOrder = data.orders.find(o =>
+                            o.order_number === arkylOrderId ||
+                            o.stripe_session_id === sessionId
+                        );
+                        if (!serverOrder && userId) {
+                            // Fallback : première commande qui correspond au user_id (plusieurs formats)
+                            serverOrder = data.orders.find(o =>
+                                String(o.user_id) === String(userId) ||
+                                o.user_email === (currentUser?.email || localStorage.getItem('user_email'))
+                            );
+                        }
+                        if (serverOrder) serverItems = serverOrder.items || [];
+                    }
+                } catch(e) {
+                    console.warn('\u26a0\ufe0f Impossible de r\u00e9cup\u00e9rer la commande depuis le serveur:', e.message);
+                }
 
-                // ✅ Invalider le cache galerie IMMÉDIATEMENT
-                try { localStorage.removeItem('arkyl_galerie_v3'); } catch(e) {}
-                window.toutesLesOeuvres = [];
-                window._galerieEnCours = false;
-
-                // ✅ Construire commande minimale avec ce qu'on a MAINTENANT (panier local)
                 const minOrder = {
-                    id: Date.now(),
-                    order_number: arkylOrderId || ('ARKYL-' + Date.now().toString(36).toUpperCase()),
+                    id: serverOrder?.id || Date.now(),
+                    order_number: serverOrder?.order_number || arkylOrderId || ('ARK-' + Date.now().toString(36).toUpperCase()),
                     stripe_session_id: sessionId,
                     user_id:    userId,
-                    user_name:  currentUser?.name  || localStorage.getItem('user_name')  || '',
-                    user_email: currentUser?.email || localStorage.getItem('user_email') || '',
-                    items: cartSnapshot.length > 0 ? cartSnapshot.map(i => ({...i, artwork_id: i.id})) : [],
-                    subtotal: cartSnapshot.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
-                    tax: 0,
-                    shippingCost: 0,
-                    total: cartSnapshot.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
-                    shippingName: 'En cours de traitement',
+                    user_name:  currentUser?.name  || localStorage.getItem('user_name')  || serverOrder?.user_name  || '',
+                    user_email: currentUser?.email || localStorage.getItem('user_email') || serverOrder?.user_email || '',
+                    items: serverItems.length > 0 ? serverItems : (cartItems.length > 0 ? cartItems.map(i => ({...i, artwork_id: i.id})) : []),
+                    subtotal: serverOrder?.subtotal || cartItems.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
+                    tax: serverOrder?.tax || 0,
+                    shippingCost: serverOrder?.shipping_cost || 0,
+                    total: serverOrder?.total || cartItems.reduce((s,i) => s+(i.price||0)*(i.quantity||1), 0),
+                    shippingName: serverOrder?.shipping_name || 'À confirmer',
                     paymentMethod: 'Stripe',
-                    status: 'En préparation',
-                    escrow_status: 'payée_en_attente',
+                    status: serverOrder?.status || 'En préparation',
+                    escrow_status: serverOrder?.escrow_status || 'payée_en_attente',
                     date: new Date().toLocaleDateString('fr-FR', {day:'2-digit',month:'long',year:'numeric'}),
                 };
 
-                // ✅ Sauvegarder dans l'historique local immédiatement
+                // ✅ Vider le panier local
+                cartItems = []; safeStorage.set('arkyl_cart', []); updateBadges();
+
+                // ✅ Invalider le cache galerie pour forcer le rechargement depuis le serveur
+                try { localStorage.removeItem('arkyl_galerie_v3'); } catch(e) {}
+                window.toutesLesOeuvres = [];
+
+                // ✅ Marquer les œuvres achetées comme vendues (supprime de la galerie)
+                if (minOrder.items.length > 0) {
+                    await marquerOeuvresVendues(minOrder.items);
+                } else {
+                    // Aucun item récupéré — recharger quand même la galerie depuis le serveur
+                    window._galerieEnCours = false;
+                    if (typeof chargerLaVraieGalerie === 'function') chargerLaVraieGalerie();
+                }
+
                 orderHistory = safeStorage.get('arkyl_orders', []);
                 const alreadyMin = orderHistory.some(o =>
                     o.order_number === minOrder.order_number ||
@@ -4508,89 +4493,14 @@ window.enterGallery = function enterGallery() {
                     safeStorage.set('arkyl_orders', orderHistory);
                 }
 
-                // ✅ Afficher le modal de succès IMMÉDIATEMENT (sans attendre le serveur)
-                showToast('\ud83c\udf89 Paiement confirm\u00e9 ! Commande ' + minOrder.order_number + ' cr\u00e9\u00e9e.');
+                // Notifier les artistes côté front (BDD déjà notifiée par le webhook)
+                if (minOrder.items.length > 0) sendOrderNotifications(minOrder);
+
+                // ✅ FIX PERF : affichage immédiat — 0ms de délai artificiel
+                _hideStripeLoadingOverlay();
+                showToast('🎉 Paiement confirmé ! Commande ' + minOrder.order_number + ' créée.');
                 navigateTo('orders');
                 showOrderSuccessModal(minOrder);
-
-                // ✅ Marquer les œuvres vendues dans le cache local immédiatement
-                if (minOrder.items.length > 0 && window.toutesLesOeuvres) {
-                    const soldIds = minOrder.items.map(i => String(i.id || i.artwork_id)).filter(Boolean);
-                    window.toutesLesOeuvres = window.toutesLesOeuvres.filter(o => !soldIds.includes(String(o.id)));
-                }
-                // ✅ FIX : vider le cache galerie localStorage pour que les autres utilisateurs
-                // ne voient plus les œuvres vendues au prochain chargement
-                try { localStorage.removeItem('arkyl_galerie_v3'); } catch(_) {}
-
-                // ✅ EN ARRIÈRE-PLAN : récupérer les vrais détails depuis la BDD + marquer vendues côté serveur
-                (async () => {
-                    try {
-                        // Attendre max 8s que le webhook Stripe ait créé la commande en BDD
-                        let serverOrder = null;
-                        let serverItems = [];
-                        for (let attempt = 0; attempt < 4; attempt++) {
-                            if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
-                            try {
-                                const params = new URLSearchParams({ action: 'list', admin: '1', t: Date.now() });
-                                const resp = await fetch(`${ORDERS_API}?${params.toString()}`);
-                                const data = await resp.json();
-                                if (data.success && data.orders?.length > 0) {
-                                    serverOrder = data.orders.find(o =>
-                                        o.order_number === arkylOrderId ||
-                                        o.stripe_session_id === sessionId
-                                    );
-                                    if (!serverOrder && userId) {
-                                        serverOrder = data.orders.find(o =>
-                                            String(o.user_id) === String(userId) ||
-                                            o.user_email === (currentUser?.email || localStorage.getItem('user_email'))
-                                        );
-                                    }
-                                    if (serverOrder) { serverItems = serverOrder.items || []; break; }
-                                }
-                            } catch(e) { console.warn('Tentative', attempt+1, 'échouée:', e.message); }
-                        }
-
-                        // Mettre à jour la commande dans l'historique avec les vraies données serveur
-                        if (serverOrder) {
-                            const updatedOrder = {
-                                ...minOrder,
-                                id: serverOrder.id || minOrder.id,
-                                order_number: serverOrder.order_number || minOrder.order_number,
-                                items: serverItems.length > 0 ? serverItems : minOrder.items,
-                                subtotal: serverOrder.subtotal || minOrder.subtotal,
-                                tax: serverOrder.tax || 0,
-                                shippingCost: serverOrder.shipping_cost || 0,
-                                total: serverOrder.total || minOrder.total,
-                                shippingName: serverOrder.shipping_name || minOrder.shippingName,
-                                status: serverOrder.status || minOrder.status,
-                            };
-                            orderHistory = safeStorage.get('arkyl_orders', []);
-                            const idx = orderHistory.findIndex(o =>
-                                o.order_number === minOrder.order_number ||
-                                (sessionId && o.stripe_session_id === sessionId)
-                            );
-                            if (idx >= 0) orderHistory[idx] = updatedOrder;
-                            else orderHistory.unshift(updatedOrder);
-                            safeStorage.set('arkyl_orders', orderHistory);
-                        }
-
-                        // Marquer les œuvres vendues côté serveur
-                        const itemsToMark = serverItems.length > 0 ? serverItems : minOrder.items;
-                        if (itemsToMark.length > 0) {
-                            await marquerOeuvresVendues(itemsToMark);
-                        } else {
-                            // Recharger la galerie depuis le serveur pour refléter les ventes
-                            window._galerieEnCours = false;
-                            if (typeof chargerLaVraieGalerie === 'function') chargerLaVraieGalerie();
-                        }
-                    } catch(e) {
-                        console.warn('\u26a0\ufe0f Erreur r\u00e9cup\u00e9ration arri\u00e8re-plan:', e.message);
-                        // Même en cas d'erreur, recharger la galerie
-                        window._galerieEnCours = false;
-                        if (typeof chargerLaVraieGalerie === 'function') chargerLaVraieGalerie();
-                    }
-                })();
-
                 return;
             }
 
@@ -4657,7 +4567,8 @@ window.enterGallery = function enterGallery() {
                 const cleanUrl = window.location.pathname;
                 window.history.replaceState({}, document.title, cleanUrl);
 
-                // ✅ FIX PERFORMANCE : afficher le modal immédiatement sans délai inutile
+                // ✅ FIX PERF : affichage immédiat — 0ms de délai artificiel
+                _hideStripeLoadingOverlay();
                 showToast('🎉 Paiement confirmé ! Commande ' + order.order_number + ' créée.');
                 navigateTo('orders');
                 showOrderSuccessModal(order);
@@ -5157,11 +5068,10 @@ window.enterGallery = function enterGallery() {
 
             // ── Étapes visuelles ──────────────────────────────────────────
             const escrowSteps = [
-                { key: 'payée_en_attente', icon: '💳', label: 'Payée'         },
-                { key: 'expédiée',         icon: '🚚', label: 'Expédiée'      },
-                { key: 'livrée_confirmée', icon: '📬', label: 'Reçue'         },
-                { key: 'fonds_libérés',    icon: '✅', label: 'Fonds libérés'  },
-                { key: 'fonds_déversés',   icon: '💰', label: 'Fond délivré'   },
+                { key: 'payée_en_attente', icon: '💳', label: 'Payée'        },
+                { key: 'expédiée',         icon: '🚚', label: 'Expédiée'     },
+                { key: 'livrée_confirmée', icon: '📬', label: 'Reçue'        },
+                { key: 'fonds_libérés',    icon: '✅', label: 'Fonds libérés' },
             ];
             const escrowOrder = escrowSteps.map(s => s.key);
             const stepIdx = escrowOrder.indexOf(es);
@@ -5319,30 +5229,6 @@ window.enterGallery = function enterGallery() {
 
                     <!-- Bouton d'action artiste -->
                     ${actionBtn}
-
-                    <!-- Timeline de la commande -->
-                    ${order.timeline && order.timeline.length > 0 ? `
-                    <details style="margin-top:14px;" ${order.timeline.length > 0 && order.escrow_status !== 'payée_en_attente' ? 'open' : ''}>
-                        <summary style="cursor:pointer;font-size:13px;font-weight:600;opacity:0.75;padding:8px 0;list-style:none;display:flex;align-items:center;gap:6px;">
-                            <span style="font-size:16px;">🕐</span> Suivi de la commande (${order.timeline.length} étape${order.timeline.length > 1 ? 's' : ''})
-                        </summary>
-                        <div style="margin-top:10px;display:flex;flex-direction:column;gap:0;">
-                            ${order.timeline.map((t, i) => `
-                            <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;${i < order.timeline.length - 1 ? 'border-bottom:1px solid rgba(255,255,255,0.07);' : ''}">
-                                <div style="display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0;">
-                                    <div style="width:32px;height:32px;border-radius:50%;background:${t.updated_by_role === 'client' ? 'rgba(76,175,80,0.25)' : t.updated_by_role === 'artist' ? 'rgba(33,150,243,0.25)' : 'rgba(212,175,55,0.15)'};border:2px solid ${t.updated_by_role === 'client' ? '#4caf50' : t.updated_by_role === 'artist' ? '#2196f3' : 'rgba(212,175,55,0.4)'};display:flex;align-items:center;justify-content:center;font-size:14px;">
-                                        ${t.updated_by_role === 'client' ? '👤' : t.updated_by_role === 'artist' ? '🎨' : t.updated_by_role === 'system' ? '⚙️' : '🏛️'}
-                                    </div>
-                                    ${i < order.timeline.length - 1 ? '<div style="width:2px;flex:1;min-height:16px;background:rgba(255,255,255,0.1);margin-top:3px;"></div>' : ''}
-                                </div>
-                                <div style="flex:1;padding-top:4px;">
-                                    <div style="font-weight:700;font-size:13px;color:${statusColor(t.status)};">${statusIcon(t.status)} ${t.status}</div>
-                                    ${t.note ? `<div style="font-size:12px;opacity:0.75;margin-top:3px;line-height:1.5;">${t.note}</div>` : ''}
-                                    <div style="font-size:11px;opacity:0.45;margin-top:4px;">${t.created_at ? new Date(t.created_at).toLocaleString('fr-FR', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : ''} · <span style="opacity:0.8;">${t.updated_by_role === 'client' ? 'Client' : t.updated_by_role === 'artist' ? 'Vous' : t.updated_by_role === 'system' ? 'Système' : 'Admin'}</span></div>
-                                </div>
-                            </div>`).join('')}
-                        </div>
-                    </details>` : ''}
                 </div>
             `;
         }
@@ -5485,22 +5371,6 @@ window.enterGallery = function enterGallery() {
                 if (data.success) {
                     showToast('🚚 Expédition confirmée ! L\'acheteur a été notifié.');
                     addNotification('📦 Commande expédiée', `Commande #${orderId} marquée comme expédiée.`);
-                    // Mettre à jour localement avec les données retournées (timeline incluse)
-                    if (data.order) {
-                        const ord = data.order;
-                        const note = document.getElementById(`art-note-${orderId}`)?.value?.trim() || '';
-                        const tracking = document.getElementById(`art-tracking-${orderId}`)?.value?.trim() || null;
-                        // Mettre à jour l'historique local artiste
-                        const storedOrders = safeStorage.get('arkyl_artist_orders', []);
-                        const idx = storedOrders.findIndex(o => String(o.id) === String(orderId) || o.order_number === orderId);
-                        if (idx >= 0) {
-                            storedOrders[idx].status        = 'Expédiée';
-                            storedOrders[idx].escrow_status = 'expédiée';
-                            storedOrders[idx].tracking_number = tracking || storedOrders[idx].tracking_number;
-                            if (ord.timeline) storedOrders[idx].timeline = ord.timeline;
-                            safeStorage.set('arkyl_artist_orders', storedOrders);
-                        }
-                    }
                 } else {
                     showToast('❌ Erreur : ' + (data.error || 'Inconnue'));
                     if (btn) { btn.disabled = false; btn.innerHTML = '🚚 Confirmer l\'expédition'; }
@@ -5641,15 +5511,6 @@ window.enterGallery = function enterGallery() {
             } else if (notif.type === 'order-artist') {
                 icon = '🎨';
                 typeName = 'Vente Artiste';
-            } else if (notif.type === 'payout_confirmed') {
-                icon = '💰';
-                typeName = 'Fond délivré';
-            } else if (notif.type === 'reception_confirmed') {
-                icon = '🎉';
-                typeName = 'Réception confirmée';
-            } else if (notif.type === 'interruption') {
-                icon = '⛔';
-                typeName = 'Livraison interrompue';
             }
 
             document.getElementById('notificationModalIcon').textContent = icon;
@@ -8834,17 +8695,9 @@ window.enterGallery = function enterGallery() {
             // Recharge les données pour un nouvel artiste sans recréer l'objet
             switchArtist(newArtistId) {
                 this.artistId = newArtistId;
-                // FIX ISOLATION : on vide toujours les artworks en mémoire au changement d'artiste.
-                // Le localStorage local n'est plus la source de vérité — c'est le serveur.
-                // loadArtistArtworksFromServer() rechargera les vraies données après.
-                this.artworks = [];
-                this.sales    = [];
+                this.artworks = this._load('artist_artworks') || [];
+                this.sales    = this._load('artist_sales')    || [];
                 this.nextId   = this._load('next_artwork_id') || 1;
-                // Nettoyer aussi le localStorage pour cet artiste (vieilles données obsolètes)
-                try {
-                    localStorage.removeItem(this._key('artist_artworks'));
-                    localStorage.removeItem(this._key('artist_sales'));
-                } catch(_) {}
             }
             
             addArtwork(a) { 
@@ -8907,13 +8760,9 @@ window.enterGallery = function enterGallery() {
         if (typeof window._artistDb === 'undefined') {
             const _initArtistId = currentUser?.id || currentUser?.googleId || currentUser?.email || 'default';
             window._artistDb = new window.ArtistDatabase(_initArtistId);
-            // FIX : vider immédiatement les artworks chargés depuis localStorage à l'init
-            // Le serveur est la seule source de vérité (loadArtistArtworksFromServer)
-            window._artistDb.artworks = [];
-            window._artistDb.sales = [];
         }
         var db = window._artistDb;
-        // Note: données rechargées via loadArtistArtworksFromServer() à chaque connexion artiste
+        // Note: données rechargées via switchArtist() à chaque changement d'artiste
         
         if (typeof window.editingArtworkId === 'undefined') window.editingArtworkId = null;
         var editingArtworkId = window.editingArtworkId;
@@ -9096,44 +8945,19 @@ window.enterGallery = function enterGallery() {
                 if (count > _lastKnownUnreadCount && _lastKnownUnreadCount >= 0) {
                     const newest = result.notifications?.[0];
                     if (newest && !newest.is_read) {
-                        const isReceptionConfirmed = newest.type === 'reception_confirmed';
-                        const isPayoutConfirmed = newest.type === 'payout_confirmed';
-                        const isInterruption = newest.type === 'interruption';
-                        // Toast d'alerte
-                        const toastPrefix = isPayoutConfirmed ? '💰 ' : isInterruption ? '⛔ ' : isReceptionConfirmed ? '🎉 ' : '🛒 ';
-                        showToast(toastPrefix + (newest.title || 'Nouvelle notification !'));
+                        // Toast d'alerte + son (si dispo)
+                        showToast('🎉 ' + (newest.title || 'Nouvelle commande !'));
                         // Mettre en avant la cloche visuellement
                         const bell = document.getElementById('notifBell');
                         if (bell) {
                             bell.style.animation = 'none';
                             setTimeout(() => { bell.style.animation = 'ring 0.6s ease 3'; }, 10);
                         }
-                        // Si confirmation de réception : afficher une modale dans le dashboard artiste
-                        if (isReceptionConfirmed) {
-                            const artDiv = document.createElement('div');
-                            artDiv.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99998;display:flex;align-items:center;justify-content:center;padding:20px;';
-                            artDiv.innerHTML = `
-                                <div style="background:linear-gradient(135deg,#1a2e1a,#0d1f0d);border:1px solid rgba(76,175,80,0.5);border-radius:24px;padding:40px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.6);">
-                                    <div style="font-size:64px;margin-bottom:16px;">🎉</div>
-                                    <h2 style="font-size:22px;font-weight:800;color:#a5d6a7;margin-bottom:10px;">Réception confirmée !</h2>
-                                    <p style="opacity:0.85;font-size:14px;line-height:1.7;margin-bottom:8px;">${newest.message || 'Le client a confirmé la réception de votre œuvre.'}</p>
-                                    <p style="font-size:13px;color:#4caf50;font-weight:700;margin-bottom:24px;">💰 Vos fonds ont été libérés !</p>
-                                    <div style="display:flex;gap:10px;justify-content:center;">
-                                        <button onclick="this.closest('div').parentElement.remove(); navigateTo('artistSpace'); setTimeout(()=>switchArtistTab('sales'),200);"
-                                            style="padding:12px 24px;border:none;border-radius:12px;background:linear-gradient(135deg,#4caf50,#2e7d32);color:white;font-size:14px;font-weight:700;cursor:pointer;">
-                                            📦 Voir mes ventes
-                                        </button>
-                                        <button onclick="this.closest('div').parentElement.remove()"
-                                            style="padding:12px 24px;border:none;border-radius:12px;background:rgba(255,255,255,0.1);color:white;font-size:14px;cursor:pointer;">
-                                            Fermer
-                                        </button>
-                                    </div>
-                                </div>`;
-                            document.body.appendChild(artDiv);
-                            setTimeout(() => artDiv.remove(), 15000);
+                        // Rafraîchir la liste des ventes artiste si elle est visible
+                        const salesSection = document.getElementById('salesSection');
+                        if (salesSection && salesSection.classList.contains('active')) {
+                            if (typeof renderArtistOrders === 'function') renderArtistOrders();
                         }
-                        // Toujours rafraîchir la liste des ventes artiste
-                        if (typeof renderArtistOrders === 'function') renderArtistOrders();
                     }
                 }
                 _lastKnownUnreadCount = count;
@@ -9195,9 +9019,6 @@ window.enterGallery = function enterGallery() {
                 return;
             }
 
-            // Tag de l'artiste AVANT la requete async (detection changement de compte)
-            const _expectedArtistId = String(artistServerId);
-
             // Reset de la pagination si premier chargement
             if (reset) {
                 _artworksOffset = 0;
@@ -9222,13 +9043,6 @@ window.enterGallery = function enterGallery() {
                 const result = await resp.json();
 
                 if (result.success && result.data && result.data.length > 0) {
-                    // FIX isolation : verifier que l'artiste n'a pas change pendant l'appel async
-                    const _currentArtistNow = String(currentUser && (currentUser.id || currentUser.googleId || currentUser.email) || '');
-                    if (_currentArtistNow !== _expectedArtistId) {
-                        console.warn('[ISOLATION] Artiste change pendant chargement — donnees ignorees');
-                        _artworksLoading = false;
-                        return;
-                    }
                     console.log(`✅ ${result.data.length} œuvres reçues (offset=${_artworksOffset})`);
                     _artworksRetryCount = 0;
 
@@ -9278,16 +9092,9 @@ window.enterGallery = function enterGallery() {
                             renderArtworks();
                         }
                     } else {
-                        // FIX isolation : si reset=true, on efface TOUJOURS db.artworks
-                        // (l'ancienne logique 'conservation' affichait les oeuvres artiste A dans le dashboard artiste B)
-                        if (reset) {
-                            db.artworks = [];
-                            console.warn('[ISOLATION] API vide (cold start?) — oeuvres effacees pour garantir isolation');
-                        } else {
-                            console.warn('[ISOLATION] API vide (pagination) — donnees existantes conservees');
-                        }
+                        // On a déjà des œuvres en mémoire — conserver, ne pas écraser
                         _artworksHasMore = false;
-                        renderArtworks();
+                        console.warn('⚠️ API retourne 0 artwork mais db.artworks a des données — conservation des données existantes');
                     }
                 }
             } catch(e) {
@@ -11204,46 +11011,54 @@ window.enterGallery = function enterGallery() {
             const artworkIds = items.map(i => i.id || i.artwork_id).filter(Boolean);
             if (artworkIds.length === 0) return;
 
-            // 1. Appel API serveur EN PREMIER — marquer is_sold = TRUE en base
-            //    → ainsi tous les appareils verront la suppression dès leur prochain chargement
-            let serverSuccess = false;
-            for (const artworkId of artworkIds) {
-                try {
-                    const resp = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_marquer_vendu.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ artwork_id: artworkId })
-                    });
-                    const data = await resp.json();
-                    if (data.success) serverSuccess = true;
-                } catch(e) {
-                    console.warn('⚠️ Impossible de marquer vendue l\'œuvre', artworkId, e.message);
-                }
-            }
-
-            // 2. Retirer du cache local immédiatement (appareil acheteur)
+            // 1. Retirer IMMÉDIATEMENT du cache local (sans attendre le serveur)
+            //    → l'œuvre disparaît de la galerie sur l'écran de l'acheteur en <1ms
             if (window.toutesLesOeuvres && window.toutesLesOeuvres.length > 0) {
                 window.toutesLesOeuvres = window.toutesLesOeuvres.filter(
                     o => !artworkIds.includes(String(o.id)) && !artworkIds.includes(o.id)
                 );
             }
-
-            // 3. Retirer du cache produits local
             let products = getProducts();
             products = products.filter(
                 p => !artworkIds.includes(String(p.id)) && !artworkIds.includes(p.id)
             );
             saveProducts(products);
 
-            // 4. Recharger la galerie depuis le serveur (source de vérité)
-            //    → garantit que l'œuvre ne réapparaît pas après rafraîchissement
-            if (typeof chargerLaVraieGalerie === 'function') {
-                await chargerLaVraieGalerie();
-            } else if (typeof afficherOeuvresFiltrees === 'function') {
-                afficherOeuvresFiltrees();
+            // 2. Invalider le cache galerie localStorage AVANT tout rechargement
+            //    → chargerLaVraieGalerie ne pourra pas réafficher le cache périmé
+            try {
+                localStorage.removeItem('arkyl_galerie_v3');
+                console.log('🗑️ Cache galerie invalidé — œuvres vendues exclues');
+            } catch(e) {}
+
+            // 3. Rafraîchir l'affichage galerie immédiatement depuis le cache filtré
+            if (typeof window.afficherOeuvresFiltrees === 'function') {
+                window.afficherOeuvresFiltrees();
             }
 
-            console.log(`✅ ${artworkIds.length} œuvre(s) marquée(s) vendue(s)${serverSuccess ? ' ✓ serveur' : ' ⚠️ serveur indisponible'}`);
+            // 4. Appel API serveur EN PARALLÈLE (non-bloquant) — marquer is_sold en BDD
+            //    Le webhook Stripe l'a déjà fait, ceci est un filet de sécurité
+            let serverSuccess = false;
+            const markPromises = artworkIds.map(artworkId =>
+                fetch('https://arkyl-galerie-nvwn.onrender.com/api_marquer_vendu.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ artwork_id: artworkId })
+                })
+                .then(r => r.json())
+                .then(d => { if (d.success) serverSuccess = true; })
+                .catch(e => console.warn('⚠️ marquerVendu serveur:', artworkId, e.message))
+            );
+
+            // 5. Une fois le serveur confirmé, recharger la galerie propre
+            //    On débloque le verrou _galerieEnCours avant d'appeler chargerLaVraieGalerie
+            Promise.all(markPromises).then(() => {
+                window._galerieEnCours = false;  // débloquer le verrou
+                if (typeof chargerLaVraieGalerie === 'function') {
+                    chargerLaVraieGalerie();
+                }
+                console.log('✅ ' + artworkIds.length + ' œuvre(s) marquée(s) vendue(s) — serveur: ' + (serverSuccess ? 'OK' : '⚠️'));
+            });
         }
 
         // ==================== INIT ====================
@@ -11288,11 +11103,13 @@ window.enterGallery = function enterGallery() {
 
             if (window._isStripeReturn || window._pendingStripeSession || window._pendingStripeOrderId) {
                 // Retour Stripe → ignorer la dernière page, traiter le paiement
-                // ✅ FIX : délai réduit — la session est restaurée depuis localStorage immédiatement
-                // Google Sign-In n'est pas nécessaire car processStripeReturn reconstruit currentUser depuis localStorage si besoin
+                // ✅ FIX PERF : restoreSession() est synchrone (lit localStorage avant ce setTimeout)
+                // → currentUser est DÉJÀ disponible, pas besoin d'attendre 2500ms
                 safeStorage.remove('arkyl_last_page');
                 updateNavigationHistory('home');
-                setTimeout(() => processStripeReturn(window._pendingStripeSession, window._pendingStripeOrderId), 500);
+                // Afficher immédiatement le modal de chargement pour feedback visuel
+                _showStripeLoadingOverlay();
+                setTimeout(() => processStripeReturn(window._pendingStripeSession, window._pendingStripeOrderId), 100);
             } else if (lastPage && (Date.now() - lastPage.timestamp) < 5000) {
                 startPage = lastPage.pageId.replace('Page', '');
                 setTimeout(() => {
@@ -11563,10 +11380,8 @@ window.enterGallery = function enterGallery() {
         const cat = window.currentCategory || 'all';
         const selected = window.selectedCategories;
         let oeuvres;
-        // Exclure les œuvres vendues (double vérification is_sold + badge + status)
-        const oeuvresDisponibles = window.toutesLesOeuvres.filter(o =>
-            !o.is_sold && o.badge !== 'Vendu' && o.status !== 'vendue'
-        );
+        // Exclure les œuvres vendues
+        const oeuvresDisponibles = window.toutesLesOeuvres.filter(o => !o.is_sold);
 
         if (cat === '__multi__' && selected && selected.size > 0) {
             oeuvres = oeuvresDisponibles.filter(o => {
@@ -11800,9 +11615,7 @@ window.enterGallery = function enterGallery() {
             const reponse = await fetch(urlAPI);
             const resultat = await reponse.json();
             if (resultat.success && resultat.data?.length > 0) {
-                // ✅ FIX : ne jamais mettre en cache des œuvres vendues
-                const disponibles = resultat.data.filter(o => !o.is_sold && o.badge !== 'Vendu' && o.status !== 'vendue');
-                _ecrireCache(disponibles, resultat.data.length >= ITEMS_PER_LOAD);
+                _ecrireCache(resultat.data, resultat.data.length >= ITEMS_PER_LOAD);
                 console.log('🔄 Cache mis à jour en arrière-plan');
                 // Si l'utilisateur est encore sur la galerie, on peut optionnellement re-render,
                 // mais on ne le fait pas pour ne pas perturber le scroll.
@@ -11854,9 +11667,7 @@ window.enterGallery = function enterGallery() {
             }
 
             if (resultat.success && resultat.data && resultat.data.length > 0) {
-                // ✅ FIX : filtrer les œuvres vendues avant de les stocker
-                const nouvellesOeuvres = resultat.data.filter(o => !o.is_sold && o.badge !== 'Vendu' && o.status !== 'vendue');
-                window.toutesLesOeuvres = [...(window.toutesLesOeuvres || []), ...nouvellesOeuvres];
+                window.toutesLesOeuvres = [...(window.toutesLesOeuvres || []), ...resultat.data];
                 
                 if (resultat.data.length < ITEMS_PER_LOAD) {
                     window.hasMoreData = false;
@@ -12425,35 +12236,16 @@ window.enterGallery = function enterGallery() {
                 const data = await response.json();
 
                 if (data.success) {
-                    showToast('🎉 Merci ! Réception confirmée — les fonds sont libérés à l\'artiste.');
-                    // Mettre à jour l'historique local avec le nouveau statut
-                    const idx = orderHistory.findIndex(o => String(o.server_id || o.id) === String(orderId) || o.order_number === orderId);
-                    if (idx >= 0) {
-                        orderHistory[idx].status        = 'Livrée';
-                        orderHistory[idx].escrow_status = 'fonds_libérés';
-                        safeStorage.set('arkyl_orders', orderHistory);
-                    }
-                    // Recharger les commandes (rafraîchit la timeline et les boutons)
+                    showToast('🎉 Merci ! La réception est confirmée. L\'artiste va recevoir son argent.');
+                    // Retirer l'œuvre de la galerie locale
+                    const ordre = orderHistory.find(o => String(o.server_id || o.id) === String(orderId));
+                    if (ordre) marquerOeuvresVendues(ordre.items || []);
+                    // Recharger les commandes pour mettre à jour l'affichage
                     if (typeof renderOrders === 'function') {
                         await renderOrders();
+                    } else {
+                        location.reload();
                     }
-                    // Afficher une modale de confirmation claire
-                    const successDiv = document.createElement('div');
-                    successDiv.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
-                    successDiv.innerHTML = `
-                        <div style="background:linear-gradient(135deg,#1a2e1a,#0d1f0d);border:1px solid rgba(76,175,80,0.5);border-radius:24px;padding:40px;max-width:400px;width:100%;text-align:center;">
-                            <div style="font-size:64px;margin-bottom:16px;">🎉</div>
-                            <h2 style="font-size:22px;font-weight:800;color:#a5d6a7;margin-bottom:10px;">Réception confirmée !</h2>
-                            <p style="opacity:0.8;font-size:14px;line-height:1.7;margin-bottom:24px;">
-                                Merci d'avoir confirmé la réception de votre œuvre.<br>
-                                <strong style="color:#4caf50;">Les fonds ont été libérés à l'artiste.</strong>
-                            </p>
-                            <button onclick="this.closest('div').parentElement.remove()" style="padding:14px 32px;border:none;border-radius:12px;background:linear-gradient(135deg,#4caf50,#2e7d32);color:white;font-size:15px;font-weight:700;cursor:pointer;">
-                                Fermer
-                            </button>
-                        </div>`;
-                    document.body.appendChild(successDiv);
-                    setTimeout(() => successDiv.remove(), 8000);
                 } else {
                     showToast('❌ Erreur : ' + (data.message || 'Erreur inconnue'));
                 }
@@ -12683,53 +12475,6 @@ window.enterGallery = function enterGallery() {
                 try { cmd = JSON.parse(cmdData.replace(/&quot;/g, '"')); } catch(e) {}
             }
 
-            // Supprimer une ancienne modale si existante
-            document.getElementById('modalePaiementArtiste')?.remove();
-
-            const modal = document.createElement('div');
-            modal.id = 'modalePaiementArtiste';
-            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
-            modal.innerHTML = `
-                <div style="background:#1a1a1a;border-radius:20px;padding:36px;width:90%;max-width:500px;border:1px solid rgba(212,175,55,0.35);box-shadow:0 24px 64px rgba(0,0,0,0.6);">
-                    <h3 style="color:#d4af37;font-size:20px;font-weight:800;margin:0 0 6px;">💸 Confirmer le versement</h3>
-                    <p style="color:#aaa;font-size:13px;margin:0 0 24px;">Artiste : <strong style="color:#fff;">${artiste}</strong> — Montant : <strong style="color:#ffc107;">${montantTotal} FCFA</strong></p>
-
-                    <div style="margin-bottom:16px;">
-                        <label style="display:block;color:rgba(255,255,255,0.6);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;">Moyen de paiement</label>
-                        <select id="mp-method" style="width:100%;padding:12px 16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:14px;outline:none;">
-                            <option value="Wave">Wave</option>
-                            <option value="Orange Money">Orange Money</option>
-                            <option value="MTN Money">MTN Money</option>
-                            <option value="Virement bancaire">Virement bancaire</option>
-                            <option value="Espèces">Espèces</option>
-                            <option value="Autre">Autre</option>
-                        </select>
-                    </div>
-
-                    <div style="margin-bottom:16px;">
-                        <label style="display:block;color:rgba(255,255,255,0.6);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;">Référence / Numéro de transaction</label>
-                        <input type="text" id="mp-reference" placeholder="Ex: WV-2024-XXXXXX" style="width:100%;padding:12px 16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:14px;outline:none;box-sizing:border-box;">
-                    </div>
-
-                    <div style="margin-bottom:24px;">
-                        <label style="display:block;color:rgba(255,255,255,0.6);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;">Note (optionnel)</label>
-                        <input type="text" id="mp-note" placeholder="Ex: Versement commande ARKYL-XXXX" style="width:100%;padding:12px 16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:white;font-size:14px;outline:none;box-sizing:border-box;">
-                    </div>
-
-                    <div style="display:flex;gap:12px;">
-                        <button onclick="document.getElementById('modalePaiementArtiste').remove()"
-                            style="flex:1;padding:13px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:white;font-size:14px;font-weight:600;cursor:pointer;">
-                            Annuler
-                        </button>
-                        <button onclick="confirmerPaiementArtiste('${orderId}')"
-                            style="flex:2;padding:13px;background:linear-gradient(135deg,#d4af37,#a0824a);border:none;border-radius:10px;color:#1a1a2e;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 4px 15px rgba(212,175,55,0.35);">
-                            ✅ Confirmer le versement
-                        </button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-            modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
         }
 
         async function confirmerPaiementArtiste(orderId) {
@@ -12746,7 +12491,7 @@ window.enterGallery = function enterGallery() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        action: 'confirmer_versement',
+                        action: 'liberer_fonds',
                         order_id: orderId,
                         payment_method: method,
                         payment_reference: reference,
@@ -12766,40 +12511,7 @@ window.enterGallery = function enterGallery() {
             }
         }
 
-        // ==========================================
-        // INTERRUPTION DE LIVRAISON (ADMIN)
-        // ==========================================
-        async function interrompreLivraison(orderId, orderNumber) {
-            const raison = prompt(`⛔ Motif de l'interruption de la commande ${orderNumber} :\n(Ce message sera envoyé au client ET à l'artiste)`, 'Vérification nécessaire avant livraison');
-            if (raison === null) return; // annulé
-
-            const confirmed = confirm(`Confirmer l'interruption de la commande ${orderNumber} ?\n\nTous les intervenants seront notifiés.`);
-            if (!confirmed) return;
-
-            try {
-                const resp = await fetch(ORDERS_API, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'interrompre_livraison',
-                        order_id: orderId,
-                        raison: raison || 'Interruption décidée par l\'administration',
-                        admin: currentUser?.name || 'admin',
-                    })
-                });
-                const data = await resp.json();
-                if (data.success) {
-                    showToast('⛔ Livraison interrompue — Tous les intervenants ont été notifiés');
-                    await renderAdminOrders();
-                } else {
-                    showToast('❌ Erreur : ' + (data.error || 'inconnue'));
-                }
-            } catch(e) {
-                showToast('❌ Erreur réseau');
-            }
-        }
-
-                // Alias conservé pour rétrocompatibilité (anciens appels éventuels)
+        // Alias conservé pour rétrocompatibilité (anciens appels éventuels)
         async function marquerFondsLiberes(orderId) {
             // Récupérer le nom artiste et montant depuis le DOM pour la modale
             const row = document.querySelector(`[onclick*="marquerFondsLiberes(${orderId})"]`)?.closest('tr');
@@ -12807,5 +12519,6 @@ window.enterGallery = function enterGallery() {
             const montantText = row?.cells?.[3]?.textContent?.trim()?.split(' ')[0] || '?';
             ouvrirModalePaiement(orderId, artistName, montantText);
         }
+
 
 

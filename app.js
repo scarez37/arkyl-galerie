@@ -35,141 +35,6 @@ window.enterGallery = function enterGallery() {
             document.head.appendChild(link);
         })();
 
-
-        // ==================== GALERIE BOLIA BUTTON STYLING ====================
-        (function applyGalerieBoliaStyle() {
-            // Inject CSS animations and styles
-            const style = document.createElement('style');
-            style.id = 'galerie-bolia-styles';
-            style.textContent = `
-                /* Animation cloche notification */
-                @keyframes ring {
-                    0%   { transform: rotate(0deg);  }
-                    20%  { transform: rotate(-25deg); }
-                    40%  { transform: rotate(25deg);  }
-                    60%  { transform: rotate(-15deg); }
-                    80%  { transform: rotate(15deg);  }
-                    100% { transform: rotate(0deg);  }
-                }
-                /* Animation shimmer pour Galerie BOLIA */
-                @keyframes bolia-shimmer {
-                    0% { left: -100%; }
-                    100% { left: 200%; }
-                }
-
-                .galerie-bolia-btn::before {
-                    content: '';
-                    position: absolute;
-                    top: 0;
-                    left: -100%;
-                    width: 50%;
-                    height: 100%;
-                    background: linear-gradient(90deg, 
-                        transparent 0%, 
-                        rgba(255, 224, 102, 0.3) 50%, 
-                        transparent 100%);
-                    animation: bolia-shimmer 3s infinite;
-                    pointer-events: none;
-                }
-
-                .galerie-bolia-btn:hover {
-                    transform: scale(1.02) !important;
-                    box-shadow: 0 0 20px rgba(212,175,55,0.35), inset 0 1px 0 rgba(255,255,255,0.2) !important;
-                    border-color: rgba(212,175,55,0.6) !important;
-                }
-
-                .galerie-bolia-btn:active {
-                    transform: scale(0.98) !important;
-                }
-            `;
-            document.head.appendChild(style);
-
-            // Function to apply styling to the button
-            function styleBoliaButton() {
-                // Find the button by onclick attribute or text content
-                const hamburgerItems = document.querySelectorAll('.hamburger-menu-item');
-                let boliaBtn = null;
-
-                for (const item of hamburgerItems) {
-                    const onclick = item.getAttribute('onclick') || '';
-                    const text = item.textContent || '';
-                    
-                    if (onclick.includes('myArtists') || text.includes('Mes Artistes') || text.includes('Galerie BOLIA')) {
-                        boliaBtn = item;
-                        break;
-                    }
-                }
-
-                if (!boliaBtn) return false;
-
-                // Apply distinctive styling
-                boliaBtn.id = 'galerieBoliaBtn';
-                boliaBtn.className = 'hamburger-menu-item galerie-bolia-btn';
-                
-                Object.assign(boliaBtn.style, {
-                    background: 'linear-gradient(135deg, rgba(212,175,55,0.12) 0%, rgba(160,120,32,0.08) 100%)',
-                    border: '1.5px solid rgba(212,175,55,0.4)',
-                    borderRadius: '12px',
-                    boxShadow: '0 0 12px rgba(212,175,55,0.15), inset 0 1px 0 rgba(255,255,255,0.1)',
-                    overflow: 'hidden',
-                    transition: 'all 0.3s ease'
-                });
-
-                // Update content if still showing "Mes Artistes"
-                if (boliaBtn.textContent.includes('Mes Artistes')) {
-                    const svg = boliaBtn.querySelector('svg');
-                    const newContent = `
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="filter: drop-shadow(0 0 4px rgba(212,175,55,0.4));">
-                            <defs>
-                                <linearGradient id="g-bolia" x1="0" y1="0" x2="1" y2="1">
-                                    <stop offset="0%" stop-color="#d4af37"/>
-                                    <stop offset="50%" stop-color="#ffe066"/>
-                                    <stop offset="100%" stop-color="#a07820"/>
-                                </linearGradient>
-                            </defs>
-                            <rect x="3" y="3" width="18" height="18" rx="2" stroke="url(#g-bolia)" stroke-width="2" fill="none"/>
-                            <path d="M3 16l5-5 4 4 9-9" stroke="url(#g-bolia)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <circle cx="8.5" cy="8.5" r="1.5" fill="url(#g-bolia)"/>
-                        </svg>
-                        <span style="color: #ffe066;
-                                     font-weight: 700;
-                                     letter-spacing: 0.5px;
-                                     text-shadow: 0 0 10px rgba(255,215,0,0.6), 0 1px 3px rgba(0,0,0,0.8);">🖼️ Galerie BOLIA</span>
-                    `;
-                    boliaBtn.innerHTML = newContent;
-                }
-
-                return true;
-            }
-
-            // Apply immediately on load
-            setTimeout(() => {
-                if (styleBoliaButton()) {
-                    console.log('✨ Galerie BOLIA button styled successfully');
-                }
-            }, 100);
-
-            // Watch for dynamic menu injection
-            const observer = new MutationObserver(() => {
-                styleBoliaButton();
-            });
-
-            // Observe the hamburger dropdown if it exists
-            const hamburgerDropdown = document.getElementById('hamburgerDropdown');
-            if (hamburgerDropdown) {
-                observer.observe(hamburgerDropdown, {
-                    childList: true,
-                    subtree: true
-                });
-            }
-
-            // Also observe the entire document for the dropdown creation
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
-        })();
-
         document.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && document.getElementById('intro-page').style.display !== 'none') {
                 enterGallery();
@@ -6705,8 +6570,8 @@ window.enterGallery = function enterGallery() {
             updateFollowButton(artistName, false);
             
             // Invalider le cache et rafraîchir la page si nécessaire
-            window._boliaAllCards = null;
-            window._boliaPage = 0;
+            window._allCards = null;
+            window._currentPage = 0;
             const currentPage = document.querySelector('.page.active');
             if (currentPage && currentPage.id === 'myArtistsPage') {
                 renderMyArtistsPage();
@@ -6941,7 +6806,7 @@ window.enterGallery = function enterGallery() {
                 const data = await res.json();
                 if (data.success) {
                     // Invalider le cache posts pour forcer un vrai rechargement
-                    window._boliaPostsCache = null;
+                    window._artistPostsCache = null;
                     await fetchArtistPostsFromServer();
                     return data;
                 } else {
@@ -7218,7 +7083,7 @@ window.enterGallery = function enterGallery() {
                 return; // toast d'erreur déjà affiché dans savePostToServer
             }
             window._postSelectedFiles = [];
-            window._boliaPostsCache = null; // invalider le cache
+            window._artistPostsCache = null; // invalider le cache
             document.getElementById('createPostModal')?.remove();
             showToast('✅ Publication partagée avec succès !');
             await renderMyArtistsPage();
@@ -7359,7 +7224,7 @@ window.enterGallery = function enterGallery() {
         }
 
 
-        // ==================== OVERLAY DETAIL POST (GALERIE BOLIA) ====================
+        // ==================== OVERLAY DETAIL POST  ====================
         window.openPostDetail = function(postId) {
             const post = (window._allPosts || {})[String(postId)];
             if (!post) return;
@@ -7484,7 +7349,7 @@ window.enterGallery = function enterGallery() {
             }
         };
 
-        // ==================== OVERLAY IMAGE PINTEREST (GALERIE BOLIA) ====================
+        // ==================== OVERLAY IMAGE PINTEREST  ====================
         window._artistOverlayWorks = [];
 
         function openArtistImageOverlay(workId) {
@@ -7701,12 +7566,12 @@ window.enterGallery = function enterGallery() {
             document.getElementById('artistsLoopsSection').style.display = 'block';
 
             // ── Cache TTL 90s pour éviter les double-fetch à chaque navigation ──
-            const BOLIA_CACHE_TTL = 90_000;
+            const ARTWORKS_CACHE_TTL = 90_000;
             const now = Date.now();
             let allProducts = [];
 
-            if (window._boliaCache && (now - window._boliaCache.ts) < BOLIA_CACHE_TTL) {
-                allProducts = window._boliaCache.products;
+            if (window._artworksCache && (now - window._artworksCache.ts) < ARTWORKS_CACHE_TTL) {
+                allProducts = window._artworksCache.products;
             } else {
                 try {
                     const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?include_sold=1');
@@ -7728,14 +7593,14 @@ window.enterGallery = function enterGallery() {
                                 is_sold: art.is_sold || art.badge === 'Vendu' || false,
                                 badge: art.badge || ''
                             }));
-                            window._boliaCache = { ts: now, products: allProducts };
+                            window._artworksCache = { ts: now, products: allProducts };
                         }
                     }
                 } catch (error) {
                     console.log('⚠️ Utilisation des données locales:', error);
                 }
                 if (allProducts.length === 0) {
-                    allProducts = window._boliaCache?.products || getProducts();
+                    allProducts = window._artworksCache?.products || getProducts();
                 }
             }
 
@@ -7801,11 +7666,11 @@ window.enterGallery = function enterGallery() {
 
             // Cache posts TTL 90s
             let artistPostsRaw;
-            if (window._boliaPostsCache && (Date.now() - window._boliaPostsCache.ts) < BOLIA_CACHE_TTL) {
-                artistPostsRaw = window._boliaPostsCache.posts;
+            if (window._artistPostsCache && (Date.now() - window._artistPostsCache.ts) < ARTWORKS_CACHE_TTL) {
+                artistPostsRaw = window._artistPostsCache.posts;
             } else {
                 artistPostsRaw = await fetchArtistPostsFromServer();
-                window._boliaPostsCache = { ts: Date.now(), posts: artistPostsRaw };
+                window._artistPostsCache = { ts: Date.now(), posts: artistPostsRaw };
             }
             const followedNames = followed.map(a => a.name.trim().toLowerCase());
             const relevantPosts = artistPostsRaw.filter(p =>
@@ -7847,47 +7712,47 @@ window.enterGallery = function enterGallery() {
             }
 
             // ── Pagination : afficher par lots de 20 ──
-            const BOLIA_PAGE = 20;
-            let boliaPage = 0;
-            window._boliaAllCards = allMixedCards;
-            window._boliaPage = 0;
-            window.renderBoliaBatch = renderBoliaBatch; // exposer immédiatement
+            const ITEMS_PER_PAGE = 20;
+            let currentPageIndex = 0;
+            window._allCards = allMixedCards;
+            window._currentPage = 0;
+            window.renderBatch = renderBatch; // exposer immédiatement
 
-            function renderBoliaBatch() {
-                const start = window._boliaPage * BOLIA_PAGE;
-                const batch = window._boliaAllCards.slice(start, start + BOLIA_PAGE);
+            function renderBatch() {
+                const start = window._currentPage * ITEMS_PER_PAGE;
+                const batch = window._allCards.slice(start, start + ITEMS_PER_PAGE);
                 if (!batch.length) return;
                 const feed = document.getElementById('artistsLoopsFeed');
                 if (!feed) return;
-                const grid = feed.querySelector('.bolia-grid');
+                const grid = feed.querySelector('.art-grid');
                 if (grid) {
                     grid.insertAdjacentHTML('beforeend', batch.join(''));
                 } else {
-                    feed.insertAdjacentHTML('beforeend', `<div class="bolia-grid">${batch.join('')}</div>`);
+                    feed.insertAdjacentHTML('beforeend', `<div class="art-grid">${batch.join('')}</div>`);
                 }
-                window._boliaPage++;
+                window._currentPage++;
 
                 // Sentinel pour infinite scroll
-                const oldSentinel = document.getElementById('boliaSentinel');
+                const oldSentinel = document.getElementById('infiniteSentinel');
                 if (oldSentinel) oldSentinel.remove();
 
-                if (window._boliaPage * BOLIA_PAGE < window._boliaAllCards.length) {
+                if (window._currentPage * ITEMS_PER_PAGE < window._allCards.length) {
                     const sentinel = document.createElement('div');
-                    sentinel.id = 'boliaSentinel';
+                    sentinel.id = 'infiniteSentinel';
                     sentinel.style.cssText = 'height:1px;width:100%;';
                     feed.appendChild(sentinel);
 
-                    if (window._boliaObserver) window._boliaObserver.disconnect();
-                    window._boliaObserver = new IntersectionObserver((entries) => {
+                    if (window._infiniteObserver) window._infiniteObserver.disconnect();
+                    window._infiniteObserver = new IntersectionObserver((entries) => {
                         if (entries[0].isIntersecting) {
-                            window._boliaObserver.disconnect();
-                            renderBoliaBatch();
+                            window._infiniteObserver.disconnect();
+                            renderBatch();
                         }
                     }, { rootMargin: '200px' });
-                    window._boliaObserver.observe(sentinel);
+                    window._infiniteObserver.observe(sentinel);
                 }
             }
-            window.renderBoliaBatch = renderBoliaBatch;
+            window.renderBatch = renderBatch;
 
             const mixedCards = allMixedCards; // compat ligne suivante
 
@@ -7930,13 +7795,13 @@ window.enterGallery = function enterGallery() {
             // Injecter le layout + les blocs fixes, puis charger le 1er lot
             loopsFeed.innerHTML = `
                 <style>
-                    .bolia-grid { column-count:2; column-gap:6px; }
-                    @media(min-width:600px){ .bolia-grid{ column-count:3; } }
-                    @media(min-width:900px){ .bolia-grid{ column-count:4; } }
+                    .art-grid { column-count:2; column-gap:6px; }
+                    @media(min-width:600px){ .art-grid{ column-count:3; } }
+                    @media(min-width:900px){ .art-grid{ column-count:4; } }
                 </style>
                 ${mySpaceTab}
                 ${publishBtn}`;
-            renderBoliaBatch();
+            renderBatch();
         }
 
         async function switchArtistTab(tab) {
@@ -7951,7 +7816,7 @@ window.enterGallery = function enterGallery() {
 
             if (tab === 'all') {
                 // Si les données sont déjà prêtes, juste re-afficher sans re-fetch
-                if (window._boliaAllCards && window._boliaAllCards.length > 0 && typeof window.renderBoliaBatch === 'function') {
+                if (window._allCards && window._allCards.length > 0 && typeof window.renderBatch === 'function') {
                     const loopsFeed = document.getElementById('artistsLoopsFeed');
                     if (loopsFeed) {
                         const emptyState = document.getElementById('emptyArtistsState');
@@ -7959,9 +7824,9 @@ window.enterGallery = function enterGallery() {
                         if (emptyState) emptyState.style.display = 'none';
                         if (loopsSection) loopsSection.style.display = 'block';
                         (document.getElementById('followedArtistsSection')||{style:{display:''}}).style.display='block';
-                        window._boliaPage = 0;
-                        loopsFeed.innerHTML = `<style>.bolia-grid{column-count:2;column-gap:6px;}@media(min-width:600px){.bolia-grid{column-count:3;}}@media(min-width:900px){.bolia-grid{column-count:4;}}</style>`;
-                        window.renderBoliaBatch();
+                        window._currentPage = 0;
+                        loopsFeed.innerHTML = `<style>.art-grid{column-count:2;column-gap:6px;}@media(min-width:600px){.art-grid{column-count:3;}}@media(min-width:900px){.art-grid{column-count:4;}}</style>`;
+                        window.renderBatch();
                         return;
                     }
                 }
@@ -8035,7 +7900,7 @@ window.enterGallery = function enterGallery() {
                     '<span style="font-size:22px;">📸</span>' +
                     '<div style="text-align:left;">' +
                         '<div>Nouvelle publication</div>' +
-                        '<div style="font-size:11px;opacity:0.55;font-weight:400;">Image ou vidéo — visible dans la Galerie BOLIA</div>' +
+                        '<div style="font-size:11px;opacity:0.55;font-weight:400;">Image ou vidéo — visible dans la Arkyl Galerie</div>' +
                     '</div>' +
                     '<span style="margin-left:auto;font-size:22px;font-weight:300;">＋</span>' +
                 '</button>';
@@ -8119,10 +7984,10 @@ window.enterGallery = function enterGallery() {
                 </div>`;
 
             // Charger les œuvres depuis le cache ou le serveur
-            const BOLIA_CACHE_TTL = 90_000;
+            const ARTWORKS_CACHE_TTL = 90_000;
             let allProducts = [];
-            if (window._boliaCache && (Date.now() - window._boliaCache.ts) < BOLIA_CACHE_TTL) {
-                allProducts = window._boliaCache.products;
+            if (window._artworksCache && (Date.now() - window._artworksCache.ts) < ARTWORKS_CACHE_TTL) {
+                allProducts = window._artworksCache.products;
             } else {
                 try {
                     const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?include_sold=1');
@@ -8141,7 +8006,7 @@ window.enterGallery = function enterGallery() {
                                 photos: art.photos || [art.image_url],
                                 emoji: '🎨'
                             }));
-                            window._boliaCache = { ts: Date.now(), products: allProducts };
+                            window._artworksCache = { ts: Date.now(), products: allProducts };
                         }
                     }
                 } catch (error) {
@@ -8149,7 +8014,7 @@ window.enterGallery = function enterGallery() {
                 }
                 
                 if (allProducts.length === 0) {
-                    allProducts = window._boliaCache?.products || getProducts();
+                    allProducts = window._artworksCache?.products || getProducts();
                 }
             }
 

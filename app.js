@@ -500,6 +500,40 @@ window.enterGallery = function enterGallery() {
             }
         };        window.safeStorage = safeStorage;
 
+        // ═══════════════════════════════════════════════════════════
+        // PURGE LOCALE — nettoyer les vieilles données localStorage
+        // qui ne correspondent plus au serveur (artworks, sales, etc.)
+        // Version bumped = nettoyage automatique au prochain chargement
+        // ═══════════════════════════════════════════════════════════
+        (function purgeStaleLocalData() {
+            const CACHE_VERSION = 'arkyl_v4'; // Incrémenter pour forcer un nettoyage
+            const storedVersion = localStorage.getItem('arkyl_cache_version');
+            if (storedVersion !== CACHE_VERSION) {
+                console.log('[PURGE] Nouvelle version détectée — nettoyage du localStorage...');
+                const keysToDelete = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    // Supprimer toutes les clés d'artworks/sales stockées localement
+                    if (key && (
+                        key.includes('artist_artworks') ||
+                        key.includes('artist_sales') ||
+                        key.includes('next_artwork_id') ||
+                        key.includes('arkyl_galerie_v') ||  // vieux caches galerie
+                        key.includes('arkyl_products_cache') ||
+                        key.includes('arkyl_artworks_cache')
+                    )) {
+                        keysToDelete.push(key);
+                    }
+                }
+                keysToDelete.forEach(k => {
+                    try { localStorage.removeItem(k); } catch(_) {}
+                });
+                localStorage.setItem('arkyl_cache_version', CACHE_VERSION);
+                console.log('[PURGE] ' + keysToDelete.length + ' clés supprimées:', keysToDelete);
+            }
+        })();
+
+
 
         // ==================== DATA ====================
         // Retourne le compte artiste de l'utilisateur connecté (cherche par Google ID puis par email)

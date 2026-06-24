@@ -399,6 +399,80 @@
 </div>
 
 <script>
+    // ══════════════════════════════════════════════════════════
+    // 🔒 VÉRIFICATION DE CONNEXION — doit être connecté Google
+    //    avant de pouvoir créer un compte artiste
+    // ══════════════════════════════════════════════════════════
+    (function checkAuth() {
+        try {
+            // Chercher la session Google dans localStorage (formats possibles)
+            const rawUser   = localStorage.getItem('arkyl_user')
+                           || localStorage.getItem('arkyl_google_user')
+                           || localStorage.getItem('currentUser');
+            const userId    = localStorage.getItem('user_id');
+            const googleId  = localStorage.getItem('google_id');
+
+            let hasSession = false;
+
+            if (rawUser) {
+                try {
+                    const u = JSON.parse(rawUser);
+                    // Un compte Google valide a un googleId (sub) et un email
+                    if ((u.googleId || u.sub || u.id) && u.email) hasSession = true;
+                } catch(e) {}
+            }
+            // Fallback : user_id + google_id stockés séparément
+            if (!hasSession && userId && googleId) hasSession = true;
+
+            if (!hasSession) {
+                // Afficher un écran de blocage avant de rediriger
+                document.documentElement.style.overflow = 'hidden';
+                const overlay = document.createElement('div');
+                overlay.style.cssText = [
+                    'position:fixed;inset:0;z-index:99999;display:flex;align-items:center',
+                    'justify-content:center;padding:24px;',
+                    'background:linear-gradient(135deg,#1a1a1a 0%,#2d2d2d 50%,#1a1a1a 100%);'
+                ].join(';');
+                overlay.innerHTML = `
+                    <div style="text-align:center;max-width:400px;">
+                        <div style="font-size:64px;margin-bottom:20px;">🔒</div>
+                        <h1 style="font-family:'Poppins',sans-serif;font-size:22px;font-weight:800;color:#d4af37;margin-bottom:12px;">
+                            Connexion requise
+                        </h1>
+                        <p style="font-family:'Poppins',sans-serif;font-size:14px;color:rgba(255,255,255,0.7);line-height:1.7;margin-bottom:28px;">
+                            Vous devez être <strong style="color:white;">connecté avec votre compte Google</strong>
+                            avant de pouvoir créer un compte artiste ARKYL.
+                        </p>
+                        <button onclick="window.location.href='index.php'"
+                            style="padding:14px 32px;border:none;border-radius:14px;font-family:'Poppins',sans-serif;font-size:15px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#d4af37,#b8941e);color:#1a1a1a;">
+                            Se connecter
+                        </button>
+                        <p style="font-family:'Poppins',sans-serif;font-size:12px;color:rgba(255,255,255,0.35);margin-top:16px;">
+                            Redirection automatique dans <span id="arkyl-countdown">5</span>s…
+                        </p>
+                    </div>`;
+                document.body.appendChild(overlay);
+
+                // Compte à rebours + redirection
+                let sec = 5;
+                const tick = setInterval(() => {
+                    sec--;
+                    const el = document.getElementById('arkyl-countdown');
+                    if (el) el.textContent = sec;
+                    if (sec <= 0) {
+                        clearInterval(tick);
+                        window.location.href = 'index.php';
+                    }
+                }, 1000);
+            }
+        } catch(e) {
+            // En cas d'erreur inattendue, bloquer par précaution
+            window.location.href = 'index.php';
+        }
+    })();
+</script>
+
+<script>
     // Progression de lecture
     const cguBody      = document.getElementById('cguBody');
     const cguProgress  = document.getElementById('cguProgress');
@@ -442,12 +516,25 @@
         btn.textContent = "⏳ Création du compte...";
         btn.disabled = true;
 
+        // Récupérer les infos Google de la session courante
+        let googleId    = localStorage.getItem('google_id') || '';
+        let googleEmail = '';
+        try {
+            const rawU = localStorage.getItem('arkyl_user') || localStorage.getItem('arkyl_google_user') || localStorage.getItem('currentUser');
+            if (rawU) {
+                const u = JSON.parse(rawU);
+                googleId    = googleId || u.googleId || u.sub || u.id || '';
+                googleEmail = u.email || '';
+            }
+        } catch(e) {}
+
         const data = {
             name:        document.getElementById('name').value.trim(),
             artist_name: document.getElementById('artist_name').value.trim(),
-            email:       document.getElementById('email').value.trim(),
+            email:       document.getElementById('email').value.trim() || googleEmail,
             password:    document.getElementById('password').value,
-            country:     document.getElementById('country').value.trim()
+            country:     document.getElementById('country').value.trim(),
+            google_id:   googleId,   // ← preuve de connexion Google
         };
 
         try {

@@ -13,6 +13,20 @@ try {
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
+    // ══════════════════════════════════════════════════════
+    // 🔒 VÉRIFICATION DE SESSION GOOGLE — obligatoire
+    // ══════════════════════════════════════════════════════
+    $google_id = trim($data['google_id'] ?? '');
+    if (empty($google_id)) {
+        http_response_code(401);
+        echo json_encode([
+            'success' => false,
+            'error'   => 'Connexion requise. Vous devez être connecté avec votre compte Google avant de créer un compte artiste.',
+            'redirect' => 'index.php'
+        ]);
+        exit;
+    }
+
     if (empty($data['name']) || empty($data['email']) || empty($data['password'])) {
         throw new Exception("Veuillez remplir tous les champs obligatoires.");
     }

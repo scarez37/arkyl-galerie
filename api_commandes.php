@@ -5,15 +5,24 @@
 //   • POST + HTTP_STRIPE_SIGNATURE → Webhook Stripe (création commande)
 //   • POST sans signature → Actions app (update_status, expédition, etc.)
 
-require_once __DIR__ . '/db_config.php';
-require_once __DIR__ . '/vendor/autoload.php';
-require_once __DIR__ . '/notify_helpers.php';
-
-// ── CORS ──────────────────────────────────────────────────────────
+// ── CORS EN PREMIER — avant tout require_once ─────────────────────
+// Sans ça, si vendor/autoload.php lève une erreur PHP, le header CORS
+// n'est jamais envoyé → navigateur bloque avec "No Access-Control-Allow-Origin"
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
+header('Access-Control-Allow-Credentials: true');
+header('Cross-Origin-Embedder-Policy: unsafe-none');
+header('Cross-Origin-Opener-Policy: unsafe-none');
+header('Cross-Origin-Resource-Policy: cross-origin');
+if (['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
+
+// ── REQUIRES après CORS ───────────────────────────────────────────
+require_once __DIR__ . '/db_config.php';
+if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+    require_once __DIR__ . '/vendor/autoload.php';
+}
+require_once __DIR__ . '/notify_helpers.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 

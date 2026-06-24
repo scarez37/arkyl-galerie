@@ -9173,6 +9173,13 @@ window.enterGallery = function enterGallery() {
                 const result = await resp.json();
 
                 if (result.success && result.data && result.data.length > 0) {
+                    // FIX isolation : verifier que l'artiste n'a pas change pendant l'appel async
+                    const _currentArtistNow = String(currentUser && (currentUser.id || currentUser.googleId || currentUser.email) || '');
+                    if (_currentArtistNow !== _expectedArtistId) {
+                        console.warn('[ISOLATION] Artiste change pendant chargement — donnees ignorees');
+                        _artworksLoading = false;
+                        return;
+                    }
                     console.log(`✅ ${result.data.length} œuvres reçues (offset=${_artworksOffset})`);
                     _artworksRetryCount = 0;
 
@@ -9222,9 +9229,16 @@ window.enterGallery = function enterGallery() {
                             renderArtworks();
                         }
                     } else {
-                        // On a déjà des œuvres en mémoire — conserver, ne pas écraser
+                        // FIX isolation : si reset=true, on efface TOUJOURS db.artworks
+                        // (l'ancienne logique 'conservation' affichait les oeuvres artiste A dans le dashboard artiste B)
+                        if (reset) {
+                            db.artworks = [];
+                            console.warn('[ISOLATION] API vide (cold start?) — oeuvres effacees pour garantir isolation');
+                        } else {
+                            console.warn('[ISOLATION] API vide (pagination) — donnees existantes conservees');
+                        }
                         _artworksHasMore = false;
-                        console.warn('⚠️ API retourne 0 artwork mais db.artworks a des données — conservation des données existantes');
+                        renderArtworks();
                     }
                 }
             } catch(e) {

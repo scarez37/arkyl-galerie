@@ -547,17 +547,37 @@
             const result = await response.json();
 
             if (result.success) {
-                localStorage.setItem('user_id',    result.user_id);
+                const uid = String(result.user_id);
+                const artistAccount = {
+                    id:         uid,
+                    name:       result.user_name,
+                    email:      result.user_email,
+                    country:    data.country || "Côte d'Ivoire",
+                    avatar:     '',
+                    artistName: result.artist_name || result.user_name,
+                    role:       'artist',
+                    isArtist:   true
+                };
+                // ✅ FIX : stocker sous toutes les clés utilisées par app.js
+                localStorage.setItem('user_id',    uid);
                 localStorage.setItem('user_name',  result.user_name);
                 localStorage.setItem('user_email', result.user_email);
-                localStorage.setItem('arkyl_artist_account', JSON.stringify({
-                    id: result.user_id, name: result.user_name,
-                    email: result.user_email, country: data.country || "Côte d'Ivoire",
-                    avatar: '', isArtist: true
-                }));
-                successMsg.textContent = "🎉 " + result.message + " Redirection vers l'espace artiste...";
+                localStorage.setItem(`arkyl_artist_account_${uid}`, JSON.stringify(artistAccount));
+                localStorage.setItem(`arkyl_artist_account_email_${result.user_email.toLowerCase()}`, JSON.stringify(artistAccount));
+                localStorage.setItem('arkyl_artist_account', JSON.stringify(artistAccount));
+                // Mettre à jour arkyl_current_user pour que app.js reconnaisse la session
+                const currentRaw = localStorage.getItem('arkyl_current_user');
+                if (currentRaw) {
+                    try {
+                        const cu = JSON.parse(currentRaw);
+                        cu.isArtist   = true;
+                        cu.artistName = result.artist_name || result.user_name;
+                        localStorage.setItem('arkyl_current_user', JSON.stringify(cu));
+                    } catch(e) {}
+                }
+                successMsg.textContent = "🎉 " + result.message + " Redirection vers votre espace artiste...";
                 successMsg.style.display = 'block';
-                setTimeout(() => { window.location.href = 'index.html?mode=artist'; }, 2000);
+                setTimeout(() => { window.location.href = 'index.php?mode=artist'; }, 2000);
             } else {
                 errorMsg.textContent = "❌ " + result.message;
                 errorMsg.style.display = 'block';

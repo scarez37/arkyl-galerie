@@ -405,24 +405,25 @@
     // ══════════════════════════════════════════════════════════
     (function checkAuth() {
         try {
-            // Chercher la session Google dans localStorage (formats possibles)
-            const rawUser   = localStorage.getItem('arkyl_user')
-                           || localStorage.getItem('arkyl_google_user')
-                           || localStorage.getItem('currentUser');
-            const userId    = localStorage.getItem('user_id');
-            const googleId  = localStorage.getItem('google_id');
+            // ✅ FIX : lire 'arkyl_current_user' (clé réelle utilisée par app.js)
+            // + tous les fallbacks pour couvrir les anciennes sessions
+            const rawUser = localStorage.getItem('arkyl_current_user')
+                         || localStorage.getItem('arkyl_user')
+                         || localStorage.getItem('arkyl_google_user')
+                         || localStorage.getItem('currentUser');
+            const userId  = localStorage.getItem('user_id');
 
             let hasSession = false;
 
             if (rawUser) {
                 try {
                     const u = JSON.parse(rawUser);
-                    // Un compte Google valide a un googleId (sub) et un email
+                    // Session valide = a un id/googleId ET un email
                     if ((u.googleId || u.sub || u.id) && u.email) hasSession = true;
                 } catch(e) {}
             }
-            // Fallback : user_id + google_id stockés séparément
-            if (!hasSession && userId && googleId) hasSession = true;
+            // Fallback : user_id seul suffit (artiste déjà connecté)
+            if (!hasSession && userId) hasSession = true;
 
             if (!hasSession) {
                 // Afficher un écran de blocage avant de rediriger

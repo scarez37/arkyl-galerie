@@ -903,27 +903,63 @@ window.enterGallery = function enterGallery() {
         
 
         // Gestion de l'Espace Artiste (bouton 🎨)
-        function handleArtistSpace() {
-            // Si pas connecté du tout → connexion d'abord
+        async function handleArtistSpace() {
+            // Si pas connecté Google → impossible de créer/accéder au compte artiste
             if (!currentUser) {
-                console.log('➡️ Non connecté — redirection vers connexion.html');
-                window.location.href = 'connexion.html';
+                showToast('⚠️ Connectez-vous avec Google pour accéder à l\'espace artiste.', 'error');
                 return;
             }
 
-            // Chercher le compte artiste (par Google ID puis par email)
-            const hasArtistAccount = getArtistAccount();
-            console.log('🔍 handleArtistSpace — currentUser:', currentUser?.email, '| compte artiste trouvé:', !!hasArtistAccount);
+            console.log('🔍 handleArtistSpace — currentUser:', currentUser?.email);
 
-            if (hasArtistAccount) {
-                console.log('🎨 Activation du mode artiste...');
-                switchToArtistMode();
-                return;
+            // 1. Vérifier en BDD si un compte artiste est lié à ce Google ID / email
+            const google_id = String(currentUser.id || currentUser.googleId || '');
+            const email     = currentUser.email || '';
+
+            try {
+                const resp = await fetch('https://arkyl-galerie-nvwn.onrender.com/auth.php?action=login_google', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ google_id, email })
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    // Compte artiste trouvé en BDD → mettre à jour currentUser et entrer
+                    console.log('🎨 Compte artiste BDD trouvé:', data.artist_name);
+                    currentUser.isArtist    = true;
+                    currentUser.user_id     = data.user_id;
+                    currentUser.artist_id   = data.user_id;
+                    currentUser.artistName  = data.artist_name;
+                    currentUser.role        = 'artist';
+                    safeStorage.set('arkyl_current_user', currentUser);
+                    switchToArtistMode();
+                    return;
+                }
+
+                if (data.not_found) {
+                    // Pas de compte artiste → ouvrir le formulaire d'inscription
+                    console.log('➡️ Aucun compte artiste lié — ouverture inscription');
+                    openArtistRegistration();
+                    return;
+                }
+
+                // Erreur serveur → fallback localStorage si déjà artiste
+                if (currentUser.isArtist) {
+                    switchToArtistMode();
+                    return;
+                }
+                showToast('❌ Erreur serveur: ' + (data.message || 'Réessayez.'), 'error');
+
+            } catch(err) {
+                console.warn('handleArtistSpace — erreur réseau:', err);
+                // Fallback : si déjà marqué artiste localement → laisser passer
+                if (currentUser.isArtist) {
+                    switchToArtistMode();
+                    return;
+                }
+                showToast('⚠️ Serveur indisponible. Réessayez dans quelques secondes.', 'error');
             }
-
-            // Pas de compte artiste → inscription
-            console.log('➡️ Pas de compte artiste — redirection vers connexion.html');
-            window.location.href = 'connexion.html';
         }
 
         // Connexion rapide pour les artistes existants

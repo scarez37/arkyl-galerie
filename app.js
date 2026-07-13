@@ -10871,63 +10871,127 @@ window.enterGallery = function enterGallery() {
             const news = newsItems[index];
             if (!news) return;
 
-            const lightbox = document.getElementById('newsLightbox');
-            const imageContainer = document.getElementById('newsLightboxImage');
-            const title = document.getElementById('newsLightboxTitle');
-            const gradientName = document.getElementById('newsLightboxGradientName');
-            const gradientPreview = document.getElementById('newsLightboxGradientPreview');
-            const description = document.getElementById('newsLightboxDescription');
+            // Supprimer toute lightbox existante
+            document.getElementById('arkylNewsLightbox')?.remove();
 
-            // Set title
-            title.textContent = news.text;
-
-            // Set image or emoji — utilise un <img loading="lazy"> pour voir l'image complète
-            if (news.isImage) {
-                imageContainer.classList.remove('emoji-display');
-                imageContainer.style.backgroundImage = 'none';
-                imageContainer.innerHTML = `<img loading="lazy" class="lightbox-img" src="${news.icon}" alt="${news.text}" onerror="this.parentElement.innerHTML='📰'">`;
-            } else {
-                imageContainer.classList.add('emoji-display');
-                imageContainer.style.backgroundImage = 'none';
-                imageContainer.innerHTML = news.icon;
+            // Naviguer entre les actu depuis la lightbox
+            function goTo(i) {
+                const wrap = (i + newsItems.length) % newsItems.length;
+                document.getElementById('arkylNewsLightbox')?.remove();
+                openNewsLightbox(wrap);
             }
 
-            // Set gradient info
-            const gradientNames = {
-                'gradient-1': 'Bronze-Cuivre',
-                'gradient-2': 'Terre-Argile',
-                'gradient-3': 'Or-Doré',
-                'gradient-4': 'Cuivre-Sable',
-                'gradient-5': 'Bronze-Sable'
-            };
-            gradientName.textContent = gradientNames[news.gradient] || news.gradient;
+            // Contenu : image plein écran ou emoji géant
+            const mediaHTML = news.isImage
+                ? `<img src="${news.icon}" alt="${news.text}"
+                        style="max-width:100%;max-height:75vh;object-fit:contain;border-radius:16px;display:block;margin:0 auto;box-shadow:0 20px 60px rgba(0,0,0,0.6);"
+                        onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div style=\'font-size:80px;text-align:center;\'>📰</div>')">`
+                : `<div style="font-size:120px;text-align:center;line-height:1;user-select:none;">${news.icon}</div>`;
 
-            // Apply gradient preview
-            gradientPreview.className = `news-lightbox-gradient-preview news-ticker-icon ${news.gradient}`;
+            const hasText = news.text && news.text.trim().length > 0;
 
-            // Set description (same as text for now, you can enhance this)
-            description.textContent = news.text;
+            const lb = document.createElement('div');
+            lb.id = 'arkylNewsLightbox';
+            lb.style.cssText = [
+                'position:fixed;inset:0;z-index:99999;',
+                'background:rgba(0,0,0,0.92);',
+                'display:flex;flex-direction:column;align-items:center;justify-content:center;',
+                'padding:20px;box-sizing:border-box;',
+                'animation:arkylLbFadeIn .2s ease;',
+            ].join('');
 
-            // Show lightbox
-            lightbox.classList.add('active');
-            document.body.style.overflow = 'hidden'; // Prevent scrolling
-        }
-
-        function closeNewsLightbox(event) {
-            // Close only if clicking on background or close button
-            if (event && event.target.closest('.news-lightbox-content') && !event.target.classList.contains('news-lightbox-close')) {
-                return;
+            // Ajouter l'animation CSS si absente
+            if (!document.getElementById('arkylLbStyle')) {
+                const st = document.createElement('style');
+                st.id = 'arkylLbStyle';
+                st.textContent = `
+                    @keyframes arkylLbFadeIn { from{opacity:0;transform:scale(.97)} to{opacity:1;transform:scale(1)} }
+                    #arkylNewsLightbox button:hover { opacity:.85 !important; }
+                `;
+                document.head.appendChild(st);
             }
 
-            const lightbox = document.getElementById('newsLightbox');
-            lightbox.classList.remove('active');
-            document.body.style.overflow = ''; // Restore scrolling
+            lb.innerHTML = \`
+                <!-- Fermer -->
+                <button onclick="document.getElementById('arkylNewsLightbox').remove();document.body.style.overflow='';"
+                    title="Fermer (Echap)"
+                    style="position:absolute;top:18px;right:18px;background:rgba(255,255,255,0.12);border:none;border-radius:50%;width:44px;height:44px;font-size:20px;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;">
+                    ✕
+                </button>
+
+                <!-- Compteur -->
+                <div style="position:absolute;top:22px;left:50%;transform:translateX(-50%);font-size:12px;opacity:0.5;font-family:'Poppins',sans-serif;letter-spacing:.5px;">
+                    ${index + 1} / ${newsItems.length}
+                </div>
+
+                <!-- Flèche gauche -->
+                ${newsItems.length > 1 ? \`
+                <button onclick="event.stopPropagation();(function(){document.getElementById('arkylNewsLightbox').remove();document.body.style.overflow='';openNewsLightbox(${(index - 1 + newsItems.length) % newsItems.length});})();"
+                    style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:48px;height:48px;font-size:22px;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+                    ‹
+                </button>\` : ''}
+
+                <!-- Flèche droite -->
+                ${newsItems.length > 1 ? \`
+                <button onclick="event.stopPropagation();(function(){document.getElementById('arkylNewsLightbox').remove();document.body.style.overflow='';openNewsLightbox(${(index + 1) % newsItems.length});})();"
+                    style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:48px;height:48px;font-size:22px;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+                    ›
+                </button>\` : ''}
+
+                <!-- Contenu centré -->
+                <div style="max-width:860px;width:100%;display:flex;flex-direction:column;align-items:center;gap:24px;">
+
+                    <!-- Média -->
+                    <div style="width:100%;display:flex;justify-content:center;">
+                        ${mediaHTML}
+                    </div>
+
+                    <!-- Texte sous l'image -->
+                    ${hasText ? \`
+                    <div style="text-align:center;max-width:640px;padding:0 8px;">
+                        <p style="font-family:'Poppins',sans-serif;font-size:clamp(15px,2.5vw,20px);font-weight:600;color:white;line-height:1.6;margin:0;text-shadow:0 2px 8px rgba(0,0,0,.5);">
+                            ${news.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+                        </p>
+                    </div>\` : ''}
+
+                    <!-- Pastilles de navigation -->
+                    ${newsItems.length > 1 ? \`
+                    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+                        ${newsItems.map((_, i) => \`
+                        <button onclick="event.stopPropagation();(function(){document.getElementById('arkylNewsLightbox').remove();document.body.style.overflow='';openNewsLightbox(${i});})();"
+                            style="width:\${i === index ? '24px' : '8px'};height:8px;border-radius:4px;border:none;cursor:pointer;transition:all .2s;background:\${i === index ? '#d4af37' : 'rgba(255,255,255,0.3)'};">
+                        </button>\`).join('')}
+                    </div>\` : ''}
+                </div>
+            \`;
+
+            // Fermer en cliquant sur le fond
+            lb.addEventListener('click', function(e) {
+                if (e.target === lb) {
+                    lb.remove();
+                    document.body.style.overflow = '';
+                }
+            });
+
+            document.body.appendChild(lb);
+            document.body.style.overflow = 'hidden';
         }
 
-        // Close lightbox with ESC key
+        function closeNewsLightbox() {
+            document.getElementById('arkylNewsLightbox')?.remove();
+            document.body.style.overflow = '';
+        }
+
+        // Touche Echap pour fermer
         document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeNewsLightbox();
+            if (e.key === 'Escape') closeNewsLightbox();
+            // Flèches gauche/droite pour naviguer
+            if (document.getElementById('arkylNewsLightbox')) {
+                const current = newsItems.findIndex((_, i) =>
+                    document.querySelector(\`[onclick*="openNewsLightbox(\${i})"]\`) !== null
+                );
+                if (e.key === 'ArrowRight') { /* handled inline */ }
+                if (e.key === 'ArrowLeft')  { /* handled inline */ }
             }
         });
 

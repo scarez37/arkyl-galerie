@@ -8564,56 +8564,99 @@ window.enterGallery = function enterGallery() {
         }
 
         // --- Submit ---
-        function submitArtistRegistration() {
-            // Gather data
-            const accountData = {
-                name:     document.getElementById('reg-name').value.trim(),
-                email:    document.getElementById('reg-email').value.trim(),
-                phone:    document.getElementById('reg-phone').value.trim(),
-                country:  document.getElementById('reg-country').value,
-                avatar:   window.tempRegAvatar || null,
-                specialty:[...document.querySelectorAll('.specialty-chip.selected')].map(c => c.textContent.trim()),
-                bio:      document.getElementById('reg-bio').value.trim(),
-                createdAt: new Date().toISOString()
-            };
+        async function submitArtistRegistration() {
+            // ── Vérification : compte Google obligatoire ─────────────
+            if (!currentUser || (!currentUser.id && !currentUser.googleId)) {
+                showToast('⚠️ Connectez-vous avec Google avant de créer un compte artiste.', 'error');
+                return;
+            }
 
-            // Simulate a brief loading delay for realism
+            // ── Collecte des données du formulaire ───────────────────
+            const name        = document.getElementById('reg-name')?.value.trim() || '';
+            const email       = document.getElementById('reg-email')?.value.trim() || currentUser.email || '';
+            const phone       = document.getElementById('reg-phone')?.value.trim() || '';
+            const country     = document.getElementById('reg-country')?.value || "Côte d'Ivoire";
+            const bio         = document.getElementById('reg-bio')?.value.trim() || '';
+            const specialty   = [...document.querySelectorAll('.specialty-chip.selected')].map(c => c.textContent.trim());
+            const avatar      = window.tempRegAvatar || currentUser.picture || null;
+            const google_id   = String(currentUser.id || currentUser.googleId || '');
+            const artist_name = name;
+
+            if (!name || !email) {
+                showToast('⚠️ Nom et email sont obligatoires.', 'error');
+                return;
+            }
+
             const btn = document.querySelector('#regStep3 .reg-btn-next:last-child');
-            btn.textContent = 'Création en cours...';
-            btn.disabled = true;
+            if (btn) { btn.textContent = 'Création en cours...'; btn.disabled = true; }
 
-            setTimeout(() => {
-                // Sauvegarder sous la clé Google si connecté, PLUS toujours sous la clé email (fallback)
-                const emailKey = `arkyl_artist_account_email_${accountData.email.toLowerCase()}`;
-                safeStorage.set(emailKey, accountData);
-                if (currentUser && currentUser.id) {
-                    safeStorage.set(`arkyl_artist_account_${currentUser.id}`, accountData);
+            try {
+                // ── Appel API serveur (plus de localStorage seul) ────
+                const resp = await fetch('https://arkyl-galerie-nvwn.onrender.com/auth.php?action=register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name, artist_name, email, phone, bio,
+                        specialty, country, avatar, google_id
+                    })
+                });
+
+                const result = await resp.json();
+                console.log('[Register] Réponse serveur:', result);
+
+                if (!result.success) {
+                    showToast('❌ ' + (result.message || 'Erreur inscription'), 'error');
+                    if (btn) { btn.textContent = 'Créer mon compte'; btn.disabled = false; }
+                    return;
                 }
 
-                // Lier les comptes si connecté Google avec le même email
-                if (currentUser && currentUser.email === accountData.email) {
-                    currentUser.isArtist = true;
-                    currentUser.artistName = accountData.name;
-                    safeStorage.set('arkyl_current_user', currentUser);
-                    console.log('✅ Compte Google lié au compte artiste:', accountData.name);
-                }
+                // ── Succès : mettre à jour currentUser avec les infos artiste ──
+                currentUser.isArtist    = true;
+                currentUser.artistName  = result.artist_name || name;
+                currentUser.user_id     = result.user_id;
+                currentUser.artist_id   = result.user_id;
+                currentUser.role        = 'artist';
+                safeStorage.set('arkyl_current_user', currentUser);
+                console.log('✅ Compte artiste créé en BDD, lié à Google:', google_id);
 
-                // Show success step
+                // ── Afficher l'étape succès ──────────────────────────
                 document.querySelectorAll('.reg-step-panel').forEach(p => p.classList.remove('active'));
                 document.getElementById('regStep4').classList.add('active');
-
-                // Update stepper: all done
                 for (let i = 1; i <= 3; i++) {
                     const dot = document.getElementById('stepDot' + i);
-                    dot.classList.remove('active');
-                    dot.classList.add('done');
+                    if (dot) { dot.classList.remove('active'); dot.classList.add('done'); }
                 }
                 document.querySelectorAll('.reg-step-line').forEach(l => l.classList.add('done'));
-            }, 1200);
+
+            } catch(err) {
+                console.error('[Register] Erreur réseau:', err);
+                showToast('❌ Erreur réseau. Vérifiez votre connexion.', 'error');
+                if (btn) { btn.textContent = 'Créer mon compte'; btn.disabled = false; }
+            }
         }
 
-        function goToArtistSpace() {
+        async function goToArtistSpace() {
             closeArtistRegistration();
+            // Vérifier que le compte artiste Google existe en BDD avant de switcher
+            if (currentUser && (currentUser.id || currentUser.googleId)) {
+                const google_id = String(currentUser.id || currentUser.googleId);
+                try {
+                    const r = await fetch('https://arkyl-galerie-nvwn.onrender.com/auth.php?action=login_google', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ google_id, email: currentUser.email })
+                    });
+                    const data = await r.json();
+                    if (data.success) {
+                        currentUser.isArtist   = true;
+                        currentUser.user_id    = data.user_id;
+                        currentUser.artist_id  = data.user_id;
+                        currentUser.artistName = data.artist_name;
+                        currentUser.role       = 'artist';
+                        safeStorage.set('arkyl_current_user', currentUser);
+                    }
+                } catch(e) { console.warn('goToArtistSpace check:', e); }
+            }
             switchToArtistMode();
         }
 

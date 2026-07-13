@@ -12423,8 +12423,13 @@ window.enterGallery = function enterGallery() {
                 const elVerses = document.getElementById('treso-artistes-verses');
                 if (elVerses) elVerses.textContent = fmt(totalArtistesVerses);
 
-                // Paiements urgents = commandes livrées et confirmées, fonds pas encore libérés
-                const urgents = commandes.filter(o => o.escrow_status === 'livrée_confirmée');
+                // ✅ BUG 3 FIX : urgents = 'livrée_confirmée' OU anciennes commandes
+                // 'fonds_libérés' mises directement sans passer par liberer_fonds admin
+                const urgents = commandes.filter(o =>
+                    o.escrow_status === 'livrée_confirmée' ||
+                    // Anciennes commandes : escrow=fonds_libérés mais pas de virement admin enregistré
+                    (o.escrow_status === 'fonds_libérés' && !o.payout_done)
+                );
                 const conteneurPaiements = document.getElementById('liste-paiements-urgents');
 
                 if (urgents.length === 0) {
@@ -12455,13 +12460,13 @@ window.enterGallery = function enterGallery() {
                         })();
                         const transport = parseFloat(cmd.shipping_cost || 0).toLocaleString('fr-FR');
 
-                        // Extraire le nom artiste depuis les items de la commande
-                        const artisteNom = (() => {
-                            if (cmd.items && Array.isArray(cmd.items) && cmd.items.length > 0) {
-                                return cmd.items[0].artist_name || cmd.items[0].artist || cmd.artist_id || '—';
-                            }
+                        // Extraire le nom + contact artiste depuis les items
+                        const artisteNom   = (() => {
+                            if (cmd.items?.length > 0) return cmd.items[0].artist_name || cmd.items[0].artist || '—';
                             return cmd.artist_id || '—';
                         })();
+                        const artisteEmail = cmd.items?.[0]?.artist_email || '';
+                        const artistePhone = cmd.items?.[0]?.artist_phone || '';
 
                         html += `
                             <tr style="border-bottom: 1px solid #333;">
@@ -12469,7 +12474,8 @@ window.enterGallery = function enterGallery() {
                                 <td style="padding:8px;">${dateFR}</td>
                                 <td style="padding:8px;">
                                     <div style="font-weight:700;">${artisteNom}</div>
-                                    ${cmd.artist_id ? `<div style="font-size:10px;opacity:0.45;margin-top:2px;">ID: ${cmd.artist_id}</div>` : ''}
+                                    ${artistePhone ? `<div style="font-size:12px;color:#4caf50;font-weight:600;margin-top:3px;">📱 ${artistePhone}</div>` : ''}
+                                    ${artisteEmail ? `<div style="font-size:11px;color:#90caf9;margin-top:2px;">✉️ ${artisteEmail}</div>` : ''}
                                 </td>
                                 <td style="padding:8px;">
                                     <div style="font-size:12px;opacity:0.7;">${cmd.items && cmd.items.length > 0 ? cmd.items.map(i => i.title||'—').join(', ') : '—'}</div>
@@ -12607,7 +12613,7 @@ window.enterGallery = function enterGallery() {
                     <h2 style="font-size:20px;font-weight:800;color:#d4af37;margin-bottom:6px;">💸 Confirmer le virement artiste</h2>
                     <p style="font-size:13px;opacity:0.6;margin-bottom:24px;">Cette action est irréversible et notifie l'artiste immédiatement.</p>
 
-                    <!-- Récap commande -->
+                    <!-- Récap commande + contact artiste -->
                     <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:16px;margin-bottom:20px;font-size:13px;line-height:2;">
                         <div>📦 <strong>${orderNum}</strong> · Client : ${clientNom}</div>
                         <div>🎨 Œuvres : ${items}</div>
@@ -12617,6 +12623,26 @@ window.enterGallery = function enterGallery() {
                             💰 <strong>Total à virer : <span style="color:#4caf50;font-size:18px;">${montantAffiche}</span></strong>
                         </div>
                     </div>
+
+                    <!-- Coordonnées de paiement artiste -->
+                    ${(cmd.items?.[0]?.artist_phone || cmd.items?.[0]?.artist_email) ? `
+                    <div style="background:rgba(76,175,80,0.08);border:1.5px solid rgba(76,175,80,0.35);border-radius:14px;padding:14px 16px;margin-bottom:20px;">
+                        <div style="font-size:11px;font-weight:700;color:#81c784;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">📲 Coordonnées de l'artiste</div>
+                        ${cmd.items[0].artist_phone ? `
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                            <span style="font-size:13px;opacity:0.7;">📱 Téléphone / Mobile Money</span>
+                            <strong style="color:#4caf50;font-size:15px;letter-spacing:1px;">${cmd.items[0].artist_phone}</strong>
+                        </div>` : ''}
+                        ${cmd.items[0].artist_email ? `
+                        <div style="display:flex;align-items:center;justify-content:space-between;">
+                            <span style="font-size:13px;opacity:0.7;">✉️ Email</span>
+                            <span style="color:#90caf9;font-size:13px;">${cmd.items[0].artist_email}</span>
+                        </div>` : ''}
+                        <p style="font-size:11px;color:#aaa;margin:10px 0 0;">Utilisez ces informations pour effectuer le virement Wave/OM/MTN.</p>
+                    </div>` : `
+                    <div style="background:rgba(255,152,0,0.08);border:1px solid rgba(255,152,0,0.3);border-radius:14px;padding:12px 16px;margin-bottom:20px;">
+                        <div style="font-size:12px;color:#ffb74d;">⚠️ Coordonnées de paiement non renseignées pour cet artiste.<br>Vérifiez son profil ou contactez-le par email.</div>
+                    </div>`}
 
                     <!-- Moyen de paiement -->
                     <label style="font-size:12px;font-weight:700;opacity:0.7;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Moyen de paiement</label>
@@ -12696,6 +12722,7 @@ window.enterGallery = function enterGallery() {
             const montantText = row?.cells?.[3]?.textContent?.trim()?.split(' ')[0] || '?';
             ouvrirModalePaiement(orderId, artistName, montantText);
         }
+
 
 
 

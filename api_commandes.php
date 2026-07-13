@@ -379,6 +379,53 @@ function handleApiGet() {
             return;
         }
 
+        // ── action=get_client_notifications ──────────────────────
+        // Notifs pour l'acheteur (expédition, fonds libérés)
+        if ($action === 'get_client_notifications') {
+            $req_uid = trim($_GET['user_id'] ?? '');
+            if (!$req_uid) {
+                echo json_encode(['success' => false, 'error' => 'user_id requis']);
+                return;
+            }
+            try {
+                $db->exec("
+                    CREATE TABLE IF NOT EXISTS client_notifications (
+                        id SERIAL PRIMARY KEY, user_id VARCHAR(255),
+                        type VARCHAR(100) DEFAULT 'shipped',
+                        order_id INTEGER, order_number VARCHAR(255),
+                        title VARCHAR(255), message TEXT,
+                        is_read BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    )
+                ");
+                $cn = $db->prepare("
+                    SELECT * FROM client_notifications
+                    WHERE user_id::text = :uid
+                    ORDER BY created_at DESC LIMIT 20
+                ");
+                $cn->execute([':uid' => $req_uid]);
+                $notifs = $cn->fetchAll(PDO::FETCH_ASSOC);
+                $unread = count(array_filter($notifs, fn($n) => !$n['is_read']));
+                echo json_encode(['success' => true, 'notifications' => $notifs, 'unread_count' => $unread]);
+            } catch (Exception $cnEx) {
+                echo json_encode(['success' => true, 'notifications' => [], 'unread_count' => 0]);
+            }
+            return;
+        }
+
+        // ── action=mark_client_notifications_read ─────────────────
+        if ($action === 'mark_client_notifications_read') {
+            $req_uid = trim($_GET['user_id'] ?? '');
+            if ($req_uid) {
+                try {
+                    $db->prepare("UPDATE client_notifications SET is_read = TRUE WHERE user_id::text = :uid")
+                       ->execute([':uid' => $req_uid]);
+                } catch (Exception $e) {}
+            }
+            echo json_encode(['success' => true]);
+            return;
+        }
+
         echo json_encode(['success' => false, 'error' => "Action '$action' inconnue"]);
 
     } catch (Exception $e) {
@@ -623,6 +670,42 @@ function handleApiPost() {
                 if ($fullOrder) $fullOrder['timeline'] = json_decode($fullOrder['timeline'] ?? '[]', true) ?: [];
             }
 
+            // ✅ FIX BUG 1+2 : notifier le client acheteur que son colis est parti
+            if ($row) {
+                // Notification BDD pour le client (dans artist_notifications réutilisée)
+                // On crée une table client_notifications si besoin
+                try {
+                    $db->exec("
+                        CREATE TABLE IF NOT EXISTS client_notifications (
+                            id           SERIAL PRIMARY KEY,
+                            user_id      VARCHAR(255),
+                            type         VARCHAR(100) DEFAULT 'shipped',
+                            order_id     INTEGER,
+                            order_number VARCHAR(255),
+                            title        VARCHAR(255),
+                            message      TEXT,
+                            is_read      BOOLEAN DEFAULT FALSE,
+                            created_at   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ");
+                    $clientNotif = $db->prepare("
+                        INSERT INTO client_notifications (user_id, type, order_id, order_number, title, message)
+                        VALUES (:uid, 'shipped', :oid, :onum, :title, :msg)
+                    ");
+                    $clientNotif->execute([
+                        ':uid'   => $fullOrder['user_id'] ?? '',
+                        ':oid'   => $row['id'],
+                        ':onum'  => $row['order_number'] ?? '',
+                        ':title' => '🚚 Votre commande est en route !',
+                        ':msg'   => 'Bonne nouvelle ! Votre commande ' . ($row['order_number'] ?? '') . ' a été expédiée.'
+                            . ($tracking ? ' N° de suivi : ' . $tracking : '')
+                            . ' Vous pouvez confirmer la réception une fois le colis arrivé.',
+                    ]);
+                } catch (Exception $clientEx) {
+                    error_log('⚠️ Notification client expédition : ' . $clientEx->getMessage());
+                }
+            }
+
             echo json_encode(['success' => (bool)$row, 'order' => $fullOrder ?? $row]);
             return;
         }
@@ -637,16 +720,23 @@ function handleApiPost() {
                 return;
             }
 
+            // ✅ FIX BUG 3 : user_id peut être un Google Sub (string) ou un entier BDD
+            // On cast les deux côtés en TEXT pour la comparaison
             $stmt = $db->prepare("
                 UPDATE orders SET
                     status = 'Livrée',
-                    escrow_status = 'fonds_libérés',
+                    escrow_status = 'livrée_confirmée',
                     updated_at = CURRENT_TIMESTAMP
-                WHERE (id = :oid OR order_number = :onum)
-                  AND (user_id = :uid OR :uid = '')
-                RETURNING id, order_number
+                WHERE (id::text = :oid OR order_number = :onum)
+                  AND (:uid = '' OR user_id::text = :uid2)
+                RETURNING id, order_number, user_id, user_email, user_name
             ");
-            $stmt->execute([':oid' => $order_id, ':onum' => $order_id, ':uid' => $user_id]);
+            $stmt->execute([
+                ':oid'  => (string)$order_id,
+                ':onum' => (string)$order_id,
+                ':uid'  => (string)$user_id,
+                ':uid2' => (string)$user_id,
+            ]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($row) {
@@ -656,7 +746,6 @@ function handleApiPost() {
                 ")->execute([':oid' => $row['id']]);
 
                 // ── Notifier l'artiste que le client a confirmé la réception ──
-                // Récupérer les infos commande + artiste pour la notification
                 try {
                     $db->exec("
                         CREATE TABLE IF NOT EXISTS artist_notifications (
@@ -1400,6 +1489,7 @@ try {
     echo json_encode(['received' => true]);
 } // end handleStripeWebhook
 ?>
+
 
 
 

@@ -10911,7 +10911,7 @@ window.enterGallery = function enterGallery() {
                 document.head.appendChild(st);
             }
 
-            lb.innerHTML = \`
+            lb.innerHTML = `
                 <!-- Fermer -->
                 <button onclick="document.getElementById('arkylNewsLightbox').remove();document.body.style.overflow='';"
                     title="Fermer (Echap)"
@@ -10925,18 +10925,18 @@ window.enterGallery = function enterGallery() {
                 </div>
 
                 <!-- Flèche gauche -->
-                ${newsItems.length > 1 ? \`
+                ${newsItems.length > 1 ? `
                 <button onclick="event.stopPropagation();(function(){document.getElementById('arkylNewsLightbox').remove();document.body.style.overflow='';openNewsLightbox(${(index - 1 + newsItems.length) % newsItems.length});})();"
                     style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:48px;height:48px;font-size:22px;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">
                     ‹
-                </button>\` : ''}
+                </button>` : ''}
 
                 <!-- Flèche droite -->
-                ${newsItems.length > 1 ? \`
+                ${newsItems.length > 1 ? `
                 <button onclick="event.stopPropagation();(function(){document.getElementById('arkylNewsLightbox').remove();document.body.style.overflow='';openNewsLightbox(${(index + 1) % newsItems.length});})();"
                     style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:48px;height:48px;font-size:22px;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">
                     ›
-                </button>\` : ''}
+                </button>` : ''}
 
                 <!-- Contenu centré -->
                 <div style="max-width:860px;width:100%;display:flex;flex-direction:column;align-items:center;gap:24px;">
@@ -10947,23 +10947,23 @@ window.enterGallery = function enterGallery() {
                     </div>
 
                     <!-- Texte sous l'image -->
-                    ${hasText ? \`
+                    ${hasText ? `
                     <div style="text-align:center;max-width:640px;padding:0 8px;">
                         <p style="font-family:'Poppins',sans-serif;font-size:clamp(15px,2.5vw,20px);font-weight:600;color:white;line-height:1.6;margin:0;text-shadow:0 2px 8px rgba(0,0,0,.5);">
                             ${news.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}
                         </p>
-                    </div>\` : ''}
+                    </div>` : ''}
 
                     <!-- Pastilles de navigation -->
-                    ${newsItems.length > 1 ? \`
+                    ${newsItems.length > 1 ? `
                     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-                        ${newsItems.map((_, i) => \`
+                        ${newsItems.map((_, i) => `
                         <button onclick="event.stopPropagation();(function(){document.getElementById('arkylNewsLightbox').remove();document.body.style.overflow='';openNewsLightbox(${i});})();"
                             style="width:\${i === index ? '24px' : '8px'};height:8px;border-radius:4px;border:none;cursor:pointer;transition:all .2s;background:\${i === index ? '#d4af37' : 'rgba(255,255,255,0.3)'};">
-                        </button>\`).join('')}
-                    </div>\` : ''}
+                        </button>`).join('')}
+                    </div>` : ''}
                 </div>
-            \`;
+            `;
 
             // Fermer en cliquant sur le fond
             lb.addEventListener('click', function(e) {
@@ -10988,7 +10988,7 @@ window.enterGallery = function enterGallery() {
             // Flèches gauche/droite pour naviguer
             if (document.getElementById('arkylNewsLightbox')) {
                 const current = newsItems.findIndex((_, i) =>
-                    document.querySelector(\`[onclick*="openNewsLightbox(\${i})"]\`) !== null
+                    document.querySelector(`[onclick*="openNewsLightbox(\${i})"]`) !== null
                 );
                 if (e.key === 'ArrowRight') { /* handled inline */ }
                 if (e.key === 'ArrowLeft')  { /* handled inline */ }

@@ -75,7 +75,7 @@
                 <span class="slogan-line line2">L'art en <span class="slogan-highlight">mouvement</span></span>
             </div>
             <p class="intro-subtitle">La Galerie d'Art Africain</p>
-            <button class="enter-button" onclick="enterGallery()">
+            <button class="enter-button" onclick="if(typeof enterGallery === 'function') { enterGallery(); } else { console.warn('enterGallery function not yet loaded'); }">
                 <span class="button-text">Entrer dans la galerie </span>
             </button>
         </div>

@@ -161,16 +161,18 @@ function handleApiGet() {
                     COALESCE(
                         json_agg(
                             json_build_object(
-                                'id',          oi.id,
-                                'artwork_id',  oi.artwork_id,
-                                'title',       oi.title,
-                                'artist',      oi.artist_name,
-                                'artist_name', oi.artist_name,
-                                'artist_id',   oi.artist_id,
-                                'price',       oi.price,
-                                'quantity',    oi.quantity,
-                                'image',       oi.image_url,
-                                'image_url',   oi.image_url
+                                'id',           oi.id,
+                                'artwork_id',   oi.artwork_id,
+                                'title',        oi.title,
+                                'artist',       oi.artist_name,
+                                'artist_name',  oi.artist_name,
+                                'artist_id',    oi.artist_id,
+                                'price',        oi.price,
+                                'quantity',     oi.quantity,
+                                'image',        oi.image_url,
+                                'image_url',    oi.image_url,
+                                'artist_email', a.email,
+                                'artist_phone', a.phone
                             )
                         ) FILTER (WHERE oi.id IS NOT NULL),
                         '[]'
@@ -192,6 +194,7 @@ function handleApiGet() {
                     ) AS timeline
                 FROM orders o
                 LEFT JOIN order_items oi ON oi.order_id = o.id
+                LEFT JOIN artists a ON a.id::text = oi.artist_id
                 $whereSQL
                 GROUP BY o.id
                 ORDER BY o.created_at DESC
@@ -855,16 +858,15 @@ function handleApiPost() {
                 return;
             }
 
-            // Récupérer la commande pour notifier l'artiste
+            // ✅ FIX BUG 1 : récupérer la commande + TOUS les artistes impliqués
             $orderStmt = $db->prepare("
-                SELECT o.id, o.order_number, o.user_name, o.artist_payout, o.shipping_cost,
-                       oi.artist_id, oi.artist_name
+                SELECT o.id, o.order_number, o.user_name, o.user_id,
+                       o.artist_payout, o.shipping_cost
                 FROM orders o
-                LEFT JOIN order_items oi ON oi.order_id = o.id
-                WHERE o.id = :oid OR o.order_number = :onum
+                WHERE o.id::text = :oid OR o.order_number = :onum
                 LIMIT 1
             ");
-            $orderStmt->execute([':oid' => $order_id, ':onum' => $order_id]);
+            $orderStmt->execute([':oid' => (string)$order_id, ':onum' => (string)$order_id]);
             $orderData = $orderStmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$orderData) {
@@ -872,13 +874,28 @@ function handleApiPost() {
                 return;
             }
 
-            $dbOrderId  = $orderData['id'];
-            $orderNum   = $orderData['order_number'];
-            $artistId   = $orderData['artist_id'];
-            $artistName = $orderData['artist_name'];
-            $payout     = floatval($orderData['artist_payout'] ?? 0);
-            $shipping   = floatval($orderData['shipping_cost'] ?? 0);
+            $dbOrderId = $orderData['id'];
+            $orderNum  = $orderData['order_number'];
+            $payout    = floatval($orderData['artist_payout'] ?? 0);
+            $shipping  = floatval($orderData['shipping_cost'] ?? 0);
             $totalVerse = $payout + $shipping;
+
+            // Récupérer TOUS les artistes distincts de la commande + leur contact
+            $artistsStmt = $db->prepare("
+                SELECT DISTINCT oi.artist_id, oi.artist_name,
+                       a.email AS artist_email, a.phone AS artist_phone,
+                       SUM(oi.price * oi.quantity) AS items_total
+                FROM order_items oi
+                LEFT JOIN artists a ON a.id::text = oi.artist_id
+                WHERE oi.order_id = :oid AND oi.artist_id IS NOT NULL
+                GROUP BY oi.artist_id, oi.artist_name, a.email, a.phone
+            ");
+            $artistsStmt->execute([':oid' => $dbOrderId]);
+            $allArtists = $artistsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Pour la compatibilité avec le code suivant : prendre le 1er artiste comme référence
+            $artistId   = $allArtists[0]['artist_id']   ?? null;
+            $artistName = $allArtists[0]['artist_name']  ?? null;
 
             // 1. Mettre à jour le statut de la commande
             $db->prepare("
@@ -898,49 +915,19 @@ function handleApiPost() {
                 VALUES (:oid, 'Fonds libérés', :note, 'admin')
             ")->execute([':oid' => $dbOrderId, ':note' => $noteTimeline]);
 
-            // 3. Enregistrer dans artist_payments (table de traçabilité)
+            // 3+4. Enregistrer UN paiement PAR artiste + notifier chacun ─────────
             try {
                 $db->exec("
                     CREATE TABLE IF NOT EXISTS artist_payments (
-                        id SERIAL PRIMARY KEY,
-                        order_id INTEGER,
-                        order_number VARCHAR(255),
-                        artist_id VARCHAR(255),
-                        artist_name VARCHAR(255),
-                        amount_artwork NUMERIC(12,2) DEFAULT 0,
-                        amount_shipping NUMERIC(12,2) DEFAULT 0,
-                        amount_total NUMERIC(12,2) DEFAULT 0,
-                        payment_method VARCHAR(255),
-                        payment_reference VARCHAR(255),
-                        payment_note TEXT,
-                        paid_by VARCHAR(255),
+                        id SERIAL PRIMARY KEY, order_id INTEGER, order_number VARCHAR(255),
+                        artist_id VARCHAR(255), artist_name VARCHAR(255),
+                        amount_artwork NUMERIC(12,2) DEFAULT 0, amount_shipping NUMERIC(12,2) DEFAULT 0,
+                        amount_total NUMERIC(12,2) DEFAULT 0, payment_method VARCHAR(255),
+                        payment_reference VARCHAR(255), payment_note TEXT, paid_by VARCHAR(255),
                         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                     )
                 ");
-                $db->prepare("
-                    INSERT INTO artist_payments
-                        (order_id, order_number, artist_id, artist_name, amount_artwork, amount_shipping, amount_total, payment_method, payment_reference, payment_note, paid_by)
-                    VALUES
-                        (:oid, :onum, :aid, :aname, :amt_art, :amt_ship, :amt_total, :method, :ref, :note, :by)
-                ")->execute([
-                    ':oid'      => $dbOrderId,
-                    ':onum'     => $orderNum,
-                    ':aid'      => $artistId,
-                    ':aname'    => $artistName,
-                    ':amt_art'  => $payout,
-                    ':amt_ship' => $shipping,
-                    ':amt_total'=> $totalVerse,
-                    ':method'   => $payment_method,
-                    ':ref'      => $payment_reference,
-                    ':note'     => $payment_note,
-                    ':by'       => $paid_by,
-                ]);
-            } catch (Exception $e) {
-                error_log("⚠️ artist_payments insert: " . $e->getMessage());
-            }
-
-            // 4. Notifier l'artiste via artist_notifications
-            try {
+                // S'assurer que artist_notifications est à jour
                 $db->exec("
                     CREATE TABLE IF NOT EXISTS artist_notifications (
                         id SERIAL PRIMARY KEY, artist_id VARCHAR(255), artist_name VARCHAR(255),
@@ -950,21 +937,58 @@ function handleApiPost() {
                     )
                 ");
                 try { $db->exec("ALTER TABLE artist_notifications ADD COLUMN IF NOT EXISTS type VARCHAR(100) DEFAULT 'new_order'"); } catch (Exception $ex) {}
+
                 $methodLabel = $payment_method ?: 'virement';
                 $refLabel    = $payment_reference ? " (Réf: $payment_reference)" : '';
-                $db->prepare("
-                    INSERT INTO artist_notifications (artist_id, artist_name, type, order_id, order_number, title, message)
-                    VALUES (:aid, :aname, 'fonds_liberes', :oid, :onum, :title, :message)
-                ")->execute([
-                    ':aid'     => $artistId,
-                    ':aname'   => $artistName,
-                    ':oid'     => $dbOrderId,
-                    ':onum'    => $orderNum,
-                    ':title'   => '💰 Fonds virés — ' . number_format($totalVerse, 0, ',', ' ') . ' FCFA',
-                    ':message' => "L'admin a confirmé le virement de " . number_format($totalVerse, 0, ',', ' ') . " FCFA pour la commande #{$orderNum} via {$methodLabel}{$refLabel}.",
-                ]);
+                $nbArtists   = count($allArtists);
+
+                foreach ($allArtists as $art) {
+                    $aId       = $art['artist_id'];
+                    $aName     = $art['artist_name'];
+                    // Payout proportionnel : si plusieurs artistes, on divise équitablement
+                    // (cas rare — en général 1 artiste par commande)
+                    $artItems  = floatval($art['items_total'] ?? 0);
+                    $artPayout = $nbArtists > 1
+                        ? round($payout * ($artItems / max(1, $artItems)) )
+                        : $payout;
+                    $artShip   = $nbArtists > 1
+                        ? round($shipping / $nbArtists)
+                        : $shipping;
+                    $artTotal  = $artPayout + $artShip;
+
+                    // Enregistrer dans artist_payments
+                    $db->prepare("
+                        INSERT INTO artist_payments
+                            (order_id, order_number, artist_id, artist_name,
+                             amount_artwork, amount_shipping, amount_total,
+                             payment_method, payment_reference, payment_note, paid_by)
+                        VALUES
+                            (:oid, :onum, :aid, :aname,
+                             :amt_art, :amt_ship, :amt_total,
+                             :method, :ref, :note, :by)
+                    ")->execute([
+                        ':oid' => $dbOrderId, ':onum' => $orderNum,
+                        ':aid' => $aId, ':aname' => $aName,
+                        ':amt_art' => $artPayout, ':amt_ship' => $artShip, ':amt_total' => $artTotal,
+                        ':method' => $payment_method, ':ref' => $payment_reference,
+                        ':note' => $payment_note, ':by' => $paid_by,
+                    ]);
+
+                    // Notifier l'artiste
+                    $db->prepare("
+                        INSERT INTO artist_notifications
+                            (artist_id, artist_name, type, order_id, order_number, title, message)
+                        VALUES (:aid, :aname, 'fonds_liberes', :oid, :onum, :title, :message)
+                    ")->execute([
+                        ':aid'   => $aId, ':aname' => $aName,
+                        ':oid'   => $dbOrderId, ':onum' => $orderNum,
+                        ':title' => '💰 Fonds virés — ' . number_format($artTotal, 0, ',', ' ') . ' FCFA',
+                        ':message' => "L'admin a confirmé le virement de " . number_format($artTotal, 0, ',', ' ')
+                            . " FCFA pour la commande #{$orderNum} via {$methodLabel}{$refLabel}.",
+                    ]);
+                }
             } catch (Exception $e) {
-                error_log("⚠️ Notification artiste (liberer_fonds): " . $e->getMessage());
+                error_log("⚠️ artist_payments/notif liberer_fonds: " . $e->getMessage());
             }
 
             echo json_encode(['success' => true, 'order_number' => $orderNum, 'amount' => $totalVerse]);
@@ -1489,6 +1513,7 @@ try {
     echo json_encode(['received' => true]);
 } // end handleStripeWebhook
 ?>
+
 
 
 

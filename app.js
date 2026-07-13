@@ -1031,6 +1031,11 @@ window.enterGallery = function enterGallery() {
                 setTimeout(() => { goToAdmin(); }, 1500);
             } else {
                 showToast(successMessage);
+                // ✅ FIX Bug 5b : démarrer le polling notifs selon le rôle
+                if (!userData.isArtist) {
+                    // Client acheteur → poll notifications d'expédition
+                    startClientNotifPolling();
+                }
             }
         }
 
@@ -3310,6 +3315,8 @@ window.enterGallery = function enterGallery() {
             ).join('');
 
             // ── Barre de progression escrow ──────────────────────────────────
+            // ✅ FIX BUG 4 : normaliser escrow_status avant affichage
+            const esNorm = es === 'fonds_libérés' ? 'livrée_confirmée' : es;
             const escrowSteps = [
                 { key: 'payée_en_attente', icon: '💳', label: 'Payée'        },
                 { key: 'expédiée',         icon: '🚚', label: 'Expédiée'     },
@@ -4802,7 +4809,7 @@ window.enterGallery = function enterGallery() {
                 { key: 'fonds_libérés',    icon: '✅', label: 'Transaction complète' },
             ];
             const escrowOrder = ['payée_en_attente','expédiée','livrée_confirmée','fonds_libérés'];
-            const stepIdx = escrowOrder.indexOf(es);
+            const stepIdx = escrowOrder.indexOf(esNorm);
 
             // Timeline détaillée depuis le serveur
             const serverTimeline = (order.timeline || []).map(t => `
@@ -5088,6 +5095,8 @@ window.enterGallery = function enterGallery() {
             const myRevenue = myItems.reduce((s,i) => s + (parseFloat(i.price)||0)*(i.quantity||1), 0);
 
             // ── Étapes visuelles ──────────────────────────────────────────
+            // ✅ FIX BUG 4 : normaliser escrow_status avant affichage
+            const esNorm = es === 'fonds_libérés' ? 'livrée_confirmée' : es;
             const escrowSteps = [
                 { key: 'payée_en_attente', icon: '💳', label: 'Payée'        },
                 { key: 'expédiée',         icon: '🚚', label: 'Expédiée'     },
@@ -5095,7 +5104,7 @@ window.enterGallery = function enterGallery() {
                 { key: 'fonds_libérés',    icon: '✅', label: 'Fonds libérés' },
             ];
             const escrowOrder = escrowSteps.map(s => s.key);
-            const stepIdx = escrowOrder.indexOf(es);
+            const stepIdx = escrowOrder.indexOf(esNorm);
 
             const stepsHTML = escrowSteps.map((s, i) => `
                 ${i > 0 ? `<div style="flex:1;height:2px;background:${i <= stepIdx ? 'var(--terre-cuite)' : 'rgba(255,255,255,0.15)'};margin-top:18px;"></div>` : ''}
@@ -5180,7 +5189,8 @@ window.enterGallery = function enterGallery() {
                         </div>` : ''}
                     </div>`;
 
-            } else if (es === 'livrée_confirmée' || es === 'fonds_libérés') {
+            } else if (es === 'livrée_confirmée' || es === 'fonds_libérés' || es === 'livree_confirmee') {
+                // ✅ FIX BUG 4 : gérer les deux valeurs possibles (avant/après fix)
                 actionBtn = `
                     <div style="background:rgba(76,175,80,0.12);border:1px solid rgba(76,175,80,0.35);border-radius:14px;padding:18px;margin-top:16px;text-align:center;">
                         <div style="font-size:32px;margin-bottom:8px;">🎉</div>
@@ -8984,8 +8994,44 @@ window.enterGallery = function enterGallery() {
         function startNotifPolling() {
             loadArtistNotificationsWithAlert();
             if (_notifPollInterval) clearInterval(_notifPollInterval);
-            // Poll toutes les 30s pour réactivité
             _notifPollInterval = setInterval(loadArtistNotificationsWithAlert, 30000);
+        }
+
+        // ── Poll notifications CLIENT (expédition → "Colis bien reçu") ──────
+        let _clientNotifInterval = null;
+        let _lastClientUnread = 0;
+
+        function startClientNotifPolling() {
+            if (!currentUser || currentUser.isArtist) return; // artistes ont leur propre polling
+            _pollClientNotifications();
+            if (_clientNotifInterval) clearInterval(_clientNotifInterval);
+            _clientNotifInterval = setInterval(_pollClientNotifications, 30000);
+        }
+
+        function stopClientNotifPolling() {
+            if (_clientNotifInterval) clearInterval(_clientNotifInterval);
+            _clientNotifInterval = null;
+        }
+
+        async function _pollClientNotifications() {
+            const uid = currentUser?.id || currentUser?.googleId || '';
+            if (!uid) return;
+            try {
+                const resp = await fetch(`${ORDERS_API}?action=get_client_notifications&user_id=${encodeURIComponent(uid)}&t=${Date.now()}`);
+                const data = await resp.json();
+                if (!data.success) return;
+                const count = data.unread_count || 0;
+                if (count > _lastClientUnread && _lastClientUnread >= 0) {
+                    const newest = data.notifications?.[0];
+                    if (newest && !newest.is_read) {
+                        // 🔔 Toast et rafraîchissement des commandes
+                        showToast('📦 ' + (newest.title || 'Mise à jour de votre commande'));
+                        // Rafraîchir la liste des commandes si visible
+                        if (typeof renderOrders === 'function') renderOrders();
+                    }
+                }
+                _lastClientUnread = count;
+            } catch(e) {}
         }
 
         // Version améliorée : alerte visuelle si nouvelle commande détectée
@@ -12287,13 +12333,15 @@ window.enterGallery = function enterGallery() {
 
             try {
                 // 2. On envoie un signal au serveur PHP
+                // ✅ FIX BUG 3 : on envoie user_id (Google Sub ou BDD id)
+                // + user_email comme fallback — le serveur cast en TEXT des deux côtés
                 const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_commandes.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         action: 'confirm_reception',
-                        order_id: orderId, 
-                        user_id: currentUser.id // Sécurité : on vérifie que c'est bien l'acheteur
+                        order_id: orderId,
+                        user_id: String(currentUser?.id || currentUser?.googleId || currentUser?.email || '')
                     })
                 });
 
@@ -12648,6 +12696,7 @@ window.enterGallery = function enterGallery() {
             const montantText = row?.cells?.[3]?.textContent?.trim()?.split(' ')[0] || '?';
             ouvrirModalePaiement(orderId, artistName, montantText);
         }
+
 
 
 

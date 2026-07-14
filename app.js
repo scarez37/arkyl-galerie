@@ -3853,48 +3853,231 @@ window.enterGallery = function enterGallery() {
 
         // confirmerVillePoste — géré par la modale ouvrirModeLivraison()
 
-        // ─── DONNÉES PAYS → VILLES ──────────────────────────────────────
-        const PAYS_VILLES = {
-            "ci": { nom: "🇨🇮 Côte d'Ivoire", villes: ["Abidjan","Bouaké","Yamoussoukro","Daloa","San-Pédro","Korhogo","Man","Gagnoa","Bondoukou","Divo","Abengourou","Adzopé","Agboville","Anyama","Grand-Bassam","Bingerville","Dabou","Duékoué","Ferkessédougou","Grand-Lahou","Guiglo","Issia","Lakota","Odienné","Sinfra","Soubré","Tabou","Tiassalé","Touba","Toumodi","Vavoua","Zuénoula"] },
-            "sn": { nom: "🇸🇳 Sénégal",        villes: ["Dakar","Thiès","Saint-Louis","Ziguinchor","Kaolack","Mbour","Diourbel","Louga","Fatick","Kolda","Matam","Kaffrine","Tambacounda","Sédhiou","Kédougou"] },
-            "ml": { nom: "🇲🇱 Mali",            villes: ["Bamako","Sikasso","Mopti","Kayes","Ségou","Gao","Kidal","Tombouctou","Koulikoro","Kita"] },
-            "bf": { nom: "🇧🇫 Burkina Faso",    villes: ["Ouagadougou","Bobo-Dioulasso","Koudougou","Banfora","Ouahigouya","Pouytenga","Kaya","Tenkodogo","Fada Ngourma","Dori"] },
-            "gn": { nom: "🇬🇳 Guinée",          villes: ["Conakry","N'Zérékoré","Kankan","Kindia","Labé","Mamou","Faranah","Boké","Siguiri","Guéckédou"] },
-            "gh": { nom: "🇬🇭 Ghana",            villes: ["Accra","Kumasi","Tamale","Sekondi-Takoradi","Ashaiman","Sunyani","Cape Coast","Obuasi","Tema","Koforidua"] },
-            "ng": { nom: "🇳🇬 Nigeria",          villes: ["Lagos","Abuja","Kano","Ibadan","Kaduna","Port Harcourt","Benin City","Maiduguri","Zaria","Aba"] },
-            "cm": { nom: "🇨🇲 Cameroun",         villes: ["Douala","Yaoundé","Bamenda","Bafoussam","Garoua","Maroua","Ngaoundéré","Bertoua","Limbé","Kumba"] },
-            "bj": { nom: "🇧🇯 Bénin",            villes: ["Cotonou","Porto-Novo","Parakou","Djougou","Bohicon","Kandi","Natitingou","Abomey","Lokossa","Ouidah"] },
-            "tg": { nom: "🇹🇬 Togo",             villes: ["Lomé","Sokodé","Kpalimé","Kara","Atakpamé","Bassar","Tsévié","Aného","Sansanné-Mango","Dapaong"] },
-            "fr": { nom: "🇫🇷 France",           villes: ["Paris","Lyon","Marseille","Toulouse","Nice","Nantes","Strasbourg","Montpellier","Bordeaux","Lille","Rennes","Reims","Saint-Étienne","Toulon","Grenoble","Dijon","Angers","Nîmes","Villeurbanne","Le Mans"] },
-            "be": { nom: "🇧🇪 Belgique",         villes: ["Bruxelles","Anvers","Gand","Charleroi","Liège","Bruges","Namur","Louvain","Mons","Hasselt"] },
-            "ch": { nom: "🇨🇭 Suisse",           villes: ["Zurich","Genève","Bâle","Berne","Lausanne","Winterthour","Saint-Gall","Lucerne","Bienne","Thoune"] },
-            "ca": { nom: "🇨🇦 Canada",           villes: ["Montréal","Toronto","Vancouver","Calgary","Ottawa","Edmonton","Québec","Winnipeg","Hamilton","Kitchener"] },
-            "us": { nom: "🇺🇸 États-Unis",       villes: ["New York","Los Angeles","Chicago","Houston","Phoenix","Philadelphie","San Antonio","San Diego","Dallas","San José"] },
-            "ma": { nom: "🇲🇦 Maroc",            villes: ["Casablanca","Rabat","Marrakech","Fès","Tanger","Agadir","Meknès","Oujda","Kénitra","Tétouan"] },
-            "other": { nom: "🌍 Autre pays",      villes: [] }
+        // ─── 180 PAYS PAR ZONE TARIFAIRE ─────────────────────────────────────
+        // Zone : ci | uemoa | afrique | europe | international
+        const PAYS_PAR_ZONE = {
+            ci: [
+                { code: "CI", nom: "🇨🇮 Côte d'Ivoire" }
+            ],
+            uemoa: [
+                { code: "BJ", nom: "🇧🇯 Bénin" },
+                { code: "BF", nom: "🇧🇫 Burkina Faso" },
+                { code: "GW", nom: "🇬🇼 Guinée-Bissau" },
+                { code: "ML", nom: "🇲🇱 Mali" },
+                { code: "NE", nom: "🇳🇪 Niger" },
+                { code: "SN", nom: "🇸🇳 Sénégal" },
+                { code: "TG", nom: "🇹🇬 Togo" }
+            ],
+            afrique: [
+                { code: "DZ", nom: "🇩🇿 Algérie" },
+                { code: "AO", nom: "🇦🇴 Angola" },
+                { code: "BW", nom: "🇧🇼 Botswana" },
+                { code: "BI", nom: "🇧🇮 Burundi" },
+                { code: "CV", nom: "🇨🇻 Cap-Vert" },
+                { code: "CM", nom: "🇨🇲 Cameroun" },
+                { code: "CF", nom: "🇨🇫 Centrafrique" },
+                { code: "KM", nom: "🇰🇲 Comores" },
+                { code: "CG", nom: "🇨🇬 Congo" },
+                { code: "CD", nom: "🇨🇩 Congo (RDC)" },
+                { code: "DJ", nom: "🇩🇯 Djibouti" },
+                { code: "EG", nom: "🇪🇬 Égypte" },
+                { code: "ER", nom: "🇪🇷 Érythrée" },
+                { code: "ET", nom: "🇪🇹 Éthiopie" },
+                { code: "GA", nom: "🇬🇦 Gabon" },
+                { code: "GM", nom: "🇬🇲 Gambie" },
+                { code: "GH", nom: "🇬🇭 Ghana" },
+                { code: "GN", nom: "🇬🇳 Guinée" },
+                { code: "GQ", nom: "🇬🇶 Guinée Équatoriale" },
+                { code: "KE", nom: "🇰🇪 Kenya" },
+                { code: "LS", nom: "🇱🇸 Lesotho" },
+                { code: "LR", nom: "🇱🇷 Libéria" },
+                { code: "LY", nom: "🇱🇾 Libye" },
+                { code: "MG", nom: "🇲🇬 Madagascar" },
+                { code: "MW", nom: "🇲🇼 Malawi" },
+                { code: "MR", nom: "🇲🇷 Mauritanie" },
+                { code: "MU", nom: "🇲🇺 Maurice" },
+                { code: "YT", nom: "🇾🇹 Mayotte" },
+                { code: "MA", nom: "🇲🇦 Maroc" },
+                { code: "MZ", nom: "🇲🇿 Mozambique" },
+                { code: "NA", nom: "🇳🇦 Namibie" },
+                { code: "NG", nom: "🇳🇬 Nigéria" },
+                { code: "UG", nom: "🇺🇬 Ouganda" },
+                { code: "RW", nom: "🇷🇼 Rwanda" },
+                { code: "ST", nom: "🇸🇹 São Tomé-et-Príncipe" },
+                { code: "SC", nom: "🇸🇨 Seychelles" },
+                { code: "SL", nom: "🇸🇱 Sierra Leone" },
+                { code: "SO", nom: "🇸🇴 Somalie" },
+                { code: "SD", nom: "🇸🇩 Soudan" },
+                { code: "SS", nom: "🇸🇸 Soudan du Sud" },
+                { code: "SZ", nom: "🇸🇿 Eswatini" },
+                { code: "TZ", nom: "🇹🇿 Tanzanie" },
+                { code: "TD", nom: "🇹🇩 Tchad" },
+                { code: "TN", nom: "🇹🇳 Tunisie" },
+                { code: "ZM", nom: "🇿🇲 Zambie" },
+                { code: "ZW", nom: "🇿🇼 Zimbabwe" },
+                { code: "ZA", nom: "🇿🇦 Afrique du Sud" }
+            ],
+            europe: [
+                { code: "DE", nom: "🇩🇪 Allemagne" },
+                { code: "AT", nom: "🇦🇹 Autriche" },
+                { code: "BE", nom: "🇧🇪 Belgique" },
+                { code: "BY", nom: "🇧🇾 Biélorussie" },
+                { code: "BA", nom: "🇧🇦 Bosnie-Herzégovine" },
+                { code: "BG", nom: "🇧🇬 Bulgarie" },
+                { code: "HR", nom: "🇭🇷 Croatie" },
+                { code: "CY", nom: "🇨🇾 Chypre" },
+                { code: "DK", nom: "🇩🇰 Danemark" },
+                { code: "ES", nom: "🇪🇸 Espagne" },
+                { code: "EE", nom: "🇪🇪 Estonie" },
+                { code: "FI", nom: "🇫🇮 Finlande" },
+                { code: "FR", nom: "🇫🇷 France" },
+                { code: "GR", nom: "🇬🇷 Grèce" },
+                { code: "HU", nom: "🇭🇺 Hongrie" },
+                { code: "IE", nom: "🇮🇪 Irlande" },
+                { code: "IS", nom: "🇮🇸 Islande" },
+                { code: "IT", nom: "🇮🇹 Italie" },
+                { code: "LV", nom: "🇱🇻 Lettonie" },
+                { code: "LI", nom: "🇱🇮 Liechtenstein" },
+                { code: "LT", nom: "🇱🇹 Lituanie" },
+                { code: "LU", nom: "🇱🇺 Luxembourg" },
+                { code: "MK", nom: "🇲🇰 Macédoine du Nord" },
+                { code: "MT", nom: "🇲🇹 Malte" },
+                { code: "MD", nom: "🇲🇩 Moldavie" },
+                { code: "MC", nom: "🇲🇨 Monaco" },
+                { code: "ME", nom: "🇲🇪 Monténégro" },
+                { code: "NO", nom: "🇳🇴 Norvège" },
+                { code: "NL", nom: "🇳🇱 Pays-Bas" },
+                { code: "PL", nom: "🇵🇱 Pologne" },
+                { code: "PT", nom: "🇵🇹 Portugal" },
+                { code: "RO", nom: "🇷🇴 Roumanie" },
+                { code: "GB", nom: "🇬🇧 Royaume-Uni" },
+                { code: "RS", nom: "🇷🇸 Serbie" },
+                { code: "SK", nom: "🇸🇰 Slovaquie" },
+                { code: "SI", nom: "🇸🇮 Slovénie" },
+                { code: "SE", nom: "🇸🇪 Suède" },
+                { code: "CH", nom: "🇨🇭 Suisse" },
+                { code: "CZ", nom: "🇨🇿 Tchéquie" },
+                { code: "TR", nom: "🇹🇷 Turquie" },
+                { code: "UA", nom: "🇺🇦 Ukraine" }
+            ],
+            international: [
+                { code: "AF", nom: "🇦🇫 Afghanistan" },
+                { code: "SA", nom: "🇸🇦 Arabie Saoudite" },
+                { code: "AR", nom: "🇦🇷 Argentine" },
+                { code: "AM", nom: "🇦🇲 Arménie" },
+                { code: "AU", nom: "🇦🇺 Australie" },
+                { code: "AZ", nom: "🇦🇿 Azerbaïdjan" },
+                { code: "BD", nom: "🇧🇩 Bangladesh" },
+                { code: "BO", nom: "🇧🇴 Bolivie" },
+                { code: "BR", nom: "🇧🇷 Brésil" },
+                { code: "KH", nom: "🇰🇭 Cambodge" },
+                { code: "CA", nom: "🇨🇦 Canada" },
+                { code: "CL", nom: "🇨🇱 Chili" },
+                { code: "CN", nom: "🇨🇳 Chine" },
+                { code: "CO", nom: "🇨🇴 Colombie" },
+                { code: "KP", nom: "🇰🇵 Corée du Nord" },
+                { code: "KR", nom: "🇰🇷 Corée du Sud" },
+                { code: "CR", nom: "🇨🇷 Costa Rica" },
+                { code: "CU", nom: "🇨🇺 Cuba" },
+                { code: "EC", nom: "🇪🇨 Équateur" },
+                { code: "AE", nom: "🇦🇪 Émirats Arabes Unis" },
+                { code: "US", nom: "🇺🇸 États-Unis" },
+                { code: "GE", nom: "🇬🇪 Géorgie" },
+                { code: "GT", nom: "🇬🇹 Guatemala" },
+                { code: "HT", nom: "🇭🇹 Haïti" },
+                { code: "HN", nom: "🇭🇳 Honduras" },
+                { code: "HK", nom: "🇭🇰 Hong Kong" },
+                { code: "IN", nom: "🇮🇳 Inde" },
+                { code: "ID", nom: "🇮🇩 Indonésie" },
+                { code: "IQ", nom: "🇮🇶 Irak" },
+                { code: "IR", nom: "🇮🇷 Iran" },
+                { code: "IL", nom: "🇮🇱 Israël" },
+                { code: "JM", nom: "🇯🇲 Jamaïque" },
+                { code: "JP", nom: "🇯🇵 Japon" },
+                { code: "JO", nom: "🇯🇴 Jordanie" },
+                { code: "KZ", nom: "🇰🇿 Kazakhstan" },
+                { code: "KG", nom: "🇰🇬 Kirghizistan" },
+                { code: "KW", nom: "🇰🇼 Koweït" },
+                { code: "LA", nom: "🇱🇦 Laos" },
+                { code: "LB", nom: "🇱🇧 Liban" },
+                { code: "MY", nom: "🇲🇾 Malaisie" },
+                { code: "MV", nom: "🇲🇻 Maldives" },
+                { code: "MX", nom: "🇲🇽 Mexique" },
+                { code: "MN", nom: "🇲🇳 Mongolie" },
+                { code: "MM", nom: "🇲🇲 Myanmar" },
+                { code: "NP", nom: "🇳🇵 Népal" },
+                { code: "NZ", nom: "🇳🇿 Nouvelle-Zélande" },
+                { code: "OM", nom: "🇴🇲 Oman" },
+                { code: "UZ", nom: "🇺🇿 Ouzbékistan" },
+                { code: "PK", nom: "🇵🇰 Pakistan" },
+                { code: "PA", nom: "🇵🇦 Panama" },
+                { code: "PY", nom: "🇵🇾 Paraguay" },
+                { code: "PE", nom: "🇵🇪 Pérou" },
+                { code: "PH", nom: "🇵🇭 Philippines" },
+                { code: "QA", nom: "🇶🇦 Qatar" },
+                { code: "RU", nom: "🇷🇺 Russie" },
+                { code: "DO", nom: "🇩🇴 Rép. Dominicaine" },
+                { code: "SG", nom: "🇸🇬 Singapour" },
+                { code: "LK", nom: "🇱🇰 Sri Lanka" },
+                { code: "SY", nom: "🇸🇾 Syrie" },
+                { code: "TW", nom: "🇹🇼 Taïwan" },
+                { code: "TJ", nom: "🇹🇯 Tadjikistan" },
+                { code: "TH", nom: "🇹🇭 Thaïlande" },
+                { code: "TM", nom: "🇹🇲 Turkménistan" },
+                { code: "UY", nom: "🇺🇾 Uruguay" },
+                { code: "VE", nom: "🇻🇪 Venezuela" },
+                { code: "VN", nom: "🇻🇳 Viêt Nam" },
+                { code: "YE", nom: "🇾🇪 Yémen" }
+            ]
         };
 
-        // Retourner la zone postale depuis le code pays
-        function zoneDepuisPays(codePays) {
-            if (codePays === 'ci') return 'ci';
-            if (['sn','ml','bf','bj','tg'].includes(codePays)) return 'uemoa';
-            if (['gn','gh','ng','cm','ma'].includes(codePays)) return 'afrique';
-            if (['fr','be','ch'].includes(codePays)) return 'europe';
-            return 'international';
+        // Tous les pays à plat avec leur zone
+        const TOUS_PAYS = Object.entries(PAYS_PAR_ZONE).flatMap(([zone, liste]) =>
+            liste.map(p => ({ ...p, zone }))
+        );
+
+        // Zone depuis code ISO
+        function zoneDepuisPays(codeISO) {
+            const p = TOUS_PAYS.find(p => p.code === codeISO);
+            return p?.zone || 'international';
+        }
+
+        // Cache des villes chargées
+        const _villesCache = {};
+
+        // Charger les villes d'un pays via CountriesNow (gratuit, pas de clé API)
+        async function chargerVillesPays(codeISO) {
+            if (_villesCache[codeISO]) return _villesCache[codeISO];
+            try {
+                const resp = await fetch('https://countriesnow.space/api/v0.1/countries/cities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ iso2: codeISO })
+                });
+                const data = await resp.json();
+                const villes = (data?.data || []).sort();
+                _villesCache[codeISO] = villes;
+                return villes;
+            } catch(e) {
+                console.warn('Villes non disponibles pour', codeISO, e.message);
+                _villesCache[codeISO] = [];
+                return [];
+            }
         }
 
         // ─── MODALE MODE DE LIVRAISON (REFONTE) ─────────────────────────
         function ouvrirModeLivraison() {
-            // Injecter animation CSS
             if (!document.getElementById('liv-modal-anim')) {
                 const s = document.createElement('style');
                 s.id = 'liv-modal-anim';
                 s.textContent = `
                     @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
                     .liv-option{transition:border .15s,background .15s;}
-                    .liv-select{width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;appearance:none;cursor:pointer;}
+                    .liv-select{width:100%;padding:10px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;appearance:none;cursor:pointer;margin-top:4px;}
                     .liv-select option{background:#1a1a2e;color:white;}
-                    .liv-tarif-preview{background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);border-radius:10px;padding:10px 14px;margin-top:10px;font-size:13px;color:#d4af37;display:flex;justify-content:space-between;align-items:center;}
+                    .liv-select:disabled{opacity:0.4;cursor:not-allowed;}
+                    .liv-tarif-preview{background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);border-radius:10px;padding:11px 14px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;}
+                    .liv-loading{text-align:center;padding:10px;font-size:12px;opacity:0.5;}
                 `;
                 document.head.appendChild(s);
             }
@@ -3908,48 +4091,32 @@ window.enterGallery = function enterGallery() {
                 document.body.appendChild(modal);
             }
 
-            const modeActuel = window._modeEnCours || document.getElementById('selected-shipping-mode')?.value || 'poste';
-            const savedPays  = window._savedPostePays  || 'ci';
-            const savedVille = posteVille || '';
+            const modeActuel  = window._modeEnCours || document.getElementById('selected-shipping-mode')?.value || 'poste';
+            const savedCode   = window._savedPostePays || 'CI';
+            const savedVille  = posteVille || '';
 
-            // Construire options pays
-            const optsPays = Object.entries(PAYS_VILLES).map(([k,v]) =>
-                `<option value="${k}" ${k === savedPays ? 'selected' : ''}>${v.nom}</option>`
+            // Options pays groupées par zone
+            const zoneLabels = { ci: "Côte d'Ivoire", uemoa: 'Zone UEMOA', afrique: 'Afrique', europe: 'Europe', international: 'International' };
+            const optsPays = Object.entries(PAYS_PAR_ZONE).map(([zone, liste]) =>
+                `<optgroup label="── ${zoneLabels[zone]} ──" style="color:#d4af37;background:#111;">` +
+                liste.map(p => `<option value="${p.code}" ${p.code === savedCode ? 'selected' : ''}>${p.nom}</option>`).join('') +
+                `</optgroup>`
             ).join('');
 
-            // Construire options villes pour le pays actuel
-            function buildOptsVilles(codePays, villeSelectionnee) {
-                const villes = PAYS_VILLES[codePays]?.villes || [];
-                if (villes.length === 0) return `<option value="">— Saisir manuellement —</option>`;
-                return `<option value="">Choisir une ville…</option>` +
-                    villes.map(v => `<option value="${v}" ${v === villeSelectionnee ? 'selected' : ''}>${v}</option>`).join('');
-            }
-
-            // Calcul tarif prévisualisation
-            function calcTarifPreview(codePays, ville) {
-                const zone = zoneDepuisPays(codePays);
-                const dest = ville || PAYS_VILLES[codePays]?.nom || codePays;
-                const poidsTotal = (window.cartItems || []).reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
-                const calcul = calculerFraisPoste(poidsTotal, dest);
-                return { zone, poidsTotal, cout: calcul.cout, dest };
-            }
-            const initCalc = calcTarifPreview(savedPays, savedVille);
-            const initVilleOpts = buildOptsVilles(savedPays, savedVille);
-
-            const optStyle = (m) => m === modeActuel
+            const optStyle = m => m === modeActuel
                 ? 'border:2px solid rgba(212,175,55,0.6);background:rgba(212,175,55,0.08);'
                 : 'border:2px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);';
 
             modal.innerHTML = `
-                <div style="background:#1a1a2e;border-radius:24px 24px 0 0;width:100%;max-width:520px;padding:28px 24px 36px;border-top:1px solid rgba(212,175,55,0.25);animation:slideUp 0.3s ease;max-height:90vh;overflow-y:auto;">
+                <div style="background:#1a1a2e;border-radius:24px 24px 0 0;width:100%;max-width:520px;padding:28px 24px 36px;border-top:1px solid rgba(212,175,55,0.25);animation:slideUp 0.3s ease;max-height:92vh;overflow-y:auto;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;">
                         <h3 style="margin:0;font-size:18px;font-weight:700;color:white;">🚚 Mode de livraison</h3>
                         <button onclick="fermerModeLivraison()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:32px;height:32px;border-radius:50%;font-size:18px;cursor:pointer;">×</button>
                     </div>
 
                     <!-- ══ LA POSTE ══ -->
-                    <div class="liv-option" id="opt-poste" onclick="selectionnerModeLivraison('poste', this)"
-                        style="gap:14px;padding:16px;border-radius:14px;margin-bottom:10px;cursor:pointer;${optStyle('poste')}">
+                    <div class="liv-option" id="opt-poste" onclick="selectionnerModeLivraison('poste',this)"
+                        style="${optStyle('poste')}border-radius:14px;margin-bottom:10px;padding:16px;cursor:pointer;">
                         <div style="display:flex;align-items:center;gap:14px;">
                             <span style="font-size:26px;">📮</span>
                             <div style="flex:1;">
@@ -3958,42 +4125,35 @@ window.enterGallery = function enterGallery() {
                             </div>
                             <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;font-size:13px;">Selon poids</span>
                         </div>
-                        <div id="poste-detail-modal" style="display:${modeActuel === 'poste' ? 'block' : 'none'};margin-top:14px;" onclick="event.stopPropagation()">
-                            <!-- Sélecteur Pays -->
-                            <label style="font-size:11px;color:rgba(255,255,255,0.5);display:block;margin-bottom:4px;">Pays de destination</label>
+
+                        <div id="poste-detail-modal" style="display:${modeActuel==='poste'?'block':'none'};margin-top:14px;" onclick="event.stopPropagation()">
+                            <!-- Pays -->
+                            <label style="font-size:11px;color:rgba(255,255,255,0.5);display:block;margin-top:4px;">Pays de destination</label>
                             <select id="modal-pays" class="liv-select" onchange="livOnPaysChange(this.value)">
                                 ${optsPays}
                             </select>
-                            <!-- Sélecteur Ville -->
-                            <label style="font-size:11px;color:rgba(255,255,255,0.5);display:block;margin:10px 0 4px;">Ville</label>
-                            <select id="modal-ville-select" class="liv-select" onchange="livOnVilleChange(this.value)">
-                                ${initVilleOpts}
+                            <!-- Villes (chargées dynamiquement) -->
+                            <label style="font-size:11px;color:rgba(255,255,255,0.5);display:block;margin-top:10px;">Ville</label>
+                            <select id="modal-ville-select" class="liv-select" disabled onchange="livOnVilleChange(this.value)">
+                                <option value="">⏳ Chargement des villes…</option>
                             </select>
-                            <!-- Champ texte libre si "Autre pays" ou ville non listée -->
-                            <input id="modal-poste-ville-libre" type="text" placeholder="Ou saisir la ville manuellement…"
-                                value="${savedVille}" onclick="event.stopPropagation()"
-                                oninput="livOnVilleChange(this.value)"
-                                style="display:${PAYS_VILLES[savedPays]?.villes.length === 0 ? 'block' : 'none'};width:100%;padding:9px 12px;margin-top:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;">
-                            <!-- Prévisualisation tarif -->
-                            <div class="liv-tarif-preview" id="poste-tarif-preview" style="${modeActuel === 'poste' ? '' : 'display:none'}">
-                                <div>
-                                    <div style="font-size:11px;opacity:0.6;margin-bottom:2px;">Zone <strong>${nomZonePostale(initCalc.zone)}</strong> · ${(initCalc.poidsTotal/1000).toFixed(1)} kg</div>
-                                    <div style="font-size:11px;opacity:0.5;">${initCalc.dest || '—'}</div>
-                                </div>
-                                <div style="font-size:16px;font-weight:800;">${formatPrice(initCalc.cout)}</div>
+                            <!-- Tarif calculé -->
+                            <div class="liv-tarif-preview" id="poste-tarif-preview" style="display:none;">
+                                <div id="tarif-detail-txt" style="font-size:12px;opacity:0.7;"></div>
+                                <div id="tarif-montant" style="font-size:17px;font-weight:800;color:#d4af37;"></div>
                             </div>
                         </div>
                     </div>
 
                     <!-- ══ TRANSPORT EN COMMUN ══ -->
-                    <div class="liv-option" id="opt-transport" onclick="selectionnerModeLivraison('transport', this)"
-                        style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;margin-bottom:10px;cursor:pointer;${optStyle('transport')}">
+                    <div class="liv-option" id="opt-transport" onclick="selectionnerModeLivraison('transport',this)"
+                        style="${optStyle('transport')}display:flex;align-items:center;gap:14px;border-radius:14px;margin-bottom:10px;padding:16px;cursor:pointer;">
                         <span style="font-size:26px;">🚌</span>
                         <div style="flex:1;">
                             <div style="font-weight:700;color:white;font-size:15px;">Transport en commun</div>
                             <div style="font-size:12px;opacity:0.6;margin-top:2px;">4–7 jours · Récupération en gare routière</div>
-                            <div id="transport-detail-modal" style="display:${modeActuel === 'transport' ? 'block' : 'none'};margin-top:12px;" onclick="event.stopPropagation()">
-                                <input id="modal-transport-cie" type="text" placeholder="Compagnie (ex: Océan, UTB, STIF…)" value="${transportCompagnie || ''}"
+                            <div id="transport-detail-modal" style="display:${modeActuel==='transport'?'block':'none'};margin-top:12px;" onclick="event.stopPropagation()">
+                                <input id="modal-transport-cie" type="text" placeholder="Compagnie (ex: Océan, UTB, STIF…)" value="${transportCompagnie||''}"
                                     class="liv-select" style="margin-top:0;">
                             </div>
                         </div>
@@ -4001,15 +4161,15 @@ window.enterGallery = function enterGallery() {
                     </div>
 
                     <!-- ══ MAIN PROPRE ══ -->
-                    <div class="liv-option" id="opt-mainpropre" onclick="selectionnerModeLivraison('mainpropre', this)"
-                        style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;margin-bottom:22px;cursor:pointer;${optStyle('mainpropre')}">
+                    <div class="liv-option" id="opt-mainpropre" onclick="selectionnerModeLivraison('mainpropre',this)"
+                        style="${optStyle('mainpropre')}display:flex;align-items:center;gap:14px;border-radius:14px;margin-bottom:22px;padding:16px;cursor:pointer;">
                         <span style="font-size:26px;">🤝</span>
                         <div style="flex:1;">
                             <div style="font-weight:700;color:white;font-size:15px;">Main propre</div>
                             <div style="font-size:12px;opacity:0.6;margin-top:2px;">Sur rendez-vous · Lieu public uniquement</div>
-                            <div id="mainpropre-detail-modal" style="display:${modeActuel === 'mainpropre' ? 'block' : 'none'};margin-top:12px;" onclick="event.stopPropagation()">
+                            <div id="mainpropre-detail-modal" style="display:${modeActuel==='mainpropre'?'block':'none'};margin-top:12px;" onclick="event.stopPropagation()">
                                 <input id="modal-mainpropre-lieu" type="text" placeholder="Lieu public (ex: Marché Cocody, Mall Playtime…)"
-                                    value="${mainPropreLieu || ''}" class="liv-select" style="margin-top:0;">
+                                    value="${mainPropreLieu||''}" class="liv-select" style="margin-top:0;">
                                 <p style="font-size:11px;color:#f59e0b;margin:6px 0 0;">⚠️ Lieu isolé ou privé = refus de livraison</p>
                             </div>
                         </div>
@@ -4024,58 +4184,75 @@ window.enterGallery = function enterGallery() {
             `;
             modal.style.display = 'flex';
             window._modeEnCours = modeActuel;
-        }
 
-        // ── Callback quand le pays change ─────────────────────────────────
-        function livOnPaysChange(codePays) {
-            window._savedPostePays = codePays;
-            const villes = PAYS_VILLES[codePays]?.villes || [];
-            const sel    = document.getElementById('modal-ville-select');
-            const libre  = document.getElementById('modal-poste-ville-libre');
-
-            if (villes.length > 0) {
-                sel.innerHTML = `<option value="">Choisir une ville…</option>` +
-                    villes.map(v => `<option value="${v}">${v}</option>`).join('');
-                sel.style.display = 'block';
-                libre.style.display = 'none';
-            } else {
-                sel.innerHTML = '';
-                sel.style.display = 'none';
-                libre.style.display = 'block';
-                libre.focus();
+            // Charger les villes du pays sauvegardé au démarrage
+            if (modeActuel === 'poste') {
+                livOnPaysChange(savedCode, savedVille);
             }
-            // Réinitialiser la ville sauvegardée et recalculer le tarif
-            _savePosteVille('');
-            livMettreAJourTarif(codePays, '');
         }
 
-        // ── Callback quand la ville change ────────────────────────────────
+        // ── Changement de pays : charger les villes dynamiquement ─────────
+        async function livOnPaysChange(codeISO, villePreselectionnee) {
+            window._savedPostePays = codeISO;
+            const sel = document.getElementById('modal-ville-select');
+            if (!sel) return;
+
+            // Afficher état chargement
+            sel.innerHTML = '<option value="">⏳ Chargement des villes…</option>';
+            sel.disabled = true;
+            document.getElementById('poste-tarif-preview').style.display = 'none';
+
+            const villes = await chargerVillesPays(codeISO);
+
+            if (villes.length === 0) {
+                // Aucune ville disponible pour ce pays — pas de champ libre
+                sel.innerHTML = '<option value="">⚠️ Villes indisponibles — réessayez</option>';
+                sel.disabled = true;
+                // Toast d'info
+                showToast('⚠️ Impossible de charger les villes pour ce pays. Vérifiez votre connexion.');
+                return;
+            }
+
+            // Remplir le sélecteur
+            const vPresel = villePreselectionnee || '';
+            sel.innerHTML = '<option value="">— Choisir une ville —</option>' +
+                villes.map(v => `<option value="${v}" ${v === vPresel ? 'selected' : ''}>${v}</option>`).join('');
+            sel.disabled = false;
+
+            // Si une ville était présélectionnée, calculer le tarif immédiatement
+            if (vPresel && villes.includes(vPresel)) {
+                livOnVilleChange(vPresel);
+            }
+        }
+
+        // ── Changement de ville : recalculer le tarif ─────────────────────
         function livOnVilleChange(ville) {
             _savePosteVille(ville);
-            const codePays = window._savedPostePays || 'ci';
-            livMettreAJourTarif(codePays, ville);
-        }
-
-        // ── Mise à jour de la prévisualisation du tarif ───────────────────
-        function livMettreAJourTarif(codePays, ville) {
-            const zone      = zoneDepuisPays(codePays);
-            const dest      = ville || PAYS_VILLES[codePays]?.nom || codePays;
+            if (!ville) {
+                document.getElementById('poste-tarif-preview').style.display = 'none';
+                return;
+            }
+            const codeISO    = window._savedPostePays || 'CI';
+            const zone       = zoneDepuisPays(codeISO);
             const poidsTotal = (window.cartItems || []).reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
-            const calcul    = calculerFraisPoste(poidsTotal, dest);
-            const preview   = document.getElementById('poste-tarif-preview');
-            if (preview) {
+            // Passer le nom du pays à calculerFraisPoste pour la détection de zone
+            const paysNom    = TOUS_PAYS.find(p => p.code === codeISO)?.nom || ville;
+            const calcul     = calculerFraisPoste(poidsTotal, paysNom + ' ' + ville);
+            window._posteCalcDetail = { poidsTotal, zone: calcul.zone, dest: ville + ', ' + paysNom, cout: calcul.cout };
+
+            const preview = document.getElementById('poste-tarif-preview');
+            const detTxt  = document.getElementById('tarif-detail-txt');
+            const montant = document.getElementById('tarif-montant');
+            if (preview && detTxt && montant) {
+                const kg = (poidsTotal / 1000).toFixed(2).replace('.', ',');
+                detTxt.innerHTML  = `Zone <strong style="color:#d4af37">${nomZonePostale(calcul.zone)}</strong> · ${kg} kg<br><span style="opacity:0.6">${ville}</span>`;
+                montant.textContent = formatPrice(calcul.cout);
                 preview.style.display = 'flex';
-                preview.innerHTML = `
-                    <div>
-                        <div style="font-size:11px;opacity:0.6;margin-bottom:2px;">Zone <strong>${nomZonePostale(zone)}</strong> · ${(poidsTotal/1000).toFixed(1)} kg</div>
-                        <div style="font-size:11px;opacity:0.5;">${dest}</div>
-                    </div>
-                    <div style="font-size:16px;font-weight:800;">${formatPrice(calcul.cout)}</div>
-                `;
-                // Stocker pour confirmerModeLivraison
-                window._posteCalcDetail = { poidsTotal, zone, dest, cout: calcul.cout };
             }
         }
+
+        // ── Mise à jour tarif (alias pour compatibilité) ─────────────────
+        function livMettreAJourTarif(codeISO, ville) { livOnVilleChange(ville); }
 
         if (typeof window._modeEnCours === 'undefined') window._modeEnCours = null;
 

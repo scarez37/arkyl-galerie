@@ -3189,7 +3189,7 @@ window.enterGallery = function enterGallery() {
             <div class="product-card" onclick="viewProductDetailFromAPI(${product.id})">
                 <div class="product-image" style="position:relative;">
                     <span class="product-badge">${product.badge || 'Disponible'}</span>
-                    <button class="like-button" onclick="toggleFavorite(event, ${product.id})">❤️</button>
+                    <button class="like-button" onclick="toggleFavorite(event, ${product.id})">${favorites.includes(product.id) ? '❤️' : '🤍'}</button>
                     ${imageHTML}
                 </div>
                 <div class="product-info">
@@ -11446,7 +11446,7 @@ window.enterGallery = function enterGallery() {
                             <span id="currentPhotoIndex">1</span>/${photos.length}
                         </div>
                         
-                        <button class="like-button" onclick="toggleFavorite(event, ${product.id})" style="position:absolute;top:15px;right:15px;">🤍</button>
+                        <button class="like-button" onclick="toggleFavorite(event, ${product.id})" style="position:absolute;top:15px;right:15px;">${favorites.includes(product.id) ? '❤️' : '🤍'}</button>
                         
                         ${photos.length > 1 ? `
                             <button onclick="previousPhoto()" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.7); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 20px; display: flex; align-items: center; justify-content: center;">‹</button>
@@ -11466,7 +11466,7 @@ window.enterGallery = function enterGallery() {
                 imageSection = `
                     <div class="product-detail-image">
                         <img src="${photos[0] || product.image_url}" alt="${product.title}" style="width:100%;height:100%;object-fit:cover;border-radius:20px;cursor:pointer;" loading="lazy" onclick="openImageLightbox('${photos[0] || product.image_url}')" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
-                        <button class="like-button" onclick="toggleFavorite(event, ${product.id})" style="position:absolute;top:20px;right:20px;">🤍</button>
+                        <button class="like-button" onclick="toggleFavorite(event, ${product.id})" style="position:absolute;top:20px;right:20px;">${favorites.includes(product.id) ? '❤️' : '🤍'}</button>
                     </div>
                 `;
             }
@@ -11534,7 +11534,7 @@ window.enterGallery = function enterGallery() {
                                 <button class="jm-arrow jm-arrow-right" onclick="jmNext()">&#8250;</button>
                                 <div class="jm-counter"><span id="jmCurrent">1</span>/${photos.length}</div>
                             ` : ''}
-                            <button class="jm-fav-btn" onclick="toggleFavorite(event, ${product.id})">🤍</button>
+                            <button class="jm-fav-btn" onclick="toggleFavorite(event, ${product.id})">${favorites.includes(product.id) ? '❤️' : '🤍'}</button>
                         </div>
 
                         ${photos.length > 1 ? `
@@ -11600,7 +11600,7 @@ window.enterGallery = function enterGallery() {
                                 🛒 Ajouter au panier
                             </button>
                             <button class="jm-btn-fav" onclick="toggleFavorite(event, ${product.id})">
-                                🤍
+                                ${favorites.includes(product.id) ? '❤️' : '🤍'}
                             </button>
                         </div>
                     </div>

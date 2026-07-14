@@ -4652,6 +4652,32 @@ window.enterGallery = function enterGallery() {
         // ⭐ POSTS_API déclaré tôt pour éviter undefined dans fetchArtistPostsFromServer
         window.POSTS_API = `${API_BASE}/api_artist_posts.php`;
 
+        // ⭐ WRAPPER GLOBAL POUR LES APPELS API CORS
+        // Tous les fetch vers l'API doivent utiliser CORS
+        window.fetchWithCors = async function(url, options = {}) {
+            const corsOptions = {
+                method: options.method || 'GET',
+                mode: 'cors',
+                credentials: 'omit',
+                headers: {
+                    'Accept': 'application/json',
+                    ...options.headers
+                },
+                ...options
+            };
+            try {
+                const resp = await fetch(url, corsOptions);
+                if (!resp.ok) {
+                    console.warn(`⚠️ Erreur HTTP ${resp.status} sur ${url}`);
+                    throw new Error(`HTTP ${resp.status}`);
+                }
+                return resp;
+            } catch(e) {
+                console.error('❌ Erreur CORS/Fetch:', e.message, 'URL:', url);
+                throw e;
+            }
+        };
+
         if (typeof window.DELIVERY_STATUSES === 'undefined') window.DELIVERY_STATUSES = [
             { key: 'En préparation', icon: '📦', label: 'En préparation', color: '#ff9800' },
             { key: 'Préparée',       icon: '✅', label: 'Préparée',       color: '#ff9800' },
@@ -9053,7 +9079,12 @@ window.enterGallery = function enterGallery() {
                 const params = new URLSearchParams({ action: 'get_notifications', t: Date.now() });
                 if (artistName) params.set('artist_name', artistName);
                 if (artistId)   params.set('artist_id', artistId);
-                const resp = await fetch(`${NOTIF_API}?${params.toString()}`);
+                const resp = await fetch(`${NOTIF_API}?${params.toString()}`, {
+                    method: 'GET',
+                    mode: 'cors',
+                    credentials: 'omit',
+                    headers: { 'Accept': 'application/json' }
+                });
                 const result = await resp.json();
                 if (!result.success) return;
 
@@ -12455,7 +12486,12 @@ window.enterGallery = function enterGallery() {
         async function chargerTresorerieAdmin() {
             try {
                 // ⭐ Utilise api_commandes.php (qui existe) au lieu de api_admin_tresorerie.php (inexistant)
-                const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_commandes.php?action=list&admin=1');
+                const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_commandes.php?action=list&admin=1', {
+                    method: 'GET',
+                    mode: 'cors',
+                    credentials: 'omit',
+                    headers: { 'Accept': 'application/json' }
+                });
 
                 // Vérifier que la réponse est bien du JSON avant de parser
                 const contentType = response.headers.get('content-type') || '';

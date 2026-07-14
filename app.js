@@ -3981,16 +3981,33 @@ window.enterGallery = function enterGallery() {
                 document.getElementById('poste-zone-preview').style.display = 'none';
                 return;
             }
-            const zone = detecterZonePostale(paysCode);
-            const nomZone = nomZonePostale(zone);
             const preview = document.getElementById('poste-zone-preview');
-            if (preview) {
-                preview.style.display = 'block';
-                // Pré-calculer le coût estimé
-                const validItems = cartItems.filter(i => !i.is_sold);
-                const calc = calculerFraisPosteMultiOrigines(validItems, paysCode);
-                preview.textContent = '📦 Zone : ' + nomZone + ' · Estimation : ' + formatPrice(calc.cout);
+            if (!preview) return;
+            preview.style.display = 'block';
+
+            // Pré-calculer le coût en tenant compte de l'origine de chaque oeuvre
+            const validItems = cartItems.filter(i => !i.is_sold);
+            const calc = calculerFraisPosteMultiOrigines(validItems, paysCode);
+
+            // Détecter si toutes les oeuvres sont dans le même pays que la destination
+            const toutDomestique = calc.details.length > 0 && calc.details.every(d => d.zone === 'domestique');
+            const mixte = calc.details.some(d => d.zone === 'domestique') && calc.details.some(d => d.zone !== 'domestique');
+
+            let icon = '📦';
+            let label = '';
+            if (toutDomestique) {
+                icon = '🏠';
+                label = 'Livraison nationale (inter-ville) · ';
+            } else if (mixte) {
+                icon = '🔀';
+                label = 'Mixte (national + international) · ';
+            } else {
+                const zone = calc.details[0]?.zone || detecterZonePostale(paysCode);
+                label = nomZonePostale(zone) + ' · ';
             }
+
+            preview.innerHTML = icon + ' ' + label + '<strong>' + formatPrice(calc.cout) + '</strong>';
+            preview.style.color = toutDomestique ? '#4caf50' : '#d4af37';
         }
 
         function selectionnerModeLivraison(mode, el) {
@@ -4455,10 +4472,82 @@ window.enterGallery = function enterGallery() {
             return 'international';
         }
 
+        // Tarifs domestiques inter-villes par pays (FCFA estimés)
+        // Quand l'oeuvre et le client sont dans le MÊME pays
+        const TARIFS_DOMESTIQUES = {
+            //          [max_g, tarif_local]
+            // Côte d'Ivoire (SOCOPCI)
+            "cote d'ivoire": [
+                [250, 800], [500, 1200], [1000, 1800], [2000, 2800],
+                [3000, 3800], [5000, 5500], [10000, 8000], [20000, 13000], [30000, 18000]
+            ],
+            // Mali (Office des Postes du Mali) — tarifs estimés
+            "mali": [
+                [250, 900], [500, 1400], [1000, 2000], [2000, 3200],
+                [3000, 4500], [5000, 6500], [10000, 9500], [20000, 15000], [30000, 21000]
+            ],
+            // Sénégal (La Poste Sénégal)
+            "senegal": [
+                [250, 700], [500, 1100], [1000, 1700], [2000, 2700],
+                [3000, 3700], [5000, 5200], [10000, 7500], [20000, 12000], [30000, 17000]
+            ],
+            // Burkina Faso (SONAPOST)
+            "burkina faso": [
+                [250, 850], [500, 1300], [1000, 1900], [2000, 3000],
+                [3000, 4200], [5000, 6000], [10000, 8800], [20000, 14000], [30000, 19500]
+            ],
+            // Niger
+            "niger": [
+                [250, 1000], [500, 1600], [1000, 2300], [2000, 3600],
+                [3000, 5000], [5000, 7000], [10000, 10000], [20000, 16000], [30000, 22000]
+            ],
+            // Bénin
+            "benin": [
+                [250, 800], [500, 1200], [1000, 1800], [2000, 2900],
+                [3000, 4000], [5000, 5800], [10000, 8500], [20000, 13500], [30000, 19000]
+            ],
+            // Togo
+            "togo": [
+                [250, 700], [500, 1100], [1000, 1600], [2000, 2500],
+                [3000, 3500], [5000, 5000], [10000, 7200], [20000, 11500], [30000, 16000]
+            ],
+            // Ghana
+            "ghana": [
+                [250, 1200], [500, 1800], [1000, 2600], [2000, 4100],
+                [3000, 5700], [5000, 8000], [10000, 11500], [20000, 18000], [30000, 25000]
+            ],
+            // Nigéria
+            "nigeria": [
+                [250, 1500], [500, 2300], [1000, 3400], [2000, 5400],
+                [3000, 7500], [5000, 10500], [10000, 15000], [20000, 24000], [30000, 33000]
+            ],
+            // Cameroun
+            "cameroun": [
+                [250, 1100], [500, 1700], [1000, 2500], [2000, 4000],
+                [3000, 5600], [5000, 7800], [10000, 11000], [20000, 17500], [30000, 24000]
+            ],
+            // France (Colissimo inter-ville)
+            "france": [
+                [250, 3500], [500, 4500], [1000, 5500], [2000, 7000],
+                [3000, 8500], [5000, 10000], [10000, 13000], [20000, 18000], [30000, 24000]
+            ],
+            // Par défaut pour les autres pays : tarif estimé à 50% du tarif UEMOA
+            "_default": [
+                [250, 1300], [500, 1800], [1000, 2800], [2000, 4000],
+                [3000, 5500], [5000, 8000], [10000, 11000], [20000, 18000], [30000, 25000]
+            ]
+        };
+
+        // Normaliser un pays pour comparer (enlever accents, lowercase)
+        function normaliserPays(pays) {
+            if (!pays) return '';
+            return pays.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+        }
+
         function calculerFraisPoste(poidsGrammes, destination, origine) {
             // Barèmes La Poste / SOCOPCI — FCFA, paliers en grammes
             // origine = pays de l'artiste (d'où part l'oeuvre)
-            // destination = pays/ville du client
+            // destination = pays de destination du client
             const bareme = {
                 //          [max_g,  ci,    uemoa,  afrique,  europe,  intl ]
                 paliers: [
@@ -4476,27 +4565,41 @@ window.enterGallery = function enterGallery() {
                 zoneIndex: { ci: 1, uemoa: 2, afrique: 3, europe: 4, international: 5 }
             };
 
-            const zoneOrigine = detecterZonePostale(origine || "Cote d'Ivoire");
-            const zoneDest    = detecterZonePostale(destination);
+            const origNorm = normaliserPays(origine || "cote d'ivoire");
+            const destNorm = normaliserPays(destination);
             const poids = Math.max(1, poidsGrammes);
 
-            // Règle : on prend la zone la plus éloignée entre origine et destination.
-            // Exemple : oeuvre au Mali (UEMOA) → client au Japon (international)
-            //           = on facture international depuis le Mali.
-            // Cas particulier : si l'oeuvre EST déjà dans la zone du client,
-            //           les frais sont calculés depuis l'origine vers la destination.
+            // ── CAS 1 : Livraison inter-ville dans le même pays ──────────────
+            // Ex : Bamako → Tombouctou (tous les deux au Mali)
+            const destPaysCode = PAYS_ZONES[destNorm] ? destNorm : null;
+            const origPaysCode = PAYS_ZONES[origNorm] ? origNorm : null;
+
+            if (destPaysCode && origPaysCode && destPaysCode === origPaysCode) {
+                // Même pays → tarif domestique
+                const grille = TARIFS_DOMESTIQUES[destPaysCode] || TARIFS_DOMESTIQUES['_default'];
+                for (const [maxG, tarif] of grille) {
+                    if (poids <= maxG) return { cout: tarif, zone: 'domestique', zoneOrigine: 'domestique', zoneDest: 'domestique', meme_pays: true };
+                }
+                const dernierTarif = grille[grille.length - 1][1];
+                const surplus = Math.ceil((poids - 30000) / 5000);
+                return { cout: dernierTarif + surplus * 3000, zone: 'domestique', zoneOrigine: 'domestique', zoneDest: 'domestique', meme_pays: true };
+            }
+
+            // ── CAS 2 : Envoi international (pays différents) ────────────────
+            const zoneOrigine = detecterZonePostale(origNorm);
+            const zoneDest    = detecterZonePostale(destNorm);
+
+            // Règle : tarif = zone la plus éloignée entre les deux
             const ordreZone = { ci: 1, uemoa: 2, afrique: 3, europe: 4, international: 5 };
             const zoneEffective = ordreZone[zoneDest] >= ordreZone[zoneOrigine]
-                ? zoneDest       // destination plus loin que l'origine → tarif destination
-                : zoneOrigine;   // destination plus proche → tarif depuis l'origine quand même
+                ? zoneDest
+                : zoneOrigine;
 
             const zIdx = bareme.zoneIndex[zoneEffective];
 
-            // Trouver le palier
             for (const palier of bareme.paliers) {
                 if (poids <= palier[0]) return { cout: palier[zIdx], zone: zoneEffective, zoneOrigine, zoneDest };
             }
-            // Au-delà de 30kg : tranche de 5kg
             const base    = bareme.paliers[bareme.paliers.length - 1][zIdx];
             const surplus = Math.ceil((poids - 30000) / 5000);
             const extra   = { ci: 4000, uemoa: 8000, afrique: 12000, europe: 22000, international: 30000 }[zoneEffective];
@@ -4527,7 +4630,14 @@ window.enterGallery = function enterGallery() {
         }
 
         function nomZonePostale(zone) {
-            return { ci: "Côte d'Ivoire", uemoa: "Zone UEMOA", afrique: "Afrique", europe: "Europe", international: "International" }[zone] || zone;
+            return {
+                domestique:    'Livraison nationale',
+                ci:            "Côte d'Ivoire",
+                uemoa:         'Zone UEMOA',
+                afrique:       'Afrique',
+                europe:        'Europe',
+                international: 'International'
+            }[zone] || zone;
         }
         function updateCartTotal() {
             const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);

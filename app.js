@@ -3682,10 +3682,10 @@ window.enterGallery = function enterGallery() {
             // Calcul initial du port selon poids + destination déjà enregistrée
             let shipping = 0; // défaut — jusqu'à ce que le mode soit choisi
             if (posteVille) {
-                const poidsTotal = cartItems.reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
-                const calcInit = calculerFraisPoste(poidsTotal, posteVille);
+                // FIX : calcul multi-origines — chaque oeuvre part de son propre pays
+                const calcInit = calculerFraisPosteMultiOrigines(cartItems.filter(i => !i.is_sold), posteVille);
                 shipping = calcInit.cout;
-                window._posteCalcDetail = { poidsTotal, zone: calcInit.zone, dest: posteVille, cout: shipping };
+                window._posteCalcDetail = { details: calcInit.details, dest: posteVille, cout: shipping };
             } else if (mainPropreLieu) {
                 shipping = 0;
             } else if (transportCompagnie) {
@@ -4115,9 +4115,10 @@ window.enterGallery = function enterGallery() {
             return 'international';
         }
 
-        function calculerFraisPoste(poidsGrammes, destination) {
-            // Barèmes basés sur les tarifs réels SOCOPCI / La Poste de Côte d'Ivoire
-            // Unité : FCFA — paliers en grammes
+        function calculerFraisPoste(poidsGrammes, destination, origine) {
+            // Barèmes La Poste / SOCOPCI — FCFA, paliers en grammes
+            // origine = pays de l'artiste (d'où part l'oeuvre)
+            // destination = pays/ville du client
             const bareme = {
                 //          [max_g,  ci,    uemoa,  afrique,  europe,  intl ]
                 paliers: [
@@ -4135,19 +4136,54 @@ window.enterGallery = function enterGallery() {
                 zoneIndex: { ci: 1, uemoa: 2, afrique: 3, europe: 4, international: 5 }
             };
 
-            const zone = detecterZonePostale(destination);
-            const zIdx = bareme.zoneIndex[zone];
+            const zoneOrigine = detecterZonePostale(origine || "Cote d'Ivoire");
+            const zoneDest    = detecterZonePostale(destination);
             const poids = Math.max(1, poidsGrammes);
+
+            // Règle : on prend la zone la plus éloignée entre origine et destination.
+            // Exemple : oeuvre au Mali (UEMOA) → client au Japon (international)
+            //           = on facture international depuis le Mali.
+            // Cas particulier : si l'oeuvre EST déjà dans la zone du client,
+            //           les frais sont calculés depuis l'origine vers la destination.
+            const ordreZone = { ci: 1, uemoa: 2, afrique: 3, europe: 4, international: 5 };
+            const zoneEffective = ordreZone[zoneDest] >= ordreZone[zoneOrigine]
+                ? zoneDest       // destination plus loin que l'origine → tarif destination
+                : zoneOrigine;   // destination plus proche → tarif depuis l'origine quand même
+
+            const zIdx = bareme.zoneIndex[zoneEffective];
 
             // Trouver le palier
             for (const palier of bareme.paliers) {
-                if (poids <= palier[0]) return { cout: palier[zIdx], zone };
+                if (poids <= palier[0]) return { cout: palier[zIdx], zone: zoneEffective, zoneOrigine, zoneDest };
             }
-            // Au-delà de 30kg : calcul par tranche de 5kg supplémentaires
-            const base = bareme.paliers[bareme.paliers.length - 1][zIdx];
+            // Au-delà de 30kg : tranche de 5kg
+            const base    = bareme.paliers[bareme.paliers.length - 1][zIdx];
             const surplus = Math.ceil((poids - 30000) / 5000);
-            const extra = { ci: 4000, uemoa: 8000, afrique: 12000, europe: 22000, international: 30000 }[zone];
-            return { cout: base + surplus * extra, zone };
+            const extra   = { ci: 4000, uemoa: 8000, afrique: 12000, europe: 22000, international: 30000 }[zoneEffective];
+            return { cout: base + surplus * extra, zone: zoneEffective, zoneOrigine, zoneDest };
+        }
+
+        // Calcul multi-origines : une oeuvre = un pays d'expédition potentiellement différent
+        // Retourne le coût total et un détail par oeuvre
+        function calculerFraisPosteMultiOrigines(cartItems, destination) {
+            let total = 0;
+            const details = [];
+            for (const item of cartItems) {
+                if (item.is_sold) continue;
+                const qte    = item.quantity || 1;
+                const poids  = (item.weight_g || 500) * qte;
+                const orig   = item.artist_country || item.country || "Cote d'Ivoire";
+                const result = calculerFraisPoste(poids, destination, orig);
+                total += result.cout;
+                details.push({
+                    title:  item.title,
+                    orig,
+                    dest:   destination,
+                    zone:   result.zone,
+                    cout:   result.cout
+                });
+            }
+            return { cout: total, details };
         }
 
         function nomZonePostale(zone) {

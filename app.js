@@ -3992,11 +3992,11 @@ window.enterGallery = function enterGallery() {
             let priceLabel;
             if (mode === 'poste') {
                 const dest = document.getElementById('modal-poste-ville')?.value.trim() || posteVille || '';
-                const poidsTotal = cartItems.reduce((sum, item) => sum + ((item.weight_g || 500) * (item.quantity || 1)), 0);
-                const calcul = calculerFraisPoste(poidsTotal, dest);
+                // FIX multi-origines : chaque oeuvre part de son pays artiste
+                const validItems = cartItems.filter(i => !i.is_sold);
+                const calcul = calculerFraisPosteMultiOrigines(validItems, dest);
                 cost = calcul.cout;
-                // Stocker le détail pour affichage
-                window._posteCalcDetail = { poidsTotal, zone: calcul.zone, dest, cout: cost };
+                window._posteCalcDetail = { details: calcul.details, dest, cout: cost };
                 priceLabel = formatPrice(cost);
             } else if (mode === 'transport') {
                 const transportSubtotal = cartItems.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);

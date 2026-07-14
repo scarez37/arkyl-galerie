@@ -3683,7 +3683,8 @@ window.enterGallery = function enterGallery() {
             let shipping = 0; // défaut — jusqu'à ce que le mode soit choisi
             if (posteVille) {
                 // FIX : calcul multi-origines — chaque oeuvre part de son propre pays
-                const calcInit = calculerFraisPosteMultiOrigines(cartItems.filter(i => !i.is_sold), posteVille);
+                const _destPays = posteVille.split('|')[0]; // extraire le pays
+                const calcInit = calculerFraisPosteMultiOrigines(cartItems.filter(i => !i.is_sold), _destPays);
                 shipping = calcInit.cout;
                 window._posteCalcDetail = { details: calcInit.details, dest: posteVille, cout: shipping };
             } else if (mainPropreLieu) {
@@ -3718,7 +3719,12 @@ window.enterGallery = function enterGallery() {
                                     <span id="shipping-mode-icon">🚚</span>
                                     <span id="shipping-mode-label">${
                                         (() => {
-                                            if (posteVille) return 'La Poste · ' + posteVille;
+                                            if (posteVille) {
+                        const [pv, vv] = posteVille.split('|');
+                        const paysTrouve = Object.values(PAYS_PAR_ZONE).flat().find(p => p.code === pv);
+                        const nomPays = paysTrouve ? paysTrouve.flag + ' ' + paysTrouve.nom : pv;
+                        return 'La Poste · ' + nomPays + (vv ? ' · ' + vv : '');
+                    }
                                             if (transportCompagnie) return 'Transport · ' + transportCompagnie;
                                             if (mainPropreLieu) return 'Main propre · ' + mainPropreLieu;
                                             return 'Choisir le mode de livraison';
@@ -3890,8 +3896,33 @@ window.enterGallery = function enterGallery() {
                             <div style="font-weight:700;color:white;font-size:15px;">La Poste</div>
                             <div style="font-size:12px;opacity:0.6;margin-top:2px;">3–5 jours · Livraison à domicile</div>
                             <div id="poste-detail-modal" style="margin-top:${modeActuel === 'poste' ? '12px' : '0'};display:${modeActuel === 'poste' ? 'block' : 'none'};">
-                                <input id="modal-poste-ville" type="text" placeholder="Ville de destination (ex: Abidjan, Bouaké…)" value="${posteVille || ''}"
-                                    style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;" onclick="event.stopPropagation()">
+                                <div onclick="event.stopPropagation()">
+                                    <select id="modal-poste-pays"
+                                        style="width:100%;padding:9px 12px;background:#1a1a2e;border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;margin-bottom:8px;cursor:pointer;"
+                                        onchange="onPaysLivraisonChange(this.value)">
+                                        <option value="">🌍 Sélectionner le pays de livraison…</option>
+                                        <optgroup label="─── Côte d\'Ivoire ───">
+                                            ${PAYS_PAR_ZONE.ci.map(p => `<option value="${p.code}" ${posteVille && posteVille.startsWith(p.code) ? 'selected' : ''}>${p.flag} ${p.nom}</option>`).join('')}
+                                        </optgroup>
+                                        <optgroup label="─── Zone UEMOA ───">
+                                            ${PAYS_PAR_ZONE.uemoa.map(p => `<option value="${p.code}" ${posteVille && posteVille.startsWith(p.code) ? 'selected' : ''}>${p.flag} ${p.nom}</option>`).join('')}
+                                        </optgroup>
+                                        <optgroup label="─── Afrique ───">
+                                            ${PAYS_PAR_ZONE.afrique.map(p => `<option value="${p.code}" ${posteVille && posteVille.startsWith(p.code) ? 'selected' : ''}>${p.flag} ${p.nom}</option>`).join('')}
+                                        </optgroup>
+                                        <optgroup label="─── Europe ───">
+                                            ${PAYS_PAR_ZONE.europe.map(p => `<option value="${p.code}" ${posteVille && posteVille.startsWith(p.code) ? 'selected' : ''}>${p.flag} ${p.nom}</option>`).join('')}
+                                        </optgroup>
+                                        <optgroup label="─── International ───">
+                                            ${PAYS_PAR_ZONE.international.map(p => `<option value="${p.code}" ${posteVille && posteVille.startsWith(p.code) ? 'selected' : ''}>${p.flag} ${p.nom}</option>`).join('')}
+                                        </optgroup>
+                                    </select>
+                                    <input id="modal-poste-ville" type="text"
+                                        placeholder="Ville (ex: Abidjan, Paris, Tokyo…)"
+                                        value="${posteVille ? posteVille.split('|')[1] || '' : ''}"
+                                        style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;">
+                                    <div id="poste-zone-preview" style="margin-top:6px;font-size:12px;color:#d4af37;display:none;"></div>
+                                </div>
                             </div>
                         </div>
                         <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;">Calculé selon poids</span>
@@ -3945,6 +3976,23 @@ window.enterGallery = function enterGallery() {
         if (typeof window._modeEnCours === 'undefined') window._modeEnCours = null;
         var _modeEnCours = window._modeEnCours;
 
+        function onPaysLivraisonChange(paysCode) {
+            if (!paysCode) {
+                document.getElementById('poste-zone-preview').style.display = 'none';
+                return;
+            }
+            const zone = detecterZonePostale(paysCode);
+            const nomZone = nomZonePostale(zone);
+            const preview = document.getElementById('poste-zone-preview');
+            if (preview) {
+                preview.style.display = 'block';
+                // Pré-calculer le coût estimé
+                const validItems = cartItems.filter(i => !i.is_sold);
+                const calc = calculerFraisPosteMultiOrigines(validItems, paysCode);
+                preview.textContent = '📦 Zone : ' + nomZone + ' · Estimation : ' + formatPrice(calc.cout);
+            }
+        }
+
         function selectionnerModeLivraison(mode, el) {
             _modeEnCours = mode;
             // Mettre à jour le style de toutes les options
@@ -3974,9 +4022,12 @@ window.enterGallery = function enterGallery() {
 
             // Récupérer la valeur de l'input associé
             if (mode === 'poste') {
-                const val = document.getElementById('modal-poste-ville')?.value.trim();
-                if (!val) { showToast('⚠️ Indiquez une ville pour La Poste'); return; }
-                _savePosteVille(val);
+                const pays = document.getElementById('modal-poste-pays')?.value || '';
+                const ville = document.getElementById('modal-poste-ville')?.value.trim() || '';
+                if (!pays) { showToast('⚠️ Sélectionnez le pays de livraison'); return; }
+                // Stocker pays|ville pour séparer les deux lors du calcul
+                const dest = pays + (ville ? '|' + ville : '');
+                _savePosteVille(dest);
             } else if (mode === 'transport') {
                 const val = document.getElementById('modal-transport-cie')?.value.trim();
                 if (!val) { showToast('⚠️ Indiquez la compagnie de transport'); return; }
@@ -3991,10 +4042,10 @@ window.enterGallery = function enterGallery() {
             let cost;
             let priceLabel;
             if (mode === 'poste') {
-                const dest = document.getElementById('modal-poste-ville')?.value.trim() || posteVille || '';
+                const _rawDest = document.getElementById('modal-poste-pays')?.value || posteVille?.split('|')[0] || '';
                 // FIX multi-origines : chaque oeuvre part de son pays artiste
                 const validItems = cartItems.filter(i => !i.is_sold);
-                const calcul = calculerFraisPosteMultiOrigines(validItems, dest);
+                const calcul = calculerFraisPosteMultiOrigines(validItems, _rawDest);
                 cost = calcul.cout;
                 window._posteCalcDetail = { details: calcul.details, dest, cout: cost };
                 priceLabel = formatPrice(cost);
@@ -4077,41 +4128,330 @@ window.enterGallery = function enterGallery() {
         //  TARIFS LA POSTE — barèmes SOCOPCI (Côte d'Ivoire) réels
         //  5 zones : CI domestique / UEMOA / Afrique / Europe / International
         // ══════════════════════════════════════════════════════════════
+        // Mapping pays → zone postale (exhaustif, ~180 pays)
+        const PAYS_ZONES = {
+            // ── Côte d'Ivoire ──
+            'cote d\'ivoire':'ci','ivory coast':'ci','cote divoire':'ci',
+
+            // ── UEMOA ──
+            'senegal':'uemoa','mali':'uemoa','burkina faso':'uemoa','burkina':'uemoa',
+            'niger':'uemoa','benin':'uemoa','togo':'uemoa','guinee-bissau':'uemoa',
+            'guinee bissau':'uemoa','guinea-bissau':'uemoa',
+
+            // ── Afrique (hors UEMOA) ──
+            'ghana':'afrique','nigeria':'afrique','cameroun':'afrique','cameroon':'afrique',
+            'guinee':'afrique','guinea':'afrique','liberia':'afrique','sierra leone':'afrique',
+            'mauritanie':'afrique','mauritania':'afrique',
+            'maroc':'afrique','morocco':'afrique',
+            'algerie':'afrique','algeria':'afrique',
+            'tunisie':'afrique','tunisia':'afrique',
+            'libye':'afrique','libya':'afrique',
+            'egypte':'afrique','egypt':'afrique',
+            'soudan':'afrique','sudan':'afrique',
+            'soudan du sud':'afrique','south sudan':'afrique',
+            'ethiopie':'afrique','ethiopia':'afrique',
+            'erythree':'afrique','eritrea':'afrique',
+            'djibouti':'afrique',
+            'somalie':'afrique','somalia':'afrique',
+            'kenya':'afrique',
+            'tanzanie':'afrique','tanzania':'afrique',
+            'ouganda':'afrique','uganda':'afrique',
+            'rwanda':'afrique',
+            'burundi':'afrique',
+            'republique democratique du congo':'afrique','rdc':'afrique','congo kinshasa':'afrique','democratic republic of congo':'afrique',
+            'congo':'afrique','brazzaville':'afrique','republic of congo':'afrique',
+            'gabon':'afrique',
+            'guinee equatoriale':'afrique','equatorial guinea':'afrique',
+            'sao tome':'afrique','sao tome et principe':'afrique',
+            'centrafrique':'afrique','central african republic':'afrique',
+            'tchad':'afrique','chad':'afrique',
+            'angola':'afrique',
+            'zambie':'afrique','zambia':'afrique',
+            'zimbabwe':'afrique',
+            'mozambique':'afrique',
+            'malawi':'afrique',
+            'madagascar':'afrique',
+            'comores':'afrique','comoros':'afrique',
+            'maurice':'afrique','mauritius':'afrique',
+            'reunion':'afrique','la reunion':'afrique',
+            'mayotte':'afrique',
+            'seychelles':'afrique',
+            'afrique du sud':'afrique','south africa':'afrique',
+            'namibie':'afrique','namibia':'afrique',
+            'botswana':'afrique',
+            'lesotho':'afrique',
+            'eswatini':'afrique','swaziland':'afrique',
+            'cap vert':'afrique','cape verde':'afrique',
+            'gambie':'afrique','gambia':'afrique',
+            'liberia':'afrique',
+
+            // ── Europe ──
+            'france':'europe','belgique':'europe','belgium':'europe',
+            'suisse':'europe','switzerland':'europe',
+            'luxembourg':'europe',
+            'allemagne':'europe','germany':'europe',
+            'autriche':'europe','austria':'europe',
+            'pays-bas':'europe','netherlands':'europe','hollande':'europe',
+            'italie':'europe','italy':'europe',
+            'espagne':'europe','spain':'europe',
+            'portugal':'europe',
+            'royaume-uni':'europe','united kingdom':'europe','angleterre':'europe','england':'europe',
+            'irlande':'europe','ireland':'europe',
+            'danemark':'europe','denmark':'europe',
+            'suede':'europe','sweden':'europe',
+            'norvege':'europe','norway':'europe',
+            'finlande':'europe','finland':'europe',
+            'islande':'europe','iceland':'europe',
+            'pologne':'europe','poland':'europe',
+            'ukraine':'europe',
+            'russie':'europe','russia':'europe',
+            'bielorussie':'europe','belarus':'europe',
+            'moldavie':'europe','moldova':'europe',
+            'roumanie':'europe','romania':'europe',
+            'bulgarie':'europe','bulgaria':'europe',
+            'grece':'europe','greece':'europe',
+            'turquie':'europe','turkey':'europe',
+            'hongrie':'europe','hungary':'europe',
+            'republique tcheque':'europe','czech republic':'europe','tcheque':'europe',
+            'slovaquie':'europe','slovakia':'europe',
+            'slovenie':'europe','slovenia':'europe',
+            'croatie':'europe','croatia':'europe',
+            'bosnie':'europe','bosnia':'europe',
+            'serbie':'europe','serbia':'europe',
+            'montenegro':'europe',
+            'macedoine':'europe','north macedonia':'europe',
+            'albanie':'europe','albania':'europe',
+            'kosovo':'europe',
+            'lituanie':'europe','lithuania':'europe',
+            'lettonie':'europe','latvia':'europe',
+            'estonie':'europe','estonia':'europe',
+            'chypre':'europe','cyprus':'europe',
+            'malte':'europe','malta':'europe',
+            'monaco':'europe',
+            'andorre':'europe','andorra':'europe',
+            'liechtenstein':'europe',
+            'saint marin':'europe','san marino':'europe',
+            'vatican':'europe',
+
+            // ── International — Asie ──
+            'chine':'international','china':'international',
+            'japon':'international','japan':'international',
+            'coree du sud':'international','south korea':'international',
+            'coree du nord':'international','north korea':'international',
+            'inde':'international','india':'international',
+            'pakistan':'international',
+            'bangladesh':'international',
+            'sri lanka':'international',
+            'nepal':'international',
+            'bhoutan':'international','bhutan':'international',
+            'afghanistan':'international',
+            'iran':'international',
+            'irak':'international','iraq':'international',
+            'syrie':'international','syria':'international',
+            'liban':'international','lebanon':'international',
+            'israel':'international',
+            'palestine':'international',
+            'jordanie':'international','jordan':'international',
+            'arabie saoudite':'international','saudi arabia':'international',
+            'emirats arabes unis':'international','uae':'international','dubai':'international',
+            'qatar':'international',
+            'koweit':'international','kuwait':'international',
+            'bahrein':'international','bahrain':'international',
+            'oman':'international',
+            'yemen':'international',
+            'azerbaidjan':'international','azerbaijan':'international',
+            'armenie':'international','armenia':'international',
+            'georgie':'international','georgia':'international',
+            'kazakhstan':'international',
+            'ouzbekistan':'international','uzbekistan':'international',
+            'turkmenistan':'international',
+            'kirghizistan':'international','kyrgyzstan':'international',
+            'tadjikistan':'international','tajikistan':'international',
+            'mongolie':'international','mongolia':'international',
+            'myanmar':'international','birmanie':'international','burma':'international',
+            'thailande':'international','thailand':'international',
+            'vietnam':'international',
+            'cambodge':'international','cambodia':'international',
+            'laos':'international',
+            'malaysia':'international','malaisie':'international',
+            'singapour':'international','singapore':'international',
+            'indonesie':'international','indonesia':'international',
+            'philippines':'international',
+            'taiwan':'international',
+            'hong kong':'international',
+            'macao':'international',
+            'timor oriental':'international','east timor':'international',
+            'brunei':'international',
+
+            // ── International — Amériques ──
+            'etats-unis':'international','etats unis':'international','usa':'international','united states':'international','amerique':'international',
+            'canada':'international',
+            'mexique':'international','mexico':'international',
+            'bresil':'international','brazil':'international',
+            'argentine':'international','argentina':'international',
+            'colombie':'international','colombia':'international',
+            'chili':'international','chile':'international',
+            'perou':'international','peru':'international',
+            'venezuela':'international',
+            'equateur':'international','ecuador':'international',
+            'bolivie':'international','bolivia':'international',
+            'paraguay':'international',
+            'uruguay':'international',
+            'guyana':'international',
+            'suriname':'international',
+            'cuba':'international',
+            'haiti':'international',
+            'jamaique':'international','jamaica':'international',
+            'republique dominicaine':'international','dominican republic':'international',
+            'costa rica':'international',
+            'panama':'international',
+            'guatemala':'international',
+            'honduras':'international',
+            'el salvador':'international',
+            'nicaragua':'international',
+            'belize':'international',
+
+            // ── International — Océanie ──
+            'australie':'international','australia':'international',
+            'nouvelle-zelande':'international','new zealand':'international',
+            'papouasie':'international','papua new guinea':'international',
+            'fidji':'international','fiji':'international',
+
+            // ── International — reste ──
+            'antilles':'international','martinique':'international','guadeloupe':'international',
+            'guyane':'international','polynesie':'international','nouvelle caledonie':'international',
+        };
+
+        // Liste complète des pays pour le sélecteur UI (organisée par zone)
+        const PAYS_PAR_ZONE = {
+            ci: [
+                { nom: "Côte d'Ivoire", code: "cote d'ivoire", flag: "🇨🇮" }
+            ],
+            uemoa: [
+                { nom: "Sénégal", code: "senegal", flag: "🇸🇳" },
+                { nom: "Mali", code: "mali", flag: "🇲🇱" },
+                { nom: "Burkina Faso", code: "burkina faso", flag: "🇧🇫" },
+                { nom: "Niger", code: "niger", flag: "🇳🇪" },
+                { nom: "Bénin", code: "benin", flag: "🇧🇯" },
+                { nom: "Togo", code: "togo", flag: "🇹🇬" },
+                { nom: "Guinée-Bissau", code: "guinee-bissau", flag: "🇬🇼" },
+            ],
+            afrique: [
+                { nom: "Ghana", code: "ghana", flag: "🇬🇭" },
+                { nom: "Nigéria", code: "nigeria", flag: "🇳🇬" },
+                { nom: "Cameroun", code: "cameroun", flag: "🇨🇲" },
+                { nom: "Guinée", code: "guinee", flag: "🇬🇳" },
+                { nom: "Libéria", code: "liberia", flag: "🇱🇷" },
+                { nom: "Sierra Leone", code: "sierra leone", flag: "🇸🇱" },
+                { nom: "Mauritanie", code: "mauritanie", flag: "🇲🇷" },
+                { nom: "Maroc", code: "maroc", flag: "🇲🇦" },
+                { nom: "Algérie", code: "algerie", flag: "🇩🇿" },
+                { nom: "Tunisie", code: "tunisie", flag: "🇹🇳" },
+                { nom: "Libye", code: "libye", flag: "🇱🇾" },
+                { nom: "Égypte", code: "egypte", flag: "🇪🇬" },
+                { nom: "Soudan", code: "soudan", flag: "🇸🇩" },
+                { nom: "Éthiopie", code: "ethiopie", flag: "🇪🇹" },
+                { nom: "Kenya", code: "kenya", flag: "🇰🇪" },
+                { nom: "Tanzanie", code: "tanzanie", flag: "🇹🇿" },
+                { nom: "Ouganda", code: "ouganda", flag: "🇺🇬" },
+                { nom: "Rwanda", code: "rwanda", flag: "🇷🇼" },
+                { nom: "RD Congo", code: "republique democratique du congo", flag: "🇨🇩" },
+                { nom: "Congo Brazzaville", code: "congo", flag: "🇨🇬" },
+                { nom: "Gabon", code: "gabon", flag: "🇬🇦" },
+                { nom: "Tchad", code: "tchad", flag: "🇹🇩" },
+                { nom: "Centrafrique", code: "centrafrique", flag: "🇨🇫" },
+                { nom: "Angola", code: "angola", flag: "🇦🇴" },
+                { nom: "Mozambique", code: "mozambique", flag: "🇲🇿" },
+                { nom: "Madagascar", code: "madagascar", flag: "🇲🇬" },
+                { nom: "Afrique du Sud", code: "afrique du sud", flag: "🇿🇦" },
+                { nom: "Namibie", code: "namibie", flag: "🇳🇦" },
+                { nom: "Zimbabwe", code: "zimbabwe", flag: "🇿🇼" },
+                { nom: "Zambie", code: "zambie", flag: "🇿🇲" },
+                { nom: "Djibouti", code: "djibouti", flag: "🇩🇯" },
+                { nom: "Somalie", code: "somalie", flag: "🇸🇴" },
+                { nom: "Cap-Vert", code: "cap vert", flag: "🇨🇻" },
+                { nom: "Gambie", code: "gambie", flag: "🇬🇲" },
+            ],
+            europe: [
+                { nom: "France", code: "france", flag: "🇫🇷" },
+                { nom: "Belgique", code: "belgique", flag: "🇧🇪" },
+                { nom: "Suisse", code: "suisse", flag: "🇨🇭" },
+                { nom: "Luxembourg", code: "luxembourg", flag: "🇱🇺" },
+                { nom: "Allemagne", code: "allemagne", flag: "🇩🇪" },
+                { nom: "Autriche", code: "autriche", flag: "🇦🇹" },
+                { nom: "Pays-Bas", code: "pays-bas", flag: "🇳🇱" },
+                { nom: "Italie", code: "italie", flag: "🇮🇹" },
+                { nom: "Espagne", code: "espagne", flag: "🇪🇸" },
+                { nom: "Portugal", code: "portugal", flag: "🇵🇹" },
+                { nom: "Royaume-Uni", code: "royaume-uni", flag: "🇬🇧" },
+                { nom: "Irlande", code: "irlande", flag: "🇮🇪" },
+                { nom: "Danemark", code: "danemark", flag: "🇩🇰" },
+                { nom: "Suède", code: "suede", flag: "🇸🇪" },
+                { nom: "Norvège", code: "norvege", flag: "🇳🇴" },
+                { nom: "Finlande", code: "finlande", flag: "🇫🇮" },
+                { nom: "Pologne", code: "pologne", flag: "🇵🇱" },
+                { nom: "Russie", code: "russie", flag: "🇷🇺" },
+                { nom: "Ukraine", code: "ukraine", flag: "🇺🇦" },
+                { nom: "Roumanie", code: "roumanie", flag: "🇷🇴" },
+                { nom: "Grèce", code: "grece", flag: "🇬🇷" },
+                { nom: "Turquie", code: "turquie", flag: "🇹🇷" },
+                { nom: "Hongrie", code: "hongrie", flag: "🇭🇺" },
+                { nom: "Serbie", code: "serbie", flag: "🇷🇸" },
+                { nom: "Croatie", code: "croatie", flag: "🇭🇷" },
+            ],
+            international: [
+                { nom: "États-Unis", code: "etats-unis", flag: "🇺🇸" },
+                { nom: "Canada", code: "canada", flag: "🇨🇦" },
+                { nom: "Brésil", code: "bresil", flag: "🇧🇷" },
+                { nom: "Argentine", code: "argentine", flag: "🇦🇷" },
+                { nom: "Mexique", code: "mexique", flag: "🇲🇽" },
+                { nom: "Chine", code: "chine", flag: "🇨🇳" },
+                { nom: "Japon", code: "japon", flag: "🇯🇵" },
+                { nom: "Corée du Sud", code: "coree du sud", flag: "🇰🇷" },
+                { nom: "Inde", code: "inde", flag: "🇮🇳" },
+                { nom: "Arabie Saoudite", code: "arabie saoudite", flag: "🇸🇦" },
+                { nom: "Émirats Arabes Unis", code: "emirats arabes unis", flag: "🇦🇪" },
+                { nom: "Qatar", code: "qatar", flag: "🇶🇦" },
+                { nom: "Australie", code: "australie", flag: "🇦🇺" },
+                { nom: "Nouvelle-Zélande", code: "nouvelle-zelande", flag: "🇳🇿" },
+                { nom: "Singapour", code: "singapour", flag: "🇸🇬" },
+                { nom: "Thaïlande", code: "thailande", flag: "🇹🇭" },
+                { nom: "Vietnam", code: "vietnam", flag: "🇻🇳" },
+                { nom: "Indonésie", code: "indonesie", flag: "🇮🇩" },
+                { nom: "Malaisie", code: "malaysia", flag: "🇲🇾" },
+                { nom: "Philippines", code: "philippines", flag: "🇵🇭" },
+                { nom: "Israël", code: "israel", flag: "🇮🇱" },
+                { nom: "Liban", code: "liban", flag: "🇱🇧" },
+                { nom: "Turquie", code: "turquie", flag: "🇹🇷" },
+                { nom: "Iran", code: "iran", flag: "🇮🇷" },
+                { nom: "Pakistan", code: "pakistan", flag: "🇵🇰" },
+                { nom: "Cuba", code: "cuba", flag: "🇨🇺" },
+                { nom: "Haïti", code: "haiti", flag: "🇭🇹" },
+                { nom: "Martinique", code: "martinique", flag: "🇲🇶" },
+                { nom: "Guadeloupe", code: "guadeloupe", flag: "🇬🇵" },
+            ]
+        };
+
         function detecterZonePostale(destination) {
             if (!destination) return 'ci';
-            const d = destination.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+            const d = destination.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
 
-            // Villes CI domestiques
-            const villesCI = ['abidjan','bouake','yamoussoukro','daloa','san pedro','korhogo','man','gagnoa','bondoukou',
-                'divo','abengourou','adzope','agboville','anyama','bassam','bingerville','dabou','duekoue','ferke',
-                'ferkessedougou','grand bassam','guiglo','issia','lakota','mbahiakro','odienne','sinfra','soubre',
-                'tabou','tiassale','touba','toumodi','vavoua','zuenula'];
+            // Chercher d'abord une correspondance exacte dans le mapping
+            if (PAYS_ZONES[d]) return PAYS_ZONES[d];
+
+            // Chercher une correspondance partielle
+            for (const [pays, zone] of Object.entries(PAYS_ZONES)) {
+                if (d.includes(pays) || pays.includes(d)) return zone;
+            }
+
+            // Villes CI domestiques connues
+            const villesCI = ['abidjan','bouake','yamoussoukro','daloa','san pedro','korhogo','man','gagnoa',
+                'bondoukou','divo','abengourou','bassam','bingerville','dabou','duekoue','ferkessedougou',
+                'grand-bassam','guiglo','issia','lakota','odienne','sinfra','soubre','tabou','tiassale',
+                'touba','toumodi','vavoua','adzope','agboville','anyama'];
             if (villesCI.some(v => d.includes(v))) return 'ci';
-            if (d.includes("cote d'ivoire") || d.includes('cote divoire') || d.includes('ivory coast') || d.includes('ci')) return 'ci';
 
-            // Zone UEMOA (Union Économique et Monétaire Ouest-Africaine)
-            const uemoa = ['senegal','dakar','mali','bamako','burkina','ouagadougou','niger','niamey',
-                'benin','cotonou','porto novo','togo','lome','guinee-bissau','bissau','guinee bissau'];
-            if (uemoa.some(v => d.includes(v))) return 'uemoa';
-
-            // Afrique (hors UEMOA)
-            const afriqueMots = ['ghana','accra','nigeria','lagos','abuja','cameroun','douala','yaounde',
-                'conakry','guinea','liberia','sierra leone','mauritanie','maroc','algerie','tunisie',
-                'egypte','ethiopie','kenya','nairobi','tanzanie','afrique du sud','johannesburg','angola',
-                'congo','kinshasa','brazzaville','gabon','libreville','madagascar','mozambique','zimbabwe',
-                'zambie','rwanda','ouganda','ghana','sao tome','cap vert','comores','djibouti','somalie',
-                'soudan','libye','tchad','centrafrique','namibie','botswana','malawi','lesotho'];
-            if (afriqueMots.some(v => d.includes(v))) return 'afrique';
-
-            // Europe
-            const europe = ['france','paris','lyon','marseille','belgique','bruxelles','suisse','geneve','zurich',
-                'luxembourg','allemagne','berlin','munich','italie','rome','milan','espagne','madrid','barcelone',
-                'portugal','lisbonne','royaume-uni','london','angleterre','pays-bas','amsterdam','autriche',
-                'suede','stockholm','norvege','danemark','finlande','pologne','ukraine','grece','turquie',
-                'roumanie','hongrie','tcheque','slovaquie','serbie','croatie','europe'];
-            if (europe.some(v => d.includes(v))) return 'europe';
-
-            // International (Amériques, Asie, Océanie, reste du monde)
+            // Fallback international si rien ne correspond
             return 'international';
         }
 

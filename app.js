@@ -9991,7 +9991,7 @@ window.enterGallery = function enterGallery() {
                     <div class="artwork-info">
                         <div class="artwork-title">${a.title}</div>
                         <div class="artwork-price">${formatPrice(a.price)}</div>
-                        <div class="artwork-meta"><span>🏷️ ${a.category}</span><span>👁️ 0 vues</span></div>
+                        <div class="artwork-meta"><span>🏷️ ${a.category}</span><span>👁️ ${a.view_count || 0} vue${(a.view_count || 0) > 1 ? 's' : ''}</span></div>
                         <div class="artwork-actions">
                             <button class="btn-small btn-edit" onclick="openArtworkModal(${a.id})">✏️ Modifier</button>
                             <button class="btn-small btn-delete" onclick="deleteArtwork(${a.id})">🗑️ Supprimer</button>
@@ -11369,10 +11369,54 @@ window.enterGallery = function enterGallery() {
    ============================ */
 
 
+
+    // 👁️ Enregistrer une vue pour une œuvre
+    async function recordArtworkView(artworkId) {
+        if (!artworkId) return;
+        
+        try {
+            // Utiliser le localStorage pour éviter de compter la même personne plusieurs fois
+            const viewedArtworks = JSON.parse(localStorage.getItem('viewedArtworks') || '{}');
+            const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+            const key = `${artworkId}_${today}`;
+            
+            // Si déjà vu aujourd'hui, ne pas envoyer
+            if (viewedArtworks[key]) {
+                return;
+            }
+            
+            // Marquer comme vu aujourd'hui
+            viewedArtworks[key] = true;
+            localStorage.setItem('viewedArtworks', JSON.stringify(viewedArtworks));
+            
+            // Envoyer à l'API pour incrémenter le compteur
+            const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php', {
+                method: 'POST',
+                mode: 'cors',
+                credentials: 'omit',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'record_view',
+                    artwork_id: artworkId
+                })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    console.log('✅ Vue enregistrée pour œuvre', artworkId);
+                }
+            }
+        } catch(e) {
+            console.warn('⚠️ Erreur lors de l\'enregistrement de la vue:', e.message);
+        }
+    }
     // ==================== FONCTION POUR VOIR LES DÉTAILS D'UNE ŒUVRE DEPUIS L'API ====================
     async function viewProductDetailFromAPI(artworkId) {
         showLoading();
         
+        // 👁️ Incrémenter le compteur de vues
+        recordArtworkView(artworkId).catch(e => console.warn('⚠️ Erreur enregistrement vue:', e));
         try {
             // Charger les détails depuis l'API
             const response = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?artwork_id=${artworkId}`);

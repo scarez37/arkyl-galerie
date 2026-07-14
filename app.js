@@ -3178,26 +3178,38 @@ window.enterGallery = function enterGallery() {
                 : (product.image_url ? [product.image_url] : []);
             const mainImg    = photos[0] || null;
             const artistName = product.artist_name || product.artist || 'Artiste inconnu';
+            
+            // Déterminer si l'œuvre est vendue
+            const isSold = product.status === 'sold' || product.is_sold === true || product.is_sold === 1 || product.badge === 'Vendu';
+            
             const imageHTML  = mainImg
                 ? `<img src="${mainImg}" alt="${product.title}"
-                        style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;"
+                        style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;${isSold ? 'opacity:0.5;filter:grayscale(100%);' : ''}"
                         loading="lazy"
                         onerror="this.style.display='none'">`
-                : `<div style="font-size:60px;display:flex;align-items:center;justify-content:center;height:100%;">🎨</div>`;
+                : `<div style="font-size:60px;display:flex;align-items:center;justify-content:center;height:100%;${isSold ? 'opacity:0.5;' : ''}">🎨</div>`;
+
+            // Déterminer le badge
+            let badgeText = product.badge || 'Disponible';
+            let badgeStyle = '';
+            if (isSold) {
+                badgeText = '✓ VENDUE';
+                badgeStyle = 'background:rgba(0,0,0,0.7) !important;color:white;';
+            }
 
             return `
-            <div class="product-card" onclick="viewProductDetailFromAPI(${product.id})">
+            <div class="product-card" ${!isSold ? `onclick="viewProductDetailFromAPI(${product.id})"` : ''} style="${isSold ? 'opacity:0.7;cursor:not-allowed;' : ''}">
                 <div class="product-image" style="position:relative;">
-                    <span class="product-badge">${product.badge || 'Disponible'}</span>
-                    <button class="like-button" onclick="toggleFavorite(event, ${product.id})">${favorites.includes(product.id) ? '❤️' : '🤍'}</button>
+                    <span class="product-badge" style="${badgeStyle}">${badgeText}</span>
+                    ${!isSold ? `<button class="like-button" onclick="toggleFavorite(event, ${product.id})">${favorites.includes(product.id) ? '❤️' : '🤍'}</button>` : ''}
                     ${imageHTML}
                 </div>
                 <div class="product-info">
-                    <div class="product-title">${product.title}</div>
-                    <div class="product-artist" onclick="viewArtistDetail(event, '${artistName}')">par ${artistName}</div>
+                    <div class="product-title" style="${isSold ? 'opacity:0.6;' : ''}">${product.title}</div>
+                    <div class="product-artist" onclick="viewArtistDetail(event, '${artistName}')" style="${isSold ? 'opacity:0.6;' : ''}">par ${artistName}</div>
                     <div class="product-footer">
-                        <div class="product-price">${formatPrice(product.price)}</div>
-                        <button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>
+                        <div class="product-price" style="${isSold ? 'opacity:0.6;' : ''}">${formatPrice(product.price)}</div>
+                        ${!isSold ? `<button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>` : `<button class="add-cart-btn" style="background:rgba(0,0,0,0.5);cursor:not-allowed;" disabled>Vendue</button>`}
                     </div>
                 </div>
             </div>`;
@@ -6449,20 +6461,18 @@ window.enterGallery = function enterGallery() {
             // Récupérer les œuvres : depuis l'API et depuis getProducts()
             let artistWorks = [];
             try {
-                const response = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?t=${Date.now()}`);
+                const response = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?t=${Date.now()}&include_sold=1`);
                 const result = await response.json();
                 if (result.success && result.data) {
                     artistWorks = result.data.filter(a =>
                         a.artist_name && a.artist_name.trim().toLowerCase() === artistName.trim().toLowerCase()
-                        && !a.is_sold && a.badge !== 'Vendu'
                     );
                 }
             } catch(e) {}
 
-            // Compléter avec les produits locaux (non vendus uniquement)
+            // Compléter avec les produits locaux
             const localWorks = getProducts().filter(p =>
                 p.artist && p.artist.toLowerCase() === artistName.toLowerCase()
-                && !p.is_sold && p.badge !== 'Vendu'
             );
             localWorks.forEach(p => {
                 if (!artistWorks.find(o => String(o.id) === String(p.id))) {
@@ -11877,7 +11887,7 @@ window.enterGallery = function enterGallery() {
     /* Revalidation silencieuse — ne touche pas au DOM tant que les données sont identiques */
     async function _revaliderEnArrierePlan() {
         try {
-            const urlAPI = `https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?limit=${ITEMS_PER_LOAD}&offset=0&t=${Date.now()}`;
+            const urlAPI = `https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?limit=${ITEMS_PER_LOAD}&offset=0&t=${Date.now()}&include_sold=1`;
             const reponse = await fetch(urlAPI);
             const resultat = await reponse.json();
             if (resultat.success && resultat.data?.length > 0) {
@@ -11921,7 +11931,7 @@ window.enterGallery = function enterGallery() {
         isLoading = true;
 
         try {
-            const urlAPI = `https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?limit=${ITEMS_PER_LOAD}&offset=${currentOffset}&t=${Date.now()}`;
+            const urlAPI = `https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?limit=${ITEMS_PER_LOAD}&offset=${currentOffset}&t=${Date.now()}&include_sold=1`;
             
             console.log(`📥 Chargement des œuvres ${currentOffset} à ${currentOffset + ITEMS_PER_LOAD}...`);
             

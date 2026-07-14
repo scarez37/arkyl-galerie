@@ -3178,38 +3178,26 @@ window.enterGallery = function enterGallery() {
                 : (product.image_url ? [product.image_url] : []);
             const mainImg    = photos[0] || null;
             const artistName = product.artist_name || product.artist || 'Artiste inconnu';
-            
-            // Déterminer si l'œuvre est vendue
-            const isSold = product.status === 'sold' || product.is_sold === true || product.is_sold === 1 || product.badge === 'Vendu';
-            
             const imageHTML  = mainImg
                 ? `<img src="${mainImg}" alt="${product.title}"
-                        style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;${isSold ? 'opacity:0.5;filter:grayscale(100%);' : ''}"
+                        style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;"
                         loading="lazy"
                         onerror="this.style.display='none'">`
-                : `<div style="font-size:60px;display:flex;align-items:center;justify-content:center;height:100%;${isSold ? 'opacity:0.5;' : ''}">🎨</div>`;
-
-            // Déterminer le badge
-            let badgeText = product.badge || 'Disponible';
-            let badgeStyle = '';
-            if (isSold) {
-                badgeText = '✓ VENDUE';
-                badgeStyle = 'background:rgba(0,0,0,0.7) !important;color:white;';
-            }
+                : `<div style="font-size:60px;display:flex;align-items:center;justify-content:center;height:100%;">🎨</div>`;
 
             return `
-            <div class="product-card" ${!isSold ? `onclick="viewProductDetailFromAPI(${product.id})"` : ''} style="${isSold ? 'opacity:0.7;cursor:not-allowed;' : ''}">
+            <div class="product-card" onclick="viewProductDetailFromAPI(${product.id})">
                 <div class="product-image" style="position:relative;">
-                    <span class="product-badge" style="${badgeStyle}">${badgeText}</span>
-                    ${!isSold ? `<button class="like-button" onclick="toggleFavorite(event, ${product.id})">${favorites.includes(product.id) ? '❤️' : '🤍'}</button>` : ''}
+                    <span class="product-badge">${product.badge || 'Disponible'}</span>
+                    <button class="like-button" onclick="toggleFavorite(event, ${product.id})">❤️</button>
                     ${imageHTML}
                 </div>
                 <div class="product-info">
-                    <div class="product-title" style="${isSold ? 'opacity:0.6;' : ''}">${product.title}</div>
-                    <div class="product-artist" onclick="viewArtistDetail(event, '${artistName}')" style="${isSold ? 'opacity:0.6;' : ''}">par ${artistName}</div>
+                    <div class="product-title">${product.title}</div>
+                    <div class="product-artist" onclick="viewArtistDetail(event, '${artistName}')">par ${artistName}</div>
                     <div class="product-footer">
-                        <div class="product-price" style="${isSold ? 'opacity:0.6;' : ''}">${formatPrice(product.price)}</div>
-                        ${!isSold ? `<button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>` : `<button class="add-cart-btn" style="background:rgba(0,0,0,0.5);cursor:not-allowed;" disabled>Vendue</button>`}
+                        <div class="product-price">${formatPrice(product.price)}</div>
+                        <button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>
                     </div>
                 </div>
             </div>`;
@@ -3682,11 +3670,10 @@ window.enterGallery = function enterGallery() {
             // Calcul initial du port selon poids + destination déjà enregistrée
             let shipping = 0; // défaut — jusqu'à ce que le mode soit choisi
             if (posteVille) {
-                // FIX : calcul multi-origines — chaque oeuvre part de son propre pays
-                const _destPays = posteVille.split('|')[0]; // extraire le pays
-                const calcInit = calculerFraisPosteMultiOrigines(cartItems.filter(i => !i.is_sold), _destPays);
+                const poidsTotal = cartItems.reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
+                const calcInit = calculerFraisPoste(poidsTotal, posteVille);
                 shipping = calcInit.cout;
-                window._posteCalcDetail = { details: calcInit.details, dest: posteVille, cout: shipping };
+                window._posteCalcDetail = { poidsTotal, zone: calcInit.zone, dest: posteVille, cout: shipping };
             } else if (mainPropreLieu) {
                 shipping = 0;
             } else if (transportCompagnie) {
@@ -3719,12 +3706,7 @@ window.enterGallery = function enterGallery() {
                                     <span id="shipping-mode-icon">🚚</span>
                                     <span id="shipping-mode-label">${
                                         (() => {
-                                            if (posteVille) {
-                        const [pv, vv] = posteVille.split('|');
-                        const paysTrouve = Object.values(PAYS_PAR_ZONE).flat().find(p => p.code === pv);
-                        const nomPays = paysTrouve ? paysTrouve.flag + ' ' + paysTrouve.nom : pv;
-                        return 'La Poste · ' + nomPays + (vv ? ' · ' + vv : '');
-                    }
+                                            if (posteVille) return 'La Poste · ' + posteVille;
                                             if (transportCompagnie) return 'Transport · ' + transportCompagnie;
                                             if (mainPropreLieu) return 'Main propre · ' + mainPropreLieu;
                                             return 'Choisir le mode de livraison';
@@ -3871,180 +3853,267 @@ window.enterGallery = function enterGallery() {
 
         // confirmerVillePoste — géré par la modale ouvrirModeLivraison()
 
-        // ─── NOUVELLE MODALE MODE DE LIVRAISON ──────────────────────────
+        // ─── DONNÉES PAYS → VILLES ──────────────────────────────────────
+        const PAYS_VILLES = {
+            "ci": { nom: "🇨🇮 Côte d'Ivoire", villes: ["Abidjan","Bouaké","Yamoussoukro","Daloa","San-Pédro","Korhogo","Man","Gagnoa","Bondoukou","Divo","Abengourou","Adzopé","Agboville","Anyama","Grand-Bassam","Bingerville","Dabou","Duékoué","Ferkessédougou","Grand-Lahou","Guiglo","Issia","Lakota","Odienné","Sinfra","Soubré","Tabou","Tiassalé","Touba","Toumodi","Vavoua","Zuénoula"] },
+            "sn": { nom: "🇸🇳 Sénégal",        villes: ["Dakar","Thiès","Saint-Louis","Ziguinchor","Kaolack","Mbour","Diourbel","Louga","Fatick","Kolda","Matam","Kaffrine","Tambacounda","Sédhiou","Kédougou"] },
+            "ml": { nom: "🇲🇱 Mali",            villes: ["Bamako","Sikasso","Mopti","Kayes","Ségou","Gao","Kidal","Tombouctou","Koulikoro","Kita"] },
+            "bf": { nom: "🇧🇫 Burkina Faso",    villes: ["Ouagadougou","Bobo-Dioulasso","Koudougou","Banfora","Ouahigouya","Pouytenga","Kaya","Tenkodogo","Fada Ngourma","Dori"] },
+            "gn": { nom: "🇬🇳 Guinée",          villes: ["Conakry","N'Zérékoré","Kankan","Kindia","Labé","Mamou","Faranah","Boké","Siguiri","Guéckédou"] },
+            "gh": { nom: "🇬🇭 Ghana",            villes: ["Accra","Kumasi","Tamale","Sekondi-Takoradi","Ashaiman","Sunyani","Cape Coast","Obuasi","Tema","Koforidua"] },
+            "ng": { nom: "🇳🇬 Nigeria",          villes: ["Lagos","Abuja","Kano","Ibadan","Kaduna","Port Harcourt","Benin City","Maiduguri","Zaria","Aba"] },
+            "cm": { nom: "🇨🇲 Cameroun",         villes: ["Douala","Yaoundé","Bamenda","Bafoussam","Garoua","Maroua","Ngaoundéré","Bertoua","Limbé","Kumba"] },
+            "bj": { nom: "🇧🇯 Bénin",            villes: ["Cotonou","Porto-Novo","Parakou","Djougou","Bohicon","Kandi","Natitingou","Abomey","Lokossa","Ouidah"] },
+            "tg": { nom: "🇹🇬 Togo",             villes: ["Lomé","Sokodé","Kpalimé","Kara","Atakpamé","Bassar","Tsévié","Aného","Sansanné-Mango","Dapaong"] },
+            "fr": { nom: "🇫🇷 France",           villes: ["Paris","Lyon","Marseille","Toulouse","Nice","Nantes","Strasbourg","Montpellier","Bordeaux","Lille","Rennes","Reims","Saint-Étienne","Toulon","Grenoble","Dijon","Angers","Nîmes","Villeurbanne","Le Mans"] },
+            "be": { nom: "🇧🇪 Belgique",         villes: ["Bruxelles","Anvers","Gand","Charleroi","Liège","Bruges","Namur","Louvain","Mons","Hasselt"] },
+            "ch": { nom: "🇨🇭 Suisse",           villes: ["Zurich","Genève","Bâle","Berne","Lausanne","Winterthour","Saint-Gall","Lucerne","Bienne","Thoune"] },
+            "ca": { nom: "🇨🇦 Canada",           villes: ["Montréal","Toronto","Vancouver","Calgary","Ottawa","Edmonton","Québec","Winnipeg","Hamilton","Kitchener"] },
+            "us": { nom: "🇺🇸 États-Unis",       villes: ["New York","Los Angeles","Chicago","Houston","Phoenix","Philadelphie","San Antonio","San Diego","Dallas","San José"] },
+            "ma": { nom: "🇲🇦 Maroc",            villes: ["Casablanca","Rabat","Marrakech","Fès","Tanger","Agadir","Meknès","Oujda","Kénitra","Tétouan"] },
+            "other": { nom: "🌍 Autre pays",      villes: [] }
+        };
+
+        // Retourner la zone postale depuis le code pays
+        function zoneDepuisPays(codePays) {
+            if (codePays === 'ci') return 'ci';
+            if (['sn','ml','bf','bj','tg'].includes(codePays)) return 'uemoa';
+            if (['gn','gh','ng','cm','ma'].includes(codePays)) return 'afrique';
+            if (['fr','be','ch'].includes(codePays)) return 'europe';
+            return 'international';
+        }
+
+        // ─── MODALE MODE DE LIVRAISON (REFONTE) ─────────────────────────
         function ouvrirModeLivraison() {
+            // Injecter animation CSS
+            if (!document.getElementById('liv-modal-anim')) {
+                const s = document.createElement('style');
+                s.id = 'liv-modal-anim';
+                s.textContent = `
+                    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+                    .liv-option{transition:border .15s,background .15s;}
+                    .liv-select{width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;appearance:none;cursor:pointer;}
+                    .liv-select option{background:#1a1a2e;color:white;}
+                    .liv-tarif-preview{background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);border-radius:10px;padding:10px 14px;margin-top:10px;font-size:13px;color:#d4af37;display:flex;justify-content:space-between;align-items:center;}
+                `;
+                document.head.appendChild(s);
+            }
+
             let modal = document.getElementById('modaleLivraison');
             if (!modal) {
                 modal = document.createElement('div');
                 modal.id = 'modaleLivraison';
-                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
                 modal.onclick = e => { if (e.target === modal) fermerModeLivraison(); };
                 document.body.appendChild(modal);
             }
-            const modeActuel = document.getElementById('selected-shipping-mode')?.value || 'poste';
+
+            const modeActuel = window._modeEnCours || document.getElementById('selected-shipping-mode')?.value || 'poste';
+            const savedPays  = window._savedPostePays  || 'ci';
+            const savedVille = posteVille || '';
+
+            // Construire options pays
+            const optsPays = Object.entries(PAYS_VILLES).map(([k,v]) =>
+                `<option value="${k}" ${k === savedPays ? 'selected' : ''}>${v.nom}</option>`
+            ).join('');
+
+            // Construire options villes pour le pays actuel
+            function buildOptsVilles(codePays, villeSelectionnee) {
+                const villes = PAYS_VILLES[codePays]?.villes || [];
+                if (villes.length === 0) return `<option value="">— Saisir manuellement —</option>`;
+                return `<option value="">Choisir une ville…</option>` +
+                    villes.map(v => `<option value="${v}" ${v === villeSelectionnee ? 'selected' : ''}>${v}</option>`).join('');
+            }
+
+            // Calcul tarif prévisualisation
+            function calcTarifPreview(codePays, ville) {
+                const zone = zoneDepuisPays(codePays);
+                const dest = ville || PAYS_VILLES[codePays]?.nom || codePays;
+                const poidsTotal = (window.cartItems || []).reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
+                const calcul = calculerFraisPoste(poidsTotal, dest);
+                return { zone, poidsTotal, cout: calcul.cout, dest };
+            }
+            const initCalc = calcTarifPreview(savedPays, savedVille);
+            const initVilleOpts = buildOptsVilles(savedPays, savedVille);
+
+            const optStyle = (m) => m === modeActuel
+                ? 'border:2px solid rgba(212,175,55,0.6);background:rgba(212,175,55,0.08);'
+                : 'border:2px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);';
+
             modal.innerHTML = `
-                <div style="background:#1a1a2e;border-radius:24px 24px 0 0;width:100%;max-width:520px;padding:28px 24px 36px;border-top:1px solid rgba(212,175,55,0.25);animation:slideUp 0.3s ease;">
+                <div style="background:#1a1a2e;border-radius:24px 24px 0 0;width:100%;max-width:520px;padding:28px 24px 36px;border-top:1px solid rgba(212,175,55,0.25);animation:slideUp 0.3s ease;max-height:90vh;overflow-y:auto;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;">
                         <h3 style="margin:0;font-size:18px;font-weight:700;color:white;">🚚 Mode de livraison</h3>
-                        <button onclick="fermerModeLivraison()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:30px;height:30px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
+                        <button onclick="fermerModeLivraison()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:32px;height:32px;border-radius:50%;font-size:18px;cursor:pointer;">×</button>
                     </div>
 
-                    <!-- Option La Poste -->
-                    <div class="liv-option ${modeActuel === 'poste' ? 'liv-active' : ''}" onclick="selectionnerModeLivraison('poste', this)" style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;margin-bottom:10px;cursor:pointer;border:2px solid ${modeActuel === 'poste' ? 'rgba(212,175,55,0.6)' : 'rgba(255,255,255,0.1)'};background:${modeActuel === 'poste' ? 'rgba(212,175,55,0.1)' : 'rgba(255,255,255,0.04)'};">
-                        <span style="font-size:26px;">📮</span>
-                        <div style="flex:1;">
-                            <div style="font-weight:700;color:white;font-size:15px;">La Poste</div>
-                            <div style="font-size:12px;opacity:0.6;margin-top:2px;">3–5 jours · Livraison à domicile</div>
-                            <div id="poste-detail-modal" style="margin-top:${modeActuel === 'poste' ? '12px' : '0'};display:${modeActuel === 'poste' ? 'block' : 'none'};">
-                                <div onclick="event.stopPropagation()">
-                                    <select id="modal-poste-pays"
-                                        style="width:100%;padding:9px 12px;background:#1a1a2e;border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;margin-bottom:8px;cursor:pointer;"
-                                        onchange="onPaysLivraisonChange(this.value)">
-                                        <option value="">🌍 Sélectionner le pays de livraison…</option>
-                                        <optgroup label="─── Côte d\'Ivoire ───">
-                                            ${PAYS_PAR_ZONE.ci.map(p => `<option value="${p.code}" ${posteVille && posteVille.startsWith(p.code) ? 'selected' : ''}>${p.flag} ${p.nom}</option>`).join('')}
-                                        </optgroup>
-                                        <optgroup label="─── Zone UEMOA ───">
-                                            ${PAYS_PAR_ZONE.uemoa.map(p => `<option value="${p.code}" ${posteVille && posteVille.startsWith(p.code) ? 'selected' : ''}>${p.flag} ${p.nom}</option>`).join('')}
-                                        </optgroup>
-                                        <optgroup label="─── Afrique ───">
-                                            ${PAYS_PAR_ZONE.afrique.map(p => `<option value="${p.code}" ${posteVille && posteVille.startsWith(p.code) ? 'selected' : ''}>${p.flag} ${p.nom}</option>`).join('')}
-                                        </optgroup>
-                                        <optgroup label="─── Europe ───">
-                                            ${PAYS_PAR_ZONE.europe.map(p => `<option value="${p.code}" ${posteVille && posteVille.startsWith(p.code) ? 'selected' : ''}>${p.flag} ${p.nom}</option>`).join('')}
-                                        </optgroup>
-                                        <optgroup label="─── International ───">
-                                            ${PAYS_PAR_ZONE.international.map(p => `<option value="${p.code}" ${posteVille && posteVille.startsWith(p.code) ? 'selected' : ''}>${p.flag} ${p.nom}</option>`).join('')}
-                                        </optgroup>
-                                    </select>
-                                    <input id="modal-poste-ville" type="text"
-                                        placeholder="Ville (ex: Abidjan, Paris, Tokyo…)"
-                                        value="${posteVille ? posteVille.split('|')[1] || '' : ''}"
-                                        style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;">
-                                    <div id="poste-zone-preview" style="margin-top:6px;font-size:12px;color:#d4af37;display:none;"></div>
+                    <!-- ══ LA POSTE ══ -->
+                    <div class="liv-option" id="opt-poste" onclick="selectionnerModeLivraison('poste', this)"
+                        style="gap:14px;padding:16px;border-radius:14px;margin-bottom:10px;cursor:pointer;${optStyle('poste')}">
+                        <div style="display:flex;align-items:center;gap:14px;">
+                            <span style="font-size:26px;">📮</span>
+                            <div style="flex:1;">
+                                <div style="font-weight:700;color:white;font-size:15px;">La Poste</div>
+                                <div style="font-size:12px;opacity:0.6;margin-top:2px;">3–5 jours · Livraison à domicile</div>
+                            </div>
+                            <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;font-size:13px;">Selon poids</span>
+                        </div>
+                        <div id="poste-detail-modal" style="display:${modeActuel === 'poste' ? 'block' : 'none'};margin-top:14px;" onclick="event.stopPropagation()">
+                            <!-- Sélecteur Pays -->
+                            <label style="font-size:11px;color:rgba(255,255,255,0.5);display:block;margin-bottom:4px;">Pays de destination</label>
+                            <select id="modal-pays" class="liv-select" onchange="livOnPaysChange(this.value)">
+                                ${optsPays}
+                            </select>
+                            <!-- Sélecteur Ville -->
+                            <label style="font-size:11px;color:rgba(255,255,255,0.5);display:block;margin:10px 0 4px;">Ville</label>
+                            <select id="modal-ville-select" class="liv-select" onchange="livOnVilleChange(this.value)">
+                                ${initVilleOpts}
+                            </select>
+                            <!-- Champ texte libre si "Autre pays" ou ville non listée -->
+                            <input id="modal-poste-ville-libre" type="text" placeholder="Ou saisir la ville manuellement…"
+                                value="${savedVille}" onclick="event.stopPropagation()"
+                                oninput="livOnVilleChange(this.value)"
+                                style="display:${PAYS_VILLES[savedPays]?.villes.length === 0 ? 'block' : 'none'};width:100%;padding:9px 12px;margin-top:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;">
+                            <!-- Prévisualisation tarif -->
+                            <div class="liv-tarif-preview" id="poste-tarif-preview" style="${modeActuel === 'poste' ? '' : 'display:none'}">
+                                <div>
+                                    <div style="font-size:11px;opacity:0.6;margin-bottom:2px;">Zone <strong>${nomZonePostale(initCalc.zone)}</strong> · ${(initCalc.poidsTotal/1000).toFixed(1)} kg</div>
+                                    <div style="font-size:11px;opacity:0.5;">${initCalc.dest || '—'}</div>
                                 </div>
+                                <div style="font-size:16px;font-weight:800;">${formatPrice(initCalc.cout)}</div>
                             </div>
                         </div>
-                        <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;">Calculé selon poids</span>
                     </div>
 
-                    <!-- Option Transport -->
-                    <div class="liv-option ${modeActuel === 'transport' ? 'liv-active' : ''}" onclick="selectionnerModeLivraison('transport', this)" style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;margin-bottom:10px;cursor:pointer;border:2px solid ${modeActuel === 'transport' ? 'rgba(212,175,55,0.6)' : 'rgba(255,255,255,0.1)'};background:${modeActuel === 'transport' ? 'rgba(212,175,55,0.1)' : 'rgba(255,255,255,0.04)'};">
+                    <!-- ══ TRANSPORT EN COMMUN ══ -->
+                    <div class="liv-option" id="opt-transport" onclick="selectionnerModeLivraison('transport', this)"
+                        style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;margin-bottom:10px;cursor:pointer;${optStyle('transport')}">
                         <span style="font-size:26px;">🚌</span>
                         <div style="flex:1;">
                             <div style="font-weight:700;color:white;font-size:15px;">Transport en commun</div>
                             <div style="font-size:12px;opacity:0.6;margin-top:2px;">4–7 jours · Récupération en gare routière</div>
-                            <div id="transport-detail-modal" style="margin-top:${modeActuel === 'transport' ? '12px' : '0'};display:${modeActuel === 'transport' ? 'block' : 'none'};">
-                                <input id="modal-transport-cie" type="text" placeholder="Compagnie (ex: Océan, UTB, STIF, SOTRA…)" value="${transportCompagnie || ''}"
-                                    style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;" onclick="event.stopPropagation()">
+                            <div id="transport-detail-modal" style="display:${modeActuel === 'transport' ? 'block' : 'none'};margin-top:12px;" onclick="event.stopPropagation()">
+                                <input id="modal-transport-cie" type="text" placeholder="Compagnie (ex: Océan, UTB, STIF…)" value="${transportCompagnie || ''}"
+                                    class="liv-select" style="margin-top:0;">
                             </div>
                         </div>
                         <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;">10% du prix</span>
                     </div>
 
-                    <!-- Option Main propre -->
-                    <div class="liv-option ${modeActuel === 'mainpropre' ? 'liv-active' : ''}" onclick="selectionnerModeLivraison('mainpropre', this)" style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;margin-bottom:22px;cursor:pointer;border:2px solid ${modeActuel === 'mainpropre' ? 'rgba(212,175,55,0.6)' : 'rgba(255,255,255,0.1)'};background:${modeActuel === 'mainpropre' ? 'rgba(212,175,55,0.1)' : 'rgba(255,255,255,0.04)'};">
+                    <!-- ══ MAIN PROPRE ══ -->
+                    <div class="liv-option" id="opt-mainpropre" onclick="selectionnerModeLivraison('mainpropre', this)"
+                        style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;margin-bottom:22px;cursor:pointer;${optStyle('mainpropre')}">
                         <span style="font-size:26px;">🤝</span>
                         <div style="flex:1;">
                             <div style="font-weight:700;color:white;font-size:15px;">Main propre</div>
                             <div style="font-size:12px;opacity:0.6;margin-top:2px;">Sur rendez-vous · Lieu public uniquement</div>
-                            <div id="mainpropre-detail-modal" style="margin-top:${modeActuel === 'mainpropre' ? '12px' : '0'};display:${modeActuel === 'mainpropre' ? 'block' : 'none'};">
-                                <input id="modal-mainpropre-lieu" type="text" placeholder="Lieu public (ex: Marché Cocody, Mall Playtime…)" value="${mainPropreLieu || ''}"
-                                    style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;" onclick="event.stopPropagation()">
+                            <div id="mainpropre-detail-modal" style="display:${modeActuel === 'mainpropre' ? 'block' : 'none'};margin-top:12px;" onclick="event.stopPropagation()">
+                                <input id="modal-mainpropre-lieu" type="text" placeholder="Lieu public (ex: Marché Cocody, Mall Playtime…)"
+                                    value="${mainPropreLieu || ''}" class="liv-select" style="margin-top:0;">
                                 <p style="font-size:11px;color:#f59e0b;margin:6px 0 0;">⚠️ Lieu isolé ou privé = refus de livraison</p>
                             </div>
                         </div>
                         <span style="font-weight:700;color:#4caf50;white-space:nowrap;">Gratuit</span>
                     </div>
 
-                    <button onclick="confirmerModeLivraison()"
+                    <button id="btn-confirmer-livraison" onclick="confirmerModeLivraison()"
                         style="width:100%;padding:15px;background:linear-gradient(135deg,var(--terre-cuite,#c46a4b),var(--terre-sombre,#8b3a20));border:none;border-radius:14px;color:white;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:0.5px;">
                         ✓ Confirmer ce mode
                     </button>
                 </div>
             `;
             modal.style.display = 'flex';
-            // Ajouter animation CSS si pas encore présente
-            if (!document.getElementById('liv-modal-anim')) {
-                const s = document.createElement('style');
-                s.id = 'liv-modal-anim';
-                s.textContent = '@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}';
-                document.head.appendChild(s);
+            window._modeEnCours = modeActuel;
+        }
+
+        // ── Callback quand le pays change ─────────────────────────────────
+        function livOnPaysChange(codePays) {
+            window._savedPostePays = codePays;
+            const villes = PAYS_VILLES[codePays]?.villes || [];
+            const sel    = document.getElementById('modal-ville-select');
+            const libre  = document.getElementById('modal-poste-ville-libre');
+
+            if (villes.length > 0) {
+                sel.innerHTML = `<option value="">Choisir une ville…</option>` +
+                    villes.map(v => `<option value="${v}">${v}</option>`).join('');
+                sel.style.display = 'block';
+                libre.style.display = 'none';
+            } else {
+                sel.innerHTML = '';
+                sel.style.display = 'none';
+                libre.style.display = 'block';
+                libre.focus();
+            }
+            // Réinitialiser la ville sauvegardée et recalculer le tarif
+            _savePosteVille('');
+            livMettreAJourTarif(codePays, '');
+        }
+
+        // ── Callback quand la ville change ────────────────────────────────
+        function livOnVilleChange(ville) {
+            _savePosteVille(ville);
+            const codePays = window._savedPostePays || 'ci';
+            livMettreAJourTarif(codePays, ville);
+        }
+
+        // ── Mise à jour de la prévisualisation du tarif ───────────────────
+        function livMettreAJourTarif(codePays, ville) {
+            const zone      = zoneDepuisPays(codePays);
+            const dest      = ville || PAYS_VILLES[codePays]?.nom || codePays;
+            const poidsTotal = (window.cartItems || []).reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
+            const calcul    = calculerFraisPoste(poidsTotal, dest);
+            const preview   = document.getElementById('poste-tarif-preview');
+            if (preview) {
+                preview.style.display = 'flex';
+                preview.innerHTML = `
+                    <div>
+                        <div style="font-size:11px;opacity:0.6;margin-bottom:2px;">Zone <strong>${nomZonePostale(zone)}</strong> · ${(poidsTotal/1000).toFixed(1)} kg</div>
+                        <div style="font-size:11px;opacity:0.5;">${dest}</div>
+                    </div>
+                    <div style="font-size:16px;font-weight:800;">${formatPrice(calcul.cout)}</div>
+                `;
+                // Stocker pour confirmerModeLivraison
+                window._posteCalcDetail = { poidsTotal, zone, dest, cout: calcul.cout };
             }
         }
 
         if (typeof window._modeEnCours === 'undefined') window._modeEnCours = null;
-        var _modeEnCours = window._modeEnCours;
-
-        function onPaysLivraisonChange(paysCode) {
-            if (!paysCode) {
-                document.getElementById('poste-zone-preview').style.display = 'none';
-                return;
-            }
-            const preview = document.getElementById('poste-zone-preview');
-            if (!preview) return;
-            preview.style.display = 'block';
-
-            // Pré-calculer le coût en tenant compte de l'origine de chaque oeuvre
-            const validItems = cartItems.filter(i => !i.is_sold);
-            const calc = calculerFraisPosteMultiOrigines(validItems, paysCode);
-
-            // Détecter si toutes les oeuvres sont dans le même pays que la destination
-            const toutDomestique = calc.details.length > 0 && calc.details.every(d => d.zone === 'domestique');
-            const mixte = calc.details.some(d => d.zone === 'domestique') && calc.details.some(d => d.zone !== 'domestique');
-
-            let icon = '📦';
-            let label = '';
-            if (toutDomestique) {
-                icon = '🏠';
-                label = 'Livraison nationale (inter-ville) · ';
-            } else if (mixte) {
-                icon = '🔀';
-                label = 'Mixte (national + international) · ';
-            } else {
-                const zone = calc.details[0]?.zone || detecterZonePostale(paysCode);
-                label = nomZonePostale(zone) + ' · ';
-            }
-
-            preview.innerHTML = icon + ' ' + label + '<strong>' + formatPrice(calc.cout) + '</strong>';
-            preview.style.color = toutDomestique ? '#4caf50' : '#d4af37';
-        }
 
         function selectionnerModeLivraison(mode, el) {
-            _modeEnCours = mode;
-            // Mettre à jour le style de toutes les options
-            document.querySelectorAll('.liv-option').forEach(o => {
-                o.style.border = '2px solid rgba(255,255,255,0.1)';
-                o.style.background = 'rgba(255,255,255,0.04)';
+            window._modeEnCours = mode;
+            // Style des options
+            ['poste','transport','mainpropre'].forEach(m => {
+                const opt = document.getElementById('opt-' + m);
+                if (opt) {
+                    opt.style.border    = m === mode ? '2px solid rgba(212,175,55,0.6)' : '2px solid rgba(255,255,255,0.1)';
+                    opt.style.background = m === mode ? 'rgba(212,175,55,0.08)' : 'rgba(255,255,255,0.04)';
+                }
+                const det = document.getElementById(m + '-detail-modal');
+                if (det) det.style.display = m === mode ? 'block' : 'none';
             });
-            el.style.border = '2px solid rgba(212,175,55,0.6)';
-            el.style.background = 'rgba(212,175,55,0.1)';
-
-            // Afficher/masquer les détails
-            ['poste', 'transport', 'mainpropre'].forEach(m => {
-                const d = document.getElementById(m + '-detail-modal');
-                if (d) { d.style.display = m === mode ? 'block' : 'none'; d.style.marginTop = m === mode ? '12px' : '0'; }
-            });
-
-            // Focus sur l'input correspondant
-            setTimeout(() => {
-                const inputs = { poste: 'modal-poste-ville', transport: 'modal-transport-cie', mainpropre: 'modal-mainpropre-lieu' };
-                document.getElementById(inputs[mode])?.focus();
-            }, 100);
+            // Afficher le tarif poste si on bascule sur poste
+            if (mode === 'poste') {
+                const pays = window._savedPostePays || 'ci';
+                const ville = posteVille || '';
+                livMettreAJourTarif(pays, ville);
+                document.getElementById('poste-tarif-preview').style.display = 'flex';
+            }
         }
 
         function confirmerModeLivraison() {
-            const mode = _modeEnCours || document.getElementById('selected-shipping-mode')?.value || 'poste';
+            const mode = window._modeEnCours || document.getElementById('selected-shipping-mode')?.value || 'poste';
             const icons = { poste: '📮', transport: '🚌', mainpropre: '🤝' };
 
-            // Récupérer la valeur de l'input associé
+            // ── Validation et sauvegarde ──────────────────────────────────
             if (mode === 'poste') {
-                const pays = document.getElementById('modal-poste-pays')?.value || '';
-                const ville = document.getElementById('modal-poste-ville')?.value.trim() || '';
-                if (!pays) { showToast('⚠️ Sélectionnez le pays de livraison'); return; }
-                // Stocker pays|ville pour séparer les deux lors du calcul
-                const dest = pays + (ville ? '|' + ville : '');
-                _savePosteVille(dest);
+                // Prendre la valeur du select ou du champ libre
+                const selVille   = document.getElementById('modal-ville-select')?.value.trim();
+                const libreVille = document.getElementById('modal-poste-ville-libre')?.value.trim();
+                const destVille  = selVille || libreVille || '';
+                if (!destVille) { showToast('⚠️ Choisissez un pays et une ville de destination'); return; }
+                _savePosteVille(destVille);
+                const pays = window._savedPostePays || 'ci';
+                livMettreAJourTarif(pays, destVille);
             } else if (mode === 'transport') {
                 const val = document.getElementById('modal-transport-cie')?.value.trim();
                 if (!val) { showToast('⚠️ Indiquez la compagnie de transport'); return; }
@@ -4055,33 +4124,27 @@ window.enterGallery = function enterGallery() {
                 _saveMainPropreLieu(val);
             }
 
-            // ── Calcul du coût La Poste basé sur le poids réel du panier ──
-            let cost;
-            let priceLabel;
+            // ── Calcul du coût ────────────────────────────────────────────
+            let cost, priceLabel;
             if (mode === 'poste') {
-                const _rawDest = document.getElementById('modal-poste-pays')?.value || posteVille?.split('|')[0] || '';
-                // FIX multi-origines : chaque oeuvre part de son pays artiste
-                const validItems = cartItems.filter(i => !i.is_sold);
-                const calcul = calculerFraisPosteMultiOrigines(validItems, _rawDest);
-                cost = calcul.cout;
-                window._posteCalcDetail = { details: calcul.details, dest, cout: cost };
-                priceLabel = formatPrice(cost);
+                const detail  = window._posteCalcDetail;
+                cost          = detail?.cout || 0;
+                priceLabel    = formatPrice(cost);
             } else if (mode === 'transport') {
-                const transportSubtotal = cartItems.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
-                cost = Math.round(transportSubtotal * 0.10);
-                priceLabel = formatPrice(cost) + ' (10%)';
+                const sub     = (window.cartItems || []).reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
+                cost          = Math.round(sub * 0.10);
+                priceLabel    = formatPrice(cost) + ' (10%)';
             } else {
-                cost = 0;
-                priceLabel = 'Gratuit';
+                cost          = 0;
+                priceLabel    = 'Gratuit';
             }
 
-            // Mettre à jour les champs cachés dans le panier
+            // ── Mise à jour du panier ─────────────────────────────────────
             const modeInput = document.getElementById('selected-shipping-mode');
             const costInput = document.getElementById('selected-shipping-cost');
             if (modeInput) modeInput.value = mode;
             if (costInput) costInput.value = cost;
 
-            // Mettre à jour le bouton résumé
             const labels = {
                 poste:      '📮 La Poste · ' + (posteVille || ''),
                 transport:  '🚌 Transport · ' + (transportCompagnie || ''),
@@ -4089,23 +4152,21 @@ window.enterGallery = function enterGallery() {
             };
             const btn = document.getElementById('shipping-mode-btn');
             if (btn) {
-                document.getElementById('shipping-mode-icon').textContent = icons[mode];
+                document.getElementById('shipping-mode-icon').textContent  = icons[mode];
                 document.getElementById('shipping-mode-label').textContent = labels[mode];
                 document.getElementById('shipping-mode-price').textContent = priceLabel;
             }
 
-            // Afficher le détail du calcul postal si disponible
+            // ── Toast de confirmation ─────────────────────────────────────
             if (mode === 'poste' && window._posteCalcDetail) {
-                const d = window._posteCalcDetail;
-                const kg = (d.poidsTotal / 1000).toFixed(2).replace('.', ',');
-                showToast(`📮 ${kg} kg · Zone ${nomZonePostale(d.zone)} → ${formatPrice(d.cout)}`);
+                const det = window._posteCalcDetail;
+                const kg  = (det.poidsTotal / 1000).toFixed(2).replace('.', ',');
+                showToast(`📮 ${kg} kg · Zone ${nomZonePostale(det.zone)} → ${formatPrice(det.cout)}`);
             } else {
                 showToast('✅ Mode de livraison enregistré !');
             }
 
-            // Afficher le bloc d'explication dans le panier
             _afficherDetailPortPoste();
-
             updateCartTotal();
             fermerModeLivraison();
         }
@@ -4145,409 +4206,47 @@ window.enterGallery = function enterGallery() {
         //  TARIFS LA POSTE — barèmes SOCOPCI (Côte d'Ivoire) réels
         //  5 zones : CI domestique / UEMOA / Afrique / Europe / International
         // ══════════════════════════════════════════════════════════════
-        // Mapping pays → zone postale (exhaustif, ~180 pays)
-        const PAYS_ZONES = {
-            // ── Côte d'Ivoire ──
-            'cote d\'ivoire':'ci','ivory coast':'ci','cote divoire':'ci',
-
-            // ── UEMOA ──
-            'senegal':'uemoa','mali':'uemoa','burkina faso':'uemoa','burkina':'uemoa',
-            'niger':'uemoa','benin':'uemoa','togo':'uemoa','guinee-bissau':'uemoa',
-            'guinee bissau':'uemoa','guinea-bissau':'uemoa',
-
-            // ── Afrique (hors UEMOA) ──
-            'ghana':'afrique','nigeria':'afrique','cameroun':'afrique','cameroon':'afrique',
-            'guinee':'afrique','guinea':'afrique','liberia':'afrique','sierra leone':'afrique',
-            'mauritanie':'afrique','mauritania':'afrique',
-            'maroc':'afrique','morocco':'afrique',
-            'algerie':'afrique','algeria':'afrique',
-            'tunisie':'afrique','tunisia':'afrique',
-            'libye':'afrique','libya':'afrique',
-            'egypte':'afrique','egypt':'afrique',
-            'soudan':'afrique','sudan':'afrique',
-            'soudan du sud':'afrique','south sudan':'afrique',
-            'ethiopie':'afrique','ethiopia':'afrique',
-            'erythree':'afrique','eritrea':'afrique',
-            'djibouti':'afrique',
-            'somalie':'afrique','somalia':'afrique',
-            'kenya':'afrique',
-            'tanzanie':'afrique','tanzania':'afrique',
-            'ouganda':'afrique','uganda':'afrique',
-            'rwanda':'afrique',
-            'burundi':'afrique',
-            'republique democratique du congo':'afrique','rdc':'afrique','congo kinshasa':'afrique','democratic republic of congo':'afrique',
-            'congo':'afrique','brazzaville':'afrique','republic of congo':'afrique',
-            'gabon':'afrique',
-            'guinee equatoriale':'afrique','equatorial guinea':'afrique',
-            'sao tome':'afrique','sao tome et principe':'afrique',
-            'centrafrique':'afrique','central african republic':'afrique',
-            'tchad':'afrique','chad':'afrique',
-            'angola':'afrique',
-            'zambie':'afrique','zambia':'afrique',
-            'zimbabwe':'afrique',
-            'mozambique':'afrique',
-            'malawi':'afrique',
-            'madagascar':'afrique',
-            'comores':'afrique','comoros':'afrique',
-            'maurice':'afrique','mauritius':'afrique',
-            'reunion':'afrique','la reunion':'afrique',
-            'mayotte':'afrique',
-            'seychelles':'afrique',
-            'afrique du sud':'afrique','south africa':'afrique',
-            'namibie':'afrique','namibia':'afrique',
-            'botswana':'afrique',
-            'lesotho':'afrique',
-            'eswatini':'afrique','swaziland':'afrique',
-            'cap vert':'afrique','cape verde':'afrique',
-            'gambie':'afrique','gambia':'afrique',
-            'liberia':'afrique',
-
-            // ── Europe ──
-            'france':'europe','belgique':'europe','belgium':'europe',
-            'suisse':'europe','switzerland':'europe',
-            'luxembourg':'europe',
-            'allemagne':'europe','germany':'europe',
-            'autriche':'europe','austria':'europe',
-            'pays-bas':'europe','netherlands':'europe','hollande':'europe',
-            'italie':'europe','italy':'europe',
-            'espagne':'europe','spain':'europe',
-            'portugal':'europe',
-            'royaume-uni':'europe','united kingdom':'europe','angleterre':'europe','england':'europe',
-            'irlande':'europe','ireland':'europe',
-            'danemark':'europe','denmark':'europe',
-            'suede':'europe','sweden':'europe',
-            'norvege':'europe','norway':'europe',
-            'finlande':'europe','finland':'europe',
-            'islande':'europe','iceland':'europe',
-            'pologne':'europe','poland':'europe',
-            'ukraine':'europe',
-            'russie':'europe','russia':'europe',
-            'bielorussie':'europe','belarus':'europe',
-            'moldavie':'europe','moldova':'europe',
-            'roumanie':'europe','romania':'europe',
-            'bulgarie':'europe','bulgaria':'europe',
-            'grece':'europe','greece':'europe',
-            'turquie':'europe','turkey':'europe',
-            'hongrie':'europe','hungary':'europe',
-            'republique tcheque':'europe','czech republic':'europe','tcheque':'europe',
-            'slovaquie':'europe','slovakia':'europe',
-            'slovenie':'europe','slovenia':'europe',
-            'croatie':'europe','croatia':'europe',
-            'bosnie':'europe','bosnia':'europe',
-            'serbie':'europe','serbia':'europe',
-            'montenegro':'europe',
-            'macedoine':'europe','north macedonia':'europe',
-            'albanie':'europe','albania':'europe',
-            'kosovo':'europe',
-            'lituanie':'europe','lithuania':'europe',
-            'lettonie':'europe','latvia':'europe',
-            'estonie':'europe','estonia':'europe',
-            'chypre':'europe','cyprus':'europe',
-            'malte':'europe','malta':'europe',
-            'monaco':'europe',
-            'andorre':'europe','andorra':'europe',
-            'liechtenstein':'europe',
-            'saint marin':'europe','san marino':'europe',
-            'vatican':'europe',
-
-            // ── International — Asie ──
-            'chine':'international','china':'international',
-            'japon':'international','japan':'international',
-            'coree du sud':'international','south korea':'international',
-            'coree du nord':'international','north korea':'international',
-            'inde':'international','india':'international',
-            'pakistan':'international',
-            'bangladesh':'international',
-            'sri lanka':'international',
-            'nepal':'international',
-            'bhoutan':'international','bhutan':'international',
-            'afghanistan':'international',
-            'iran':'international',
-            'irak':'international','iraq':'international',
-            'syrie':'international','syria':'international',
-            'liban':'international','lebanon':'international',
-            'israel':'international',
-            'palestine':'international',
-            'jordanie':'international','jordan':'international',
-            'arabie saoudite':'international','saudi arabia':'international',
-            'emirats arabes unis':'international','uae':'international','dubai':'international',
-            'qatar':'international',
-            'koweit':'international','kuwait':'international',
-            'bahrein':'international','bahrain':'international',
-            'oman':'international',
-            'yemen':'international',
-            'azerbaidjan':'international','azerbaijan':'international',
-            'armenie':'international','armenia':'international',
-            'georgie':'international','georgia':'international',
-            'kazakhstan':'international',
-            'ouzbekistan':'international','uzbekistan':'international',
-            'turkmenistan':'international',
-            'kirghizistan':'international','kyrgyzstan':'international',
-            'tadjikistan':'international','tajikistan':'international',
-            'mongolie':'international','mongolia':'international',
-            'myanmar':'international','birmanie':'international','burma':'international',
-            'thailande':'international','thailand':'international',
-            'vietnam':'international',
-            'cambodge':'international','cambodia':'international',
-            'laos':'international',
-            'malaysia':'international','malaisie':'international',
-            'singapour':'international','singapore':'international',
-            'indonesie':'international','indonesia':'international',
-            'philippines':'international',
-            'taiwan':'international',
-            'hong kong':'international',
-            'macao':'international',
-            'timor oriental':'international','east timor':'international',
-            'brunei':'international',
-
-            // ── International — Amériques ──
-            'etats-unis':'international','etats unis':'international','usa':'international','united states':'international','amerique':'international',
-            'canada':'international',
-            'mexique':'international','mexico':'international',
-            'bresil':'international','brazil':'international',
-            'argentine':'international','argentina':'international',
-            'colombie':'international','colombia':'international',
-            'chili':'international','chile':'international',
-            'perou':'international','peru':'international',
-            'venezuela':'international',
-            'equateur':'international','ecuador':'international',
-            'bolivie':'international','bolivia':'international',
-            'paraguay':'international',
-            'uruguay':'international',
-            'guyana':'international',
-            'suriname':'international',
-            'cuba':'international',
-            'haiti':'international',
-            'jamaique':'international','jamaica':'international',
-            'republique dominicaine':'international','dominican republic':'international',
-            'costa rica':'international',
-            'panama':'international',
-            'guatemala':'international',
-            'honduras':'international',
-            'el salvador':'international',
-            'nicaragua':'international',
-            'belize':'international',
-
-            // ── International — Océanie ──
-            'australie':'international','australia':'international',
-            'nouvelle-zelande':'international','new zealand':'international',
-            'papouasie':'international','papua new guinea':'international',
-            'fidji':'international','fiji':'international',
-
-            // ── International — reste ──
-            'antilles':'international','martinique':'international','guadeloupe':'international',
-            'guyane':'international','polynesie':'international','nouvelle caledonie':'international',
-        };
-
-        // Liste complète des pays pour le sélecteur UI (organisée par zone)
-        const PAYS_PAR_ZONE = {
-            ci: [
-                { nom: "Côte d'Ivoire", code: "cote d'ivoire", flag: "🇨🇮" }
-            ],
-            uemoa: [
-                { nom: "Sénégal", code: "senegal", flag: "🇸🇳" },
-                { nom: "Mali", code: "mali", flag: "🇲🇱" },
-                { nom: "Burkina Faso", code: "burkina faso", flag: "🇧🇫" },
-                { nom: "Niger", code: "niger", flag: "🇳🇪" },
-                { nom: "Bénin", code: "benin", flag: "🇧🇯" },
-                { nom: "Togo", code: "togo", flag: "🇹🇬" },
-                { nom: "Guinée-Bissau", code: "guinee-bissau", flag: "🇬🇼" },
-            ],
-            afrique: [
-                { nom: "Ghana", code: "ghana", flag: "🇬🇭" },
-                { nom: "Nigéria", code: "nigeria", flag: "🇳🇬" },
-                { nom: "Cameroun", code: "cameroun", flag: "🇨🇲" },
-                { nom: "Guinée", code: "guinee", flag: "🇬🇳" },
-                { nom: "Libéria", code: "liberia", flag: "🇱🇷" },
-                { nom: "Sierra Leone", code: "sierra leone", flag: "🇸🇱" },
-                { nom: "Mauritanie", code: "mauritanie", flag: "🇲🇷" },
-                { nom: "Maroc", code: "maroc", flag: "🇲🇦" },
-                { nom: "Algérie", code: "algerie", flag: "🇩🇿" },
-                { nom: "Tunisie", code: "tunisie", flag: "🇹🇳" },
-                { nom: "Libye", code: "libye", flag: "🇱🇾" },
-                { nom: "Égypte", code: "egypte", flag: "🇪🇬" },
-                { nom: "Soudan", code: "soudan", flag: "🇸🇩" },
-                { nom: "Éthiopie", code: "ethiopie", flag: "🇪🇹" },
-                { nom: "Kenya", code: "kenya", flag: "🇰🇪" },
-                { nom: "Tanzanie", code: "tanzanie", flag: "🇹🇿" },
-                { nom: "Ouganda", code: "ouganda", flag: "🇺🇬" },
-                { nom: "Rwanda", code: "rwanda", flag: "🇷🇼" },
-                { nom: "RD Congo", code: "republique democratique du congo", flag: "🇨🇩" },
-                { nom: "Congo Brazzaville", code: "congo", flag: "🇨🇬" },
-                { nom: "Gabon", code: "gabon", flag: "🇬🇦" },
-                { nom: "Tchad", code: "tchad", flag: "🇹🇩" },
-                { nom: "Centrafrique", code: "centrafrique", flag: "🇨🇫" },
-                { nom: "Angola", code: "angola", flag: "🇦🇴" },
-                { nom: "Mozambique", code: "mozambique", flag: "🇲🇿" },
-                { nom: "Madagascar", code: "madagascar", flag: "🇲🇬" },
-                { nom: "Afrique du Sud", code: "afrique du sud", flag: "🇿🇦" },
-                { nom: "Namibie", code: "namibie", flag: "🇳🇦" },
-                { nom: "Zimbabwe", code: "zimbabwe", flag: "🇿🇼" },
-                { nom: "Zambie", code: "zambie", flag: "🇿🇲" },
-                { nom: "Djibouti", code: "djibouti", flag: "🇩🇯" },
-                { nom: "Somalie", code: "somalie", flag: "🇸🇴" },
-                { nom: "Cap-Vert", code: "cap vert", flag: "🇨🇻" },
-                { nom: "Gambie", code: "gambie", flag: "🇬🇲" },
-            ],
-            europe: [
-                { nom: "France", code: "france", flag: "🇫🇷" },
-                { nom: "Belgique", code: "belgique", flag: "🇧🇪" },
-                { nom: "Suisse", code: "suisse", flag: "🇨🇭" },
-                { nom: "Luxembourg", code: "luxembourg", flag: "🇱🇺" },
-                { nom: "Allemagne", code: "allemagne", flag: "🇩🇪" },
-                { nom: "Autriche", code: "autriche", flag: "🇦🇹" },
-                { nom: "Pays-Bas", code: "pays-bas", flag: "🇳🇱" },
-                { nom: "Italie", code: "italie", flag: "🇮🇹" },
-                { nom: "Espagne", code: "espagne", flag: "🇪🇸" },
-                { nom: "Portugal", code: "portugal", flag: "🇵🇹" },
-                { nom: "Royaume-Uni", code: "royaume-uni", flag: "🇬🇧" },
-                { nom: "Irlande", code: "irlande", flag: "🇮🇪" },
-                { nom: "Danemark", code: "danemark", flag: "🇩🇰" },
-                { nom: "Suède", code: "suede", flag: "🇸🇪" },
-                { nom: "Norvège", code: "norvege", flag: "🇳🇴" },
-                { nom: "Finlande", code: "finlande", flag: "🇫🇮" },
-                { nom: "Pologne", code: "pologne", flag: "🇵🇱" },
-                { nom: "Russie", code: "russie", flag: "🇷🇺" },
-                { nom: "Ukraine", code: "ukraine", flag: "🇺🇦" },
-                { nom: "Roumanie", code: "roumanie", flag: "🇷🇴" },
-                { nom: "Grèce", code: "grece", flag: "🇬🇷" },
-                { nom: "Turquie", code: "turquie", flag: "🇹🇷" },
-                { nom: "Hongrie", code: "hongrie", flag: "🇭🇺" },
-                { nom: "Serbie", code: "serbie", flag: "🇷🇸" },
-                { nom: "Croatie", code: "croatie", flag: "🇭🇷" },
-            ],
-            international: [
-                { nom: "États-Unis", code: "etats-unis", flag: "🇺🇸" },
-                { nom: "Canada", code: "canada", flag: "🇨🇦" },
-                { nom: "Brésil", code: "bresil", flag: "🇧🇷" },
-                { nom: "Argentine", code: "argentine", flag: "🇦🇷" },
-                { nom: "Mexique", code: "mexique", flag: "🇲🇽" },
-                { nom: "Chine", code: "chine", flag: "🇨🇳" },
-                { nom: "Japon", code: "japon", flag: "🇯🇵" },
-                { nom: "Corée du Sud", code: "coree du sud", flag: "🇰🇷" },
-                { nom: "Inde", code: "inde", flag: "🇮🇳" },
-                { nom: "Arabie Saoudite", code: "arabie saoudite", flag: "🇸🇦" },
-                { nom: "Émirats Arabes Unis", code: "emirats arabes unis", flag: "🇦🇪" },
-                { nom: "Qatar", code: "qatar", flag: "🇶🇦" },
-                { nom: "Australie", code: "australie", flag: "🇦🇺" },
-                { nom: "Nouvelle-Zélande", code: "nouvelle-zelande", flag: "🇳🇿" },
-                { nom: "Singapour", code: "singapour", flag: "🇸🇬" },
-                { nom: "Thaïlande", code: "thailande", flag: "🇹🇭" },
-                { nom: "Vietnam", code: "vietnam", flag: "🇻🇳" },
-                { nom: "Indonésie", code: "indonesie", flag: "🇮🇩" },
-                { nom: "Malaisie", code: "malaysia", flag: "🇲🇾" },
-                { nom: "Philippines", code: "philippines", flag: "🇵🇭" },
-                { nom: "Israël", code: "israel", flag: "🇮🇱" },
-                { nom: "Liban", code: "liban", flag: "🇱🇧" },
-                { nom: "Turquie", code: "turquie", flag: "🇹🇷" },
-                { nom: "Iran", code: "iran", flag: "🇮🇷" },
-                { nom: "Pakistan", code: "pakistan", flag: "🇵🇰" },
-                { nom: "Cuba", code: "cuba", flag: "🇨🇺" },
-                { nom: "Haïti", code: "haiti", flag: "🇭🇹" },
-                { nom: "Martinique", code: "martinique", flag: "🇲🇶" },
-                { nom: "Guadeloupe", code: "guadeloupe", flag: "🇬🇵" },
-            ]
-        };
-
         function detecterZonePostale(destination) {
             if (!destination) return 'ci';
-            const d = destination.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+            const d = destination.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
 
-            // Chercher d'abord une correspondance exacte dans le mapping
-            if (PAYS_ZONES[d]) return PAYS_ZONES[d];
-
-            // Chercher une correspondance partielle
-            for (const [pays, zone] of Object.entries(PAYS_ZONES)) {
-                if (d.includes(pays) || pays.includes(d)) return zone;
-            }
-
-            // Villes CI domestiques connues
-            const villesCI = ['abidjan','bouake','yamoussoukro','daloa','san pedro','korhogo','man','gagnoa',
-                'bondoukou','divo','abengourou','bassam','bingerville','dabou','duekoue','ferkessedougou',
-                'grand-bassam','guiglo','issia','lakota','odienne','sinfra','soubre','tabou','tiassale',
-                'touba','toumodi','vavoua','adzope','agboville','anyama'];
+            // Villes CI domestiques
+            const villesCI = ['abidjan','bouake','yamoussoukro','daloa','san pedro','korhogo','man','gagnoa','bondoukou',
+                'divo','abengourou','adzope','agboville','anyama','bassam','bingerville','dabou','duekoue','ferke',
+                'ferkessedougou','grand bassam','guiglo','issia','lakota','mbahiakro','odienne','sinfra','soubre',
+                'tabou','tiassale','touba','toumodi','vavoua','zuenula'];
             if (villesCI.some(v => d.includes(v))) return 'ci';
+            if (d.includes("cote d'ivoire") || d.includes('cote divoire') || d.includes('ivory coast') || d.includes('ci')) return 'ci';
 
-            // Fallback international si rien ne correspond
+            // Zone UEMOA (Union Économique et Monétaire Ouest-Africaine)
+            const uemoa = ['senegal','dakar','mali','bamako','burkina','ouagadougou','niger','niamey',
+                'benin','cotonou','porto novo','togo','lome','guinee-bissau','bissau','guinee bissau'];
+            if (uemoa.some(v => d.includes(v))) return 'uemoa';
+
+            // Afrique (hors UEMOA)
+            const afriqueMots = ['ghana','accra','nigeria','lagos','abuja','cameroun','douala','yaounde',
+                'conakry','guinea','liberia','sierra leone','mauritanie','maroc','algerie','tunisie',
+                'egypte','ethiopie','kenya','nairobi','tanzanie','afrique du sud','johannesburg','angola',
+                'congo','kinshasa','brazzaville','gabon','libreville','madagascar','mozambique','zimbabwe',
+                'zambie','rwanda','ouganda','ghana','sao tome','cap vert','comores','djibouti','somalie',
+                'soudan','libye','tchad','centrafrique','namibie','botswana','malawi','lesotho'];
+            if (afriqueMots.some(v => d.includes(v))) return 'afrique';
+
+            // Europe
+            const europe = ['france','paris','lyon','marseille','belgique','bruxelles','suisse','geneve','zurich',
+                'luxembourg','allemagne','berlin','munich','italie','rome','milan','espagne','madrid','barcelone',
+                'portugal','lisbonne','royaume-uni','london','angleterre','pays-bas','amsterdam','autriche',
+                'suede','stockholm','norvege','danemark','finlande','pologne','ukraine','grece','turquie',
+                'roumanie','hongrie','tcheque','slovaquie','serbie','croatie','europe'];
+            if (europe.some(v => d.includes(v))) return 'europe';
+
+            // International (Amériques, Asie, Océanie, reste du monde)
             return 'international';
         }
 
-        // Tarifs domestiques inter-villes par pays (FCFA estimés)
-        // Quand l'oeuvre et le client sont dans le MÊME pays
-        const TARIFS_DOMESTIQUES = {
-            //          [max_g, tarif_local]
-            // Côte d'Ivoire (SOCOPCI)
-            "cote d'ivoire": [
-                [250, 800], [500, 1200], [1000, 1800], [2000, 2800],
-                [3000, 3800], [5000, 5500], [10000, 8000], [20000, 13000], [30000, 18000]
-            ],
-            // Mali (Office des Postes du Mali) — tarifs estimés
-            "mali": [
-                [250, 900], [500, 1400], [1000, 2000], [2000, 3200],
-                [3000, 4500], [5000, 6500], [10000, 9500], [20000, 15000], [30000, 21000]
-            ],
-            // Sénégal (La Poste Sénégal)
-            "senegal": [
-                [250, 700], [500, 1100], [1000, 1700], [2000, 2700],
-                [3000, 3700], [5000, 5200], [10000, 7500], [20000, 12000], [30000, 17000]
-            ],
-            // Burkina Faso (SONAPOST)
-            "burkina faso": [
-                [250, 850], [500, 1300], [1000, 1900], [2000, 3000],
-                [3000, 4200], [5000, 6000], [10000, 8800], [20000, 14000], [30000, 19500]
-            ],
-            // Niger
-            "niger": [
-                [250, 1000], [500, 1600], [1000, 2300], [2000, 3600],
-                [3000, 5000], [5000, 7000], [10000, 10000], [20000, 16000], [30000, 22000]
-            ],
-            // Bénin
-            "benin": [
-                [250, 800], [500, 1200], [1000, 1800], [2000, 2900],
-                [3000, 4000], [5000, 5800], [10000, 8500], [20000, 13500], [30000, 19000]
-            ],
-            // Togo
-            "togo": [
-                [250, 700], [500, 1100], [1000, 1600], [2000, 2500],
-                [3000, 3500], [5000, 5000], [10000, 7200], [20000, 11500], [30000, 16000]
-            ],
-            // Ghana
-            "ghana": [
-                [250, 1200], [500, 1800], [1000, 2600], [2000, 4100],
-                [3000, 5700], [5000, 8000], [10000, 11500], [20000, 18000], [30000, 25000]
-            ],
-            // Nigéria
-            "nigeria": [
-                [250, 1500], [500, 2300], [1000, 3400], [2000, 5400],
-                [3000, 7500], [5000, 10500], [10000, 15000], [20000, 24000], [30000, 33000]
-            ],
-            // Cameroun
-            "cameroun": [
-                [250, 1100], [500, 1700], [1000, 2500], [2000, 4000],
-                [3000, 5600], [5000, 7800], [10000, 11000], [20000, 17500], [30000, 24000]
-            ],
-            // France (Colissimo inter-ville)
-            "france": [
-                [250, 3500], [500, 4500], [1000, 5500], [2000, 7000],
-                [3000, 8500], [5000, 10000], [10000, 13000], [20000, 18000], [30000, 24000]
-            ],
-            // Par défaut pour les autres pays : tarif estimé à 50% du tarif UEMOA
-            "_default": [
-                [250, 1300], [500, 1800], [1000, 2800], [2000, 4000],
-                [3000, 5500], [5000, 8000], [10000, 11000], [20000, 18000], [30000, 25000]
-            ]
-        };
-
-        // Normaliser un pays pour comparer (enlever accents, lowercase)
-        function normaliserPays(pays) {
-            if (!pays) return '';
-            return pays.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
-        }
-
-        function calculerFraisPoste(poidsGrammes, destination, origine) {
-            // Barèmes La Poste / SOCOPCI — FCFA, paliers en grammes
-            // origine = pays de l'artiste (d'où part l'oeuvre)
-            // destination = pays de destination du client
+        function calculerFraisPoste(poidsGrammes, destination) {
+            // Barèmes basés sur les tarifs réels SOCOPCI / La Poste de Côte d'Ivoire
+            // Unité : FCFA — paliers en grammes
             const bareme = {
                 //          [max_g,  ci,    uemoa,  afrique,  europe,  intl ]
                 paliers: [
@@ -4565,79 +4264,23 @@ window.enterGallery = function enterGallery() {
                 zoneIndex: { ci: 1, uemoa: 2, afrique: 3, europe: 4, international: 5 }
             };
 
-            const origNorm = normaliserPays(origine || "cote d'ivoire");
-            const destNorm = normaliserPays(destination);
+            const zone = detecterZonePostale(destination);
+            const zIdx = bareme.zoneIndex[zone];
             const poids = Math.max(1, poidsGrammes);
 
-            // ── CAS 1 : Livraison inter-ville dans le même pays ──────────────
-            // Ex : Bamako → Tombouctou (tous les deux au Mali)
-            const destPaysCode = PAYS_ZONES[destNorm] ? destNorm : null;
-            const origPaysCode = PAYS_ZONES[origNorm] ? origNorm : null;
-
-            if (destPaysCode && origPaysCode && destPaysCode === origPaysCode) {
-                // Même pays → tarif domestique
-                const grille = TARIFS_DOMESTIQUES[destPaysCode] || TARIFS_DOMESTIQUES['_default'];
-                for (const [maxG, tarif] of grille) {
-                    if (poids <= maxG) return { cout: tarif, zone: 'domestique', zoneOrigine: 'domestique', zoneDest: 'domestique', meme_pays: true };
-                }
-                const dernierTarif = grille[grille.length - 1][1];
-                const surplus = Math.ceil((poids - 30000) / 5000);
-                return { cout: dernierTarif + surplus * 3000, zone: 'domestique', zoneOrigine: 'domestique', zoneDest: 'domestique', meme_pays: true };
-            }
-
-            // ── CAS 2 : Envoi international (pays différents) ────────────────
-            const zoneOrigine = detecterZonePostale(origNorm);
-            const zoneDest    = detecterZonePostale(destNorm);
-
-            // Règle : tarif = zone la plus éloignée entre les deux
-            const ordreZone = { ci: 1, uemoa: 2, afrique: 3, europe: 4, international: 5 };
-            const zoneEffective = ordreZone[zoneDest] >= ordreZone[zoneOrigine]
-                ? zoneDest
-                : zoneOrigine;
-
-            const zIdx = bareme.zoneIndex[zoneEffective];
-
+            // Trouver le palier
             for (const palier of bareme.paliers) {
-                if (poids <= palier[0]) return { cout: palier[zIdx], zone: zoneEffective, zoneOrigine, zoneDest };
+                if (poids <= palier[0]) return { cout: palier[zIdx], zone };
             }
-            const base    = bareme.paliers[bareme.paliers.length - 1][zIdx];
+            // Au-delà de 30kg : calcul par tranche de 5kg supplémentaires
+            const base = bareme.paliers[bareme.paliers.length - 1][zIdx];
             const surplus = Math.ceil((poids - 30000) / 5000);
-            const extra   = { ci: 4000, uemoa: 8000, afrique: 12000, europe: 22000, international: 30000 }[zoneEffective];
-            return { cout: base + surplus * extra, zone: zoneEffective, zoneOrigine, zoneDest };
-        }
-
-        // Calcul multi-origines : une oeuvre = un pays d'expédition potentiellement différent
-        // Retourne le coût total et un détail par oeuvre
-        function calculerFraisPosteMultiOrigines(cartItems, destination) {
-            let total = 0;
-            const details = [];
-            for (const item of cartItems) {
-                if (item.is_sold) continue;
-                const qte    = item.quantity || 1;
-                const poids  = (item.weight_g || 500) * qte;
-                const orig   = item.artist_country || item.country || "Cote d'Ivoire";
-                const result = calculerFraisPoste(poids, destination, orig);
-                total += result.cout;
-                details.push({
-                    title:  item.title,
-                    orig,
-                    dest:   destination,
-                    zone:   result.zone,
-                    cout:   result.cout
-                });
-            }
-            return { cout: total, details };
+            const extra = { ci: 4000, uemoa: 8000, afrique: 12000, europe: 22000, international: 30000 }[zone];
+            return { cout: base + surplus * extra, zone };
         }
 
         function nomZonePostale(zone) {
-            return {
-                domestique:    'Livraison nationale',
-                ci:            "Côte d'Ivoire",
-                uemoa:         'Zone UEMOA',
-                afrique:       'Afrique',
-                europe:        'Europe',
-                international: 'International'
-            }[zone] || zone;
+            return { ci: "Côte d'Ivoire", uemoa: "Zone UEMOA", afrique: "Afrique", europe: "Europe", international: "International" }[zone] || zone;
         }
         function updateCartTotal() {
             const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -5150,32 +4793,6 @@ window.enterGallery = function enterGallery() {
         // ⭐ POSTS_API déclaré tôt pour éviter undefined dans fetchArtistPostsFromServer
         window.POSTS_API = `${API_BASE}/api_artist_posts.php`;
 
-        // ⭐ WRAPPER GLOBAL POUR LES APPELS API CORS
-        // Tous les fetch vers l'API doivent utiliser CORS
-        window.fetchWithCors = async function(url, options = {}) {
-            const corsOptions = {
-                method: options.method || 'GET',
-                mode: 'cors',
-                credentials: 'omit',
-                headers: {
-                    'Accept': 'application/json',
-                    ...options.headers
-                },
-                ...options
-            };
-            try {
-                const resp = await fetch(url, corsOptions);
-                if (!resp.ok) {
-                    console.warn(`⚠️ Erreur HTTP ${resp.status} sur ${url}`);
-                    throw new Error(`HTTP ${resp.status}`);
-                }
-                return resp;
-            } catch(e) {
-                console.error('❌ Erreur CORS/Fetch:', e.message, 'URL:', url);
-                throw e;
-            }
-        };
-
         if (typeof window.DELIVERY_STATUSES === 'undefined') window.DELIVERY_STATUSES = [
             { key: 'En préparation', icon: '📦', label: 'En préparation', color: '#ff9800' },
             { key: 'Préparée',       icon: '✅', label: 'Préparée',       color: '#ff9800' },
@@ -5298,18 +4915,9 @@ window.enterGallery = function enterGallery() {
             const userId = currentUser?.id || currentUser?.googleId || currentUser?.email;
             if (!userId) return false;
             try {
-                const resp = await fetch(`${ORDERS_API}?action=list&user_id=${encodeURIComponent(userId)}&t=${Date.now()}`, {
-                    method: 'GET',
-                    mode: 'cors',
-                    credentials: 'omit',
-                    headers: { 'Accept': 'application/json' }
-                });
-                if (!resp.ok) {
-                    console.warn(`⚠️ Erreur HTTP ${resp.status}`);
-                    return false;
-                }
+                const resp = await fetch(`${ORDERS_API}?action=list&user_id=${encodeURIComponent(userId)}&t=${Date.now()}`);
                 const data = await resp.json();
-                if (data.success && data.orders && data.orders.length > 0) {
+                if (data.success && data.orders.length > 0) {
                     // Fusionner avec localStorage — server prioritaire
                     const serverIds = data.orders.map(o => String(o.id));
                     const localOnly = orderHistory.filter(o => !o.server_id || !serverIds.includes(String(o.server_id)));
@@ -5335,7 +4943,6 @@ window.enterGallery = function enterGallery() {
 
         function buildOrderTimeline(order) {
             const es = order.escrow_status || 'payée_en_attente';
-            const esNorm = es === 'fonds_libérés' ? 'livrée_confirmée' : es;
             const steps = [
                 { key: 'payée_en_attente', icon: '💳', label: 'Commande validée' },
                 { key: 'expédiée',         icon: '🚚', label: 'Expédiée' },
@@ -6947,18 +6554,20 @@ window.enterGallery = function enterGallery() {
             // Récupérer les œuvres : depuis l'API et depuis getProducts()
             let artistWorks = [];
             try {
-                const response = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?t=${Date.now()}&include_sold=1`);
+                const response = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?t=${Date.now()}`);
                 const result = await response.json();
                 if (result.success && result.data) {
                     artistWorks = result.data.filter(a =>
                         a.artist_name && a.artist_name.trim().toLowerCase() === artistName.trim().toLowerCase()
+                        && !a.is_sold && a.badge !== 'Vendu'
                     );
                 }
             } catch(e) {}
 
-            // Compléter avec les produits locaux
+            // Compléter avec les produits locaux (non vendus uniquement)
             const localWorks = getProducts().filter(p =>
                 p.artist && p.artist.toLowerCase() === artistName.toLowerCase()
+                && !p.is_sold && p.badge !== 'Vendu'
             );
             localWorks.forEach(p => {
                 if (!artistWorks.find(o => String(o.id) === String(p.id))) {
@@ -9575,12 +9184,7 @@ window.enterGallery = function enterGallery() {
                 const params = new URLSearchParams({ action: 'get_notifications', t: Date.now() });
                 if (artistName) params.set('artist_name', artistName);
                 if (artistId)   params.set('artist_id', artistId);
-                const resp = await fetch(`${NOTIF_API}?${params.toString()}`, {
-                    method: 'GET',
-                    mode: 'cors',
-                    credentials: 'omit',
-                    headers: { 'Accept': 'application/json' }
-                });
+                const resp = await fetch(`${NOTIF_API}?${params.toString()}`);
                 const result = await resp.json();
                 if (!result.success) return;
 
@@ -9873,17 +9477,10 @@ window.enterGallery = function enterGallery() {
             let serverSales = [];
             try {
                 const artistId = currentUser?.id || db.artistId;
-                const resp = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_commandes.php?action=list&artist_id=${artistId}`, {
-                    method: 'GET',
-                    mode: 'cors',
-                    credentials: 'omit',
-                    headers: { 'Accept': 'application/json' }
-                });
-                if (resp.ok) {
-                    const json = await resp.json();
-                    if (json.success && Array.isArray(json.orders)) {
-                        serverSales = json.orders.filter(o => o.status !== 'annulée');
-                    }
+                const resp = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_commandes.php?action=list&artist_id=${artistId}`);
+                const json = await resp.json();
+                if (json.success && Array.isArray(json.orders)) {
+                    serverSales = json.orders.filter(o => o.status !== 'annulée');
                 }
             } catch(e) {
                 console.warn('⚠️ Impossible de charger les commandes serveur, fallback local');
@@ -10487,7 +10084,7 @@ window.enterGallery = function enterGallery() {
                     <div class="artwork-info">
                         <div class="artwork-title">${a.title}</div>
                         <div class="artwork-price">${formatPrice(a.price)}</div>
-                        <div class="artwork-meta"><span>🏷️ ${a.category}</span><span>👁️ ${a.view_count || 0} vue${(a.view_count || 0) > 1 ? 's' : ''}</span></div>
+                        <div class="artwork-meta"><span>🏷️ ${a.category}</span><span>👁️ 0 vues</span></div>
                         <div class="artwork-actions">
                             <button class="btn-small btn-edit" onclick="openArtworkModal(${a.id})">✏️ Modifier</button>
                             <button class="btn-small btn-delete" onclick="deleteArtwork(${a.id})">🗑️ Supprimer</button>
@@ -11415,127 +11012,63 @@ window.enterGallery = function enterGallery() {
             const news = newsItems[index];
             if (!news) return;
 
-            // Supprimer toute lightbox existante
-            document.getElementById('arkylNewsLightbox')?.remove();
+            const lightbox = document.getElementById('newsLightbox');
+            const imageContainer = document.getElementById('newsLightboxImage');
+            const title = document.getElementById('newsLightboxTitle');
+            const gradientName = document.getElementById('newsLightboxGradientName');
+            const gradientPreview = document.getElementById('newsLightboxGradientPreview');
+            const description = document.getElementById('newsLightboxDescription');
 
-            // Naviguer entre les actu depuis la lightbox
-            function goTo(i) {
-                const wrap = (i + newsItems.length) % newsItems.length;
-                document.getElementById('arkylNewsLightbox')?.remove();
-                openNewsLightbox(wrap);
+            // Set title
+            title.textContent = news.text;
+
+            // Set image or emoji — utilise un <img loading="lazy"> pour voir l'image complète
+            if (news.isImage) {
+                imageContainer.classList.remove('emoji-display');
+                imageContainer.style.backgroundImage = 'none';
+                imageContainer.innerHTML = `<img loading="lazy" class="lightbox-img" src="${news.icon}" alt="${news.text}" onerror="this.parentElement.innerHTML='📰'">`;
+            } else {
+                imageContainer.classList.add('emoji-display');
+                imageContainer.style.backgroundImage = 'none';
+                imageContainer.innerHTML = news.icon;
             }
 
-            // Contenu : image plein écran ou emoji géant
-            const mediaHTML = news.isImage
-                ? `<img src="${news.icon}" alt="${news.text}"
-                        style="max-width:100%;max-height:75vh;object-fit:contain;border-radius:16px;display:block;margin:0 auto;box-shadow:0 20px 60px rgba(0,0,0,0.6);"
-                        onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div style=\'font-size:80px;text-align:center;\'>📰</div>')">`
-                : `<div style="font-size:120px;text-align:center;line-height:1;user-select:none;">${news.icon}</div>`;
+            // Set gradient info
+            const gradientNames = {
+                'gradient-1': 'Bronze-Cuivre',
+                'gradient-2': 'Terre-Argile',
+                'gradient-3': 'Or-Doré',
+                'gradient-4': 'Cuivre-Sable',
+                'gradient-5': 'Bronze-Sable'
+            };
+            gradientName.textContent = gradientNames[news.gradient] || news.gradient;
 
-            const hasText = news.text && news.text.trim().length > 0;
+            // Apply gradient preview
+            gradientPreview.className = `news-lightbox-gradient-preview news-ticker-icon ${news.gradient}`;
 
-            const lb = document.createElement('div');
-            lb.id = 'arkylNewsLightbox';
-            lb.style.cssText = [
-                'position:fixed;inset:0;z-index:99999;',
-                'background:rgba(0,0,0,0.92);',
-                'display:flex;flex-direction:column;align-items:center;justify-content:center;',
-                'padding:20px;box-sizing:border-box;',
-                'animation:arkylLbFadeIn .2s ease;',
-            ].join('');
+            // Set description (same as text for now, you can enhance this)
+            description.textContent = news.text;
 
-            // Ajouter l'animation CSS si absente
-            if (!document.getElementById('arkylLbStyle')) {
-                const st = document.createElement('style');
-                st.id = 'arkylLbStyle';
-                st.textContent = `
-                    @keyframes arkylLbFadeIn { from{opacity:0;transform:scale(.97)} to{opacity:1;transform:scale(1)} }
-                    #arkylNewsLightbox button:hover { opacity:.85 !important; }
-                `;
-                document.head.appendChild(st);
+            // Show lightbox
+            lightbox.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent scrolling
+        }
+
+        function closeNewsLightbox(event) {
+            // Close only if clicking on background or close button
+            if (event && event.target.closest('.news-lightbox-content') && !event.target.classList.contains('news-lightbox-close')) {
+                return;
             }
 
-            lb.innerHTML = `
-                <!-- Fermer -->
-                <button onclick="document.getElementById('arkylNewsLightbox').remove();document.body.style.overflow='';"
-                    title="Fermer (Echap)"
-                    style="position:absolute;top:18px;right:18px;background:rgba(255,255,255,0.12);border:none;border-radius:50%;width:44px;height:44px;font-size:20px;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;">
-                    ✕
-                </button>
-
-                <!-- Compteur -->
-                <div style="position:absolute;top:22px;left:50%;transform:translateX(-50%);font-size:12px;opacity:0.5;font-family:'Poppins',sans-serif;letter-spacing:.5px;">
-                    ${index + 1} / ${newsItems.length}
-                </div>
-
-                <!-- Flèche gauche -->
-                ${newsItems.length > 1 ? `
-                <button onclick="event.stopPropagation();(function(){document.getElementById('arkylNewsLightbox').remove();document.body.style.overflow='';openNewsLightbox(${(index - 1 + newsItems.length) % newsItems.length});})();"
-                    style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:48px;height:48px;font-size:22px;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">
-                    ‹
-                </button>` : ''}
-
-                <!-- Flèche droite -->
-                ${newsItems.length > 1 ? `
-                <button onclick="event.stopPropagation();(function(){document.getElementById('arkylNewsLightbox').remove();document.body.style.overflow='';openNewsLightbox(${(index + 1) % newsItems.length});})();"
-                    style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:48px;height:48px;font-size:22px;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">
-                    ›
-                </button>` : ''}
-
-                <!-- Contenu centré -->
-                <div style="max-width:860px;width:100%;display:flex;flex-direction:column;align-items:center;gap:24px;">
-
-                    <!-- Média -->
-                    <div style="width:100%;display:flex;justify-content:center;">
-                        ${mediaHTML}
-                    </div>
-
-                    <!-- Texte sous l'image -->
-                    ${hasText ? `
-                    <div style="text-align:center;max-width:640px;padding:0 8px;">
-                        <p style="font-family:'Poppins',sans-serif;font-size:clamp(15px,2.5vw,20px);font-weight:600;color:white;line-height:1.6;margin:0;text-shadow:0 2px 8px rgba(0,0,0,.5);">
-                            ${news.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-                        </p>
-                    </div>` : ''}
-
-                    <!-- Pastilles de navigation -->
-                    ${newsItems.length > 1 ? `
-                    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-                        ${newsItems.map((_, i) => `
-                        <button onclick="event.stopPropagation();(function(){document.getElementById('arkylNewsLightbox').remove();document.body.style.overflow='';openNewsLightbox(${i});})();"
-                            style="width:\${i === index ? '24px' : '8px'};height:8px;border-radius:4px;border:none;cursor:pointer;transition:all .2s;background:\${i === index ? '#d4af37' : 'rgba(255,255,255,0.3)'};">
-                        </button>`).join('')}
-                    </div>` : ''}
-                </div>
-            `;
-
-            // Fermer en cliquant sur le fond
-            lb.addEventListener('click', function(e) {
-                if (e.target === lb) {
-                    lb.remove();
-                    document.body.style.overflow = '';
-                }
-            });
-
-            document.body.appendChild(lb);
-            document.body.style.overflow = 'hidden';
+            const lightbox = document.getElementById('newsLightbox');
+            lightbox.classList.remove('active');
+            document.body.style.overflow = ''; // Restore scrolling
         }
 
-        function closeNewsLightbox() {
-            document.getElementById('arkylNewsLightbox')?.remove();
-            document.body.style.overflow = '';
-        }
-
-        // Touche Echap pour fermer
+        // Close lightbox with ESC key
         document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') closeNewsLightbox();
-            // Flèches gauche/droite pour naviguer
-            if (document.getElementById('arkylNewsLightbox')) {
-                const current = newsItems.findIndex((_, i) =>
-                    document.querySelector(`[onclick*="openNewsLightbox(\${i})"]`) !== null
-                );
-                if (e.key === 'ArrowRight') { /* handled inline */ }
-                if (e.key === 'ArrowLeft')  { /* handled inline */ }
+            if (e.key === 'Escape') {
+                closeNewsLightbox();
             }
         });
 
@@ -11865,54 +11398,10 @@ window.enterGallery = function enterGallery() {
    ============================ */
 
 
-
-    // 👁️ Enregistrer une vue pour une œuvre
-    async function recordArtworkView(artworkId) {
-        if (!artworkId) return;
-        
-        try {
-            // Utiliser le localStorage pour éviter de compter la même personne plusieurs fois
-            const viewedArtworks = JSON.parse(localStorage.getItem('viewedArtworks') || '{}');
-            const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
-            const key = `${artworkId}_${today}`;
-            
-            // Si déjà vu aujourd'hui, ne pas envoyer
-            if (viewedArtworks[key]) {
-                return;
-            }
-            
-            // Marquer comme vu aujourd'hui
-            viewedArtworks[key] = true;
-            localStorage.setItem('viewedArtworks', JSON.stringify(viewedArtworks));
-            
-            // Envoyer à l'API pour incrémenter le compteur
-            const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php', {
-                method: 'POST',
-                mode: 'cors',
-                credentials: 'omit',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'record_view',
-                    artwork_id: artworkId
-                })
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    console.log('✅ Vue enregistrée pour œuvre', artworkId);
-                }
-            }
-        } catch(e) {
-            console.warn('⚠️ Erreur lors de l\'enregistrement de la vue:', e.message);
-        }
-    }
     // ==================== FONCTION POUR VOIR LES DÉTAILS D'UNE ŒUVRE DEPUIS L'API ====================
     async function viewProductDetailFromAPI(artworkId) {
         showLoading();
         
-        // 👁️ Incrémenter le compteur de vues
-        recordArtworkView(artworkId).catch(e => console.warn('⚠️ Erreur enregistrement vue:', e));
         try {
             // Charger les détails depuis l'API
             const response = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?artwork_id=${artworkId}`);
@@ -11942,7 +11431,7 @@ window.enterGallery = function enterGallery() {
                             <span id="currentPhotoIndex">1</span>/${photos.length}
                         </div>
                         
-                        <button class="like-button" onclick="toggleFavorite(event, ${product.id})" style="position:absolute;top:15px;right:15px;">${favorites.includes(product.id) ? '❤️' : '🤍'}</button>
+                        <button class="like-button" onclick="toggleFavorite(event, ${product.id})" style="position:absolute;top:15px;right:15px;">🤍</button>
                         
                         ${photos.length > 1 ? `
                             <button onclick="previousPhoto()" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.7); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 20px; display: flex; align-items: center; justify-content: center;">‹</button>
@@ -11962,7 +11451,7 @@ window.enterGallery = function enterGallery() {
                 imageSection = `
                     <div class="product-detail-image">
                         <img src="${photos[0] || product.image_url}" alt="${product.title}" style="width:100%;height:100%;object-fit:cover;border-radius:20px;cursor:pointer;" loading="lazy" onclick="openImageLightbox('${photos[0] || product.image_url}')" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
-                        <button class="like-button" onclick="toggleFavorite(event, ${product.id})" style="position:absolute;top:20px;right:20px;">${favorites.includes(product.id) ? '❤️' : '🤍'}</button>
+                        <button class="like-button" onclick="toggleFavorite(event, ${product.id})" style="position:absolute;top:20px;right:20px;">🤍</button>
                     </div>
                 `;
             }
@@ -12030,7 +11519,7 @@ window.enterGallery = function enterGallery() {
                                 <button class="jm-arrow jm-arrow-right" onclick="jmNext()">&#8250;</button>
                                 <div class="jm-counter"><span id="jmCurrent">1</span>/${photos.length}</div>
                             ` : ''}
-                            <button class="jm-fav-btn" onclick="toggleFavorite(event, ${product.id})">${favorites.includes(product.id) ? '❤️' : '🤍'}</button>
+                            <button class="jm-fav-btn" onclick="toggleFavorite(event, ${product.id})">🤍</button>
                         </div>
 
                         ${photos.length > 1 ? `
@@ -12096,7 +11585,7 @@ window.enterGallery = function enterGallery() {
                                 🛒 Ajouter au panier
                             </button>
                             <button class="jm-btn-fav" onclick="toggleFavorite(event, ${product.id})">
-                                ${favorites.includes(product.id) ? '❤️' : '🤍'}
+                                🤍
                             </button>
                         </div>
                     </div>
@@ -12142,19 +11631,18 @@ window.enterGallery = function enterGallery() {
         const cat = window.currentCategory || 'all';
         const selected = window.selectedCategories;
         let oeuvres;
-        
-        // ✅ Inclure les œuvres vendues (elles seront affichées grisées par renderProductCard)
-        const toutesOeuvres = window.toutesLesOeuvres;
+        // Exclure les œuvres vendues
+        const oeuvresDisponibles = window.toutesLesOeuvres.filter(o => !o.is_sold);
 
         if (cat === '__multi__' && selected && selected.size > 0) {
-            oeuvres = toutesOeuvres.filter(o => {
+            oeuvres = oeuvresDisponibles.filter(o => {
                 const c = (o.category || o.categorie || o.type || '').toLowerCase().trim();
                 return Array.from(selected).some(s => s.toLowerCase().trim() === c);
             });
         } else {
             oeuvres = cat === 'all'
-                ? toutesOeuvres
-                : toutesOeuvres.filter(o => {
+                ? oeuvresDisponibles
+                : oeuvresDisponibles.filter(o => {
                     const c = (o.category || o.categorie || o.type || '').toLowerCase().trim();
                     return c === cat.toLowerCase().trim();
                   });
@@ -12374,7 +11862,7 @@ window.enterGallery = function enterGallery() {
     /* Revalidation silencieuse — ne touche pas au DOM tant que les données sont identiques */
     async function _revaliderEnArrierePlan() {
         try {
-            const urlAPI = `https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?limit=${ITEMS_PER_LOAD}&offset=0&t=${Date.now()}&include_sold=1`;
+            const urlAPI = `https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?limit=${ITEMS_PER_LOAD}&offset=0&t=${Date.now()}`;
             const reponse = await fetch(urlAPI);
             const resultat = await reponse.json();
             if (resultat.success && resultat.data?.length > 0) {
@@ -12418,7 +11906,7 @@ window.enterGallery = function enterGallery() {
         isLoading = true;
 
         try {
-            const urlAPI = `https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?limit=${ITEMS_PER_LOAD}&offset=${currentOffset}&t=${Date.now()}&include_sold=1`;
+            const urlAPI = `https://arkyl-galerie-nvwn.onrender.com/api_galerie_publique.php?limit=${ITEMS_PER_LOAD}&offset=${currentOffset}&t=${Date.now()}`;
             
             console.log(`📥 Chargement des œuvres ${currentOffset} à ${currentOffset + ITEMS_PER_LOAD}...`);
             
@@ -13027,12 +12515,7 @@ window.enterGallery = function enterGallery() {
         async function chargerTresorerieAdmin() {
             try {
                 // ⭐ Utilise api_commandes.php (qui existe) au lieu de api_admin_tresorerie.php (inexistant)
-                const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_commandes.php?action=list&admin=1', {
-                    method: 'GET',
-                    mode: 'cors',
-                    credentials: 'omit',
-                    headers: { 'Accept': 'application/json' }
-                });
+                const response = await fetch('https://arkyl-galerie-nvwn.onrender.com/api_commandes.php?action=list&admin=1');
 
                 // Vérifier que la réponse est bien du JSON avant de parser
                 const contentType = response.headers.get('content-type') || '';
@@ -13380,6 +12863,7 @@ window.enterGallery = function enterGallery() {
             const montantText = row?.cells?.[3]?.textContent?.trim()?.split(' ')[0] || '?';
             ouvrirModalePaiement(orderId, artistName, montantText);
         }
+
 
 
 

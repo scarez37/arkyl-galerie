@@ -4774,9 +4774,18 @@ window.enterGallery = function enterGallery() {
             const userId = currentUser?.id || currentUser?.googleId || currentUser?.email;
             if (!userId) return false;
             try {
-                const resp = await fetch(`${ORDERS_API}?action=list&user_id=${encodeURIComponent(userId)}&t=${Date.now()}`);
+                const resp = await fetch(`${ORDERS_API}?action=list&user_id=${encodeURIComponent(userId)}&t=${Date.now()}`, {
+                    method: 'GET',
+                    mode: 'cors',
+                    credentials: 'omit',
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (!resp.ok) {
+                    console.warn(`⚠️ Erreur HTTP ${resp.status}`);
+                    return false;
+                }
                 const data = await resp.json();
-                if (data.success && data.orders.length > 0) {
+                if (data.success && data.orders && data.orders.length > 0) {
                     // Fusionner avec localStorage — server prioritaire
                     const serverIds = data.orders.map(o => String(o.id));
                     const localOnly = orderHistory.filter(o => !o.server_id || !serverIds.includes(String(o.server_id)));
@@ -4802,6 +4811,7 @@ window.enterGallery = function enterGallery() {
 
         function buildOrderTimeline(order) {
             const es = order.escrow_status || 'payée_en_attente';
+            const esNorm = es === 'fonds_libérés' ? 'livrée_confirmée' : es;
             const steps = [
                 { key: 'payée_en_attente', icon: '💳', label: 'Commande validée' },
                 { key: 'expédiée',         icon: '🚚', label: 'Expédiée' },
@@ -9336,10 +9346,17 @@ window.enterGallery = function enterGallery() {
             let serverSales = [];
             try {
                 const artistId = currentUser?.id || db.artistId;
-                const resp = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_commandes.php?action=list&artist_id=${artistId}`);
-                const json = await resp.json();
-                if (json.success && Array.isArray(json.orders)) {
-                    serverSales = json.orders.filter(o => o.status !== 'annulée');
+                const resp = await fetch(`https://arkyl-galerie-nvwn.onrender.com/api_commandes.php?action=list&artist_id=${artistId}`, {
+                    method: 'GET',
+                    mode: 'cors',
+                    credentials: 'omit',
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (resp.ok) {
+                    const json = await resp.json();
+                    if (json.success && Array.isArray(json.orders)) {
+                        serverSales = json.orders.filter(o => o.status !== 'annulée');
+                    }
                 }
             } catch(e) {
                 console.warn('⚠️ Impossible de charger les commandes serveur, fallback local');

@@ -11656,18 +11656,19 @@ window.enterGallery = function enterGallery() {
         const cat = window.currentCategory || 'all';
         const selected = window.selectedCategories;
         let oeuvres;
-        // Exclure les œuvres vendues
-        const oeuvresDisponibles = window.toutesLesOeuvres.filter(o => !o.is_sold);
+        
+        // ✅ Inclure les œuvres vendues (elles seront affichées grisées par renderProductCard)
+        const toutesOeuvres = window.toutesLesOeuvres;
 
         if (cat === '__multi__' && selected && selected.size > 0) {
-            oeuvres = oeuvresDisponibles.filter(o => {
+            oeuvres = toutesOeuvres.filter(o => {
                 const c = (o.category || o.categorie || o.type || '').toLowerCase().trim();
                 return Array.from(selected).some(s => s.toLowerCase().trim() === c);
             });
         } else {
             oeuvres = cat === 'all'
-                ? oeuvresDisponibles
-                : oeuvresDisponibles.filter(o => {
+                ? toutesOeuvres
+                : toutesOeuvres.filter(o => {
                     const c = (o.category || o.categorie || o.type || '').toLowerCase().trim();
                     return c === cat.toLowerCase().trim();
                   });

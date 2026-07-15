@@ -10057,7 +10057,26 @@ window.enterGallery = function enterGallery() {
                             if (match) countryEl.value = match.value;
                         }
                     }
-                    if (cityEl) cityEl.value = a.city || '';
+                    // Charger les villes du pays sélectionné, puis sélectionner la ville sauvegardée
+                    if (typeof window.artworkOnPaysChange === 'function') {
+                        const paysVal = countryEl?.value || '';
+                        const villeVal = a.city || '';
+                        if (paysVal) {
+                            window.artworkOnPaysChange(paysVal).then(() => {
+                                if (cityEl && villeVal) {
+                                    cityEl.value = villeVal;
+                                    // Si pas dans la liste, chercher insensible à la casse
+                                    if (!cityEl.value) {
+                                        const match = Array.from(cityEl.options).find(o =>
+                                            o.value.toLowerCase() === villeVal.toLowerCase());
+                                        if (match) cityEl.value = match.value;
+                                    }
+                                }
+                            });
+                        }
+                    } else if (cityEl) {
+                        cityEl.value = a.city || '';
+                    }
 
                     
                     // Technique
@@ -13134,6 +13153,7 @@ window.enterGallery = function enterGallery() {
             const montantText = row?.cells?.[3]?.textContent?.trim()?.split(' ')[0] || '?';
             ouvrirModalePaiement(orderId, artistName, montantText);
         }
+
 
 
 

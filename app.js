@@ -1059,15 +1059,32 @@ window.enterGallery = function enterGallery() {
                 cartItems = (data.data || data.items || []).map(item => {
                     const pid = item.artwork_id || item.id;
                     const product = allProducts.find(p => String(p.id) === String(pid));
+                    // poids en BDD = kg (ex: 0.5) → convertir en grammes
+                    const poidsKg = parseFloat(item.poids || (product && product.poids) || 0);
+                    const weight_g = poidsKg > 0 ? Math.round(poidsKg * 1000) : 500;
+                    // Pays/ville de l'œuvre : priorité item BDD > product galerie > vide
+                    const origin_country = item.country || item.artist_country
+                                        || (product && (product.country || product.artist_country)) || '';
+                    const origin_city    = item.city || (product && product.city) || '';
                     if (product) {
                         return {
                             ...product,
                             id: String(product.id),
                             image: product.image || product.image_url || (product.photos && product.photos[0]) || '',
-                            quantity: item.quantity || 1
+                            quantity: item.quantity || 1,
+                            weight_g,
+                            origin_country,
+                            origin_city
                         };
                     }
-                    return { ...item, id: String(pid), quantity: item.quantity || 1 };
+                    return {
+                        ...item,
+                        id: String(pid),
+                        quantity: item.quantity || 1,
+                        weight_g,
+                        origin_country,
+                        origin_city
+                    };
                 }).filter(item => item.id); // enlever les items sans id valide
 
                 updateBadges();
@@ -3671,9 +3688,13 @@ window.enterGallery = function enterGallery() {
             let shipping = 0; // défaut — jusqu'à ce que le mode soit choisi
             if (posteVille) {
                 const poidsTotal = cartItems.reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
-                const calcInit = calculerFraisPoste(poidsTotal, posteVille);
+                // ✅ Multi-origines : utilise le pays réel de chaque œuvre
+                const codeISODest = window._savedPostePays || 'CI';
+                const paysNomDest = (typeof TOUS_PAYS !== 'undefined' && TOUS_PAYS.find(p => p.code === codeISODest)?.nom) || '';
+                const destStr = paysNomDest ? paysNomDest + ' ' + posteVille : posteVille;
+                const calcInit = calculerFraisPosteMultiOrigines(cartItems, destStr);
                 shipping = calcInit.cout;
-                window._posteCalcDetail = { poidsTotal, zone: calcInit.zone, dest: posteVille, cout: shipping };
+                window._posteCalcDetail = { poidsTotal, zone: calcInit.zonePrincipale || 'ci', dest: posteVille, cout: shipping, details: calcInit.details };
             } else if (mainPropreLieu) {
                 shipping = 0;
             } else if (transportCompagnie) {
@@ -4232,20 +4253,36 @@ window.enterGallery = function enterGallery() {
                 document.getElementById('poste-tarif-preview').style.display = 'none';
                 return;
             }
-            const codeISO    = window._savedPostePays || 'CI';
-            const zone       = zoneDepuisPays(codeISO);
-            const poidsTotal = (window.cartItems || []).reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
-            // Passer le nom du pays à calculerFraisPoste pour la détection de zone
-            const paysNom    = TOUS_PAYS.find(p => p.code === codeISO)?.nom || ville;
-            const calcul     = calculerFraisPoste(poidsTotal, paysNom + ' ' + ville);
-            window._posteCalcDetail = { poidsTotal, zone: calcul.zone, dest: ville + ', ' + paysNom, cout: calcul.cout };
+            const codeISODest = window._savedPostePays || 'CI';
+            const paysNomDest = TOUS_PAYS.find(p => p.code === codeISODest)?.nom || ville;
+            const destStr     = paysNomDest + ' ' + ville;
+
+            // ✅ Calcul multi-origines : chaque œuvre utilise SON pays de provenance
+            const items = window.cartItems || [];
+            const poidsTotal = items.reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
+            const calcul = calculerFraisPosteMultiOrigines(items, destStr);
+
+            window._posteCalcDetail = {
+                poidsTotal,
+                zone: calcul.zonePrincipale || 'ci',
+                dest: ville + ', ' + paysNomDest,
+                cout: calcul.cout,
+                details: calcul.details
+            };
 
             const preview = document.getElementById('poste-tarif-preview');
             const detTxt  = document.getElementById('tarif-detail-txt');
             const montant = document.getElementById('tarif-montant');
             if (preview && detTxt && montant) {
                 const kg = (poidsTotal / 1000).toFixed(2).replace('.', ',');
-                detTxt.innerHTML  = `Zone <strong style="color:#d4af37">${nomZonePostale(calcul.zone)}</strong> · ${kg} kg<br><span style="opacity:0.6">${ville}</span>`;
+                // Afficher les provenances multiples si besoin
+                const originesEtrangeres = (calcul.details || [])
+                    .filter(d => d.orig && d.orig !== "cote d'ivoire")
+                    .map(d => `<span style="opacity:0.55;font-size:11px;">🌍 ${d.title} : ${d.orig} → ${paysNomDest}</span>`)
+                    .join('<br>');
+                detTxt.innerHTML = `Zone <strong style="color:#d4af37">${nomZonePostale(calcul.zonePrincipale||'ci')}</strong> · ${kg} kg`
+                    + (originesEtrangeres ? '<br>' + originesEtrangeres : '')
+                    + `<br><span style="opacity:0.6">${ville}</span>`;
                 montant.textContent = formatPrice(calcul.cout);
                 preview.style.display = 'flex';
             }
@@ -4597,14 +4634,21 @@ window.enterGallery = function enterGallery() {
             for (const item of (items || [])) {
                 if (item.is_sold) continue;
                 const qte   = item.quantity || 1;
+                // weight_g déjà en grammes (converti dans chargerPanierUtilisateur)
                 const poids = (parseInt(item.weight_g) || 500) * qte;
-                // Priorité : country (lieu réel de l'oeuvre) > artist_country > défaut CI
-                const orig  = _normPays(item.country || item.artist_country || "cote d'ivoire");
+                // ✅ Priorité : origin_country (enrichi) > country > artist_country > CI par défaut
+                const origRaw = item.origin_country || item.country || item.artist_country || '';
+                const orig  = _normPays(origRaw || "cote d'ivoire");
                 const r     = calculerFraisPoste(poids, destNorm, orig);
                 total += r.cout;
                 details.push({ title: item.title, orig, dest: destNorm, zone: r.zone, cout: r.cout });
             }
-            return { cout: total, details };
+            // Zone principale = zone la plus éloignée parmi toutes les œuvres
+            const ordreZ = { ci:1, uemoa:2, afrique:3, europe:4, international:5, domestique:0 };
+            const zonePrincipale = details.reduce((max, d) => {
+                return (ordreZ[d.zone]||0) > (ordreZ[max]||0) ? d.zone : max;
+            }, 'ci');
+            return { cout: total, details, zonePrincipale };
         }
 
         function nomZonePostale(zone) {

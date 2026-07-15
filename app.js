@@ -10045,8 +10045,19 @@ window.enterGallery = function enterGallery() {
                     // Pays / Ville
                     const countryEl = document.getElementById('artwork-country');
                     const cityEl    = document.getElementById('artwork-city');
-                    if (countryEl) countryEl.value = a.country || a.artistCountry || '';
-                    if (cityEl)    cityEl.value    = a.city    || '';
+                    // Pré-sélectionner le pays dans le <select>
+                    if (countryEl) {
+                        const paysVal = a.country || a.artist_country || a.artistCountry || '';
+                        countryEl.value = paysVal;
+                        // Si la valeur n'est pas dans la liste, on la force quand même
+                        if (countryEl.value !== paysVal && paysVal) {
+                            // Chercher une option correspondante (insensible à la casse)
+                            const opts = Array.from(countryEl.options);
+                            const match = opts.find(o => o.value.toLowerCase() === paysVal.toLowerCase());
+                            if (match) countryEl.value = match.value;
+                        }
+                    }
+                    if (cityEl) cityEl.value = a.city || '';
 
                     
                     // Technique
@@ -10076,8 +10087,9 @@ window.enterGallery = function enterGallery() {
 
                 const countryEl = document.getElementById('artwork-country');
                 const cityEl    = document.getElementById('artwork-city');
-                if (countryEl) countryEl.value = '';
-                if (cityEl)    cityEl.value    = '';
+                // artwork-country est maintenant un <select>
+                if (countryEl) { countryEl.value = ''; countryEl.selectedIndex = 0; }
+                if (cityEl)    cityEl.value = '';
 
                 document.getElementById('artwork-technique').value   = '';
                 document.getElementById('artwork-technique-custom').value = '';
@@ -10132,8 +10144,14 @@ window.enterGallery = function enterGallery() {
             const weight_g = parseInt(document.getElementById('artwork-weight')?.value) || 0;
 
             // Get country / city
+            // artwork-country = <select> → .value retourne l'option sélectionnée
             const artworkCountry = (document.getElementById('artwork-country')?.value || '').trim();
             const artworkCity    = (document.getElementById('artwork-city')?.value    || '').trim();
+            // Vérification : pays obligatoire pour le calcul des frais
+            if (!artworkCountry) {
+                showToast('⚠️ Sélectionnez le pays où se trouve l\'œuvre');
+                return;
+            }
             
             // Get technique
             const technique = document.getElementById('artwork-technique').value;

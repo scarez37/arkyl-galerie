@@ -4254,6 +4254,96 @@ window.enterGallery = function enterGallery() {
         // ── Mise à jour tarif (alias pour compatibilité) ─────────────────
         function livMettreAJourTarif(codeISO, ville) { livOnVilleChange(ville); }
 
+        // ═══════════════════════════════════════════════════════════════════
+        // FORMULAIRE OEUVRE — Chargement dynamique des villes selon le pays
+        // Accessible globalement (appelé depuis onchange dans 2-pages-content.html)
+        // ═══════════════════════════════════════════════════════════════════
+        const ARTWORK_PAYS_ISO = {
+            "Côte d'Ivoire":"CI","Sénégal":"SN","Mali":"ML","Burkina Faso":"BF",
+            "Niger":"NE","Bénin":"BJ","Togo":"TG","Guinée-Bissau":"GW",
+            "Ghana":"GH","Nigéria":"NG","Cameroun":"CM","Guinée":"GN",
+            "Libéria":"LR","Sierra Leone":"SL","Mauritanie":"MR","Maroc":"MA",
+            "Algérie":"DZ","Tunisie":"TN","Libye":"LY","Égypte":"EG",
+            "Soudan":"SD","Éthiopie":"ET","Kenya":"KE","Tanzanie":"TZ",
+            "Ouganda":"UG","Rwanda":"RW","RD Congo":"CD","Congo Brazzaville":"CG",
+            "Gabon":"GA","Tchad":"TD","Centrafrique":"CF","Angola":"AO",
+            "Mozambique":"MZ","Madagascar":"MG","Afrique du Sud":"ZA","Namibie":"NA",
+            "Zimbabwe":"ZW","Zambie":"ZM","Cap-Vert":"CV","Gambie":"GM",
+            "Djibouti":"DJ","Somalie":"SO",
+            "France":"FR","Belgique":"BE","Suisse":"CH","Luxembourg":"LU",
+            "Allemagne":"DE","Autriche":"AT","Pays-Bas":"NL","Italie":"IT",
+            "Espagne":"ES","Portugal":"PT","Royaume-Uni":"GB","Irlande":"IE",
+            "Danemark":"DK","Suède":"SE","Norvège":"NO","Finlande":"FI",
+            "Pologne":"PL","Russie":"RU","Ukraine":"UA","Roumanie":"RO",
+            "Grèce":"GR","Turquie":"TR","Hongrie":"HU","Serbie":"RS","Croatie":"HR",
+            "États-Unis":"US","Canada":"CA","Brésil":"BR","Argentine":"AR",
+            "Mexique":"MX","Chine":"CN","Japon":"JP","Corée du Sud":"KR",
+            "Inde":"IN","Arabie Saoudite":"SA","Émirats Arabes Unis":"AE",
+            "Qatar":"QA","Australie":"AU","Nouvelle-Zélande":"NZ","Singapour":"SG",
+            "Thaïlande":"TH","Vietnam":"VN","Indonésie":"ID","Malaisie":"MY",
+            "Philippines":"PH","Israël":"IL","Liban":"LB","Iran":"IR","Pakistan":"PK",
+            "Cuba":"CU","Haïti":"HT","Martinique":"MQ","Guadeloupe":"GP"
+        };
+        const _artworkVillesCache = {};
+
+        window.artworkOnPaysChange = async function(valPays) {
+            const citySelect = document.getElementById('artwork-city');
+            const hint       = document.getElementById('artwork-city-hint');
+            if (!citySelect) return;
+
+            // Pays non choisi → réinitialiser
+            if (!valPays) {
+                citySelect.innerHTML = "<option value=''>⬅️ Choisir le pays d'abord</option>";
+                citySelect.disabled = true;
+                citySelect.style.opacity = '0.5';
+                return;
+            }
+
+            // État chargement
+            citySelect.innerHTML = "<option value=''>⏳ Chargement des villes…</option>";
+            citySelect.disabled = true;
+            citySelect.style.opacity = '0.6';
+
+            const iso2 = ARTWORK_PAYS_ISO[valPays];
+            if (!iso2) {
+                citySelect.innerHTML = "<option value=''>— Pays non supporté —</option>";
+                return;
+            }
+
+            // Cache
+            let villes = _artworkVillesCache[iso2];
+            if (!villes) {
+                try {
+                    const resp = await fetch('https://countriesnow.space/api/v0.1/countries/cities', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ iso2 })
+                    });
+                    const data = await resp.json();
+                    villes = (data?.data || []).sort();
+                    _artworkVillesCache[iso2] = villes;
+                } catch(e) {
+                    citySelect.innerHTML = "<option value=''>⚠️ Erreur réseau — réessayez</option>";
+                    citySelect.disabled = true;
+                    if (hint) hint.textContent = 'Vérifiez votre connexion internet';
+                    return;
+                }
+            }
+
+            if (!villes.length) {
+                citySelect.innerHTML = "<option value=''>— Aucune ville disponible —</option>";
+                citySelect.disabled = true;
+                return;
+            }
+
+            // Remplir le select
+            citySelect.innerHTML = "<option value=''>— Choisir une ville —</option>" +
+                villes.map(v => `<option value="${v}">${v}</option>`).join('');
+            citySelect.disabled = false;
+            citySelect.style.opacity = '1';
+            if (hint) hint.textContent = "Ville où se trouve l'œuvre";
+        };
+
         if (typeof window._modeEnCours === 'undefined') window._modeEnCours = null;
 
         function selectionnerModeLivraison(mode, el) {
@@ -10166,9 +10256,16 @@ window.enterGallery = function enterGallery() {
             // artwork-country = <select> → .value retourne l'option sélectionnée
             const artworkCountry = (document.getElementById('artwork-country')?.value || '').trim();
             const artworkCity    = (document.getElementById('artwork-city')?.value    || '').trim();
-            // Vérification : pays obligatoire pour le calcul des frais
+            // Vérification : pays ET ville obligatoires pour le calcul des frais
             if (!artworkCountry) {
                 showToast('⚠️ Sélectionnez le pays où se trouve l\'œuvre');
+                document.getElementById('artwork-country')?.focus();
+                return;
+            }
+            const artworkCityVal = (document.getElementById('artwork-city')?.value || '').trim();
+            if (!artworkCityVal) {
+                showToast('⚠️ Sélectionnez la ville où se trouve l\'œuvre');
+                document.getElementById('artwork-city')?.focus();
                 return;
             }
             

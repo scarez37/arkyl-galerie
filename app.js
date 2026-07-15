@@ -6972,14 +6972,22 @@ window.enterGallery = function enterGallery() {
                     const result = await response.json();
                     if (result.success && result.data && result.data.length > 0) {
                         allProducts = result.data.map(art => ({
-                            id: art.id,
-                            title: art.title,
-                            artist: art.artist_name,
-                            category: art.category,
-                            price: art.price,
-                            image_url: art.image_url,
-                            photos: art.photos || [art.image_url],
-                            artistAvatar: art.artist_avatar || '👨🏿‍🎨'
+                            id:             art.id,
+                            title:          art.title,
+                            artist:         art.artist_name,
+                            artist_name:    art.artist_name,
+                            artist_id:      art.artist_id,
+                            category:       art.category,
+                            price:          art.price,
+                            image_url:      art.image_url,
+                            photos:         art.photos || [art.image_url],
+                            artistAvatar:   art.artist_avatar || '👨🏿‍🎨',
+                            // ✅ Pays et ville de l'oeuvre — indispensables pour le calcul des frais
+                            artist_country: art.artist_country || art.country || null,
+                            country:        art.country || art.artist_country || null,
+                            city:           art.city || null,
+                            weight_g:       art.weight_g || art.poids || 500,
+                            is_sold:        art.is_sold || false,
                         }));
                     }
                 }

@@ -1,20 +1,22 @@
-window.enterGallery = function enterGallery() {
-            const introPage = document.getElementById('intro-page');
-            const mainContent = document.getElementById('main-content');
-            introPage.classList.add('fade-out');
-            setTimeout(() => {
-                introPage.style.display = 'none';
-                mainContent.classList.add('visible');
-                if (typeof init === 'function') init();
-                // ✅ Initialiser PWA APRÈS que le DOM soit visible
-                // Donner 300ms supplémentaires au navigateur pour finir le rendu
-                setTimeout(() => {
-                    if (typeof initPWASystem === 'function') {
-                        initPWASystem();
-                    }
-                }, 300);
-            }, 1000);
-        }; // FIX: semicolon ajouté — évite que le (function...) suivant soit interprété comme un appel
+// enterGallery définie dans index.html (inline) pour être disponible immédiatement
+        // app.js enrichit la fonction après son chargement (defer)
+        (function() {
+            const _origEnter = window.enterGallery;
+            window.enterGallery = function() {
+                const introPage = document.getElementById('intro-page');
+                const mainContent = document.getElementById('main-content');
+                if (!introPage || !mainContent) return;
+                introPage.classList.add('fade-out');
+                setTimeout(function() {
+                    introPage.style.display = 'none';
+                    mainContent.classList.add('visible');
+                    if (typeof init === 'function') init();
+                    setTimeout(function() {
+                        if (typeof initPWASystem === 'function') initPWASystem();
+                    }, 300);
+                }, 1000);
+            };
+        })();
 
         // ======================== PWA INSTALLATION SYSTEM ========================
         // Gère l'affichage du bouton "Installer l'app" et l'installation PWA
@@ -4409,7 +4411,7 @@ window.enterGallery = function enterGallery() {
         // FORMULAIRE OEUVRE — Chargement dynamique des villes selon le pays
         // Accessible globalement (appelé depuis onchange dans 2-pages-content.html)
         // ═══════════════════════════════════════════════════════════════════
-        const ARTWORK_PAYS_ISO = {
+        window.ARTWORK_PAYS_ISO = window.ARTWORK_PAYS_ISO || {
             "Côte d'Ivoire":"CI","Sénégal":"SN","Mali":"ML","Burkina Faso":"BF",
             "Niger":"NE","Bénin":"BJ","Togo":"TG","Guinée-Bissau":"GW",
             "Ghana":"GH","Nigéria":"NG","Cameroun":"CM","Guinée":"GN",
@@ -4455,7 +4457,7 @@ window.enterGallery = function enterGallery() {
             citySelect.disabled = true;
             citySelect.style.opacity = '0.6';
 
-            const iso2 = ARTWORK_PAYS_ISO[valPays];
+            const iso2 = (window.ARTWORK_PAYS_ISO || {})[valPays];
             if (!iso2) {
                 citySelect.innerHTML = "<option value=''>— Pays non supporté —</option>";
                 return;

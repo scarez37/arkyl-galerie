@@ -1,4 +1,4 @@
-const CACHE_NAME = 'arkyl-v3';  // ⬆️ Version incrémentée — invalide tous les anciens caches
+const CACHE_NAME = 'arkyl-v4';  // ⬆️ Version incrémentée — invalide tous les anciens caches
 const STATIC_ASSETS = [
   '/',
   '/index.html',

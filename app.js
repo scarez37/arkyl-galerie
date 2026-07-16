@@ -4441,7 +4441,7 @@ window.enterGallery = function enterGallery() {
 
             // Pays non choisi → réinitialiser
             if (!valPays) {
-                citySelect.innerHTML = "<option value=''>⬅️ Choisir le pays d'abord</option>";
+                citySelect.innerHTML = "<option value=\"\">⬅️ Choisir le pays d'abord</option>";
                 citySelect.disabled = true;
                 citySelect.style.opacity = '0.5';
                 return;

@@ -3797,18 +3797,18 @@ window.enterGallery = function enterGallery() {
             const datePoste       = getDeliveryDate(5);
             const dateBus         = getDeliveryDate(7);
             const dateMainPropre  = getDeliveryDate(1);
-            // posteVille est une variable globale mise à jour par confirmerVillePoste()
-            // Calcul initial du port selon poids + destination déjà enregistrée
-            let shipping = 0; // défaut — jusqu'à ce que le mode soit choisi
-            if (posteVille) {
+            // ✅ Calcul initial du port : utilise posteDestination.zone (pays artiste → pays client)
+            let shipping = 0;
+            if (posteDestination?.zone && posteDestination?.pays) {
                 const poidsTotal = cartItems.reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
-                // ✅ Multi-origines : utilise le pays réel de chaque œuvre
-                const codeISODest = window._savedPostePays || 'CI';
-                const paysNomDest = (typeof TOUS_PAYS !== 'undefined' && TOUS_PAYS.find(p => p.code === codeISODest)?.nom) || '';
-                const destStr = paysNomDest ? paysNomDest + ' ' + posteVille : posteVille;
-                const calcInit = calculerFraisPosteMultiOrigines(cartItems, destStr);
+                const calcInit = calculerFraisPoste(poidsTotal, null, posteDestination.zone);
                 shipping = calcInit.cout;
-                window._posteCalcDetail = { poidsTotal, zone: calcInit.zonePrincipale || 'ci', dest: posteVille, cout: shipping, details: calcInit.details };
+                window._posteCalcDetail = {
+                    poidsTotal, zone: calcInit.zone,
+                    dest: posteDestination.ville + ', ' + posteDestination.pays,
+                    cout: shipping,
+                    paysOrigine: posteDestination.paysOrigine
+                };
             } else if (mainPropreLieu) {
                 shipping = 0;
             } else if (transportCompagnie) {
@@ -3969,20 +3969,29 @@ window.enterGallery = function enterGallery() {
         // confirmerLieuMainPropre — géré par la modale ouvrirModeLivraison()
 
         // Ville La Poste — persistée par compte
-        if (typeof window.posteVille === 'undefined') window.posteVille = (function() {
+        // ✅ Cache de destination La Poste : {pays, ville, zone, paysOrigine}
+        //    Remplace l'ancienne string posteVille (qui ignorait le pays de l'artiste)
+        if (typeof window.posteDestination === 'undefined') window.posteDestination = (function() {
             try {
                 const uid = currentUser?.id || currentUser?.googleId || currentUser?.email || 'guest';
-                const raw = localStorage.getItem('arkyl_poste_ville_' + uid);
-                return raw ? JSON.parse(raw) : '';
-            } catch(e) { return ''; }
+                // Nettoyer l'ancien cache texte libre (arkyl_poste_ville_X) → invalide
+                localStorage.removeItem('arkyl_poste_ville_' + uid);
+                const raw = localStorage.getItem('arkyl_poste_dest_' + uid);
+                return raw ? JSON.parse(raw) : null;
+            } catch(e) { return null; }
         })();
-        var posteVille = window.posteVille;
+        var posteDestination = window.posteDestination;
+        // Compatibilité : posteVille = ville texte pour l'affichage dans le bouton
+        var posteVille = posteDestination ? (posteDestination.ville + ', ' + posteDestination.pays) : '';
 
-        function _savePosteVille(ville) {
-            posteVille = ville;
+        function _savePosteDestination(pays, ville, zone, paysOrigine) {
+            posteDestination = { pays, ville, zone, paysOrigine };
+            posteVille = ville + ', ' + pays;
+            window.posteDestination = posteDestination;
             try {
                 const uid = currentUser?.id || currentUser?.googleId || currentUser?.email || 'guest';
-                localStorage.setItem('arkyl_poste_ville_' + uid, JSON.stringify(ville));
+                localStorage.removeItem('arkyl_poste_ville_' + uid); // purger ancien cache
+                localStorage.setItem('arkyl_poste_dest_' + uid, JSON.stringify(posteDestination));
             } catch(e) {}
         }
 
@@ -4249,33 +4258,25 @@ window.enterGallery = function enterGallery() {
                         <button onclick="fermerModeLivraison()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:32px;height:32px;border-radius:50%;font-size:18px;cursor:pointer;">×</button>
                     </div>
 
-                    <!-- ══ LA POSTE ══ -->
-                    <div class="liv-option" id="opt-poste" onclick="selectionnerModeLivraison('poste',this)"
-                        style="${optStyle('poste')}border-radius:14px;margin-bottom:10px;padding:16px;cursor:pointer;">
-                        <div style="display:flex;align-items:center;gap:14px;">
-                            <span style="font-size:26px;">📮</span>
-                            <div style="flex:1;">
-                                <div style="font-weight:700;color:white;font-size:15px;">La Poste</div>
-                                <div style="font-size:12px;opacity:0.6;margin-top:2px;">3–5 jours · Livraison à domicile</div>
-                            </div>
-                            <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;font-size:13px;">Selon poids</span>
-                        </div>
-
-                        <div id="poste-detail-modal" style="display:${modeActuel==='poste'?'block':'none'};margin-top:14px;" onclick="event.stopPropagation()">
-                            <!-- Pays -->
-                            <label style="font-size:11px;color:rgba(255,255,255,0.5);display:block;margin-top:4px;">Pays de destination</label>
-                            <select id="modal-pays" class="liv-select" onchange="livOnPaysChange(this.value)">
-                                ${optsPays}
-                            </select>
-                            <!-- Villes (chargées dynamiquement) -->
-                            <label style="font-size:11px;color:rgba(255,255,255,0.5);display:block;margin-top:10px;">Ville</label>
-                            <select id="modal-ville-select" class="liv-select" disabled onchange="livOnVilleChange(this.value)">
-                                <option value="">⏳ Chargement des villes…</option>
-                            </select>
-                            <!-- Tarif calculé -->
-                            <div class="liv-tarif-preview" id="poste-tarif-preview" style="display:none;">
-                                <div id="tarif-detail-txt" style="font-size:12px;opacity:0.7;"></div>
-                                <div id="tarif-montant" style="font-size:17px;font-weight:800;color:#d4af37;"></div>
+                    <!-- Option La Poste -->
+                    <div class="liv-option ${modeActuel === 'poste' ? 'liv-active' : ''}" onclick="selectionnerModeLivraison('poste', this)" style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;margin-bottom:10px;cursor:pointer;border:2px solid ${modeActuel === 'poste' ? 'rgba(212,175,55,0.6)' : 'rgba(255,255,255,0.1)'};background:${modeActuel === 'poste' ? 'rgba(212,175,55,0.1)' : 'rgba(255,255,255,0.04)'};">
+                        <span style="font-size:26px;">📮</span>
+                        <div style="flex:1;">
+                            <div style="font-weight:700;color:white;font-size:15px;">La Poste</div>
+                            <div style="font-size:12px;opacity:0.6;margin-top:2px;">3–5 jours · Livraison à domicile</div>
+                            <div id="poste-detail-modal" style="margin-top:${modeActuel === 'poste' ? '12px' : '0'};display:${modeActuel === 'poste' ? 'block' : 'none'};">
+                                <!-- Pays de destination -->
+                                <select id="modal-poste-pays" onclick="event.stopPropagation()" onchange="chargerVillesDestination()"
+                                    style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;margin-bottom:8px;appearance:none;cursor:pointer;">
+                                    <option value="">🌍 Choisir le pays de destination…</option>
+                                    ${buildPaysOptions()}
+                                </select>
+                                <!-- Ville de destination (chargée dynamiquement) -->
+                                <select id="modal-poste-ville" onclick="event.stopPropagation()" onchange="recalculerFraisDepuisModal()"
+                                    style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;appearance:none;cursor:pointer;" disabled>
+                                    <option value="">Sélectionnez d'abord un pays</option>
+                                </select>
+                                <div id="ville-loading" style="display:none;font-size:11px;color:#90caf9;margin-top:4px;">⏳ Chargement des villes…</div>
                             </div>
                         </div>
                     </div>
@@ -4545,9 +4546,37 @@ window.enterGallery = function enterGallery() {
             // ── Calcul du coût ────────────────────────────────────────────
             let cost, priceLabel;
             if (mode === 'poste') {
-                const detail  = window._posteCalcDetail;
-                cost          = detail?.cout || 0;
-                priceLabel    = formatPrice(cost);
+                // ✅ Récupérer pays + ville depuis les selects de la modale
+                const selectPays  = document.getElementById('modal-poste-pays');
+                const selectVille = document.getElementById('modal-poste-ville');
+                const paysClient  = selectPays?.value  || posteDestination?.pays  || '';
+                const villeClient = selectVille?.value || posteDestination?.ville || '';
+
+                if (!paysClient || !villeClient) {
+                    showToast('📍 Veuillez choisir un pays ET une ville de destination');
+                    return;
+                }
+
+                // ✅ Zone = pays artiste (origine) → pays client (destination)
+                const paysOrigine = getPaysOrigine();
+                const zoneOrigine = detecterZoneDepuisPays(paysOrigine);
+                const zoneDest    = detecterZoneDepuisPays(paysClient);
+                const ordreZones  = ['ci','uemoa','afrique','europe','international'];
+                const zoneFinale  = ordreZones[Math.max(ordreZones.indexOf(zoneOrigine), ordreZones.indexOf(zoneDest))];
+
+                const poidsTotal  = cartItems.reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
+                const calcul      = calculerFraisPoste(poidsTotal, null, zoneFinale);
+                cost = calcul.cout;
+
+                // ✅ Sauvegarder dans le nouveau cache objet (purge l'ancien cache texte)
+                _savePosteDestination(paysClient, villeClient, zoneFinale, paysOrigine);
+
+                window._posteCalcDetail = {
+                    poidsTotal, zone: zoneFinale,
+                    dest: villeClient + ', ' + paysClient,
+                    cout: cost, paysOrigine
+                };
+                priceLabel = formatPrice(cost);
             } else if (mode === 'transport') {
                 const sub     = (window.cartItems || []).reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
                 cost          = Math.round(sub * 0.10);
@@ -4624,73 +4653,84 @@ window.enterGallery = function enterGallery() {
         //  TARIFS LA POSTE — barèmes SOCOPCI (Côte d'Ivoire) réels
         //  5 zones : CI domestique / UEMOA / Afrique / Europe / International
         // ══════════════════════════════════════════════════════════════
+        // Mapping pays → zone tarifaire (utilisé par detecterZoneDepuisPays)
+        const PAYS_ZONES = {
+            // Zone CI
+            "Côte d'Ivoire": 'ci', "Cote d'Ivoire": 'ci', 'Ivory Coast': 'ci',
+            // Zone UEMOA
+            'Bénin': 'uemoa', 'Benin': 'uemoa', 'Burkina Faso': 'uemoa', 'Guinée-Bissau': 'uemoa',
+            'Guinea-Bissau': 'uemoa', 'Mali': 'uemoa', 'Niger': 'uemoa', 'Sénégal': 'uemoa', 'Senegal': 'uemoa', 'Togo': 'uemoa',
+            // Zone Afrique
+            'Ghana': 'afrique', 'Nigeria': 'afrique', 'Cameroun': 'afrique', 'Cameroon': 'afrique',
+            'Guinée': 'afrique', 'Guinea': 'afrique', 'Sierra Leone': 'afrique', 'Liberia': 'afrique',
+            'Mauritanie': 'afrique', 'Mauritania': 'afrique', 'Cap-Vert': 'afrique', 'Cape Verde': 'afrique',
+            'Maroc': 'afrique', 'Morocco': 'afrique', 'Algérie': 'afrique', 'Algeria': 'afrique',
+            'Tunisie': 'afrique', 'Tunisia': 'afrique', 'Libye': 'afrique', 'Libya': 'afrique',
+            'Égypte': 'afrique', 'Egypt': 'afrique', 'Soudan': 'afrique', 'Sudan': 'afrique',
+            'Éthiopie': 'afrique', 'Ethiopia': 'afrique', 'Érythrée': 'afrique', 'Eritrea': 'afrique',
+            'Djibouti': 'afrique', 'Somalie': 'afrique', 'Somalia': 'afrique', 'Kenya': 'afrique',
+            'Ouganda': 'afrique', 'Uganda': 'afrique', 'Tanzanie': 'afrique', 'Tanzania': 'afrique',
+            'Rwanda': 'afrique', 'Burundi': 'afrique', 'Congo': 'afrique', 'DR Congo': 'afrique',
+            'Gabon': 'afrique', 'Guinée équatoriale': 'afrique', 'Equatorial Guinea': 'afrique',
+            'São Tomé-et-Príncipe': 'afrique', 'Sao Tome and Principe': 'afrique',
+            'République centrafricaine': 'afrique', 'Central African Republic': 'afrique',
+            'Tchad': 'afrique', 'Chad': 'afrique', 'Angola': 'afrique', 'Zambie': 'afrique', 'Zambia': 'afrique',
+            'Zimbabwe': 'afrique', 'Mozambique': 'afrique', 'Malawi': 'afrique',
+            'Madagascar': 'afrique', 'Comores': 'afrique', 'Comoros': 'afrique',
+            'Afrique du Sud': 'afrique', 'South Africa': 'afrique', 'Namibie': 'afrique', 'Namibia': 'afrique',
+            'Botswana': 'afrique', 'Lesotho': 'afrique', 'Eswatini': 'afrique', 'Swaziland': 'afrique',
+            'Seychelles': 'afrique', 'Maurice': 'afrique', 'Mauritius': 'afrique',
+            'Réunion': 'afrique', 'Mayotte': 'afrique',
+            'Gambie': 'afrique', 'Gambia': 'afrique', 'Guinée conakry': 'afrique',
+            'Libéria': 'afrique', "Côte d'Ivoire (CI)": 'ci',
+            // Zone Europe
+            'France': 'europe', 'Belgique': 'europe', 'Belgium': 'europe',
+            'Suisse': 'europe', 'Switzerland': 'europe', 'Luxembourg': 'europe',
+            'Allemagne': 'europe', 'Germany': 'europe', 'Autriche': 'europe', 'Austria': 'europe',
+            'Italie': 'europe', 'Italy': 'europe', 'Espagne': 'europe', 'Spain': 'europe',
+            'Portugal': 'europe', 'Pays-Bas': 'europe', 'Netherlands': 'europe',
+            'Royaume-Uni': 'europe', 'United Kingdom': 'europe', 'Ireland': 'europe', 'Irlande': 'europe',
+            'Suède': 'europe', 'Sweden': 'europe', 'Norvège': 'europe', 'Norway': 'europe',
+            'Danemark': 'europe', 'Denmark': 'europe', 'Finlande': 'europe', 'Finland': 'europe',
+            'Islande': 'europe', 'Iceland': 'europe', 'Pologne': 'europe', 'Poland': 'europe',
+            'Tchéquie': 'europe', 'Czech Republic': 'europe', 'Slovaquie': 'europe', 'Slovakia': 'europe',
+            'Hongrie': 'europe', 'Hungary': 'europe', 'Roumanie': 'europe', 'Romania': 'europe',
+            'Bulgarie': 'europe', 'Bulgaria': 'europe', 'Croatie': 'europe', 'Croatia': 'europe',
+            'Serbie': 'europe', 'Serbia': 'europe', 'Grèce': 'europe', 'Greece': 'europe',
+            'Turquie': 'europe', 'Turkey': 'europe', 'Ukraine': 'europe', 'Belarus': 'europe',
+            'Moldavie': 'europe', 'Moldova': 'europe', 'Slovénie': 'europe', 'Slovenia': 'europe',
+            'Macédoine': 'europe', 'North Macedonia': 'europe', 'Albanie': 'europe', 'Albania': 'europe',
+            'Bosnie': 'europe', 'Bosnia and Herzegovina': 'europe', 'Kosovo': 'europe',
+            'Monténégro': 'europe', 'Montenegro': 'europe', 'Lituanie': 'europe', 'Lithuania': 'europe',
+            'Lettonie': 'europe', 'Latvia': 'europe', 'Estonie': 'europe', 'Estonia': 'europe',
+            'Chypre': 'europe', 'Cyprus': 'europe', 'Malte': 'europe', 'Malta': 'europe',
+        };
+
+        function detecterZoneDepuisPays(nomPays) {
+            if (!nomPays) return 'international';
+            return PAYS_ZONES[nomPays] || 'international';
+        }
+
+        // ✅ Compatibilité ancienne fonction (utilisée ailleurs avec texte libre)
         function detecterZonePostale(destination) {
             if (!destination) return 'ci';
             const d = destination.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-
-            // Villes CI domestiques
-            const villesCI = ['abidjan','bouake','yamoussoukro','daloa','san pedro','korhogo','man','gagnoa','bondoukou',
-                'divo','abengourou','adzope','agboville','anyama','bassam','bingerville','dabou','duekoue','ferke',
-                'ferkessedougou','grand bassam','guiglo','issia','lakota','mbahiakro','odienne','sinfra','soubre',
-                'tabou','tiassale','touba','toumodi','vavoua','zuenula'];
-            if (villesCI.some(v => d.includes(v))) return 'ci';
-            if (d.includes("cote d'ivoire") || d.includes('cote divoire') || d.includes('ivory coast') || d.includes('ci')) return 'ci';
-
-            // Zone UEMOA (Union Économique et Monétaire Ouest-Africaine)
-            const uemoa = ['senegal','dakar','mali','bamako','burkina','ouagadougou','niger','niamey',
-                'benin','cotonou','porto novo','togo','lome','guinee-bissau','bissau','guinee bissau'];
+            const uemoa = ['senegal','mali','burkina','niger','benin','togo','guinee-bissau','guinee bissau'];
             if (uemoa.some(v => d.includes(v))) return 'uemoa';
-
-            // Afrique (hors UEMOA)
-            const afriqueMots = ['ghana','accra','nigeria','lagos','abuja','cameroun','douala','yaounde',
-                'conakry','guinea','liberia','sierra leone','mauritanie','maroc','algerie','tunisie',
-                'egypte','ethiopie','kenya','nairobi','tanzanie','afrique du sud','johannesburg','angola',
-                'congo','kinshasa','brazzaville','gabon','libreville','madagascar','mozambique','zimbabwe',
-                'zambie','rwanda','ouganda','ghana','sao tome','cap vert','comores','djibouti','somalie',
-                'soudan','libye','tchad','centrafrique','namibie','botswana','malawi','lesotho'];
-            if (afriqueMots.some(v => d.includes(v))) return 'afrique';
-
-            // Europe
-            const europe = ['france','paris','lyon','marseille','belgique','bruxelles','suisse','geneve','zurich',
-                'luxembourg','allemagne','berlin','munich','italie','rome','milan','espagne','madrid','barcelone',
-                'portugal','lisbonne','royaume-uni','london','angleterre','pays-bas','amsterdam','autriche',
-                'suede','stockholm','norvege','danemark','finlande','pologne','ukraine','grece','turquie',
-                'roumanie','hongrie','tcheque','slovaquie','serbie','croatie','europe'];
+            const ci = ['abidjan','bouake','yamoussoukro','daloa','san pedro','korhogo','cote d\'ivoire','ivory coast'];
+            if (ci.some(v => d.includes(v))) return 'ci';
+            const africa = ['ghana','nigeria','cameroun','cameroon','conakry','liberia','mauritanie','maroc','algerie',
+                'tunisie','egypte','ethiopie','kenya','tanzanie','afrique','angola','congo','gabon','rwanda','soudan'];
+            if (africa.some(v => d.includes(v))) return 'afrique';
+            const europe = ['france','belgique','suisse','allemagne','italie','espagne','portugal','royaume-uni',
+                'pays-bas','autriche','suede','norvege','danemark','finlande','pologne','grece','turquie','europe'];
             if (europe.some(v => d.includes(v))) return 'europe';
-
-            // International (Amériques, Asie, Océanie, reste du monde)
             return 'international';
         }
 
-        // ── Tarifs domestiques inter-villes par pays (FCFA) ────────────────────
-        // Utilisé quand l'oeuvre ET le client sont dans le MÊME pays
-        const _TARIFS_DOM = {
-            "cote d'ivoire": [[250,800],[500,1200],[1000,1800],[2000,2800],[3000,3800],[5000,5500],[10000,8000],[20000,13000],[30000,18000]],
-            "mali":          [[250,900],[500,1400],[1000,2000],[2000,3200],[3000,4500],[5000,6500],[10000,9500],[20000,15000],[30000,21000]],
-            "senegal":       [[250,700],[500,1100],[1000,1700],[2000,2700],[3000,3700],[5000,5200],[10000,7500],[20000,12000],[30000,17000]],
-            "burkina faso":  [[250,850],[500,1300],[1000,1900],[2000,3000],[3000,4200],[5000,6000],[10000,8800],[20000,14000],[30000,19500]],
-            "niger":         [[250,1000],[500,1600],[1000,2300],[2000,3600],[3000,5000],[5000,7000],[10000,10000],[20000,16000],[30000,22000]],
-            "benin":         [[250,800],[500,1200],[1000,1800],[2000,2900],[3000,4000],[5000,5800],[10000,8500],[20000,13500],[30000,19000]],
-            "togo":          [[250,700],[500,1100],[1000,1600],[2000,2500],[3000,3500],[5000,5000],[10000,7200],[20000,11500],[30000,16000]],
-            "ghana":         [[250,1200],[500,1800],[1000,2600],[2000,4100],[3000,5700],[5000,8000],[10000,11500],[20000,18000],[30000,25000]],
-            "nigeria":       [[250,1500],[500,2300],[1000,3400],[2000,5400],[3000,7500],[5000,10500],[10000,15000],[20000,24000],[30000,33000]],
-            "cameroun":      [[250,1100],[500,1700],[1000,2500],[2000,4000],[3000,5600],[5000,7800],[10000,11000],[20000,17500],[30000,24000]],
-            "france":        [[250,3500],[500,4500],[1000,5500],[2000,7000],[3000,8500],[5000,10000],[10000,13000],[20000,18000],[30000,24000]],
-            "_default":      [[250,1300],[500,1800],[1000,2800],[2000,4000],[3000,5500],[5000,8000],[10000,11000],[20000,18000],[30000,25000]]
-        };
-
-        // Normaliser un nom de pays pour la comparaison
-        function _normPays(p) {
-            if (!p) return '';
-            return p.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim()
-                    .replace(/cote d.ivoire|ivory coast|cote divoire/g, "cote d'ivoire")
-                    .replace(/^ci$/, "cote d'ivoire");
-        }
-
-        // calculerFraisPoste — origine ET destination pris en compte
-        // origine  = pays où se trouve l'oeuvre (fourni par l'artiste)
-        // destination = pays du client
-        function calculerFraisPoste(poidsGrammes, destination, origine) {
+        // ✅ calculerFraisPoste — calcule le tarif postal depuis la zone tarifaire
+        //    zoneDirecte (3e arg) prioritaire → sinon déduite depuis destination texte
+        function calculerFraisPoste(poidsGrammes, destination, zoneDirecte) {
             const bareme = {
                 paliers: [
                     [  250,   1000,   2500,   4000,   7500,  10000],
@@ -4706,63 +4746,209 @@ window.enterGallery = function enterGallery() {
                 ],
                 zoneIndex: { ci:1, uemoa:2, afrique:3, europe:4, international:5 }
             };
-
-            const origNorm = _normPays(origine || "cote d'ivoire");
-            const destNorm = _normPays(destination || "cote d'ivoire");
+            // ✅ zoneDirecte prioritaire (calculée depuis pays artiste → pays client)
+            const zone = zoneDirecte || detecterZonePostale(destination || '');
+            const zIdx = bareme.zoneIndex[zone] || 5;
             const poids = Math.max(1, poidsGrammes);
-
-            // ── CAS 1 : même pays → tarif domestique inter-ville ──────────────
-            // Ex : Bamako (Mali) → Tombouctou (Mali)
-            const zoneOrig = detecterZonePostale(origNorm);
-            const zoneDest = detecterZonePostale(destNorm);
-
-            if (origNorm === destNorm ||
-                (origNorm && destNorm && zoneOrig === zoneDest && origNorm === destNorm)) {
-                const grille = _TARIFS_DOM[destNorm] || _TARIFS_DOM['_default'];
-                for (const [maxG, tarif] of grille) {
-                    if (poids <= maxG) return { cout: tarif, zone: 'domestique', zoneOrigine: zoneOrig, zoneDest };
-                }
-                const last = grille[grille.length-1][1];
-                return { cout: last + Math.ceil((poids-30000)/5000)*3000, zone:'domestique', zoneOrigine:zoneOrig, zoneDest };
+            for (const palier of bareme.paliers) {
+                if (poids <= palier[0]) return { cout: palier[zIdx], zone };
             }
-
-            // ── CAS 2 : pays différents → tarif international ─────────────────
-            // On prend la zone la plus éloignée entre les deux
-            const ordre = { ci:1, uemoa:2, afrique:3, europe:4, international:5, domestique:0 };
-            const zoneEff = (ordre[zoneDest]||0) >= (ordre[zoneOrig]||0) ? zoneDest : zoneOrig;
-            const zIdx = bareme.zoneIndex[zoneEff];
-
-            for (const p of bareme.paliers) {
-                if (poids <= p[0]) return { cout: p[zIdx], zone: zoneEff, zoneOrigine: zoneOrig, zoneDest };
-            }
-            const base  = bareme.paliers[bareme.paliers.length-1][zIdx];
-            const extra = {ci:4000,uemoa:8000,afrique:12000,europe:22000,international:30000}[zoneEff]||30000;
-            return { cout: base + Math.ceil((poids-30000)/5000)*extra, zone:zoneEff, zoneOrigine:zoneOrig, zoneDest };
+            const base = bareme.paliers[bareme.paliers.length - 1][zIdx];
+            const surplus = Math.ceil((poids - 30000) / 5000);
+            const extra = { ci: 4000, uemoa: 8000, afrique: 12000, europe: 22000, international: 30000 }[zone];
+            return { cout: base + surplus * extra, zone };
         }
 
-        // Calcul multi-origines : chaque oeuvre part de SON pays (fourni par l'artiste)
-        function calculerFraisPosteMultiOrigines(items, destination) {
-            let total = 0;
-            const details = [];
-            const destNorm = _normPays(destination);
-            for (const item of (items || [])) {
-                if (item.is_sold) continue;
-                const qte   = item.quantity || 1;
-                // weight_g déjà en grammes (converti dans chargerPanierUtilisateur)
-                const poids = (parseInt(item.weight_g) || 500) * qte;
-                // ✅ Priorité : origin_country (enrichi) > country > artist_country > CI par défaut
-                const origRaw = item.origin_country || item.country || item.artist_country || '';
-                const orig  = _normPays(origRaw || "cote d'ivoire");
-                const r     = calculerFraisPoste(poids, destNorm, orig);
-                total += r.cout;
-                details.push({ title: item.title, orig, dest: destNorm, zone: r.zone, cout: r.cout });
+        // ──────────────────────────────────────────────────────────────
+        // HELPERS PAYS/VILLES pour la modale de livraison La Poste
+        // ──────────────────────────────────────────────────────────────
+
+        // Construit les options du select "pays de destination"
+        function buildPaysOptions() {
+            const groupes = [
+                { label: "🇨🇮 Côte d'Ivoire", pays: ["Côte d'Ivoire"] },
+                { label: "🌍 Zone UEMOA", pays: ["Bénin","Burkina Faso","Guinée-Bissau","Mali","Niger","Sénégal","Togo"] },
+                { label: "🌍 Afrique", pays: [
+                    "Afrique du Sud","Algérie","Angola","Botswana","Burundi","Cameroun","Cap-Vert",
+                    "Comores","Congo","Djibouti","Égypte","Érythrée","Éthiopie","Eswatini","Gabon",
+                    "Gambie","Ghana","Guinée","Guinée équatoriale","Kenya","Lesotho","Liberia","Libye",
+                    "Madagascar","Malawi","Maurice","Mauritanie","Mozambique","Namibie","Nigeria",
+                    "Ouganda","Rwanda","São Tomé-et-Príncipe","Seychelles","Sierra Leone","Somalie",
+                    "Soudan","Tanzanie","Tchad","Tunisie","Zambie","Zimbabwe","Maroc",
+                    "République centrafricaine","DR Congo"
+                ]},
+                { label: "🌍 Europe", pays: [
+                    "Albanie","Allemagne","Autriche","Belarus","Belgique","Bosnie",
+                    "Bulgarie","Chypre","Croatie","Danemark","Espagne","Estonie",
+                    "Finlande","France","Grèce","Hongrie","Irlande","Islande",
+                    "Italie","Kosovo","Lettonie","Lituanie","Luxembourg","Macédoine",
+                    "Malte","Moldavie","Monténégro","Norvège","Pays-Bas","Pologne",
+                    "Portugal","Roumanie","Royaume-Uni","Serbie","Slovaquie","Slovénie",
+                    "Suède","Suisse","Tchéquie","Turquie","Ukraine"
+                ]},
+                { label: "🌐 International", pays: [
+                    "Afghanistan","Arabie Saoudite","Argentine","Australie","Bangladesh","Brésil",
+                    "Canada","Chili","Chine","Colombie","Corée du Sud","Cuba","Émirats Arabes Unis",
+                    "États-Unis","Géorgie","Inde","Indonésie","Irak","Iran","Israël","Japon",
+                    "Jordanie","Kazakhstan","Koweït","Liban","Malaisie","Mexique","Myanmar",
+                    "Népal","Nouvelle-Zélande","Oman","Pakistan","Palestine","Paraguay","Pérou",
+                    "Philippines","Qatar","Russie","Singapour","Sri Lanka","Syrie","Thaïlande",
+                    "Tonga","Ukraine","Uruguay","Viêt Nam","Yémen","Haïti","Jamaïque","Cuba",
+                    "Trinidad et Tobago","Barbade","Guyane","Suriname","Bolivie","Équateur",
+                    "Venezuela","Panama","Costa Rica","Guatemala","Honduras","El Salvador",
+                    "Nicaragua","Belize","République dominicaine","Porto Rico","Azerbaïdjan",
+                    "Arménie","Ouzbékistan","Kirghizstan","Tadjikistan","Turkménistan","Mongolie"
+                ]}
+            ];
+            return groupes.map(g =>
+                `<optgroup label="${g.label}">${g.pays.map(p => `<option value="${p}">${p}</option>`).join('')}</optgroup>`
+            ).join('');
+        }
+
+        // Détermine le pays d'origine dominant du panier (pays artiste)
+        function getPaysOrigine() {
+            if (!cartItems || cartItems.length === 0) return "Côte d'Ivoire";
+            // On prend le premier artiste du panier (hypothèse : 1 artiste ou tarif le plus défavorable)
+            const paysArtiste = cartItems[0]?.artist_country || "Côte d'Ivoire";
+            return paysArtiste;
+        }
+
+        // Charge les villes via CountriesNow API selon le pays sélectionné
+        async function chargerVillesDestination() {
+            const selectPays = document.getElementById('modal-poste-pays');
+            const selectVille = document.getElementById('modal-poste-ville');
+            const loading = document.getElementById('ville-loading');
+            if (!selectPays || !selectVille) return;
+
+            const pays = selectPays.value;
+            if (!pays) {
+                selectVille.innerHTML = '<option value="">Sélectionnez d\'abord un pays</option>';
+                selectVille.disabled = true;
+                return;
             }
-            // Zone principale = zone la plus éloignée parmi toutes les œuvres
-            const ordreZ = { ci:1, uemoa:2, afrique:3, europe:4, international:5, domestique:0 };
-            const zonePrincipale = details.reduce((max, d) => {
-                return (ordreZ[d.zone]||0) > (ordreZ[max]||0) ? d.zone : max;
-            }, 'ci');
-            return { cout: total, details, zonePrincipale };
+
+            // Afficher chargement
+            selectVille.innerHTML = '<option value="">⏳ Chargement…</option>';
+            selectVille.disabled = true;
+            if (loading) loading.style.display = 'block';
+
+            // Mapping nom français → nom anglais pour l'API
+            const PAYS_EN = {
+                "Côte d'Ivoire": "Cote D'Ivoire", "Bénin": "Benin", "Burkina Faso": "Burkina Faso",
+                "Guinée-Bissau": "Guinea-Bissau", "Mali": "Mali", "Niger": "Niger",
+                "Sénégal": "Senegal", "Togo": "Togo", "Ghana": "Ghana", "Nigeria": "Nigeria",
+                "Cameroun": "Cameroon", "Guinée": "Guinea", "Sierra Leone": "Sierra Leone",
+                "Liberia": "Liberia", "Mauritanie": "Mauritania", "Maroc": "Morocco",
+                "Algérie": "Algeria", "Tunisie": "Tunisia", "Libye": "Libya", "Égypte": "Egypt",
+                "Soudan": "Sudan", "Éthiopie": "Ethiopia", "Érythrée": "Eritrea",
+                "Djibouti": "Djibouti", "Somalie": "Somalia", "Kenya": "Kenya",
+                "Ouganda": "Uganda", "Tanzanie": "Tanzania", "Rwanda": "Rwanda",
+                "Burundi": "Burundi", "Congo": "Republic Of The Congo", "DR Congo": "Democratic Republic Of The Congo",
+                "Gabon": "Gabon", "Guinée équatoriale": "Equatorial Guinea",
+                "São Tomé-et-Príncipe": "Sao Tome And Principe",
+                "République centrafricaine": "Central African Republic", "Tchad": "Chad",
+                "Angola": "Angola", "Zambie": "Zambia", "Zimbabwe": "Zimbabwe",
+                "Mozambique": "Mozambique", "Malawi": "Malawi", "Madagascar": "Madagascar",
+                "Comores": "Comoros", "Afrique du Sud": "South Africa", "Namibie": "Namibia",
+                "Botswana": "Botswana", "Lesotho": "Lesotho", "Eswatini": "Eswatini",
+                "Seychelles": "Seychelles", "Maurice": "Mauritius", "Cap-Vert": "Cape Verde",
+                "Gambie": "Gambia", "France": "France", "Belgique": "Belgium",
+                "Suisse": "Switzerland", "Luxembourg": "Luxembourg", "Allemagne": "Germany",
+                "Autriche": "Austria", "Italie": "Italy", "Espagne": "Spain",
+                "Portugal": "Portugal", "Pays-Bas": "Netherlands", "Royaume-Uni": "United Kingdom",
+                "Irlande": "Ireland", "Suède": "Sweden", "Norvège": "Norway",
+                "Danemark": "Denmark", "Finlande": "Finland", "Islande": "Iceland",
+                "Pologne": "Poland", "Tchéquie": "Czech Republic", "Slovaquie": "Slovakia",
+                "Hongrie": "Hungary", "Roumanie": "Romania", "Bulgarie": "Bulgaria",
+                "Croatie": "Croatia", "Serbie": "Serbia", "Grèce": "Greece",
+                "Turquie": "Turkey", "Ukraine": "Ukraine", "Belarus": "Belarus",
+                "Moldavie": "Moldova", "Slovénie": "Slovenia", "Macédoine": "North Macedonia",
+                "Albanie": "Albania", "Bosnie": "Bosnia and Herzegovina", "Kosovo": "Kosovo",
+                "Monténégro": "Montenegro", "Lituanie": "Lithuania", "Lettonie": "Latvia",
+                "Estonie": "Estonia", "Chypre": "Cyprus", "Malte": "Malta",
+                "États-Unis": "United States", "Canada": "Canada", "Mexique": "Mexico",
+                "Brésil": "Brazil", "Argentine": "Argentina", "Chili": "Chile",
+                "Colombie": "Colombia", "Pérou": "Peru", "Équateur": "Ecuador",
+                "Bolivie": "Bolivia", "Venezuela": "Venezuela", "Uruguay": "Uruguay",
+                "Paraguay": "Paraguay", "Guyane": "Guyana", "Suriname": "Suriname",
+                "Chine": "China", "Japon": "Japan", "Corée du Sud": "South Korea",
+                "Inde": "India", "Pakistan": "Pakistan", "Bangladesh": "Bangladesh",
+                "Népal": "Nepal", "Sri Lanka": "Sri Lanka", "Myanmar": "Myanmar",
+                "Thaïlande": "Thailand", "Viêt Nam": "Vietnam", "Philippines": "Philippines",
+                "Indonésie": "Indonesia", "Malaisie": "Malaysia", "Singapour": "Singapore",
+                "Australie": "Australia", "Nouvelle-Zélande": "New Zealand",
+                "Arabie Saoudite": "Saudi Arabia", "Émirats Arabes Unis": "United Arab Emirates",
+                "Qatar": "Qatar", "Koweït": "Kuwait", "Oman": "Oman", "Irak": "Iraq",
+                "Iran": "Iran", "Syrie": "Syria", "Liban": "Lebanon", "Israël": "Israel",
+                "Jordanie": "Jordan", "Russie": "Russia", "Kazakhstan": "Kazakhstan",
+                "Azerbaïdjan": "Azerbaijan", "Géorgie": "Georgia", "Haïti": "Haiti",
+                "Jamaïque": "Jamaica", "Cuba": "Cuba"
+            };
+
+            const paysEN = PAYS_EN[pays] || pays;
+
+            try {
+                const resp = await fetch('https://countriesnow.space/api/v0.1/countries/cities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ country: paysEN })
+                });
+                const data = await resp.json();
+                const villes = data?.data || [];
+
+                if (loading) loading.style.display = 'none';
+
+                if (!villes.length) {
+                    selectVille.innerHTML = '<option value="">Aucune ville trouvée</option>';
+                    selectVille.disabled = true;
+                    return;
+                }
+
+                selectVille.innerHTML = '<option value="">🏙️ Choisir une ville…</option>' +
+                    villes.sort().map(v => `<option value="${v}">${v}</option>`).join('');
+                selectVille.disabled = false;
+
+                // Recalculer le tarif dès qu'une ville est choisie
+                recalculerFraisDepuisModal();
+
+            } catch(e) {
+                if (loading) loading.style.display = 'none';
+                selectVille.innerHTML = '<option value="">❌ Erreur — réessayer</option>';
+                selectVille.disabled = false;
+                showToast('⚠️ Impossible de charger les villes. Vérifiez votre connexion.');
+            }
+        }
+
+        // Recalcule le tarif La Poste depuis la modale, en tenant compte du pays de l'artiste
+        function recalculerFraisDepuisModal() {
+            const selectPays = document.getElementById('modal-poste-pays');
+            const selectVille = document.getElementById('modal-poste-ville');
+            if (!selectPays || !selectVille || !selectVille.value) return;
+
+            const paysDestination = selectPays.value;
+            const paysOrigine = getPaysOrigine();
+
+            // Zone = calculée depuis pays origine → pays destination
+            const zoneOrigine = detecterZoneDepuisPays(paysOrigine);
+            const zoneDestination = detecterZoneDepuisPays(paysDestination);
+
+            // La zone tarifaire est la plus éloignée (la plus chère) entre origine et destination
+            const ordreZones = ['ci','uemoa','afrique','europe','international'];
+            const idxOrig = ordreZones.indexOf(zoneOrigine);
+            const idxDest = ordreZones.indexOf(zoneDestination);
+            const zoneFinale = ordreZones[Math.max(idxOrig, idxDest)];
+
+            // Calculer le poids total du panier
+            const poids = cartItems.reduce((s, i) => s + ((i.weight_g || 500) * i.quantity), 0);
+            const { cout } = calculerFraisPoste(poids, null, zoneFinale);
+
+            // Mettre à jour l'affichage
+            const costInput = document.getElementById('selected-shipping-cost');
+            if (costInput) { costInput.value = cout; updateCartTotal(); }
+
+            const fromLabel = nomZonePostale(zoneOrigine);
+            const toLabel = nomZonePostale(zoneDestination);
+            showToast(`📦 Tarif : ${formatPrice(cout)} — ${fromLabel} → ${toLabel}`);
         }
 
         function nomZonePostale(zone) {
@@ -11557,64 +11743,106 @@ window.enterGallery = function enterGallery() {
             const news = newsItems[index];
             if (!news) return;
 
-            const lightbox = document.getElementById('newsLightbox');
-            const imageContainer = document.getElementById('newsLightboxImage');
-            const title = document.getElementById('newsLightboxTitle');
-            const gradientName = document.getElementById('newsLightboxGradientName');
-            const gradientPreview = document.getElementById('newsLightboxGradientPreview');
-            const description = document.getElementById('newsLightboxDescription');
+            document.getElementById('arkylNewsLightbox')?.remove();
 
-            // Set title
-            title.textContent = news.text;
+            if (!document.getElementById('arkylLbStyle')) {
+                const st = document.createElement('style');
+                st.id = 'arkylLbStyle';
+                st.textContent = '@keyframes arkylLbFadeIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}#arkylNewsLightbox button:hover{opacity:.85!important}';
+                document.head.appendChild(st);
+            }
 
-            // Set image or emoji — utilise un <img loading="lazy"> pour voir l'image complète
+            const lb = document.createElement('div');
+            lb.id = 'arkylNewsLightbox';
+            lb.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;animation:arkylLbFadeIn .2s ease;';
+
+            const btnClose = document.createElement('button');
+            btnClose.title = 'Fermer (Echap)';
+            btnClose.textContent = '\u2715';
+            btnClose.style.cssText = 'position:absolute;top:18px;right:18px;background:rgba(255,255,255,0.12);border:none;border-radius:50%;width:44px;height:44px;font-size:20px;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;';
+            btnClose.onclick = function() { lb.remove(); document.body.style.overflow = ''; };
+            lb.appendChild(btnClose);
+
+            const counter = document.createElement('div');
+            counter.style.cssText = 'position:absolute;top:22px;left:50%;transform:translateX(-50%);font-size:12px;opacity:0.5;font-family:Poppins,sans-serif;letter-spacing:.5px;';
+            counter.textContent = (index + 1) + ' / ' + newsItems.length;
+            lb.appendChild(counter);
+
+            if (newsItems.length > 1) {
+                const btnPrev = document.createElement('button');
+                btnPrev.textContent = '\u2039';
+                btnPrev.style.cssText = 'position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:48px;height:48px;font-size:22px;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;';
+                const prevIdx = (index - 1 + newsItems.length) % newsItems.length;
+                btnPrev.onclick = function(e) { e.stopPropagation(); lb.remove(); document.body.style.overflow = ''; openNewsLightbox(prevIdx); };
+                lb.appendChild(btnPrev);
+
+                const btnNext = document.createElement('button');
+                btnNext.textContent = '\u203a';
+                btnNext.style.cssText = 'position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:48px;height:48px;font-size:22px;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;';
+                const nextIdx = (index + 1) % newsItems.length;
+                btnNext.onclick = function(e) { e.stopPropagation(); lb.remove(); document.body.style.overflow = ''; openNewsLightbox(nextIdx); };
+                lb.appendChild(btnNext);
+            }
+
+            const center = document.createElement('div');
+            center.style.cssText = 'max-width:860px;width:100%;display:flex;flex-direction:column;align-items:center;gap:24px;';
+
+            const mediaWrap = document.createElement('div');
+            mediaWrap.style.cssText = 'width:100%;display:flex;justify-content:center;';
             if (news.isImage) {
-                imageContainer.classList.remove('emoji-display');
-                imageContainer.style.backgroundImage = 'none';
-                imageContainer.innerHTML = `<img loading="lazy" class="lightbox-img" src="${news.icon}" alt="${news.text}" onerror="this.parentElement.innerHTML='📰'">`;
+                const img = document.createElement('img');
+                img.src = news.icon;
+                img.alt = news.text || '';
+                img.style.cssText = 'max-width:100%;max-height:75vh;object-fit:contain;border-radius:16px;display:block;margin:0 auto;box-shadow:0 20px 60px rgba(0,0,0,0.6);';
+                img.onerror = function() { this.style.display='none'; const fb=document.createElement('div'); fb.style.cssText='font-size:80px;text-align:center;'; fb.textContent='\ud83d\udcf0'; mediaWrap.appendChild(fb); };
+                mediaWrap.appendChild(img);
             } else {
-                imageContainer.classList.add('emoji-display');
-                imageContainer.style.backgroundImage = 'none';
-                imageContainer.innerHTML = news.icon;
+                const emojiDiv = document.createElement('div');
+                emojiDiv.style.cssText = 'font-size:120px;text-align:center;line-height:1;user-select:none;';
+                emojiDiv.textContent = news.icon;
+                mediaWrap.appendChild(emojiDiv);
+            }
+            center.appendChild(mediaWrap);
+
+            if (news.text && news.text.trim().length > 0) {
+                const textWrap = document.createElement('div');
+                textWrap.style.cssText = 'text-align:center;max-width:640px;padding:0 8px;';
+                const p = document.createElement('p');
+                p.style.cssText = 'font-family:Poppins,sans-serif;font-size:clamp(15px,2.5vw,20px);font-weight:600;color:white;line-height:1.6;margin:0;text-shadow:0 2px 8px rgba(0,0,0,.5);';
+                p.textContent = news.text;
+                textWrap.appendChild(p);
+                center.appendChild(textWrap);
             }
 
-            // Set gradient info
-            const gradientNames = {
-                'gradient-1': 'Bronze-Cuivre',
-                'gradient-2': 'Terre-Argile',
-                'gradient-3': 'Or-Doré',
-                'gradient-4': 'Cuivre-Sable',
-                'gradient-5': 'Bronze-Sable'
-            };
-            gradientName.textContent = gradientNames[news.gradient] || news.gradient;
-
-            // Apply gradient preview
-            gradientPreview.className = `news-lightbox-gradient-preview news-ticker-icon ${news.gradient}`;
-
-            // Set description (same as text for now, you can enhance this)
-            description.textContent = news.text;
-
-            // Show lightbox
-            lightbox.classList.add('active');
-            document.body.style.overflow = 'hidden'; // Prevent scrolling
-        }
-
-        function closeNewsLightbox(event) {
-            // Close only if clicking on background or close button
-            if (event && event.target.closest('.news-lightbox-content') && !event.target.classList.contains('news-lightbox-close')) {
-                return;
+            if (newsItems.length > 1) {
+                const dotsWrap = document.createElement('div');
+                dotsWrap.style.cssText = 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;';
+                newsItems.forEach(function(_, i) {
+                    const dot = document.createElement('button');
+                    dot.style.cssText = 'height:8px;border-radius:4px;border:none;cursor:pointer;transition:all .2s;background:' + (i === index ? '#d4af37' : 'rgba(255,255,255,0.3)') + ';width:' + (i === index ? '24px' : '8px') + ';';
+                    dot.onclick = function(e) { e.stopPropagation(); lb.remove(); document.body.style.overflow = ''; openNewsLightbox(i); };
+                    dotsWrap.appendChild(dot);
+                });
+                center.appendChild(dotsWrap);
             }
 
-            const lightbox = document.getElementById('newsLightbox');
-            lightbox.classList.remove('active');
-            document.body.style.overflow = ''; // Restore scrolling
+            lb.appendChild(center);
+
+            lb.addEventListener('click', function(e) {
+                if (e.target === lb) { lb.remove(); document.body.style.overflow = ''; }
+            });
+
+            document.body.appendChild(lb);
+            document.body.style.overflow = 'hidden';
         }
 
-        // Close lightbox with ESC key
+        function closeNewsLightbox() {
+            document.getElementById('arkylNewsLightbox')?.remove();
+            document.body.style.overflow = '';
+        }
+
         document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeNewsLightbox();
-            }
+            if (e.key === 'Escape') closeNewsLightbox();
         });
 
         // Close modal when clicking outside

@@ -10,6 +10,19 @@
     <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ARKYL - La Galerie d'Art Africain</title>
+    <!-- PWA: Enregistrement du Service Worker et beforeinstallprompt listener -->
+    <script>
+        // Préparation PWA immédiate avant tout autre script
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
+                .then(reg => console.log('[HEAD] SW enregistré'))
+                .catch(err => console.log('[HEAD] SW erreur:', err));
+        }
+        // Listener beforeinstallprompt précoce (certains browsers)
+        window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('[HEAD] beforeinstallprompt détecté tôt');
+        });
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Montserrat:wght@300;400;600;700&family=Poppins:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -552,7 +565,7 @@
                 Rafraîchir
             </button>
             <!-- Bouton installation PWA - visible uniquement si installable -->
-            <button id="pwaInstallBtn" onclick="installPWA()" style="display:none;align-items:center;gap:8px;background:rgba(212,175,55,0.2);border:1px solid rgba(212,175,55,0.5);color:#d4af37;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:13px;font-family:inherit;">
+            <button id="pwaInstallBtn" onclick="installPWA()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="#d4af37" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Installer l'app
             </button>

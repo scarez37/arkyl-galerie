@@ -26,13 +26,19 @@ const NETWORK_FIRST = [
 
 // Installation : mise en cache UNIQUEMENT des vraies ressources statiques (images, icons)
 self.addEventListener('install', event => {
+  console.log('[ARKYL SW] 🔧 Installation en cours...');
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      console.log('[ARKYL SW] Cache v3 — assets statiques uniquement');
-      return cache.addAll(STATIC_ASSETS);
+      console.log('[ARKYL SW] ✅ Cache v3 ouvert — assets statiques uniquement');
+      return cache.addAll(STATIC_ASSETS).catch(err => {
+        console.error('[ARKYL SW] ❌ Erreur cache addAll:', err);
+        // Ne pas échouer l'installation pour quelques assets manquants
+        return Promise.resolve();
+      });
     })
   );
   self.skipWaiting(); // Prendre le contrôle immédiatement
+  console.log('[ARKYL SW] ✅ Installation complète, skipWaiting déclenché');
 });
 
 // Activation : supprimer TOUS les anciens caches (arkyl-v1, arkyl-v2, etc.)

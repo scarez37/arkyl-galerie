@@ -13,8 +13,8 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # 4. Copier le code
 COPY . /var/www/html/
 
-# 5. Installer les dépendances (Stripe, etc.)
-RUN cd /var/www/html && composer install --no-dev --optimize-autoloader
+# 5. Installer les dépendances (Stripe, etc.) - ignore si pas de composer.json
+RUN cd /var/www/html && if [ -f composer.json ]; then composer install --no-dev --optimize-autoloader; fi
 
 # 6. Donner les permissions
 RUN chown -R www-data:www-data /var/www/html && chmod -R 755 /var/www/html

@@ -28,8 +28,7 @@ window.enterGallery = function enterGallery() {
             const pwaInstallBtn = document.getElementById('pwaInstallBtn');
             
             if (!pwaInstallBtn) {
-                console.log('[PWA] ⏳ Bouton PWA pas encore visible - attente...');
-                // Attendre que le bouton apparaisse dans le DOM
+                // Attendre silencieusement que le bouton apparaisse dans le DOM
                 const observer = new MutationObserver(() => {
                     const btn = document.getElementById('pwaInstallBtn');
                     if (btn) {

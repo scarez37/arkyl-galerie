@@ -10,19 +10,9 @@
     <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ARKYL - La Galerie d'Art Africain</title>
-    <!-- PWA: Enregistrement du Service Worker et beforeinstallprompt listener -->
-    <script>
-        // Préparation PWA immédiate avant tout autre script
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
-                .then(reg => console.log('[HEAD] SW enregistré'))
-                .catch(err => console.log('[HEAD] SW erreur:', err));
-        }
-        // Listener beforeinstallprompt précoce (certains browsers)
-        window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('[HEAD] beforeinstallprompt détecté tôt');
-        });
-    </script>
+    <!-- PWA: Meta tags pour iOS installabilité -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0a0a0a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Montserrat:wght@300;400;600;700&family=Poppins:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -2372,41 +2362,6 @@
 
     <script src="app.js" defer></script>
 
-  <script>
-    // Enregistrement PWA Service Worker
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/service-worker.js")
-          .then(reg => console.log("[ARKYL] Service Worker enregistré:", reg.scope))
-          .catch(err => console.warn("[ARKYL] SW échec:", err));
-      });
-    }
 
-    // Gestion bouton installation PWA
-    let deferredPrompt = null;
-    const pwaBtn = document.getElementById("pwaInstallBtn");
-
-    window.addEventListener("beforeinstallprompt", (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      if (pwaBtn) pwaBtn.style.display = "flex";
-    });
-
-    window.installPWA = async function() {
-      if (!deferredPrompt) return;
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === "accepted") {
-        if (pwaBtn) pwaBtn.style.display = "none";
-      }
-      deferredPrompt = null;
-    };
-
-    window.addEventListener("appinstalled", () => {
-      if (pwaBtn) pwaBtn.style.display = "none";
-      deferredPrompt = null;
-      console.log("[ARKYL] App installée avec succès !");
-    });
-  </script>
 </body>
 </html>

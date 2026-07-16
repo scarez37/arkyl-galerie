@@ -6,6 +6,10 @@ window.enterGallery = function enterGallery() {
                 introPage.style.display = 'none';
                 mainContent.classList.add('visible');
                 if (typeof init === 'function') init();
+                // ✅ Initialiser PWA APRÈS que le DOM soit visible
+                if (typeof initPWASystem === 'function') {
+                    initPWASystem();
+                }
             }, 1000);
         }; // FIX: semicolon ajouté — évite que le (function...) suivant soit interprété comme un appel
 
@@ -21,8 +25,7 @@ window.enterGallery = function enterGallery() {
             const pwaInstallBtn = document.getElementById('pwaInstallBtn');
             
             if (!pwaInstallBtn) {
-                console.log('[PWA] ⏳ Bouton non trouvé, retry dans 200ms...');
-                setTimeout(initPWASystem, 200);
+                console.warn('[PWA] ❌ Bouton non trouvé (main-content invisible ?)');
                 return;
             }
 
@@ -105,12 +108,7 @@ window.enterGallery = function enterGallery() {
             }
         }
 
-        // Lancer après que le DOM soit prêt
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initPWASystem);
-        } else {
-            initPWASystem();
-        }
+        // initPWASystem() est appelée par enterGallery() quand le DOM devient visible
 
         // ── FIX : Favicon dynamique — évite le 404 serveur ──
         (function injectFavicon() {

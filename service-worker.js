@@ -1,10 +1,8 @@
-const CACHE_NAME = 'arkyl-v1';
+const CACHE_NAME = 'arkyl-v3';  // ⬆️ Version incrémentée — invalide tous les anciens caches
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/style.css',
-  '/app.js',
-  '/auth.js',
   '/logo-512.png',
   '/favicon-192.png',
   '/favicon-32.png',
@@ -13,20 +11,31 @@ const STATIC_ASSETS = [
   '/connexion.html',
   '/inscription.html',
   '/artist_dashboard.html'
+  // app.js retiré des assets statiques → toujours chargé depuis le réseau
 ];
 
-// Installation : mise en cache des ressources statiques
+// Fichiers JS/HTML principaux → toujours Network First (jamais en cache)
+const NETWORK_FIRST = [
+  '/app.js',
+  '/auth.js',
+  '/2-pages-content.html',
+  '/3-admin-modales.html',
+  '/1-header-nav.html',
+  '/sections.html'
+];
+
+// Installation : mise en cache UNIQUEMENT des vraies ressources statiques (images, icons)
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      console.log('[ARKYL SW] Mise en cache des ressources statiques');
+      console.log('[ARKYL SW] Cache v3 — assets statiques uniquement');
       return cache.addAll(STATIC_ASSETS);
     })
   );
-  self.skipWaiting();
+  self.skipWaiting(); // Prendre le contrôle immédiatement
 });
 
-// Activation : nettoyage des anciens caches
+// Activation : supprimer TOUS les anciens caches (arkyl-v1, arkyl-v2, etc.)
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(cacheNames =>
@@ -34,7 +43,7 @@ self.addEventListener('activate', event => {
         cacheNames
           .filter(name => name !== CACHE_NAME)
           .map(name => {
-            console.log('[ARKYL SW] Suppression ancien cache:', name);
+            console.log('[ARKYL SW] Suppression cache obsolète:', name);
             return caches.delete(name);
           })
       )
@@ -43,30 +52,48 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Stratégie : Network First pour les API, Cache First pour les assets
+// Stratégie fetch
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Les appels API → toujours réseau (pas de cache)
-  if (url.pathname.startsWith('/api') || url.pathname.includes('.php')) {
+  // 1. Appels API PHP → toujours réseau, jamais de cache
+  if (url.pathname.startsWith('/api') || url.pathname.includes('.php') ||
+      url.hostname.includes('onrender.com') || url.hostname.includes('countriesnow')) {
     event.respondWith(fetch(event.request));
     return;
   }
 
-  // Assets statiques → Cache First
+  // 2. Fichiers JS/HTML principaux → Network First (on essaie le réseau, fallback cache)
+  const isNetworkFirst = NETWORK_FIRST.some(f => url.pathname === f || url.pathname.endsWith(f));
+  if (isNetworkFirst) {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response && response.status === 200) {
+          // Mettre à jour le cache avec la version fraîche
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => {
+        // Hors ligne : retourner version cachée si dispo
+        return caches.match(event.request);
+      })
+    );
+    return;
+  }
+
+  // 3. Autres assets (images, CSS, icons) → Cache First
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
       return fetch(event.request).then(response => {
-        // On met en cache les nouvelles ressources valides
         if (response && response.status === 200 && response.type === 'basic') {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
         }
         return response;
       });
     }).catch(() => {
-      // Hors ligne : retourner la page d'accueil en cache
       if (event.request.destination === 'document') {
         return caches.match('/index.html');
       }
@@ -74,7 +101,7 @@ self.addEventListener('fetch', event => {
   );
 });
 
-// Notifications push (pour plus tard)
+// Notifications push
 self.addEventListener('push', event => {
   if (!event.data) return;
   const data = event.data.json();
@@ -88,7 +115,5 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  event.waitUntil(
-    clients.openWindow(event.notification.data.url)
-  );
+  event.waitUntil(clients.openWindow(event.notification.data.url));
 });

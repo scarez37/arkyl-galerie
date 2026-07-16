@@ -2076,7 +2076,7 @@
 
         /* ============ BOUTON PWA INSTALLATION ============ */
         #pwaInstallBtn {
-            display: none !important;
+            display: none;
             align-items: center;
             gap: 8px;
             background: linear-gradient(135deg, rgba(212,175,55,0.3), rgba(212,175,55,0.15));

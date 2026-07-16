@@ -82,6 +82,11 @@ try {
             'artist' => $item['artist'] ?? null,
             'artist_name' => $item['artist_name'] ?? $item['artist'] ?? null,
             'artist_country' => $item['artist_country'] ?? null,
+            // ✅ Localisation de l'oeuvre — indispensable pour le calcul des frais de livraison
+            'city'           => $item['city']    ?? null,
+            'country'        => $item['country'] ?? $item['artist_country'] ?? null,
+            'weight_g'       => isset($item['weight_g']) ? intval($item['weight_g']) : 500,
+            'is_sold'        => !empty($item['is_sold']) && $item['is_sold'] !== 'f' && $item['is_sold'] !== '0',
             'badge' => $item['badge'] ?? 'Disponible',
             'image_url' => $firstPhoto,
             'image' => $firstPhoto,   // alias pour compatibilité JS

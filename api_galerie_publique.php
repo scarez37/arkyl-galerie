@@ -74,7 +74,7 @@ try {
         // Colonnes strictement nécessaires — pas de SELECT * pour éviter les données lourdes inutiles
         $cols = "id, title, price, category, technique, technique_custom,
                  width, height, depth, dimensions, description,
-                 artist_id, artist_name, artist_country,
+                 artist_id, artist_name, artist_country, city, country,
                  badge, status, image_url, photos, created_at, weight_g,
                  COALESCE(is_sold, FALSE) AS is_sold";
 
@@ -234,6 +234,8 @@ function formatArtwork($oeuvre) {
         'artist' => $oeuvre['artist_name'] ?? null,
         'artist_name' => $oeuvre['artist_name'] ?? null,
         'artist_country' => $oeuvre['artist_country'] ?? null,
+        'city'           => $oeuvre['city']           ?? null,
+        'country'        => $oeuvre['country']        ?? $oeuvre['artist_country'] ?? null,
         'badge' => $oeuvre['badge'] ?? 'Disponible',
         'status' => $oeuvre['status'] ?? 'active',
         'image' => $firstPhoto,

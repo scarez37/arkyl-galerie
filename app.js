@@ -6,8 +6,122 @@ window.enterGallery = function enterGallery() {
                 introPage.style.display = 'none';
                 mainContent.classList.add('visible');
                 if (typeof init === 'function') init();
+                // ✅ Initialiser PWA APRÈS que le DOM soit visible
+                // Donner 300ms supplémentaires au navigateur pour finir le rendu
+                setTimeout(() => {
+                    if (typeof initPWASystem === 'function') {
+                        initPWASystem();
+                    }
+                }, 300);
             }, 1000);
         }; // FIX: semicolon ajouté — évite que le (function...) suivant soit interprété comme un appel
+
+        // ======================== PWA INSTALLATION SYSTEM ========================
+        // Gère l'affichage du bouton "Installer l'app" et l'installation PWA
+        
+        let pwaState = {
+            deferredPrompt: null,
+            initialized: false
+        };
+        
+        function initPWASystem() {
+            const pwaInstallBtn = document.getElementById('pwaInstallBtn');
+            
+            if (!pwaInstallBtn) {
+                console.warn('[PWA] ⏳ Bouton pas encore dans le DOM, attente...');
+                // Attendre que le bouton apparaisse dans le DOM
+                const observer = new MutationObserver(() => {
+                    const btn = document.getElementById('pwaInstallBtn');
+                    if (btn) {
+                        console.log('[PWA] ✅ Bouton détecté après mutation');
+                        observer.disconnect();
+                        initPWASystem(); // Relancer avec le bouton trouvé
+                    }
+                });
+                observer.observe(document.body, { childList: true, subtree: true });
+                return;
+            }
+
+            if (pwaState.initialized) return;
+            pwaState.initialized = true;
+            console.log('[PWA] ✅ Système initialisé');
+
+            // 1️⃣ Écoute l'événement beforeinstallprompt (Chrome/Edge/Samsung)
+            window.addEventListener('beforeinstallprompt', (e) => {
+                console.log('[PWA] beforeinstallprompt déclenché → app installable');
+                e.preventDefault();
+                pwaState.deferredPrompt = e;
+                showInstallButton();
+            });
+
+            // 2️⃣ Détection alternative : manifest + SW actifs (fallback)
+            function isInstallable() {
+                const hasManifest = document.querySelector('link[rel="manifest"]');
+                const hasServiceWorker = 'serviceWorker' in navigator;
+                return hasManifest && hasServiceWorker;
+            }
+
+            // 3️⃣ Fonction pour afficher le bouton
+            function showInstallButton() {
+                pwaInstallBtn.style.display = 'flex';
+                console.log('[PWA] 🟡 Bouton installation visible');
+            }
+
+            // 4️⃣ Tentative d'affichage avec timeout (pour bypass les délais Chrome)
+            setTimeout(() => {
+                if (!pwaState.deferredPrompt && isInstallable()) {
+                    console.log('[PWA] ⏱️ Timeout 3s: forçage affichage bouton (fallback)');
+                    showInstallButton();
+                }
+            }, 3000);
+
+            // 5️⃣ Gestion du clic sur le bouton
+            window.installPWA = function installPWA() {
+                if (!pwaState.deferredPrompt) {
+                    console.warn('[PWA] beforeinstallprompt non disponible');
+                    // Fallback : instruction manuelle pour iOS
+                    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                        alert('Sur iOS : Partage → Ajouter à l\'écran d\'accueil');
+                    } else {
+                        alert('Veuillez actualiser la page et réessayer');
+                    }
+                    return;
+                }
+
+                console.log('[PWA] Affichage du prompt d\'installation');
+                pwaState.deferredPrompt.prompt();
+                
+                pwaState.deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('[PWA] ✅ Utilisateur accepté l\'installation');
+                        pwaInstallBtn.style.display = 'none';
+                    } else {
+                        console.log('[PWA] ❌ Utilisateur refusé l\'installation');
+                    }
+                    pwaState.deferredPrompt = null;
+                });
+            };
+
+            // 6️⃣ Masquer le bouton après installation
+            window.addEventListener('appinstalled', () => {
+                console.log('[PWA] ✅ App installée avec succès !');
+                pwaInstallBtn.style.display = 'none';
+                pwaState.deferredPrompt = null;
+            });
+
+            // 7️⃣ Enregistrement du Service Worker
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(reg => {
+                        console.log('[PWA] ✅ Service Worker enregistré');
+                        // Vérifier les updates toutes les heures
+                        setInterval(() => reg.update(), 3600000);
+                    })
+                    .catch(err => console.warn('[PWA] ⚠️ Service Worker échoué:', err));
+            }
+        }
+
+        // initPWASystem() est appelée par enterGallery() quand le DOM devient visible
 
         // ── FIX : Favicon dynamique — évite le 404 serveur ──
         (function injectFavicon() {
@@ -1059,15 +1173,32 @@ window.enterGallery = function enterGallery() {
                 cartItems = (data.data || data.items || []).map(item => {
                     const pid = item.artwork_id || item.id;
                     const product = allProducts.find(p => String(p.id) === String(pid));
+                    // poids en BDD = kg (ex: 0.5) → convertir en grammes
+                    const poidsKg = parseFloat(item.poids || (product && product.poids) || 0);
+                    const weight_g = poidsKg > 0 ? Math.round(poidsKg * 1000) : 500;
+                    // Pays/ville de l'œuvre : priorité item BDD > product galerie > vide
+                    const origin_country = item.country || item.artist_country
+                                        || (product && (product.country || product.artist_country)) || '';
+                    const origin_city    = item.city || (product && product.city) || '';
                     if (product) {
                         return {
                             ...product,
                             id: String(product.id),
                             image: product.image || product.image_url || (product.photos && product.photos[0]) || '',
-                            quantity: item.quantity || 1
+                            quantity: item.quantity || 1,
+                            weight_g,
+                            origin_country,
+                            origin_city
                         };
                     }
-                    return { ...item, id: String(pid), quantity: item.quantity || 1 };
+                    return {
+                        ...item,
+                        id: String(pid),
+                        quantity: item.quantity || 1,
+                        weight_g,
+                        origin_country,
+                        origin_city
+                    };
                 }).filter(item => item.id); // enlever les items sans id valide
 
                 updateBadges();
@@ -3866,22 +3997,265 @@ window.enterGallery = function enterGallery() {
 
         // confirmerVillePoste — géré par la modale ouvrirModeLivraison()
 
-        // ─── NOUVELLE MODALE MODE DE LIVRAISON ──────────────────────────
+        // ─── 180 PAYS PAR ZONE TARIFAIRE ─────────────────────────────────────
+        // Zone : ci | uemoa | afrique | europe | international
+        const PAYS_PAR_ZONE = {
+            ci: [
+                { code: "CI", nom: "🇨🇮 Côte d'Ivoire" }
+            ],
+            uemoa: [
+                { code: "BJ", nom: "🇧🇯 Bénin" },
+                { code: "BF", nom: "🇧🇫 Burkina Faso" },
+                { code: "GW", nom: "🇬🇼 Guinée-Bissau" },
+                { code: "ML", nom: "🇲🇱 Mali" },
+                { code: "NE", nom: "🇳🇪 Niger" },
+                { code: "SN", nom: "🇸🇳 Sénégal" },
+                { code: "TG", nom: "🇹🇬 Togo" }
+            ],
+            afrique: [
+                { code: "DZ", nom: "🇩🇿 Algérie" },
+                { code: "AO", nom: "🇦🇴 Angola" },
+                { code: "BW", nom: "🇧🇼 Botswana" },
+                { code: "BI", nom: "🇧🇮 Burundi" },
+                { code: "CV", nom: "🇨🇻 Cap-Vert" },
+                { code: "CM", nom: "🇨🇲 Cameroun" },
+                { code: "CF", nom: "🇨🇫 Centrafrique" },
+                { code: "KM", nom: "🇰🇲 Comores" },
+                { code: "CG", nom: "🇨🇬 Congo" },
+                { code: "CD", nom: "🇨🇩 Congo (RDC)" },
+                { code: "DJ", nom: "🇩🇯 Djibouti" },
+                { code: "EG", nom: "🇪🇬 Égypte" },
+                { code: "ER", nom: "🇪🇷 Érythrée" },
+                { code: "ET", nom: "🇪🇹 Éthiopie" },
+                { code: "GA", nom: "🇬🇦 Gabon" },
+                { code: "GM", nom: "🇬🇲 Gambie" },
+                { code: "GH", nom: "🇬🇭 Ghana" },
+                { code: "GN", nom: "🇬🇳 Guinée" },
+                { code: "GQ", nom: "🇬🇶 Guinée Équatoriale" },
+                { code: "KE", nom: "🇰🇪 Kenya" },
+                { code: "LS", nom: "🇱🇸 Lesotho" },
+                { code: "LR", nom: "🇱🇷 Libéria" },
+                { code: "LY", nom: "🇱🇾 Libye" },
+                { code: "MG", nom: "🇲🇬 Madagascar" },
+                { code: "MW", nom: "🇲🇼 Malawi" },
+                { code: "MR", nom: "🇲🇷 Mauritanie" },
+                { code: "MU", nom: "🇲🇺 Maurice" },
+                { code: "YT", nom: "🇾🇹 Mayotte" },
+                { code: "MA", nom: "🇲🇦 Maroc" },
+                { code: "MZ", nom: "🇲🇿 Mozambique" },
+                { code: "NA", nom: "🇳🇦 Namibie" },
+                { code: "NG", nom: "🇳🇬 Nigéria" },
+                { code: "UG", nom: "🇺🇬 Ouganda" },
+                { code: "RW", nom: "🇷🇼 Rwanda" },
+                { code: "ST", nom: "🇸🇹 São Tomé-et-Príncipe" },
+                { code: "SC", nom: "🇸🇨 Seychelles" },
+                { code: "SL", nom: "🇸🇱 Sierra Leone" },
+                { code: "SO", nom: "🇸🇴 Somalie" },
+                { code: "SD", nom: "🇸🇩 Soudan" },
+                { code: "SS", nom: "🇸🇸 Soudan du Sud" },
+                { code: "SZ", nom: "🇸🇿 Eswatini" },
+                { code: "TZ", nom: "🇹🇿 Tanzanie" },
+                { code: "TD", nom: "🇹🇩 Tchad" },
+                { code: "TN", nom: "🇹🇳 Tunisie" },
+                { code: "ZM", nom: "🇿🇲 Zambie" },
+                { code: "ZW", nom: "🇿🇼 Zimbabwe" },
+                { code: "ZA", nom: "🇿🇦 Afrique du Sud" }
+            ],
+            europe: [
+                { code: "DE", nom: "🇩🇪 Allemagne" },
+                { code: "AT", nom: "🇦🇹 Autriche" },
+                { code: "BE", nom: "🇧🇪 Belgique" },
+                { code: "BY", nom: "🇧🇾 Biélorussie" },
+                { code: "BA", nom: "🇧🇦 Bosnie-Herzégovine" },
+                { code: "BG", nom: "🇧🇬 Bulgarie" },
+                { code: "HR", nom: "🇭🇷 Croatie" },
+                { code: "CY", nom: "🇨🇾 Chypre" },
+                { code: "DK", nom: "🇩🇰 Danemark" },
+                { code: "ES", nom: "🇪🇸 Espagne" },
+                { code: "EE", nom: "🇪🇪 Estonie" },
+                { code: "FI", nom: "🇫🇮 Finlande" },
+                { code: "FR", nom: "🇫🇷 France" },
+                { code: "GR", nom: "🇬🇷 Grèce" },
+                { code: "HU", nom: "🇭🇺 Hongrie" },
+                { code: "IE", nom: "🇮🇪 Irlande" },
+                { code: "IS", nom: "🇮🇸 Islande" },
+                { code: "IT", nom: "🇮🇹 Italie" },
+                { code: "LV", nom: "🇱🇻 Lettonie" },
+                { code: "LI", nom: "🇱🇮 Liechtenstein" },
+                { code: "LT", nom: "🇱🇹 Lituanie" },
+                { code: "LU", nom: "🇱🇺 Luxembourg" },
+                { code: "MK", nom: "🇲🇰 Macédoine du Nord" },
+                { code: "MT", nom: "🇲🇹 Malte" },
+                { code: "MD", nom: "🇲🇩 Moldavie" },
+                { code: "MC", nom: "🇲🇨 Monaco" },
+                { code: "ME", nom: "🇲🇪 Monténégro" },
+                { code: "NO", nom: "🇳🇴 Norvège" },
+                { code: "NL", nom: "🇳🇱 Pays-Bas" },
+                { code: "PL", nom: "🇵🇱 Pologne" },
+                { code: "PT", nom: "🇵🇹 Portugal" },
+                { code: "RO", nom: "🇷🇴 Roumanie" },
+                { code: "GB", nom: "🇬🇧 Royaume-Uni" },
+                { code: "RS", nom: "🇷🇸 Serbie" },
+                { code: "SK", nom: "🇸🇰 Slovaquie" },
+                { code: "SI", nom: "🇸🇮 Slovénie" },
+                { code: "SE", nom: "🇸🇪 Suède" },
+                { code: "CH", nom: "🇨🇭 Suisse" },
+                { code: "CZ", nom: "🇨🇿 Tchéquie" },
+                { code: "TR", nom: "🇹🇷 Turquie" },
+                { code: "UA", nom: "🇺🇦 Ukraine" }
+            ],
+            international: [
+                { code: "AF", nom: "🇦🇫 Afghanistan" },
+                { code: "SA", nom: "🇸🇦 Arabie Saoudite" },
+                { code: "AR", nom: "🇦🇷 Argentine" },
+                { code: "AM", nom: "🇦🇲 Arménie" },
+                { code: "AU", nom: "🇦🇺 Australie" },
+                { code: "AZ", nom: "🇦🇿 Azerbaïdjan" },
+                { code: "BD", nom: "🇧🇩 Bangladesh" },
+                { code: "BO", nom: "🇧🇴 Bolivie" },
+                { code: "BR", nom: "🇧🇷 Brésil" },
+                { code: "KH", nom: "🇰🇭 Cambodge" },
+                { code: "CA", nom: "🇨🇦 Canada" },
+                { code: "CL", nom: "🇨🇱 Chili" },
+                { code: "CN", nom: "🇨🇳 Chine" },
+                { code: "CO", nom: "🇨🇴 Colombie" },
+                { code: "KP", nom: "🇰🇵 Corée du Nord" },
+                { code: "KR", nom: "🇰🇷 Corée du Sud" },
+                { code: "CR", nom: "🇨🇷 Costa Rica" },
+                { code: "CU", nom: "🇨🇺 Cuba" },
+                { code: "EC", nom: "🇪🇨 Équateur" },
+                { code: "AE", nom: "🇦🇪 Émirats Arabes Unis" },
+                { code: "US", nom: "🇺🇸 États-Unis" },
+                { code: "GE", nom: "🇬🇪 Géorgie" },
+                { code: "GT", nom: "🇬🇹 Guatemala" },
+                { code: "HT", nom: "🇭🇹 Haïti" },
+                { code: "HN", nom: "🇭🇳 Honduras" },
+                { code: "HK", nom: "🇭🇰 Hong Kong" },
+                { code: "IN", nom: "🇮🇳 Inde" },
+                { code: "ID", nom: "🇮🇩 Indonésie" },
+                { code: "IQ", nom: "🇮🇶 Irak" },
+                { code: "IR", nom: "🇮🇷 Iran" },
+                { code: "IL", nom: "🇮🇱 Israël" },
+                { code: "JM", nom: "🇯🇲 Jamaïque" },
+                { code: "JP", nom: "🇯🇵 Japon" },
+                { code: "JO", nom: "🇯🇴 Jordanie" },
+                { code: "KZ", nom: "🇰🇿 Kazakhstan" },
+                { code: "KG", nom: "🇰🇬 Kirghizistan" },
+                { code: "KW", nom: "🇰🇼 Koweït" },
+                { code: "LA", nom: "🇱🇦 Laos" },
+                { code: "LB", nom: "🇱🇧 Liban" },
+                { code: "MY", nom: "🇲🇾 Malaisie" },
+                { code: "MV", nom: "🇲🇻 Maldives" },
+                { code: "MX", nom: "🇲🇽 Mexique" },
+                { code: "MN", nom: "🇲🇳 Mongolie" },
+                { code: "MM", nom: "🇲🇲 Myanmar" },
+                { code: "NP", nom: "🇳🇵 Népal" },
+                { code: "NZ", nom: "🇳🇿 Nouvelle-Zélande" },
+                { code: "OM", nom: "🇴🇲 Oman" },
+                { code: "UZ", nom: "🇺🇿 Ouzbékistan" },
+                { code: "PK", nom: "🇵🇰 Pakistan" },
+                { code: "PA", nom: "🇵🇦 Panama" },
+                { code: "PY", nom: "🇵🇾 Paraguay" },
+                { code: "PE", nom: "🇵🇪 Pérou" },
+                { code: "PH", nom: "🇵🇭 Philippines" },
+                { code: "QA", nom: "🇶🇦 Qatar" },
+                { code: "RU", nom: "🇷🇺 Russie" },
+                { code: "DO", nom: "🇩🇴 Rép. Dominicaine" },
+                { code: "SG", nom: "🇸🇬 Singapour" },
+                { code: "LK", nom: "🇱🇰 Sri Lanka" },
+                { code: "SY", nom: "🇸🇾 Syrie" },
+                { code: "TW", nom: "🇹🇼 Taïwan" },
+                { code: "TJ", nom: "🇹🇯 Tadjikistan" },
+                { code: "TH", nom: "🇹🇭 Thaïlande" },
+                { code: "TM", nom: "🇹🇲 Turkménistan" },
+                { code: "UY", nom: "🇺🇾 Uruguay" },
+                { code: "VE", nom: "🇻🇪 Venezuela" },
+                { code: "VN", nom: "🇻🇳 Viêt Nam" },
+                { code: "YE", nom: "🇾🇪 Yémen" }
+            ]
+        };
+
+        // Tous les pays à plat avec leur zone
+        const TOUS_PAYS = Object.entries(PAYS_PAR_ZONE).flatMap(([zone, liste]) =>
+            liste.map(p => ({ ...p, zone }))
+        );
+
+        // Zone depuis code ISO
+        function zoneDepuisPays(codeISO) {
+            const p = TOUS_PAYS.find(p => p.code === codeISO);
+            return p?.zone || 'international';
+        }
+
+        // Cache des villes chargées
+        const _villesCache = {};
+
+        // Charger les villes d'un pays via CountriesNow (gratuit, pas de clé API)
+        async function chargerVillesPays(codeISO) {
+            if (_villesCache[codeISO]) return _villesCache[codeISO];
+            try {
+                const resp = await fetch('https://countriesnow.space/api/v0.1/countries/cities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ iso2: codeISO })
+                });
+                const data = await resp.json();
+                const villes = (data?.data || []).sort();
+                _villesCache[codeISO] = villes;
+                return villes;
+            } catch(e) {
+                console.warn('Villes non disponibles pour', codeISO, e.message);
+                _villesCache[codeISO] = [];
+                return [];
+            }
+        }
+
+        // ─── MODALE MODE DE LIVRAISON (REFONTE) ─────────────────────────
         function ouvrirModeLivraison() {
+            if (!document.getElementById('liv-modal-anim')) {
+                const s = document.createElement('style');
+                s.id = 'liv-modal-anim';
+                s.textContent = `
+                    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+                    .liv-option{transition:border .15s,background .15s;}
+                    .liv-select{width:100%;padding:10px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;appearance:none;cursor:pointer;margin-top:4px;}
+                    .liv-select option{background:#1a1a2e;color:white;}
+                    .liv-select:disabled{opacity:0.4;cursor:not-allowed;}
+                    .liv-tarif-preview{background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);border-radius:10px;padding:11px 14px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;}
+                    .liv-loading{text-align:center;padding:10px;font-size:12px;opacity:0.5;}
+                `;
+                document.head.appendChild(s);
+            }
+
             let modal = document.getElementById('modaleLivraison');
             if (!modal) {
                 modal = document.createElement('div');
                 modal.id = 'modaleLivraison';
-                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
                 modal.onclick = e => { if (e.target === modal) fermerModeLivraison(); };
                 document.body.appendChild(modal);
             }
-            const modeActuel = document.getElementById('selected-shipping-mode')?.value || 'poste';
+
+            const modeActuel  = window._modeEnCours || document.getElementById('selected-shipping-mode')?.value || 'poste';
+            const savedCode   = window._savedPostePays || 'CI';
+            const savedVille  = posteVille || '';
+
+            // Options pays groupées par zone
+            const zoneLabels = { ci: "Côte d'Ivoire", uemoa: 'Zone UEMOA', afrique: 'Afrique', europe: 'Europe', international: 'International' };
+            const optsPays = Object.entries(PAYS_PAR_ZONE).map(([zone, liste]) =>
+                `<optgroup label="── ${zoneLabels[zone]} ──" style="color:#d4af37;background:#111;">` +
+                liste.map(p => `<option value="${p.code}" ${p.code === savedCode ? 'selected' : ''}>${p.nom}</option>`).join('') +
+                `</optgroup>`
+            ).join('');
+
+            const optStyle = m => m === modeActuel
+                ? 'border:2px solid rgba(212,175,55,0.6);background:rgba(212,175,55,0.08);'
+                : 'border:2px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);';
+
             modal.innerHTML = `
-                <div style="background:#1a1a2e;border-radius:24px 24px 0 0;width:100%;max-width:520px;padding:28px 24px 36px;border-top:1px solid rgba(212,175,55,0.25);animation:slideUp 0.3s ease;">
+                <div style="background:#1a1a2e;border-radius:24px 24px 0 0;width:100%;max-width:520px;padding:28px 24px 36px;border-top:1px solid rgba(212,175,55,0.25);animation:slideUp 0.3s ease;max-height:92vh;overflow-y:auto;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;">
                         <h3 style="margin:0;font-size:18px;font-weight:700;color:white;">🚚 Mode de livraison</h3>
-                        <button onclick="fermerModeLivraison()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:30px;height:30px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
+                        <button onclick="fermerModeLivraison()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:32px;height:32px;border-radius:50%;font-size:18px;cursor:pointer;">×</button>
                     </div>
 
                     <!-- Option La Poste -->
@@ -3905,89 +4279,260 @@ window.enterGallery = function enterGallery() {
                                 <div id="ville-loading" style="display:none;font-size:11px;color:#90caf9;margin-top:4px;">⏳ Chargement des villes…</div>
                             </div>
                         </div>
-                        <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;">Calculé selon poids</span>
                     </div>
 
-                    <!-- Option Transport -->
-                    <div class="liv-option ${modeActuel === 'transport' ? 'liv-active' : ''}" onclick="selectionnerModeLivraison('transport', this)" style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;margin-bottom:10px;cursor:pointer;border:2px solid ${modeActuel === 'transport' ? 'rgba(212,175,55,0.6)' : 'rgba(255,255,255,0.1)'};background:${modeActuel === 'transport' ? 'rgba(212,175,55,0.1)' : 'rgba(255,255,255,0.04)'};">
+                    <!-- ══ TRANSPORT EN COMMUN ══ -->
+                    <div class="liv-option" id="opt-transport" onclick="selectionnerModeLivraison('transport',this)"
+                        style="${optStyle('transport')}display:flex;align-items:center;gap:14px;border-radius:14px;margin-bottom:10px;padding:16px;cursor:pointer;">
                         <span style="font-size:26px;">🚌</span>
                         <div style="flex:1;">
                             <div style="font-weight:700;color:white;font-size:15px;">Transport en commun</div>
                             <div style="font-size:12px;opacity:0.6;margin-top:2px;">4–7 jours · Récupération en gare routière</div>
-                            <div id="transport-detail-modal" style="margin-top:${modeActuel === 'transport' ? '12px' : '0'};display:${modeActuel === 'transport' ? 'block' : 'none'};">
-                                <input id="modal-transport-cie" type="text" placeholder="Compagnie (ex: Océan, UTB, STIF, SOTRA…)" value="${transportCompagnie || ''}"
-                                    style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;" onclick="event.stopPropagation()">
+                            <div id="transport-detail-modal" style="display:${modeActuel==='transport'?'block':'none'};margin-top:12px;" onclick="event.stopPropagation()">
+                                <input id="modal-transport-cie" type="text" placeholder="Compagnie (ex: Océan, UTB, STIF…)" value="${transportCompagnie||''}"
+                                    class="liv-select" style="margin-top:0;">
                             </div>
                         </div>
                         <span style="font-weight:700;color:var(--ocre,#d4af37);white-space:nowrap;">10% du prix</span>
                     </div>
 
-                    <!-- Option Main propre -->
-                    <div class="liv-option ${modeActuel === 'mainpropre' ? 'liv-active' : ''}" onclick="selectionnerModeLivraison('mainpropre', this)" style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;margin-bottom:22px;cursor:pointer;border:2px solid ${modeActuel === 'mainpropre' ? 'rgba(212,175,55,0.6)' : 'rgba(255,255,255,0.1)'};background:${modeActuel === 'mainpropre' ? 'rgba(212,175,55,0.1)' : 'rgba(255,255,255,0.04)'};">
+                    <!-- ══ MAIN PROPRE ══ -->
+                    <div class="liv-option" id="opt-mainpropre" onclick="selectionnerModeLivraison('mainpropre',this)"
+                        style="${optStyle('mainpropre')}display:flex;align-items:center;gap:14px;border-radius:14px;margin-bottom:22px;padding:16px;cursor:pointer;">
                         <span style="font-size:26px;">🤝</span>
                         <div style="flex:1;">
                             <div style="font-weight:700;color:white;font-size:15px;">Main propre</div>
                             <div style="font-size:12px;opacity:0.6;margin-top:2px;">Sur rendez-vous · Lieu public uniquement</div>
-                            <div id="mainpropre-detail-modal" style="margin-top:${modeActuel === 'mainpropre' ? '12px' : '0'};display:${modeActuel === 'mainpropre' ? 'block' : 'none'};">
-                                <input id="modal-mainpropre-lieu" type="text" placeholder="Lieu public (ex: Marché Cocody, Mall Playtime…)" value="${mainPropreLieu || ''}"
-                                    style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;" onclick="event.stopPropagation()">
+                            <div id="mainpropre-detail-modal" style="display:${modeActuel==='mainpropre'?'block':'none'};margin-top:12px;" onclick="event.stopPropagation()">
+                                <input id="modal-mainpropre-lieu" type="text" placeholder="Lieu public (ex: Marché Cocody, Mall Playtime…)"
+                                    value="${mainPropreLieu||''}" class="liv-select" style="margin-top:0;">
                                 <p style="font-size:11px;color:#f59e0b;margin:6px 0 0;">⚠️ Lieu isolé ou privé = refus de livraison</p>
                             </div>
                         </div>
                         <span style="font-weight:700;color:#4caf50;white-space:nowrap;">Gratuit</span>
                     </div>
 
-                    <button onclick="confirmerModeLivraison()"
+                    <button id="btn-confirmer-livraison" onclick="confirmerModeLivraison()"
                         style="width:100%;padding:15px;background:linear-gradient(135deg,var(--terre-cuite,#c46a4b),var(--terre-sombre,#8b3a20));border:none;border-radius:14px;color:white;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:0.5px;">
                         ✓ Confirmer ce mode
                     </button>
                 </div>
             `;
             modal.style.display = 'flex';
-            // Ajouter animation CSS si pas encore présente
-            if (!document.getElementById('liv-modal-anim')) {
-                const s = document.createElement('style');
-                s.id = 'liv-modal-anim';
-                s.textContent = '@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}';
-                document.head.appendChild(s);
+            window._modeEnCours = modeActuel;
+
+            // Charger les villes du pays sauvegardé au démarrage
+            if (modeActuel === 'poste') {
+                livOnPaysChange(savedCode, savedVille);
             }
         }
 
+        // ── Changement de pays : charger les villes dynamiquement ─────────
+        async function livOnPaysChange(codeISO, villePreselectionnee) {
+            window._savedPostePays = codeISO;
+            const sel = document.getElementById('modal-ville-select');
+            if (!sel) return;
+
+            // Afficher état chargement
+            sel.innerHTML = '<option value="">⏳ Chargement des villes…</option>';
+            sel.disabled = true;
+            document.getElementById('poste-tarif-preview').style.display = 'none';
+
+            const villes = await chargerVillesPays(codeISO);
+
+            if (villes.length === 0) {
+                // Aucune ville disponible pour ce pays — pas de champ libre
+                sel.innerHTML = '<option value="">⚠️ Villes indisponibles — réessayez</option>';
+                sel.disabled = true;
+                // Toast d'info
+                showToast('⚠️ Impossible de charger les villes pour ce pays. Vérifiez votre connexion.');
+                return;
+            }
+
+            // Remplir le sélecteur
+            const vPresel = villePreselectionnee || '';
+            sel.innerHTML = '<option value="">— Choisir une ville —</option>' +
+                villes.map(v => `<option value="${v}" ${v === vPresel ? 'selected' : ''}>${v}</option>`).join('');
+            sel.disabled = false;
+
+            // Si une ville était présélectionnée, calculer le tarif immédiatement
+            if (vPresel && villes.includes(vPresel)) {
+                livOnVilleChange(vPresel);
+            }
+        }
+
+        // ── Changement de ville : recalculer le tarif ─────────────────────
+        function livOnVilleChange(ville) {
+            _savePosteVille(ville);
+            if (!ville) {
+                document.getElementById('poste-tarif-preview').style.display = 'none';
+                return;
+            }
+            const codeISODest = window._savedPostePays || 'CI';
+            const paysNomDest = TOUS_PAYS.find(p => p.code === codeISODest)?.nom || ville;
+            const destStr     = paysNomDest + ' ' + ville;
+
+            // ✅ Calcul multi-origines : chaque œuvre utilise SON pays de provenance
+            const items = window.cartItems || [];
+            const poidsTotal = items.reduce((s, i) => s + ((i.weight_g || 500) * (i.quantity || 1)), 0);
+            const calcul = calculerFraisPosteMultiOrigines(items, destStr);
+
+            window._posteCalcDetail = {
+                poidsTotal,
+                zone: calcul.zonePrincipale || 'ci',
+                dest: ville + ', ' + paysNomDest,
+                cout: calcul.cout,
+                details: calcul.details
+            };
+
+            const preview = document.getElementById('poste-tarif-preview');
+            const detTxt  = document.getElementById('tarif-detail-txt');
+            const montant = document.getElementById('tarif-montant');
+            if (preview && detTxt && montant) {
+                const kg = (poidsTotal / 1000).toFixed(2).replace('.', ',');
+                // Afficher les provenances multiples si besoin
+                const originesEtrangeres = (calcul.details || [])
+                    .filter(d => d.orig && d.orig !== "cote d'ivoire")
+                    .map(d => `<span style="opacity:0.55;font-size:11px;">🌍 ${d.title} : ${d.orig} → ${paysNomDest}</span>`)
+                    .join('<br>');
+                detTxt.innerHTML = `Zone <strong style="color:#d4af37">${nomZonePostale(calcul.zonePrincipale||'ci')}</strong> · ${kg} kg`
+                    + (originesEtrangeres ? '<br>' + originesEtrangeres : '')
+                    + `<br><span style="opacity:0.6">${ville}</span>`;
+                montant.textContent = formatPrice(calcul.cout);
+                preview.style.display = 'flex';
+            }
+        }
+
+        // ── Mise à jour tarif (alias pour compatibilité) ─────────────────
+        function livMettreAJourTarif(codeISO, ville) { livOnVilleChange(ville); }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // FORMULAIRE OEUVRE — Chargement dynamique des villes selon le pays
+        // Accessible globalement (appelé depuis onchange dans 2-pages-content.html)
+        // ═══════════════════════════════════════════════════════════════════
+        const ARTWORK_PAYS_ISO = {
+            "Côte d'Ivoire":"CI","Sénégal":"SN","Mali":"ML","Burkina Faso":"BF",
+            "Niger":"NE","Bénin":"BJ","Togo":"TG","Guinée-Bissau":"GW",
+            "Ghana":"GH","Nigéria":"NG","Cameroun":"CM","Guinée":"GN",
+            "Libéria":"LR","Sierra Leone":"SL","Mauritanie":"MR","Maroc":"MA",
+            "Algérie":"DZ","Tunisie":"TN","Libye":"LY","Égypte":"EG",
+            "Soudan":"SD","Éthiopie":"ET","Kenya":"KE","Tanzanie":"TZ",
+            "Ouganda":"UG","Rwanda":"RW","RD Congo":"CD","Congo Brazzaville":"CG",
+            "Gabon":"GA","Tchad":"TD","Centrafrique":"CF","Angola":"AO",
+            "Mozambique":"MZ","Madagascar":"MG","Afrique du Sud":"ZA","Namibie":"NA",
+            "Zimbabwe":"ZW","Zambie":"ZM","Cap-Vert":"CV","Gambie":"GM",
+            "Djibouti":"DJ","Somalie":"SO",
+            "France":"FR","Belgique":"BE","Suisse":"CH","Luxembourg":"LU",
+            "Allemagne":"DE","Autriche":"AT","Pays-Bas":"NL","Italie":"IT",
+            "Espagne":"ES","Portugal":"PT","Royaume-Uni":"GB","Irlande":"IE",
+            "Danemark":"DK","Suède":"SE","Norvège":"NO","Finlande":"FI",
+            "Pologne":"PL","Russie":"RU","Ukraine":"UA","Roumanie":"RO",
+            "Grèce":"GR","Turquie":"TR","Hongrie":"HU","Serbie":"RS","Croatie":"HR",
+            "États-Unis":"US","Canada":"CA","Brésil":"BR","Argentine":"AR",
+            "Mexique":"MX","Chine":"CN","Japon":"JP","Corée du Sud":"KR",
+            "Inde":"IN","Arabie Saoudite":"SA","Émirats Arabes Unis":"AE",
+            "Qatar":"QA","Australie":"AU","Nouvelle-Zélande":"NZ","Singapour":"SG",
+            "Thaïlande":"TH","Vietnam":"VN","Indonésie":"ID","Malaisie":"MY",
+            "Philippines":"PH","Israël":"IL","Liban":"LB","Iran":"IR","Pakistan":"PK",
+            "Cuba":"CU","Haïti":"HT","Martinique":"MQ","Guadeloupe":"GP"
+        };
+        const _artworkVillesCache = {};
+
+        window.artworkOnPaysChange = async function(valPays) {
+            const citySelect = document.getElementById('artwork-city');
+            const hint       = document.getElementById('artwork-city-hint');
+            if (!citySelect) return;
+
+            // Pays non choisi → réinitialiser
+            if (!valPays) {
+                citySelect.innerHTML = "<option value=\"\">⬅️ Choisir le pays d'abord</option>";
+                citySelect.disabled = true;
+                citySelect.style.opacity = '0.5';
+                return;
+            }
+
+            // État chargement
+            citySelect.innerHTML = "<option value=''>⏳ Chargement des villes…</option>";
+            citySelect.disabled = true;
+            citySelect.style.opacity = '0.6';
+
+            const iso2 = ARTWORK_PAYS_ISO[valPays];
+            if (!iso2) {
+                citySelect.innerHTML = "<option value=''>— Pays non supporté —</option>";
+                return;
+            }
+
+            // Cache
+            let villes = _artworkVillesCache[iso2];
+            if (!villes) {
+                try {
+                    const resp = await fetch('https://countriesnow.space/api/v0.1/countries/cities', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ iso2 })
+                    });
+                    const data = await resp.json();
+                    villes = (data?.data || []).sort();
+                    _artworkVillesCache[iso2] = villes;
+                } catch(e) {
+                    citySelect.innerHTML = "<option value=''>⚠️ Erreur réseau — réessayez</option>";
+                    citySelect.disabled = true;
+                    if (hint) hint.textContent = 'Vérifiez votre connexion internet';
+                    return;
+                }
+            }
+
+            if (!villes.length) {
+                citySelect.innerHTML = "<option value=''>— Aucune ville disponible —</option>";
+                citySelect.disabled = true;
+                return;
+            }
+
+            // Remplir le select
+            citySelect.innerHTML = "<option value=''>— Choisir une ville —</option>" +
+                villes.map(v => `<option value="${v}">${v}</option>`).join('');
+            citySelect.disabled = false;
+            citySelect.style.opacity = '1';
+            if (hint) hint.textContent = "Ville où se trouve l'œuvre";
+        };
+
         if (typeof window._modeEnCours === 'undefined') window._modeEnCours = null;
-        var _modeEnCours = window._modeEnCours;
 
         function selectionnerModeLivraison(mode, el) {
-            _modeEnCours = mode;
-            // Mettre à jour le style de toutes les options
-            document.querySelectorAll('.liv-option').forEach(o => {
-                o.style.border = '2px solid rgba(255,255,255,0.1)';
-                o.style.background = 'rgba(255,255,255,0.04)';
+            window._modeEnCours = mode;
+            // Style des options
+            ['poste','transport','mainpropre'].forEach(m => {
+                const opt = document.getElementById('opt-' + m);
+                if (opt) {
+                    opt.style.border    = m === mode ? '2px solid rgba(212,175,55,0.6)' : '2px solid rgba(255,255,255,0.1)';
+                    opt.style.background = m === mode ? 'rgba(212,175,55,0.08)' : 'rgba(255,255,255,0.04)';
+                }
+                const det = document.getElementById(m + '-detail-modal');
+                if (det) det.style.display = m === mode ? 'block' : 'none';
             });
-            el.style.border = '2px solid rgba(212,175,55,0.6)';
-            el.style.background = 'rgba(212,175,55,0.1)';
-
-            // Afficher/masquer les détails
-            ['poste', 'transport', 'mainpropre'].forEach(m => {
-                const d = document.getElementById(m + '-detail-modal');
-                if (d) { d.style.display = m === mode ? 'block' : 'none'; d.style.marginTop = m === mode ? '12px' : '0'; }
-            });
-
-            // Focus sur l'input correspondant
-            setTimeout(() => {
-                const inputs = { poste: 'modal-poste-ville', transport: 'modal-transport-cie', mainpropre: 'modal-mainpropre-lieu' };
-                document.getElementById(inputs[mode])?.focus();
-            }, 100);
+            // Afficher le tarif poste si on bascule sur poste
+            if (mode === 'poste') {
+                const pays = window._savedPostePays || 'ci';
+                const ville = posteVille || '';
+                livMettreAJourTarif(pays, ville);
+                document.getElementById('poste-tarif-preview').style.display = 'flex';
+            }
         }
 
         function confirmerModeLivraison() {
-            const mode = _modeEnCours || document.getElementById('selected-shipping-mode')?.value || 'poste';
+            const mode = window._modeEnCours || document.getElementById('selected-shipping-mode')?.value || 'poste';
             const icons = { poste: '📮', transport: '🚌', mainpropre: '🤝' };
 
-            // Récupérer la valeur de l'input associé
+            // ── Validation et sauvegarde ──────────────────────────────────
             if (mode === 'poste') {
-                const val = document.getElementById('modal-poste-ville')?.value.trim();
-                if (!val) { showToast('⚠️ Indiquez une ville pour La Poste'); return; }
-                _savePosteVille(val);
+                // Prendre la valeur du select ou du champ libre
+                const selVille   = document.getElementById('modal-ville-select')?.value.trim();
+                const libreVille = document.getElementById('modal-poste-ville-libre')?.value.trim();
+                const destVille  = selVille || libreVille || '';
+                if (!destVille) { showToast('⚠️ Choisissez un pays et une ville de destination'); return; }
+                _savePosteVille(destVille);
+                const pays = window._savedPostePays || 'ci';
+                livMettreAJourTarif(pays, destVille);
             } else if (mode === 'transport') {
                 const val = document.getElementById('modal-transport-cie')?.value.trim();
                 if (!val) { showToast('⚠️ Indiquez la compagnie de transport'); return; }
@@ -3998,9 +4543,8 @@ window.enterGallery = function enterGallery() {
                 _saveMainPropreLieu(val);
             }
 
-            // ── Calcul du coût La Poste basé sur le poids réel du panier ──
-            let cost;
-            let priceLabel;
+            // ── Calcul du coût ────────────────────────────────────────────
+            let cost, priceLabel;
             if (mode === 'poste') {
                 // ✅ Récupérer pays + ville depuis les selects de la modale
                 const selectPays  = document.getElementById('modal-poste-pays');
@@ -4034,21 +4578,20 @@ window.enterGallery = function enterGallery() {
                 };
                 priceLabel = formatPrice(cost);
             } else if (mode === 'transport') {
-                const transportSubtotal = cartItems.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
-                cost = Math.round(transportSubtotal * 0.10);
-                priceLabel = formatPrice(cost) + ' (10%)';
+                const sub     = (window.cartItems || []).reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
+                cost          = Math.round(sub * 0.10);
+                priceLabel    = formatPrice(cost) + ' (10%)';
             } else {
-                cost = 0;
-                priceLabel = 'Gratuit';
+                cost          = 0;
+                priceLabel    = 'Gratuit';
             }
 
-            // Mettre à jour les champs cachés dans le panier
+            // ── Mise à jour du panier ─────────────────────────────────────
             const modeInput = document.getElementById('selected-shipping-mode');
             const costInput = document.getElementById('selected-shipping-cost');
             if (modeInput) modeInput.value = mode;
             if (costInput) costInput.value = cost;
 
-            // Mettre à jour le bouton résumé
             const labels = {
                 poste:      '📮 La Poste · ' + (posteVille || ''),
                 transport:  '🚌 Transport · ' + (transportCompagnie || ''),
@@ -4056,23 +4599,21 @@ window.enterGallery = function enterGallery() {
             };
             const btn = document.getElementById('shipping-mode-btn');
             if (btn) {
-                document.getElementById('shipping-mode-icon').textContent = icons[mode];
+                document.getElementById('shipping-mode-icon').textContent  = icons[mode];
                 document.getElementById('shipping-mode-label').textContent = labels[mode];
                 document.getElementById('shipping-mode-price').textContent = priceLabel;
             }
 
-            // Afficher le détail du calcul postal si disponible
+            // ── Toast de confirmation ─────────────────────────────────────
             if (mode === 'poste' && window._posteCalcDetail) {
-                const d = window._posteCalcDetail;
-                const kg = (d.poidsTotal / 1000).toFixed(2).replace('.', ',');
-                showToast(`📮 ${kg} kg · Zone ${nomZonePostale(d.zone)} → ${formatPrice(d.cout)}`);
+                const det = window._posteCalcDetail;
+                const kg  = (det.poidsTotal / 1000).toFixed(2).replace('.', ',');
+                showToast(`📮 ${kg} kg · Zone ${nomZonePostale(det.zone)} → ${formatPrice(det.cout)}`);
             } else {
                 showToast('✅ Mode de livraison enregistré !');
             }
 
-            // Afficher le bloc d'explication dans le panier
             _afficherDetailPortPoste();
-
             updateCartTotal();
             fermerModeLivraison();
         }
@@ -4191,7 +4732,6 @@ window.enterGallery = function enterGallery() {
         //    zoneDirecte (3e arg) prioritaire → sinon déduite depuis destination texte
         function calculerFraisPoste(poidsGrammes, destination, zoneDirecte) {
             const bareme = {
-                //          [max_g,  ci,    uemoa,  afrique,  europe,  intl ]
                 paliers: [
                     [  250,   1000,   2500,   4000,   7500,  10000],
                     [  500,   1500,   3500,   6000,  11000,  15000],
@@ -4204,7 +4744,7 @@ window.enterGallery = function enterGallery() {
                     [20000,  17000,  36000,  60000, 108000, 145000],
                     [30000,  22000,  46000,  76000, 138000, 185000],
                 ],
-                zoneIndex: { ci: 1, uemoa: 2, afrique: 3, europe: 4, international: 5 }
+                zoneIndex: { ci:1, uemoa:2, afrique:3, europe:4, international:5 }
             };
             // ✅ zoneDirecte prioritaire (calculée depuis pays artiste → pays client)
             const zone = zoneDirecte || detecterZonePostale(destination || '');
@@ -4412,7 +4952,14 @@ window.enterGallery = function enterGallery() {
         }
 
         function nomZonePostale(zone) {
-            return { ci: "Côte d'Ivoire", uemoa: "Zone UEMOA", afrique: "Afrique", europe: "Europe", international: "International" }[zone] || zone;
+            return {
+                domestique:    'Livraison nationale',
+                ci:            "Côte d'Ivoire",
+                uemoa:         'Zone UEMOA',
+                afrique:       'Afrique',
+                europe:        'Europe',
+                international: 'International'
+            }[zone] || zone || '?';
         }
         function updateCartTotal() {
             const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -6927,14 +7474,22 @@ window.enterGallery = function enterGallery() {
                     const result = await response.json();
                     if (result.success && result.data && result.data.length > 0) {
                         allProducts = result.data.map(art => ({
-                            id: art.id,
-                            title: art.title,
-                            artist: art.artist_name,
-                            category: art.category,
-                            price: art.price,
-                            image_url: art.image_url,
-                            photos: art.photos || [art.image_url],
-                            artistAvatar: art.artist_avatar || '👨🏿‍🎨'
+                            id:             art.id,
+                            title:          art.title,
+                            artist:         art.artist_name,
+                            artist_name:    art.artist_name,
+                            artist_id:      art.artist_id,
+                            category:       art.category,
+                            price:          art.price,
+                            image_url:      art.image_url,
+                            photos:         art.photos || [art.image_url],
+                            artistAvatar:   art.artist_avatar || '👨🏿‍🎨',
+                            // ✅ Pays et ville de l'oeuvre — indispensables pour le calcul des frais
+                            artist_country: art.artist_country || art.country || null,
+                            country:        art.country || art.artist_country || null,
+                            city:           art.city || null,
+                            weight_g:       art.weight_g || art.poids || 500,
+                            is_sold:        art.is_sold || false,
                         }));
                     }
                 }
@@ -9924,8 +10479,38 @@ window.enterGallery = function enterGallery() {
                     // Pays / Ville
                     const countryEl = document.getElementById('artwork-country');
                     const cityEl    = document.getElementById('artwork-city');
-                    if (countryEl) countryEl.value = a.country || a.artistCountry || '';
-                    if (cityEl)    cityEl.value    = a.city    || '';
+                    // Pré-sélectionner le pays dans le <select>
+                    if (countryEl) {
+                        const paysVal = a.country || a.artist_country || a.artistCountry || '';
+                        countryEl.value = paysVal;
+                        // Si la valeur n'est pas dans la liste, on la force quand même
+                        if (countryEl.value !== paysVal && paysVal) {
+                            // Chercher une option correspondante (insensible à la casse)
+                            const opts = Array.from(countryEl.options);
+                            const match = opts.find(o => o.value.toLowerCase() === paysVal.toLowerCase());
+                            if (match) countryEl.value = match.value;
+                        }
+                    }
+                    // Charger les villes du pays sélectionné, puis sélectionner la ville sauvegardée
+                    if (typeof window.artworkOnPaysChange === 'function') {
+                        const paysVal = countryEl?.value || '';
+                        const villeVal = a.city || '';
+                        if (paysVal) {
+                            window.artworkOnPaysChange(paysVal).then(() => {
+                                if (cityEl && villeVal) {
+                                    cityEl.value = villeVal;
+                                    // Si pas dans la liste, chercher insensible à la casse
+                                    if (!cityEl.value) {
+                                        const match = Array.from(cityEl.options).find(o =>
+                                            o.value.toLowerCase() === villeVal.toLowerCase());
+                                        if (match) cityEl.value = match.value;
+                                    }
+                                }
+                            });
+                        }
+                    } else if (cityEl) {
+                        cityEl.value = a.city || '';
+                    }
 
                     
                     // Technique
@@ -9955,8 +10540,9 @@ window.enterGallery = function enterGallery() {
 
                 const countryEl = document.getElementById('artwork-country');
                 const cityEl    = document.getElementById('artwork-city');
-                if (countryEl) countryEl.value = '';
-                if (cityEl)    cityEl.value    = '';
+                // artwork-country est maintenant un <select>
+                if (countryEl) { countryEl.value = ''; countryEl.selectedIndex = 0; }
+                if (cityEl)    cityEl.value = '';
 
                 document.getElementById('artwork-technique').value   = '';
                 document.getElementById('artwork-technique-custom').value = '';
@@ -10011,8 +10597,21 @@ window.enterGallery = function enterGallery() {
             const weight_g = parseInt(document.getElementById('artwork-weight')?.value) || 0;
 
             // Get country / city
+            // artwork-country = <select> → .value retourne l'option sélectionnée
             const artworkCountry = (document.getElementById('artwork-country')?.value || '').trim();
             const artworkCity    = (document.getElementById('artwork-city')?.value    || '').trim();
+            // Vérification : pays ET ville obligatoires pour le calcul des frais
+            if (!artworkCountry) {
+                showToast('⚠️ Sélectionnez le pays où se trouve l\'œuvre');
+                document.getElementById('artwork-country')?.focus();
+                return;
+            }
+            const artworkCityVal = (document.getElementById('artwork-city')?.value || '').trim();
+            if (!artworkCityVal) {
+                showToast('⚠️ Sélectionnez la ville où se trouve l\'œuvre');
+                document.getElementById('artwork-city')?.focus();
+                return;
+            }
             
             // Get technique
             const technique = document.getElementById('artwork-technique').value;
@@ -10194,7 +10793,7 @@ window.enterGallery = function enterGallery() {
                 if (_artworksLoading) {
                     showSkeletonLoader('artworksGrid', 6, 'grid');
                 } else {
-                    c.innerHTML = '<p style="text-align:center;opacity:0.7;grid-column:1/-1;padding:40px;">Aucune œuvre. Commencez à créer votre portfolio ! 🎨</p>';
+                    c.innerHTML = "<p style=\"text-align:center;opacity:0.7;grid-column:1/-1;padding:40px;\">Aucune œuvre. Commencez à créer votre portfolio ! 🎨</p>";
                 }
                 return;
             }
@@ -11823,7 +12422,7 @@ window.enterGallery = function enterGallery() {
         }
         grille.innerHTML = '';
         if (oeuvres.length === 0) {
-            grille.innerHTML = '<p style="text-align:center;width:100%;opacity:0.7;padding:40px;">Aucune œuvre dans cette catégorie.</p>';
+            grille.innerHTML = "<p style=\"text-align:center;width:100%;opacity:0.7;padding:40px;\">Aucune œuvre dans cette catégorie.</p>";
             return;
         }
         const PAGE_SIZE=16; let currentPage=0;
@@ -13037,6 +13636,8 @@ window.enterGallery = function enterGallery() {
             const montantText = row?.cells?.[3]?.textContent?.trim()?.split(' ')[0] || '?';
             ouvrirModalePaiement(orderId, artistName, montantText);
         }
+
+
 
 
 

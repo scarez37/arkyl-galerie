@@ -628,12 +628,123 @@
                     <label>🌍 Localisation de l'œuvre</label>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                         <div>
-                            <input type="text" id="artwork-country" placeholder="Pays (ex : Côte d'Ivoire)" style="width: 100%;">
-                            <p style="font-size: 11px; opacity: 0.6; margin-top: 4px;">Pays</p>
+                            <select id="artwork-country" style="width:100%;padding:10px 12px;background:#1a1a2e;border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;cursor:pointer;">
+                                <option value="">🌍 Pays de l'œuvre…</option>
+                                <optgroup label="── Côte d'Ivoire ──">
+                                    <option value="Côte d'Ivoire">🇨🇮 Côte d'Ivoire</option>
+                                </optgroup>
+                                <optgroup label="── Zone UEMOA ──">
+                                    <option value="Sénégal">🇸🇳 Sénégal</option>
+                                    <option value="Mali">🇲🇱 Mali</option>
+                                    <option value="Burkina Faso">🇧🇫 Burkina Faso</option>
+                                    <option value="Niger">🇳🇪 Niger</option>
+                                    <option value="Bénin">🇧🇯 Bénin</option>
+                                    <option value="Togo">🇹🇬 Togo</option>
+                                    <option value="Guinée-Bissau">🇬🇼 Guinée-Bissau</option>
+                                </optgroup>
+                                <optgroup label="── Afrique ──">
+                                    <option value="Ghana">🇬🇭 Ghana</option>
+                                    <option value="Nigéria">🇳🇬 Nigéria</option>
+                                    <option value="Cameroun">🇨🇲 Cameroun</option>
+                                    <option value="Guinée">🇬🇳 Guinée</option>
+                                    <option value="Libéria">🇱🇷 Libéria</option>
+                                    <option value="Sierra Leone">🇸🇱 Sierra Leone</option>
+                                    <option value="Mauritanie">🇲🇷 Mauritanie</option>
+                                    <option value="Maroc">🇲🇦 Maroc</option>
+                                    <option value="Algérie">🇩🇿 Algérie</option>
+                                    <option value="Tunisie">🇹🇳 Tunisie</option>
+                                    <option value="Libye">🇱🇾 Libye</option>
+                                    <option value="Égypte">🇪🇬 Égypte</option>
+                                    <option value="Soudan">🇸🇩 Soudan</option>
+                                    <option value="Éthiopie">🇪🇹 Éthiopie</option>
+                                    <option value="Kenya">🇰🇪 Kenya</option>
+                                    <option value="Tanzanie">🇹🇿 Tanzanie</option>
+                                    <option value="Ouganda">🇺🇬 Ouganda</option>
+                                    <option value="Rwanda">🇷🇼 Rwanda</option>
+                                    <option value="RD Congo">🇨🇩 RD Congo</option>
+                                    <option value="Congo Brazzaville">🇨🇬 Congo Brazzaville</option>
+                                    <option value="Gabon">🇬🇦 Gabon</option>
+                                    <option value="Tchad">🇹🇩 Tchad</option>
+                                    <option value="Centrafrique">🇨🇫 Centrafrique</option>
+                                    <option value="Angola">🇦🇴 Angola</option>
+                                    <option value="Mozambique">🇲🇿 Mozambique</option>
+                                    <option value="Madagascar">🇲🇬 Madagascar</option>
+                                    <option value="Afrique du Sud">🇿🇦 Afrique du Sud</option>
+                                    <option value="Namibie">🇳🇦 Namibie</option>
+                                    <option value="Zimbabwe">🇿🇼 Zimbabwe</option>
+                                    <option value="Zambie">🇿🇲 Zambie</option>
+                                    <option value="Cap-Vert">🇨🇻 Cap-Vert</option>
+                                    <option value="Gambie">🇬🇲 Gambie</option>
+                                    <option value="Djibouti">🇩🇯 Djibouti</option>
+                                    <option value="Somalie">🇸🇴 Somalie</option>
+                                </optgroup>
+                                <optgroup label="── Europe ──">
+                                    <option value="France">🇫🇷 France</option>
+                                    <option value="Belgique">🇧🇪 Belgique</option>
+                                    <option value="Suisse">🇨🇭 Suisse</option>
+                                    <option value="Luxembourg">🇱🇺 Luxembourg</option>
+                                    <option value="Allemagne">🇩🇪 Allemagne</option>
+                                    <option value="Autriche">🇦🇹 Autriche</option>
+                                    <option value="Pays-Bas">🇳🇱 Pays-Bas</option>
+                                    <option value="Italie">🇮🇹 Italie</option>
+                                    <option value="Espagne">🇪🇸 Espagne</option>
+                                    <option value="Portugal">🇵🇹 Portugal</option>
+                                    <option value="Royaume-Uni">🇬🇧 Royaume-Uni</option>
+                                    <option value="Irlande">🇮🇪 Irlande</option>
+                                    <option value="Danemark">🇩🇰 Danemark</option>
+                                    <option value="Suède">🇸🇪 Suède</option>
+                                    <option value="Norvège">🇳🇴 Norvège</option>
+                                    <option value="Finlande">🇫🇮 Finlande</option>
+                                    <option value="Pologne">🇵🇱 Pologne</option>
+                                    <option value="Russie">🇷🇺 Russie</option>
+                                    <option value="Ukraine">🇺🇦 Ukraine</option>
+                                    <option value="Roumanie">🇷🇴 Roumanie</option>
+                                    <option value="Grèce">🇬🇷 Grèce</option>
+                                    <option value="Turquie">🇹🇷 Turquie</option>
+                                    <option value="Hongrie">🇭🇺 Hongrie</option>
+                                    <option value="Serbie">🇷🇸 Serbie</option>
+                                    <option value="Croatie">🇭🇷 Croatie</option>
+                                </optgroup>
+                                <optgroup label="── International ──">
+                                    <option value="États-Unis">🇺🇸 États-Unis</option>
+                                    <option value="Canada">🇨🇦 Canada</option>
+                                    <option value="Brésil">🇧🇷 Brésil</option>
+                                    <option value="Argentine">🇦🇷 Argentine</option>
+                                    <option value="Mexique">🇲🇽 Mexique</option>
+                                    <option value="Chine">🇨🇳 Chine</option>
+                                    <option value="Japon">🇯🇵 Japon</option>
+                                    <option value="Corée du Sud">🇰🇷 Corée du Sud</option>
+                                    <option value="Inde">🇮🇳 Inde</option>
+                                    <option value="Arabie Saoudite">🇸🇦 Arabie Saoudite</option>
+                                    <option value="Émirats Arabes Unis">🇦🇪 Émirats Arabes Unis</option>
+                                    <option value="Qatar">🇶🇦 Qatar</option>
+                                    <option value="Australie">🇦🇺 Australie</option>
+                                    <option value="Nouvelle-Zélande">🇳🇿 Nouvelle-Zélande</option>
+                                    <option value="Singapour">🇸🇬 Singapour</option>
+                                    <option value="Thaïlande">🇹🇭 Thaïlande</option>
+                                    <option value="Vietnam">🇻🇳 Vietnam</option>
+                                    <option value="Indonésie">🇮🇩 Indonésie</option>
+                                    <option value="Malaisie">🇲🇾 Malaisie</option>
+                                    <option value="Philippines">🇵🇭 Philippines</option>
+                                    <option value="Israël">🇮🇱 Israël</option>
+                                    <option value="Liban">🇱🇧 Liban</option>
+                                    <option value="Iran">🇮🇷 Iran</option>
+                                    <option value="Pakistan">🇵🇰 Pakistan</option>
+                                    <option value="Cuba">🇨🇺 Cuba</option>
+                                    <option value="Haïti">🇭🇹 Haïti</option>
+                                    <option value="Martinique">🇲🇶 Martinique</option>
+                                    <option value="Guadeloupe">🇬🇵 Guadeloupe</option>
+                                </optgroup>
+                            </select>
+                            <p style="font-size: 11px; opacity: 0.6; margin-top: 4px;">Pays où se trouve l'œuvre</p>
                         </div>
                         <div>
-                            <input type="text" id="artwork-city" placeholder="Ville (ex : Abidjan)" style="width: 100%;">
-                            <p style="font-size: 11px; opacity: 0.6; margin-top: 4px;">Ville</p>
+                            <select id="artwork-city" disabled
+                                style="width:100%;padding:10px 12px;background:#1a1a2e;border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;font-size:13px;box-sizing:border-box;cursor:pointer;opacity:0.5;"
+                                onchange="">
+                                <option value="">⬅️ Choisir le pays d'abord</option>
+                            </select>
+                            <p style="font-size: 11px; opacity: 0.6; margin-top: 4px;" id="artwork-city-hint">Ville où se trouve l'œuvre</p>
                         </div>
                     </div>
                 </div>
@@ -780,5 +891,110 @@
 <canvas id="golden-particles" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:-1;"></canvas>
 
 <!-- app.js chargé une seule fois dans 2-pages-content.html -->
+<script>
+// ── Chargement dynamique des villes selon le pays sélectionné ────────────────
+// Le select artwork-country change → on charge les villes via CountriesNow API
+
+// Table de correspondance nom pays → code ISO2 (pour l'API)
+const ARTWORK_PAYS_ISO = {
+    "Côte d'Ivoire": "CI", "Sénégal": "SN", "Mali": "ML", "Burkina Faso": "BF",
+    "Niger": "NE", "Bénin": "BJ", "Togo": "TG", "Guinée-Bissau": "GW",
+    "Ghana": "GH", "Nigéria": "NG", "Cameroun": "CM", "Guinée": "GN",
+    "Libéria": "LR", "Sierra Leone": "SL", "Mauritanie": "MR", "Maroc": "MA",
+    "Algérie": "DZ", "Tunisie": "TN", "Libye": "LY", "Égypte": "EG",
+    "Soudan": "SD", "Éthiopie": "ET", "Kenya": "KE", "Tanzanie": "TZ",
+    "Ouganda": "UG", "Rwanda": "RW", "RD Congo": "CD", "Congo Brazzaville": "CG",
+    "Gabon": "GA", "Tchad": "TD", "Centrafrique": "CF", "Angola": "AO",
+    "Mozambique": "MZ", "Madagascar": "MG", "Afrique du Sud": "ZA", "Namibie": "NA",
+    "Zimbabwe": "ZW", "Zambie": "ZM", "Cap-Vert": "CV", "Gambie": "GM",
+    "Djibouti": "DJ", "Somalie": "SO",
+    "France": "FR", "Belgique": "BE", "Suisse": "CH", "Luxembourg": "LU",
+    "Allemagne": "DE", "Autriche": "AT", "Pays-Bas": "NL", "Italie": "IT",
+    "Espagne": "ES", "Portugal": "PT", "Royaume-Uni": "GB", "Irlande": "IE",
+    "Danemark": "DK", "Suède": "SE", "Norvège": "NO", "Finlande": "FI",
+    "Pologne": "PL", "Russie": "RU", "Ukraine": "UA", "Roumanie": "RO",
+    "Grèce": "GR", "Turquie": "TR", "Hongrie": "HU", "Serbie": "RS", "Croatie": "HR",
+    "États-Unis": "US", "Canada": "CA", "Brésil": "BR", "Argentine": "AR",
+    "Mexique": "MX", "Chine": "CN", "Japon": "JP", "Corée du Sud": "KR",
+    "Inde": "IN", "Arabie Saoudite": "SA", "Émirats Arabes Unis": "AE",
+    "Qatar": "QA", "Australie": "AU", "Nouvelle-Zélande": "NZ", "Singapour": "SG",
+    "Thaïlande": "TH", "Vietnam": "VN", "Indonésie": "ID", "Malaisie": "MY",
+    "Philippines": "PH", "Israël": "IL", "Liban": "LB", "Iran": "IR", "Pakistan": "PK",
+    "Cuba": "CU", "Haïti": "HT", "Martinique": "MQ", "Guadeloupe": "GP"
+};
+
+const _artworkVillesCache = {};
+
+async function artworkOnPaysChange(valPays) {
+    const citySelect = document.getElementById('artwork-city');
+    const hint       = document.getElementById('artwork-city-hint');
+    if (!citySelect) return;
+
+    if (!valPays) {
+        citySelect.innerHTML = "<option value=\"\">⬅️ Choisir le pays d'abord</option>";
+        citySelect.disabled = true;
+        citySelect.style.opacity = '0.5';
+        return;
+    }
+
+    // Afficher état chargement
+    citySelect.innerHTML = "<option value=\"\">⏳ Chargement des villes…</option>";
+    citySelect.disabled = true;
+    citySelect.style.opacity = '0.6';
+
+    const iso2 = ARTWORK_PAYS_ISO[valPays];
+    if (!iso2) {
+        citySelect.innerHTML = "<option value=\"\">— Pas de villes disponibles —</option>";
+        if (hint) hint.textContent = 'Pays non supporté pour le chargement des villes';
+        return;
+    }
+
+    // Utiliser le cache si déjà chargé
+    let villes = _artworkVillesCache[iso2];
+    if (!villes) {
+        try {
+            const resp = await fetch('https://countriesnow.space/api/v0.1/countries/cities', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ iso2 })
+            });
+            const data = await resp.json();
+            villes = (data?.data || []).sort();
+            _artworkVillesCache[iso2] = villes;
+        } catch(e) {
+            citySelect.innerHTML = "<option value=\"\">⚠️ Erreur — vérifiez votre connexion</option>";
+            citySelect.disabled = true;
+            return;
+        }
+    }
+
+    if (!villes.length) {
+        citySelect.innerHTML = "<option value=\"\">— Aucune ville disponible —</option>";
+        citySelect.disabled = true;
+        return;
+    }
+
+    citySelect.innerHTML = "<option value=\"\">— Choisir une ville —</option>" +
+        villes.map(v => `<option value="${v}">${v}</option>`).join('');
+    citySelect.disabled = false;
+    citySelect.style.opacity = '1';
+    if (hint) hint.textContent = "Ville où se trouve l'œuvre";
+}
+
+// Attacher l'événement au select pays dès que le DOM est prêt
+document.addEventListener('DOMContentLoaded', function() {
+    // Le select peut être dans une modale — on utilise la délégation d'événements
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.id === 'artwork-country') {
+            artworkOnPaysChange(e.target.value);
+        }
+    });
+});
+
+// Exposer globalement pour que app.js puisse pré-remplir la ville à l'édition
+window.artworkOnPaysChange = artworkOnPaysChange;
+window.ARTWORK_PAYS_ISO    = ARTWORK_PAYS_ISO;
+</script>
+
 </body>
 </html>

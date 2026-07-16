@@ -2,9 +2,17 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <link rel="icon" href="data:,">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ARKYL">
+    <link rel="apple-touch-icon" href="/logo-512.png">
+    <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ARKYL - La Galerie d'Art Africain</title>
+    <!-- PWA: Meta tags pour iOS installabilité -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0a0a0a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Montserrat:wght@300;400;600;700&family=Poppins:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -75,7 +83,7 @@
                 <span class="slogan-line line2">L'art en <span class="slogan-highlight">mouvement</span></span>
             </div>
             <p class="intro-subtitle">La Galerie d'Art Africain</p>
-            <button class="enter-button" onclick="enterGallery()">
+            <button class="enter-button" onclick="if(typeof enterGallery === 'function') { enterGallery(); } else { console.warn('enterGallery function not yet loaded'); }">
                 <span class="button-text">Entrer dans la galerie </span>
             </button>
         </div>
@@ -545,6 +553,11 @@
             <button class="filter-btn" id="rafraichirBtn" onclick="rafraichir(event)" style="display:flex;align-items:center;gap:8px;background:rgba(76,175,80,0.2);border:1px solid rgba(76,175,80,0.4);">
                 <canvas id="crossCanvas" width="24" height="24" style="display:block;"></canvas>
                 Rafraîchir
+            </button>
+            <!-- Bouton installation PWA - visible uniquement si installable -->
+            <button id="pwaInstallBtn" onclick="installPWA()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="#d4af37" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Installer l'app
             </button>
             <div id="categoryBtns" inert style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:36px;">
                 <button class="filter-btn" data-cat="all" onclick="selectCategory(this)">Toutes</button>
@@ -2348,6 +2361,7 @@
 <canvas id="golden-particles" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:-1;"></canvas>
 
     <script src="app.js" defer></script>
+
 
 </body>
 </html>

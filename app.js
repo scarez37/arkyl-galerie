@@ -7,9 +7,12 @@ window.enterGallery = function enterGallery() {
                 mainContent.classList.add('visible');
                 if (typeof init === 'function') init();
                 // ✅ Initialiser PWA APRÈS que le DOM soit visible
-                if (typeof initPWASystem === 'function') {
-                    initPWASystem();
-                }
+                // Donner 300ms supplémentaires au navigateur pour finir le rendu
+                setTimeout(() => {
+                    if (typeof initPWASystem === 'function') {
+                        initPWASystem();
+                    }
+                }, 300);
             }, 1000);
         }; // FIX: semicolon ajouté — évite que le (function...) suivant soit interprété comme un appel
 

@@ -1,0 +1,48 @@
+{
+  "name": "ARKYL - La Galerie d'Art Africain",
+  "short_name": "ARKYL",
+  "description": "Découvrez et achetez des œuvres d'art africain authentiques",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#c9a84c",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "categories": ["shopping", "lifestyle", "art"],
+  "shortcuts": [
+    {
+      "name": "Galerie",
+      "short_name": "Galerie",
+      "description": "Voir toutes les œuvres",
+      "url": "/galerie_publique.html",
+      "icons": [{ "src": "/favicon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Connexion",
+      "short_name": "Connexion",
+      "description": "Se connecter à mon compte",
+      "url": "/connexion.html",
+      "icons": [{ "src": "/favicon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

@@ -10607,7 +10607,7 @@ window.enterGallery = function enterGallery() {
                 if (_artworksLoading) {
                     showSkeletonLoader('artworksGrid', 6, 'grid');
                 } else {
-                    c.innerHTML = '<p style="text-align:center;opacity:0.7;grid-column:1/-1;padding:40px;">Aucune œuvre. Commencez à créer votre portfolio ! 🎨</p>';
+                    c.innerHTML = "<p style=\"text-align:center;opacity:0.7;grid-column:1/-1;padding:40px;\">Aucune œuvre. Commencez à créer votre portfolio ! 🎨</p>";
                 }
                 return;
             }
@@ -12194,7 +12194,7 @@ window.enterGallery = function enterGallery() {
         }
         grille.innerHTML = '';
         if (oeuvres.length === 0) {
-            grille.innerHTML = '<p style="text-align:center;width:100%;opacity:0.7;padding:40px;">Aucune œuvre dans cette catégorie.</p>';
+            grille.innerHTML = "<p style=\"text-align:center;width:100%;opacity:0.7;padding:40px;\">Aucune œuvre dans cette catégorie.</p>";
             return;
         }
         const PAGE_SIZE=16; let currentPage=0;

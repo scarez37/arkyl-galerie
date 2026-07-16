@@ -551,6 +551,11 @@
                 <canvas id="crossCanvas" width="24" height="24" style="display:block;"></canvas>
                 Rafraîchir
             </button>
+            <!-- Bouton installation PWA - visible uniquement si installable -->
+            <button id="pwaInstallBtn" onclick="installPWA()" style="display:none;align-items:center;gap:8px;background:rgba(212,175,55,0.2);border:1px solid rgba(212,175,55,0.5);color:#d4af37;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:13px;font-family:inherit;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="#d4af37" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Installer l'app
+            </button>
             <div id="categoryBtns" inert style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:36px;">
                 <button class="filter-btn" data-cat="all" onclick="selectCategory(this)">Toutes</button>
                 <button class="filter-btn" data-cat="Peinture" onclick="selectCategory(this)">🖼️ Peintures</button>
@@ -2363,6 +2368,32 @@
           .catch(err => console.warn("[ARKYL] SW échec:", err));
       });
     }
+
+    // Gestion bouton installation PWA
+    let deferredPrompt = null;
+    const pwaBtn = document.getElementById("pwaInstallBtn");
+
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (pwaBtn) pwaBtn.style.display = "flex";
+    });
+
+    window.installPWA = async function() {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        if (pwaBtn) pwaBtn.style.display = "none";
+      }
+      deferredPrompt = null;
+    };
+
+    window.addEventListener("appinstalled", () => {
+      if (pwaBtn) pwaBtn.style.display = "none";
+      deferredPrompt = null;
+      console.log("[ARKYL] App installée avec succès !");
+    });
   </script>
 </body>
 </html>

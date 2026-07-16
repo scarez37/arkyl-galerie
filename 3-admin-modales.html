@@ -938,13 +938,13 @@ async function artworkOnPaysChange(valPays) {
     }
 
     // Afficher état chargement
-    citySelect.innerHTML = '<option value="">⏳ Chargement des villes…</option>';
+    citySelect.innerHTML = "<option value=\"\">⏳ Chargement des villes…</option>";
     citySelect.disabled = true;
     citySelect.style.opacity = '0.6';
 
     const iso2 = ARTWORK_PAYS_ISO[valPays];
     if (!iso2) {
-        citySelect.innerHTML = '<option value="">— Pas de villes disponibles —</option>';
+        citySelect.innerHTML = "<option value=\"\">— Pas de villes disponibles —</option>";
         if (hint) hint.textContent = 'Pays non supporté pour le chargement des villes';
         return;
     }
@@ -962,23 +962,23 @@ async function artworkOnPaysChange(valPays) {
             villes = (data?.data || []).sort();
             _artworkVillesCache[iso2] = villes;
         } catch(e) {
-            citySelect.innerHTML = '<option value="">⚠️ Erreur — vérifiez votre connexion</option>';
+            citySelect.innerHTML = "<option value=\"\">⚠️ Erreur — vérifiez votre connexion</option>";
             citySelect.disabled = true;
             return;
         }
     }
 
     if (!villes.length) {
-        citySelect.innerHTML = '<option value="">— Aucune ville disponible —</option>';
+        citySelect.innerHTML = "<option value=\"\">— Aucune ville disponible —</option>";
         citySelect.disabled = true;
         return;
     }
 
-    citySelect.innerHTML = '<option value="">— Choisir une ville —</option>' +
+    citySelect.innerHTML = "<option value=\"\">— Choisir une ville —</option>" +
         villes.map(v => `<option value="${v}">${v}</option>`).join('');
     citySelect.disabled = false;
     citySelect.style.opacity = '1';
-    if (hint) hint.textContent = 'Ville où se trouve l'œuvre';
+    if (hint) hint.textContent = "Ville où se trouve l'œuvre";
 }
 
 // Attacher l'événement au select pays dès que le DOM est prêt

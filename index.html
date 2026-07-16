@@ -55,6 +55,21 @@
             transform: scale(0.98);
         }
     </style>
+    <!-- ✅ enterGallery définie inline pour éviter "not defined" si app.js est encore en chargement -->
+    <script>
+        function enterGallery() {
+            var introPage = document.getElementById('intro-page');
+            var mainContent = document.getElementById('main-content');
+            if (!introPage || !mainContent) return;
+            introPage.classList.add('fade-out');
+            setTimeout(function() {
+                introPage.style.display = 'none';
+                mainContent.classList.add('visible');
+                // app.js prendra le relais une fois chargé
+                if (typeof init === 'function') init();
+            }, 1000);
+        }
+    </script>
 </head>
 <body>
     <div id="intro-page">
@@ -83,7 +98,7 @@
                 <span class="slogan-line line2">L'art en <span class="slogan-highlight">mouvement</span></span>
             </div>
             <p class="intro-subtitle">La Galerie d'Art Africain</p>
-            <button class="enter-button" onclick="if(typeof enterGallery === 'function') { enterGallery(); } else { console.warn('enterGallery function not yet loaded'); }">
+            <button class="enter-button" onclick="enterGallery()">
                 <span class="button-text">Entrer dans la galerie </span>
             </button>
         </div>

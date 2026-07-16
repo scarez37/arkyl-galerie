@@ -896,32 +896,7 @@
 // Le select artwork-country change → on charge les villes via CountriesNow API
 
 // Table de correspondance nom pays → code ISO2 (pour l'API)
-const ARTWORK_PAYS_ISO = {
-    "Côte d'Ivoire": "CI", "Sénégal": "SN", "Mali": "ML", "Burkina Faso": "BF",
-    "Niger": "NE", "Bénin": "BJ", "Togo": "TG", "Guinée-Bissau": "GW",
-    "Ghana": "GH", "Nigéria": "NG", "Cameroun": "CM", "Guinée": "GN",
-    "Libéria": "LR", "Sierra Leone": "SL", "Mauritanie": "MR", "Maroc": "MA",
-    "Algérie": "DZ", "Tunisie": "TN", "Libye": "LY", "Égypte": "EG",
-    "Soudan": "SD", "Éthiopie": "ET", "Kenya": "KE", "Tanzanie": "TZ",
-    "Ouganda": "UG", "Rwanda": "RW", "RD Congo": "CD", "Congo Brazzaville": "CG",
-    "Gabon": "GA", "Tchad": "TD", "Centrafrique": "CF", "Angola": "AO",
-    "Mozambique": "MZ", "Madagascar": "MG", "Afrique du Sud": "ZA", "Namibie": "NA",
-    "Zimbabwe": "ZW", "Zambie": "ZM", "Cap-Vert": "CV", "Gambie": "GM",
-    "Djibouti": "DJ", "Somalie": "SO",
-    "France": "FR", "Belgique": "BE", "Suisse": "CH", "Luxembourg": "LU",
-    "Allemagne": "DE", "Autriche": "AT", "Pays-Bas": "NL", "Italie": "IT",
-    "Espagne": "ES", "Portugal": "PT", "Royaume-Uni": "GB", "Irlande": "IE",
-    "Danemark": "DK", "Suède": "SE", "Norvège": "NO", "Finlande": "FI",
-    "Pologne": "PL", "Russie": "RU", "Ukraine": "UA", "Roumanie": "RO",
-    "Grèce": "GR", "Turquie": "TR", "Hongrie": "HU", "Serbie": "RS", "Croatie": "HR",
-    "États-Unis": "US", "Canada": "CA", "Brésil": "BR", "Argentine": "AR",
-    "Mexique": "MX", "Chine": "CN", "Japon": "JP", "Corée du Sud": "KR",
-    "Inde": "IN", "Arabie Saoudite": "SA", "Émirats Arabes Unis": "AE",
-    "Qatar": "QA", "Australie": "AU", "Nouvelle-Zélande": "NZ", "Singapour": "SG",
-    "Thaïlande": "TH", "Vietnam": "VN", "Indonésie": "ID", "Malaisie": "MY",
-    "Philippines": "PH", "Israël": "IL", "Liban": "LB", "Iran": "IR", "Pakistan": "PK",
-    "Cuba": "CU", "Haïti": "HT", "Martinique": "MQ", "Guadeloupe": "GP"
-};
+
 
 const _artworkVillesCache = {};
 
@@ -993,7 +968,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Exposer globalement pour que app.js puisse pré-remplir la ville à l'édition
 window.artworkOnPaysChange = artworkOnPaysChange;
-window.ARTWORK_PAYS_ISO    = ARTWORK_PAYS_ISO;
 </script>
 
 </body>

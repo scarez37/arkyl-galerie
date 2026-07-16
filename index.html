@@ -2377,6 +2377,20 @@
 
     <script src="app.js" defer></script>
 
+    <!-- ✅ Enregistrer le Service Worker pour activer la PWA -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then((registration) => {
+                        console.log('[PWA] ✅ Service Worker enregistré:', registration);
+                    })
+                    .catch((error) => {
+                        console.warn('[PWA] ⚠️ Erreur Service Worker:', error);
+                    });
+            });
+        }
+    </script>
 
 </body>
 </html>

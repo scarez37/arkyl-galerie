@@ -192,7 +192,6 @@
         </div>
     </div>
 
-
     <!-- ==================== ADMIN ARTWORK MODAL ==================== -->
     <div id="adminArtworkModal" class="artist-edit-modal">
         <div class="artist-edit-content">
@@ -461,7 +460,6 @@
     </div>
 
     <!-- Chat supprimé -->
-
 
     <!-- ===== ESPACE ARTISTE ===== -->
     <div id="artistSpace">
@@ -881,7 +879,6 @@
         </div>
     </div>
 
-
     <!-- ==================== SCRIPT GALERIE DYNAMIQUE BASE DE DONNÉES ==================== -->
 
 <!-- Module Favoris & Panier Base de Données -->
@@ -892,82 +889,7 @@
 
 <!-- app.js chargé une seule fois dans 2-pages-content.html -->
 <script>
-// ── Chargement dynamique des villes selon le pays sélectionné ────────────────
-// Le select artwork-country change → on charge les villes via CountriesNow API
 
-// Table de correspondance nom pays → code ISO2 (pour l'API)
-
-
-const _artworkVillesCache = {};
-
-async function artworkOnPaysChange(valPays) {
-    const citySelect = document.getElementById('artwork-city');
-    const hint       = document.getElementById('artwork-city-hint');
-    if (!citySelect) return;
-
-    if (!valPays) {
-        citySelect.innerHTML = "<option value=\"\">⬅️ Choisir le pays d'abord</option>";
-        citySelect.disabled = true;
-        citySelect.style.opacity = '0.5';
-        return;
-    }
-
-    // Afficher état chargement
-    citySelect.innerHTML = "<option value=\"\">⏳ Chargement des villes…</option>";
-    citySelect.disabled = true;
-    citySelect.style.opacity = '0.6';
-
-    const iso2 = ARTWORK_PAYS_ISO[valPays];
-    if (!iso2) {
-        citySelect.innerHTML = "<option value=\"\">— Pas de villes disponibles —</option>";
-        if (hint) hint.textContent = 'Pays non supporté pour le chargement des villes';
-        return;
-    }
-
-    // Utiliser le cache si déjà chargé
-    let villes = _artworkVillesCache[iso2];
-    if (!villes) {
-        try {
-            const resp = await fetch('https://countriesnow.space/api/v0.1/countries/cities', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ iso2 })
-            });
-            const data = await resp.json();
-            villes = (data?.data || []).sort();
-            _artworkVillesCache[iso2] = villes;
-        } catch(e) {
-            citySelect.innerHTML = "<option value=\"\">⚠️ Erreur — vérifiez votre connexion</option>";
-            citySelect.disabled = true;
-            return;
-        }
-    }
-
-    if (!villes.length) {
-        citySelect.innerHTML = "<option value=\"\">— Aucune ville disponible —</option>";
-        citySelect.disabled = true;
-        return;
-    }
-
-    citySelect.innerHTML = "<option value=\"\">— Choisir une ville —</option>" +
-        villes.map(v => `<option value="${v}">${v}</option>`).join('');
-    citySelect.disabled = false;
-    citySelect.style.opacity = '1';
-    if (hint) hint.textContent = "Ville où se trouve l'œuvre";
-}
-
-// Attacher l'événement au select pays dès que le DOM est prêt
-document.addEventListener('DOMContentLoaded', function() {
-    // Le select peut être dans une modale — on utilise la délégation d'événements
-    document.addEventListener('change', function(e) {
-        if (e.target && e.target.id === 'artwork-country') {
-            artworkOnPaysChange(e.target.value);
-        }
-    });
-});
-
-// Exposer globalement pour que app.js puisse pré-remplir la ville à l'édition
-window.artworkOnPaysChange = artworkOnPaysChange;
 </script>
 
 </body>

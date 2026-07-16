@@ -25,7 +25,17 @@ window.enterGallery = function enterGallery() {
             const pwaInstallBtn = document.getElementById('pwaInstallBtn');
             
             if (!pwaInstallBtn) {
-                console.warn('[PWA] ❌ Bouton non trouvé (main-content invisible ?)');
+                console.warn('[PWA] ⏳ Bouton pas encore dans le DOM, attente...');
+                // Attendre que le bouton apparaisse dans le DOM
+                const observer = new MutationObserver(() => {
+                    const btn = document.getElementById('pwaInstallBtn');
+                    if (btn) {
+                        console.log('[PWA] ✅ Bouton détecté après mutation');
+                        observer.disconnect();
+                        initPWASystem(); // Relancer avec le bouton trouvé
+                    }
+                });
+                observer.observe(document.body, { childList: true, subtree: true });
                 return;
             }
 

@@ -3644,6 +3644,10 @@
         }
 
         function renderCart() {
+            // 🧹 Nettoyage du cache : réinitialiser les modes de livraison
+            // Cela évite l'affichage de vieilles données si l'utilisateur  quitte et revient au panier
+            // On garde juste ce qui est en localStorage/DB (géré ailleurs)
+            
             const container = document.getElementById('cartContainer');
 
             if (cartItems.length === 0) {

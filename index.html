@@ -569,6 +569,12 @@
                 <canvas id="crossCanvas" width="24" height="24" style="display:block;"></canvas>
                 Rafraîchir
             </button>
+            
+            <!-- Bouton installation PWA -->
+            <button id="pwaInstallBtn" onclick="installPWA()" style="display:none;align-items:center;gap:8px;background:linear-gradient(135deg,rgba(212,175,55,0.3),rgba(212,175,55,0.15));border:2px solid rgba(212,175,55,0.6);color:#d4af37;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;transition:all 0.3s ease;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="#d4af37" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Installer l'app
+            </button>
 
             <div id="categoryBtns" inert style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:36px;">
                 <button class="filter-btn" data-cat="all" onclick="selectCategory(this)">Toutes</button>

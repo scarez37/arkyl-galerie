@@ -11,118 +11,52 @@
                     introPage.style.display = 'none';
                     mainContent.classList.add('visible');
                     if (typeof init === 'function') init();
-                    setTimeout(function() {
-                        if (typeof initPWASystem === 'function') initPWASystem();
-                    }, 300);
                 }, 1000);
             };
         })();
 
-        // ======================== PWA INSTALLATION SYSTEM ========================
-        // Gère l'affichage du bouton "Installer l'app" et l'installation PWA
-        
-        let pwaState = {
-            deferredPrompt: null,
-            initialized: false
-        };
-        
-        function initPWASystem() {
-            const pwaInstallBtn = document.getElementById('pwaInstallBtn');
-            
-            if (!pwaInstallBtn) {
-                // Attendre silencieusement que le bouton apparaisse dans le DOM
-                const observer = new MutationObserver(() => {
-                    const btn = document.getElementById('pwaInstallBtn');
-                    if (btn) {
-                        console.log('[PWA] ✅ Bouton détecté après mutation');
-                        observer.disconnect();
-                        initPWASystem(); // Relancer avec le bouton trouvé
-                    }
-                });
-                observer.observe(document.body, { childList: true, subtree: true });
-                return;
-            }
-
-            if (pwaState.initialized) return;
-            pwaState.initialized = true;
-            console.log('[PWA] ✅ Système initialisé');
-
-            // 1️⃣ Écoute l'événement beforeinstallprompt (Chrome/Edge/Samsung)
-            window.addEventListener('beforeinstallprompt', (e) => {
-                console.log('[PWA] beforeinstallprompt déclenché → app installable');
-                e.preventDefault();
-                pwaState.deferredPrompt = e;
-                showInstallButton();
-            });
-
-            // 2️⃣ Détection alternative : manifest + SW actifs (fallback)
-            function isInstallable() {
-                const hasManifest = document.querySelector('link[rel="manifest"]');
-                const hasServiceWorker = 'serviceWorker' in navigator;
-                return hasManifest && hasServiceWorker;
-            }
-
-            // 3️⃣ Fonction pour afficher le bouton
-            function showInstallButton() {
-                pwaInstallBtn.style.display = 'flex';
-                console.log('[PWA] 🟡 Bouton installation visible');
-            }
-
-            // 4️⃣ Tentative d'affichage avec timeout (pour bypass les délais Chrome)
-            setTimeout(() => {
-                if (!pwaState.deferredPrompt && isInstallable()) {
-                    console.log('[PWA] ⏱️ Timeout 3s: forçage affichage bouton (fallback)');
-                    showInstallButton();
-                }
-            }, 3000);
-
-            // 5️⃣ Gestion du clic sur le bouton
-            window.installPWA = function installPWA() {
-                if (!pwaState.deferredPrompt) {
-                    console.warn('[PWA] beforeinstallprompt non disponible');
-                    // Fallback : instruction manuelle pour iOS
-                    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                        alert('Sur iOS : Partage → Ajouter à l\'écran d\'accueil');
-                    } else {
-                        alert('Veuillez actualiser la page et réessayer');
-                    }
-                    return;
-                }
-
-                console.log('[PWA] Affichage du prompt d\'installation');
-                pwaState.deferredPrompt.prompt();
-                
-                pwaState.deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('[PWA] ✅ Utilisateur accepté l\'installation');
-                        pwaInstallBtn.style.display = 'none';
-                    } else {
-                        console.log('[PWA] ❌ Utilisateur refusé l\'installation');
-                    }
-                    pwaState.deferredPrompt = null;
-                });
-            };
-
-            // 6️⃣ Masquer le bouton après installation
-            window.addEventListener('appinstalled', () => {
-                console.log('[PWA] ✅ App installée avec succès !');
-                pwaInstallBtn.style.display = 'none';
-                pwaState.deferredPrompt = null;
-            });
-
-            // 7️⃣ Enregistrement du Service Worker
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('/service-worker.js')
-                    .then(reg => {
-                        console.log('[PWA] ✅ Service Worker enregistré');
-                        // Vérifier les updates toutes les heures
-                        setInterval(() => reg.update(), 3600000);
-                    })
-                    .catch(err => console.warn('[PWA] ⚠️ Service Worker échoué:', err));
-            }
+        // ======================== SERVICE WORKER (SIMPLE) ========================
+        // Enregistrement basique du SW pour la PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
+                .then(reg => {
+                    console.log('✅ Service Worker enregistré');
+                    // Vérifier les updates toutes les heures
+                    setInterval(() => reg.update(), 3600000);
+                })
+                .catch(err => console.warn('⚠️ Service Worker échoué:', err));
         }
 
-        // initPWASystem() est appelée par enterGallery() quand le DOM devient visible
+        // ======================== PWA INSTALL BUTTON ========================
+        let deferredPrompt = null;
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const btn = document.getElementById('pwaInstallBtn');
+            if (btn) btn.style.display = 'flex';
+            console.log('📱 PWA: Bouton installation prêt');
+        });
+
+        window.installPWA = function() {
+            if (!deferredPrompt) {
+                console.log('PWA: Non disponible');
+                return;
+            }
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then(({ outcome }) => {
+                if (outcome === 'accepted') {
+                    console.log('✅ PWA installée');
+                }
+                deferredPrompt = null;
+            });
+        };
+
+        window.addEventListener('appinstalled', () => {
+            console.log('✅ PWA app installée avec succès!');
+            const btn = document.getElementById('pwaInstallBtn');
+            if (btn) btn.style.display = 'none';
+        });
 
         // ── FIX : Favicon dynamique — évite le 404 serveur ──
         (function injectFavicon() {

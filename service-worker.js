@@ -1,17 +1,9 @@
-const CACHE_NAME = 'arkyl-v4';  // ⬆️ Version incrémentée — invalide tous les anciens caches
+const CACHE_NAME = 'arkyl-v1';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/style.css',
-  '/logo-512.png',
-  '/favicon-192.png',
-  '/favicon-32.png',
-  '/favicon.ico',
-  '/galerie_publique.html',
-  '/connexion.html',
-  '/inscription.html',
-  '/artist_dashboard.html'
-  // app.js retiré des assets statiques → toujours chargé depuis le réseau
+  '/favicon.ico'
 ];
 
 // Fichiers JS/HTML principaux → toujours Network First (jamais en cache)
@@ -113,9 +105,7 @@ self.addEventListener('push', event => {
   const data = event.data.json();
   self.registration.showNotification(data.title || 'ARKYL', {
     body: data.body || 'Nouvelle œuvre disponible !',
-    icon: '/logo-512.png',
-    badge: '/favicon-192.png',
-    data: { url: data.url || '/' }
+    icon: '/favicon.ico'
   });
 });
 

@@ -5561,6 +5561,7 @@
 
         function buildOrderTimeline(order) {
             const es = order.escrow_status || 'payée_en_attente';
+            const esNorm = es === 'fonds_libérés' ? 'livrée_confirmée' : es;
             const steps = [
                 { key: 'payée_en_attente', icon: '💳', label: 'Commande validée' },
                 { key: 'expédiée',         icon: '🚚', label: 'Expédiée' },

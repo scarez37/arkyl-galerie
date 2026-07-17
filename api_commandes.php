@@ -1029,7 +1029,7 @@ function handleApiPost() {
         // ── interrompre_livraison (admin bloque la procédure) ───────
         if ($action === 'interrompre_livraison') {
             $order_id   = $body['order_id']  ?? '';
-            $raison     = $body['raison']    ?? 'Litige en cours — procédure bloquée par l'admin';
+            $raison     = $body['raison']    ?? "Litige en cours — procédure bloquée par l'admin";
             $admin_name = $body['admin_name'] ?? 'admin';
 
             if (!$order_id) {

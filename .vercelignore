@@ -1,0 +1,8 @@
+*.php
+*.sql
+*.md
+Dockerfile
+render.yaml
+composer.json
+version.txt
+vendor/

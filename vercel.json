@@ -1,0 +1,12 @@
+{
+  "cleanUrls": false,
+  "rewrites": [
+    { "source": "/(.*)\\.php", "destination": "https://arkyl-galerie-nvwn.onrender.com/$1.php" }
+  ],
+  "headers": [
+    {
+      "source": "/service-worker.js",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    }
+  ]
+}

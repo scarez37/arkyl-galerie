@@ -1,26 +1,38 @@
 <?php
-// db_config.php
+// db_config.php — connexion PostgreSQL (Railway, Neon, Render… n'importe quel hébergeur)
 
 function getDatabase() {
-    // Sur Render, l'URL interne est injectée automatiquement via cette variable
-    $url = getenv('DATABASE_URL');
+    // 1. URL complète (Railway : ${{Postgres.DATABASE_URL}} ; Neon : chaîne de connexion)
+    $url = getenv('DATABASE_URL') ?: getenv('DATABASE_PUBLIC_URL');
 
-    if (!$url) {
-        throw new Exception("Erreur : La variable DATABASE_URL est introuvable. Vérifiez la liaison de la base dans Render.");
+    if ($url) {
+        $parts  = parse_url($url);
+        $host   = $parts['host'] ?? '';
+        $port   = $parts['port'] ?? 5432;
+        $user   = isset($parts['user']) ? urldecode($parts['user']) : '';
+        $pass   = isset($parts['pass']) ? urldecode($parts['pass']) : '';
+        $dbname = ltrim($parts['path'] ?? '', '/');
+        parse_str($parts['query'] ?? '', $query);
+        $sslmode = $query['sslmode'] ?? null;
+    } else {
+        // 2. Variables PG* (Railway les fournit aussi automatiquement)
+        $host   = getenv('PGHOST');
+        $port   = getenv('PGPORT') ?: 5432;
+        $user   = getenv('PGUSER');
+        $pass   = getenv('PGPASSWORD');
+        $dbname = getenv('PGDATABASE');
+        $sslmode = getenv('PGSSLMODE') ?: null;
     }
 
-    // Découpage de l'URL (format postgresql://user:pass@host:port/dbname)
-    $parts = parse_url($url);
-    
-    $host     = $parts['host'];
-    $port     = $parts['port'] ?? 5432;
-    $user     = $parts['user'];
-    $pass     = $parts['pass'];
-    $dbname   = ltrim($parts['path'], '/');
+    if (!$host || !$dbname) {
+        throw new Exception("Erreur : DATABASE_URL (ou PGHOST/PGDATABASE) est introuvable. Vérifiez la liaison de la base PostgreSQL dans les variables du service.");
+    }
 
     try {
-        // Connexion simplifiée (plus besoin d'émuler les requêtes préparées ici)
         $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
+        if ($sslmode) {
+            $dsn .= ";sslmode=$sslmode";
+        }
         $options = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -28,8 +40,8 @@ function getDatabase() {
         ];
 
         return new PDO($dsn, $user, $pass, $options);
-        
+
     } catch (PDOException $e) {
-        throw new Exception("Connexion à la base Render échouée : " . $e->getMessage());
+        throw new Exception("Connexion à la base PostgreSQL échouée : " . $e->getMessage());
     }
 }

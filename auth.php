@@ -1,15 +1,23 @@
 <?php
 /**
- * auth.php — Authentification artiste ARKYL
- * Inscription liée au compte Google (google_id obligatoire)
+ * auth.php — Sessions ARKYL (Google vérifié côté serveur + compte artiste)
+ *
+ * Actions (?action=…) :
+ *   google_session  POST {credential}  → vérifie le jeton Google auprès de Google, délivre le jeton ARKYL
+ *   login_google    POST (jeton ARKYL) → retrouve le compte artiste lié au compte Google connecté
+ *   register        POST (jeton ARKYL) → crée le compte artiste lié au compte Google connecté
+ *   login           POST {email,password} → connexion par mot de passe
+ *
+ * Plus aucune identité n'est crue sur simple déclaration du navigateur.
  */
-require_once __DIR__ . '/cors_helper.php';
-session_start();
-header('Content-Type: application/json; charset=utf-8');
-
+require_once __DIR__ . '/auth_helper.php';
 require_once __DIR__ . '/db_config.php';
 
-function ensureArtistsTable($db) {
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    arkylJsonError(405, 'Méthode non autorisée.');
+}
+
+function ensureArtistsTable(PDO $db): void {
     $db->exec("
         CREATE TABLE IF NOT EXISTS artists (
             id            SERIAL PRIMARY KEY,
@@ -21,167 +29,169 @@ function ensureArtistsTable($db) {
             password_hash VARCHAR(255),
             avatar        TEXT,
             bio           TEXT,
-            specialty     VARCHAR(500),
+            specialty     TEXT,
             country       VARCHAR(100) DEFAULT 'Côte d''Ivoire',
             website       VARCHAR(255),
             role          VARCHAR(50)  DEFAULT 'artist',
             created_at    TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP
         )
     ");
-    // Migrations pour tables existantes
-    foreach (['google_id VARCHAR(255)', 'phone VARCHAR(50)', 'specialty VARCHAR(500)'] as $col) {
-        [$colName] = explode(' ', $col);
-        try { $db->exec("ALTER TABLE artists ADD COLUMN IF NOT EXISTS $col"); } catch(Exception $e) {}
+    arkylEnsureColumn($db, 'artists', 'google_id', 'VARCHAR(255)');
+    arkylEnsureColumn($db, 'artists', 'phone', 'VARCHAR(50)');
+    arkylEnsureColumn($db, 'artists', 'specialty', 'TEXT');
+    arkylEnsureColumn($db, 'artists', 'password_hash', 'VARCHAR(255)');
+}
+
+/** Cherche le compte artiste lié à un compte Google vérifié (par google_id, puis par e-mail). */
+function findArtistForGoogle(PDO $db, string $sub, string $email): ?array {
+    $st = $db->prepare('SELECT * FROM artists WHERE google_id = :g LIMIT 1');
+    $st->execute([':g' => $sub]);
+    $a = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$a && $email !== '') {
+        $st = $db->prepare('SELECT * FROM artists WHERE LOWER(email) = :e LIMIT 1');
+        $st->execute([':e' => mb_strtolower($email)]);
+        $a = $st->fetch(PDO::FETCH_ASSOC);
+        if ($a && empty($a['google_id'])) {
+            // E-mail vérifié par Google → on lie le compte
+            $db->prepare('UPDATE artists SET google_id = :g WHERE id = :id')->execute([':g' => $sub, ':id' => $a['id']]);
+            $a['google_id'] = $sub;
+        }
     }
+    return $a ?: null;
+}
+
+function artistPayload(array $artist, string $googleId = ''): array {
+    return [
+        'user_id'     => (string) $artist['id'],
+        'user_name'   => $artist['name']        ?? '',
+        'user_email'  => $artist['email']       ?? '',
+        'artist_name' => $artist['artist_name'] ?? $artist['name'] ?? '',
+        'avatar'      => $artist['avatar']      ?? '',
+        'country'     => $artist['country']     ?? "Côte d'Ivoire",
+        'google_id'   => $googleId ?: ($artist['google_id'] ?? ''),
+        'role'        => 'artist',
+    ];
 }
 
 try {
-    $db = getDatabase();
+    $db     = getDatabase();
     ensureArtistsTable($db);
-
     $action = $_GET['action'] ?? '';
-    $data   = json_decode(file_get_contents('php://input'), true) ?? [];
+    $data   = arkylJsonBody();
 
-    // ── INSCRIPTION ──────────────────────────────────────────────
-    if ($action === 'register') {
-        $name        = trim($data['name']        ?? '');
-        $email       = strtolower(trim($data['email'] ?? ''));
-        $artist_name = trim($data['artist_name'] ?? $name);
-        $phone       = trim($data['phone']       ?? '');
-        $bio         = trim($data['bio']         ?? '');
-        $specialty   = is_array($data['specialty']) ? implode(', ', $data['specialty']) : ($data['specialty'] ?? '');
-        $country     = trim($data['country']     ?? "Côte d'Ivoire");
-        $avatar      = $data['avatar']           ?? null;
-        $google_id   = trim($data['google_id']   ?? '');
+    // ── SESSION GOOGLE : le seul endroit qui transforme « Google a dit oui » en jeton ARKYL ──
+    if ($action === 'google_session') {
+        try {
+            $g = arkylVerifyGoogleCredential((string) ($data['credential'] ?? ''));
+        } catch (Exception $e) {
+            arkylJsonError(401, $e->getMessage());
+        }
+        $artist = findArtistForGoogle($db, (string) $g['sub'], (string) $g['email']);
+        $claims = arkylGoogleClaims($g, $artist);
 
-        // Validation
-        if (empty($name) || empty($email)) {
-            echo json_encode(['success' => false, 'message' => 'Nom et email obligatoires']);
+        echo json_encode([
+            'success'    => true,
+            'token'      => arkylIssueToken($claims),
+            'expires_in' => ARKYL_TOKEN_TTL,
+            'user'       => [
+                'id'          => $claims['sub'],
+                'email'       => $claims['email'],
+                'name'        => $claims['name'],
+                'picture'     => $g['picture'] ?? '',
+                'isAdmin'     => $claims['adm'],
+                'isArtist'    => (bool) $artist,
+                'artist_id'   => $artist ? (string) $artist['id'] : null,
+                'artist_name' => $artist ? ($artist['artist_name'] ?? $artist['name']) : null,
+            ],
+        ], JSON_UNESCAPED_UNICODE);
+
+    // ── COMPTE ARTISTE LIÉ AU GOOGLE CONNECTÉ ──
+    } elseif ($action === 'login_google') {
+        $auth = arkylRequireAuth();
+        if (($auth['prov'] ?? '') !== 'google') {
+            arkylJsonError(403, 'Connectez-vous avec Google.');
+        }
+        $artist = findArtistForGoogle($db, (string) $auth['sub'], (string) $auth['email']);
+        if (!$artist) {
+            echo json_encode(['success' => false, 'message' => 'Aucun compte artiste lié à ce compte Google. Créez votre compte artiste.', 'not_found' => true], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        echo json_encode(array_merge(
+            ['success' => true],
+            artistPayload($artist, (string) $auth['sub']),
+            ['token' => arkylIssueToken(arkylClaimsWithArtist($auth, $artist)), 'expires_in' => ARKYL_TOKEN_TTL]
+        ), JSON_UNESCAPED_UNICODE);
+
+    // ── INSCRIPTION ARTISTE (liée au Google connecté) ──
+    } elseif ($action === 'register') {
+        $auth = arkylRequireAuth();
+        if (($auth['prov'] ?? '') !== 'google') {
+            arkylJsonError(403, 'Connectez-vous avec Google avant de créer un compte artiste.');
+        }
+        $google_id = (string) $auth['sub'];
+        $email     = mb_strtolower((string) $auth['email']);          // e-mail vérifié par Google
+        $name      = trim((string) ($data['name'] ?? ''));
+        $artist_name = trim((string) ($data['artist_name'] ?? $name));
+        $phone     = trim((string) ($data['phone'] ?? ''));
+        $bio       = trim((string) ($data['bio'] ?? ''));
+        $specialty = is_array($data['specialty'] ?? null) ? implode(', ', $data['specialty']) : (string) ($data['specialty'] ?? '');
+        $country   = trim((string) ($data['country'] ?? "Côte d'Ivoire"));
+        $avatar    = isset($data['avatar']) ? (string) $data['avatar'] : null;
+
+        if ($name === '') {
+            echo json_encode(['success' => false, 'message' => 'Le nom est obligatoire.'], JSON_UNESCAPED_UNICODE);
             exit;
         }
 
-        // Vérifier unicité email
-        $check = $db->prepare("SELECT id, google_id FROM artists WHERE LOWER(email) = ?");
-        $check->execute([$email]);
-        $existing = $check->fetch(PDO::FETCH_ASSOC);
-
+        $existing = findArtistForGoogle($db, $google_id, $email);
         if ($existing) {
-            // Si le compte existe mais sans google_id → lier
-            if (!empty($google_id) && empty($existing['google_id'])) {
-                $db->prepare("UPDATE artists SET google_id = ? WHERE id = ?")
-                   ->execute([$google_id, $existing['id']]);
-                echo json_encode(['success' => false, 'message' => 'Ce compte existe déjà. Google ID lié — connectez-vous.']);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Un compte artiste existe déjà avec cet email. Connectez-vous.']);
-            }
+            echo json_encode(['success' => false, 'message' => 'Un compte artiste existe déjà pour ce compte Google. Connectez-vous.'], JSON_UNESCAPED_UNICODE);
             exit;
-        }
-
-        // Vérifier unicité google_id si fourni
-        if (!empty($google_id)) {
-            $checkG = $db->prepare("SELECT id FROM artists WHERE google_id = ?");
-            $checkG->execute([$google_id]);
-            if ($checkG->fetch()) {
-                echo json_encode(['success' => false, 'message' => 'Un compte artiste est déjà lié à votre compte Google.']);
-                exit;
-            }
         }
 
         $stmt = $db->prepare("
             INSERT INTO artists (google_id, name, artist_name, email, phone, bio, specialty, country, avatar, role)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'artist') RETURNING id
+            VALUES (:g, :n, :an, :e, :p, :b, :s, :c, :av, 'artist') RETURNING id
         ");
-        $stmt->execute([
-            $google_id ?: null,
-            $name, $artist_name, $email, $phone, $bio, $specialty, $country, $avatar
-        ]);
-        $newId = (string) $stmt->fetchColumn();
+        $stmt->execute([':g' => $google_id, ':n' => $name, ':an' => $artist_name, ':e' => $email, ':p' => $phone,
+                        ':b' => $bio, ':s' => $specialty, ':c' => $country, ':av' => $avatar]);
+        $newId  = (string) $stmt->fetchColumn();
+        $artist = ['id' => $newId, 'name' => $name, 'artist_name' => $artist_name, 'email' => $email,
+                   'avatar' => $avatar, 'country' => $country, 'google_id' => $google_id];
 
-        echo json_encode([
-            'success'     => true,
-            'message'     => 'Compte artiste créé avec succès !',
-            'user_id'     => $newId,
-            'user_name'   => $name,
-            'user_email'  => $email,
-            'artist_name' => $artist_name,
-            'avatar'      => $avatar,
-            'country'     => $country,
-            'google_id'   => $google_id,
-            'role'        => 'artist'
-        ]);
+        echo json_encode(array_merge(
+            ['success' => true, 'message' => 'Compte artiste créé avec succès !'],
+            artistPayload($artist, $google_id),
+            ['token' => arkylIssueToken(arkylClaimsWithArtist($auth, $artist)), 'expires_in' => ARKYL_TOKEN_TTL]
+        ), JSON_UNESCAPED_UNICODE);
 
-    // ── CONNEXION (email/mot de passe) ───────────────────────────
+    // ── CONNEXION PAR MOT DE PASSE ──
     } elseif ($action === 'login') {
-        $email    = strtolower(trim($data['email']    ?? ''));
-        $password = $data['password'] ?? '';
-
-        if (empty($email) || empty($password)) {
-            echo json_encode(['success' => false, 'message' => 'Email et mot de passe requis']);
+        $email    = mb_strtolower(trim((string) ($data['email'] ?? '')));
+        $password = (string) ($data['password'] ?? '');
+        if ($email === '' || $password === '') {
+            echo json_encode(['success' => false, 'message' => 'Email et mot de passe requis'], JSON_UNESCAPED_UNICODE);
             exit;
         }
-
-        $stmt = $db->prepare("SELECT * FROM artists WHERE LOWER(email) = ?");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($user && password_verify($password, $user['password_hash'])) {
-            echo json_encode([
-                'success'     => true,
-                'user_id'     => (string) $user['id'],
-                'user_name'   => $user['name']        ?? '',
-                'user_email'  => $user['email']       ?? '',
-                'artist_name' => $user['artist_name'] ?? $user['name'] ?? '',
-                'avatar'      => $user['avatar']      ?? '',
-                'country'     => $user['country']     ?? "Côte d'Ivoire",
-                'google_id'   => $user['google_id']   ?? '',
-                'role'        => 'artist'
-            ]);
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Email ou mot de passe incorrect']);
-        }
-
-    // ── CONNEXION VIA GOOGLE (google_id) ─────────────────────────
-    } elseif ($action === 'login_google') {
-        $google_id = trim($data['google_id'] ?? '');
-        $email     = strtolower(trim($data['email'] ?? ''));
-
-        if (empty($google_id) && empty($email)) {
-            echo json_encode(['success' => false, 'message' => 'Identifiant manquant']);
+        arkylThrottleCheck($db, $email);
+        $user = arkylPasswordLogin($db, $email, $password);
+        if (!$user) {
+            arkylThrottleFail($db, $email);
+            echo json_encode(['success' => false, 'message' => 'Email ou mot de passe incorrect'], JSON_UNESCAPED_UNICODE);
             exit;
         }
-
-        // Chercher par google_id d'abord, puis par email
-        $stmt = $db->prepare("SELECT * FROM artists WHERE google_id = ? OR LOWER(email) = ? LIMIT 1");
-        $stmt->execute([$google_id, $email]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($user) {
-            // Mettre à jour le google_id si manquant
-            if (!empty($google_id) && empty($user['google_id'])) {
-                $db->prepare("UPDATE artists SET google_id = ? WHERE id = ?")
-                   ->execute([$google_id, $user['id']]);
-            }
-            echo json_encode([
-                'success'     => true,
-                'user_id'     => (string) $user['id'],
-                'user_name'   => $user['name']        ?? '',
-                'user_email'  => $user['email']       ?? '',
-                'artist_name' => $user['artist_name'] ?? $user['name'] ?? '',
-                'avatar'      => $user['avatar']      ?? '',
-                'country'     => $user['country']     ?? "Côte d'Ivoire",
-                'google_id'   => $google_id ?: $user['google_id'],
-                'role'        => 'artist'
-            ]);
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Aucun compte artiste lié à ce compte Google. Créez votre compte artiste.', 'not_found' => true]);
-        }
+        arkylThrottleClear($db, $email);
+        $claims = arkylClaimsFromArtist($user, 'password');
+        echo json_encode(array_merge(
+            ['success' => true],
+            artistPayload($user),
+            ['role' => $claims['role'], 'token' => arkylIssueToken($claims), 'expires_in' => ARKYL_TOKEN_TTL]
+        ), JSON_UNESCAPED_UNICODE);
 
     } else {
-        echo json_encode(['success' => false, 'message' => "Action inconnue: $action"]);
+        echo json_encode(['success' => false, 'message' => 'Action inconnue'], JSON_UNESCAPED_UNICODE);
     }
 
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Erreur serveur: ' . $e->getMessage()]);
+} catch (Throwable $e) {
+    arkylJsonError(500, arkylSafeError($e));
 }
-?>

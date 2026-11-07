@@ -1,14 +1,7 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 require_once __DIR__ . '/cors_helper.php';
-
-header('Cross-Origin-Embedder-Policy: unsafe-none');
-header('Cross-Origin-Opener-Policy: unsafe-none');
-header('Cross-Origin-Resource-Policy: cross-origin');
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -25,7 +18,12 @@ try {
 
     $db = getDatabase();
 
-    $artist_id   = !empty($data['artist_id'])   ? $data['artist_id']   : 1;
+    $authO = arkylRequireAuth();
+    if (!arkylIsAdmin($authO) && arkylArtistId($authO) === null) {
+        arkylJsonError(403, 'Créez d\'abord votre compte artiste pour publier une œuvre.');
+    }
+    // L'œuvre est publiée au nom du compte connecté (jamais d'artiste par défaut)
+    $artist_id   = !empty($data['artist_id']) ? arkylActorId($data['artist_id'], false) : (arkylArtistId($authO) ?? (string) $authO['sub']);
     $artist_name = !empty($data['artist_name']) ? $data['artist_name'] : "Artiste Inconnu";
     $technique   = !empty($data['technique'])   ? $data['technique']   : 'Non spécifiée';
 
@@ -88,6 +86,6 @@ try {
     ]);
 
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => arkylSafeError($e)]);
 }
 ?>

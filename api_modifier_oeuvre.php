@@ -1,15 +1,7 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 require_once __DIR__ . '/cors_helper.php';
-
-header('Cross-Origin-Embedder-Policy: unsafe-none');
-header('Cross-Origin-Opener-Policy: unsafe-none');
-header('Cross-Origin-Resource-Policy: cross-origin');
-// ==================== API MODIFIER ŒUVRE ====================
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
 
 require_once __DIR__ . '/db_config.php';
@@ -34,6 +26,12 @@ try {
 
     if (!$artwork_id || !$artist_id || !$title || !$category) {
         throw new Exception("Champs obligatoires manquants (artwork_id, artist_id, title, category).");
+    }
+
+    // Le compte connecté doit être cet artiste (ou l'administrateur)
+    $authM = arkylRequireAuth();
+    if (!arkylIsAdmin($authM) && !arkylOwnsId($authM, $artist_id)) {
+        throw new Exception("Accès refusé : cette œuvre n'est pas la vôtre.");
     }
 
     // Vérifier que l'œuvre appartient bien à cet artiste
@@ -81,7 +79,7 @@ try {
     http_response_code(400);
     echo json_encode([
         'success' => false,
-        'message' => $e->getMessage(),
+        'message' => arkylSafeError($e),
         'debug'   => [
             'artwork_id' => $artwork_id ?? null,
             'artist_id'  => $artist_id ?? null,

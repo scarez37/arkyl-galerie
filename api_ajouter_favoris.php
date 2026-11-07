@@ -1,13 +1,9 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 // ==================== API AJOUTER AUX FAVORIS ====================
 // Fichier: api_ajouter_favoris.php
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
-// Gestion preflight CORS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -23,7 +19,7 @@ try {
     echo json_encode([
         'success' => false,
         'message' => 'Erreur de connexion à la base de données',
-        'error' => $e->getMessage()
+        'error' => arkylSafeError($e)
     ]);
     exit;
 }
@@ -42,7 +38,7 @@ if (!isset($data['artwork_id']) || empty($data['artwork_id'])) {
 }
 
 $artwork_id = intval($data['artwork_id']);
-$user_id = $data['user_id'] ?? 'guest_' . session_id(); 
+$user_id = arkylActorId($data['user_id'] ?? '');
 
 // Vérification que l'œuvre existe
 try {
@@ -107,7 +103,7 @@ try {
     echo json_encode([
         'success' => false,
         'message' => 'Erreur lors de la gestion des favoris',
-        'error' => $e->getMessage()
+        'error' => arkylSafeError($e)
     ]);
 }
 ?>

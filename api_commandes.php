@@ -1,45 +1,9 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 // ==================== API COMMANDES — ROUTER ====================
 
-// ═══════════════════════════════════════════════════════════════
-// CORS ABSOLUMENT EN PREMIER — ob_start() pour capturer toute
-// sortie parasite (notices PHP, BOM, whitespace) qui empêcherait
-// les header() de s'exécuter. Le shutdown handler garantit les
-// headers CORS même en cas de fatal error dans les require_once.
-// ═══════════════════════════════════════════════════════════════
-ob_start();
-
-// Supprimer TOUTE sortie parasite avant les headers
-function sendCorsHeaders() {
-    if (!headers_sent()) {
-        header('Access-Control-Allow-Origin: *');
-        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-        header('Access-Control-Allow-Headers: Content-Type, Authorization');
-        header('Access-Control-Allow-Credentials: true');
-        header('Cross-Origin-Embedder-Policy: unsafe-none');
-        header('Cross-Origin-Opener-Policy: unsafe-none');
-        header('Cross-Origin-Resource-Policy: cross-origin');
-    }
-}
-
-// Envoyer les headers CORS en cas de fatal error aussi
-register_shutdown_function(function() {
-    $error = error_get_last();
-    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
-        // Fatal error — vider le buffer et renvoyer CORS + JSON d'erreur
-        if (ob_get_level() > 0) ob_end_clean();
-        sendCorsHeaders();
-        if (!headers_sent()) header('Content-Type: application/json; charset=utf-8');
-        http_response_code(500);
-        echo json_encode(['success' => false, 'message' => 'Erreur serveur: ' . $error['message']]);
-    } else {
-        // Fin normale — flush le buffer si encore actif
-        if (ob_get_level() > 0) ob_end_flush();
-    }
-});
-
-sendCorsHeaders();
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); ob_end_clean(); exit(); }
+// CORS, erreurs génériques et authentification : voir bootstrap.php / auth_helper.php
+function sendCorsHeaders() { arkylSendCors(); } // conservé pour compatibilité
 
 // ── REQUIRES ─────────────────────────────────────────────────────
 require_once __DIR__ . '/db_config.php';
@@ -47,6 +11,7 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
 }
 require_once __DIR__ . '/notify_helpers.php';
+require_once __DIR__ . '/stripe_order_helper.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -93,6 +58,20 @@ function handleApiGet() {
             $artist_id   = trim($_GET['artist_id']   ?? '');
             $artist_name = trim($_GET['artist_name'] ?? '');
             $user_id     = trim($_GET['user_id']     ?? ''); // ✅ filtre acheteur
+
+            // ── Contrôle d'accès SERVEUR : ?admin=1 n'est honoré que pour un vrai administrateur,
+            //    et chaque filtre doit correspondre au compte connecté.
+            $auth    = arkylRequireAuth();
+            $isAdmin = $isAdmin && arkylIsAdmin($auth);
+            if (!$isAdmin) {
+                if (($user_id !== '' && !arkylOwnsId($auth, $user_id))
+                 || ($artist_id !== '' && !arkylOwnsId($auth, $artist_id))
+                 || ($artist_name !== '' && !arkylOwnsArtistName($auth, $artist_name))) {
+                    http_response_code(403);
+                    echo json_encode(['success' => false, 'error' => 'Accès non autorisé']);
+                    return;
+                }
+            }
 
             // ── Contrôle d'accès : refuser si aucun contexte valide ────
             // Un appel sans admin=1, sans user_id et sans artist_id/name n'a pas de sens
@@ -226,6 +205,14 @@ function handleApiGet() {
         if ($action === 'get_notifications') {
             $artist_id   = trim($_GET['artist_id']   ?? '');
             $artist_name = trim($_GET['artist_name'] ?? '');
+            $auth = arkylRequireAuth();
+            if (!arkylIsAdmin($auth)
+                && (($artist_id !== '' && !arkylOwnsId($auth, $artist_id))
+                 || ($artist_name !== '' && !arkylOwnsArtistName($auth, $artist_name)))) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Accès non autorisé']);
+                return;
+            }
 
             // Créer la table notifications si elle n'existe pas encore
             $db->exec("
@@ -287,7 +274,8 @@ function handleApiGet() {
             $req_user_id  = trim($_GET['user_id']      ?? '');
             $req_artist_id = trim($_GET['artist_id']   ?? '');
             $req_artist_name = trim($_GET['artist_name'] ?? '');
-            $isAdminTl    = !empty($_GET['admin']);
+            $authTl       = arkylRequireAuth();
+            $isAdminTl    = !empty($_GET['admin']) && arkylIsAdmin($authTl);
 
             if (!$order_number && !$order_id_q) {
                 echo json_encode(['success' => false, 'error' => 'order_number ou order_id requis']);
@@ -311,14 +299,17 @@ function handleApiGet() {
             }
 
             // ── Vérification accès ──────────────────────────────────────
-            $isOwner     = $req_user_id !== '' && (string)$order['user_id'] === $req_user_id;
+            $isOwner     = arkylOwnsId($authTl, $order['user_id']);
+            // On n'accepte que les identités artiste qui appartiennent au compte connecté
+            if ($req_artist_id !== '' && !arkylOwnsId($authTl, $req_artist_id)) { $req_artist_id = ''; }
+            if ($req_artist_name !== '' && !arkylOwnsArtistName($authTl, $req_artist_name)) { $req_artist_name = ''; }
             $isArtistTl  = false;
             if ($req_artist_id !== '' || $req_artist_name !== '') {
                 // Vérifier qu'un item de la commande appartient bien à cet artiste
                 $aCheck = $db->prepare("
                     SELECT 1 FROM order_items oi
                     WHERE oi.order_id = :oid
-                      AND (oi.artist_id = :aid OR LOWER(oi.artist_name) = LOWER(:aname))
+                      AND (oi.artist_id = NULLIF(:aid, '') OR LOWER(oi.artist_name) = LOWER(NULLIF(:aname, '')))
                     LIMIT 1
                 ");
                 $aCheck->execute([':oid' => $order['id'], ':aid' => $req_artist_id, ':aname' => $req_artist_name]);
@@ -360,6 +351,7 @@ function handleApiGet() {
 
         // ── action=list_transactions ──────────────────────────────
         if ($action === 'list_transactions') {
+            arkylRequireAdmin();
             $limit = intval($_GET['limit'] ?? 50);
             try {
                 $db->exec("
@@ -385,11 +377,7 @@ function handleApiGet() {
         // ── action=get_client_notifications ──────────────────────
         // Notifs pour l'acheteur (expédition, fonds libérés)
         if ($action === 'get_client_notifications') {
-            $req_uid = trim($_GET['user_id'] ?? '');
-            if (!$req_uid) {
-                echo json_encode(['success' => false, 'error' => 'user_id requis']);
-                return;
-            }
+            $req_uid = arkylActorId(trim($_GET['user_id'] ?? ''), false);
             try {
                 $db->exec("
                     CREATE TABLE IF NOT EXISTS client_notifications (
@@ -418,7 +406,7 @@ function handleApiGet() {
 
         // ── action=mark_client_notifications_read ─────────────────
         if ($action === 'mark_client_notifications_read') {
-            $req_uid = trim($_GET['user_id'] ?? '');
+            $req_uid = arkylActorId(trim($_GET['user_id'] ?? ''), false);
             if ($req_uid) {
                 try {
                     $db->prepare("UPDATE client_notifications SET is_read = TRUE WHERE user_id::text = :uid")
@@ -439,7 +427,7 @@ function handleApiGet() {
             header('Content-Type: application/json; charset=utf-8');
         }
         if (ob_get_level() > 0) ob_end_clean();
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => arkylSafeError($e)]);
     }
 }
 
@@ -454,6 +442,7 @@ function handleApiPost() {
     $raw    = file_get_contents('php://input');
     $body   = json_decode($raw, true) ?: [];
     $action = $body['action'] ?? '';
+    $auth   = arkylRequireAuth();   // toute action POST exige un jeton valide
 
     try {
         $db = getDatabase();
@@ -569,6 +558,17 @@ function handleApiPost() {
 
         // ── update_status (admin) ─────────────────────────────────
         if ($action === 'update_status') {
+            if (!arkylIsAdmin($auth)) {
+                if (!arkylArtistOwnsOrder($db, $body['order_id'] ?? '', $auth)) {
+                    http_response_code(403);
+                    echo json_encode(['success' => false, 'error' => 'Accès non autorisé à cette commande']);
+                    return;
+                }
+                $body['escrow_status'] = null; // un artiste ne peut pas modifier l'état des fonds
+            }
+            // Le rôle et l'auteur inscrits dans l'historique viennent du jeton, pas du navigateur
+            $body['updated_by_role'] = arkylIsAdmin($auth) ? 'admin' : 'artist';
+            $body['updated_by']      = $auth['name'] ?? $auth['email'] ?? 'admin';
             $order_id     = $body['order_id'] ?? '';
             $status       = $body['status'] ?? '';
             $escrow       = $body['escrow_status'] ?? null;
@@ -621,6 +621,11 @@ function handleApiPost() {
 
         // ── update_shipping (artiste confirme expédition) ─────────
         if ($action === 'update_shipping') {
+            if (!arkylIsAdmin($auth) && !arkylArtistOwnsOrder($db, $body['order_id'] ?? '', $auth)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Accès non autorisé à cette commande']);
+                return;
+            }
             $order_id = $body['order_id'] ?? '';
             $tracking = $body['tracking_number'] ?? null;
             $carrier  = $body['carrier'] ?? null;
@@ -715,6 +720,11 @@ function handleApiPost() {
 
         // ── confirm_reception (client confirme réception) ─────────
         if ($action === 'confirm_reception') {
+            if (!arkylIsAdmin($auth) && !arkylBuyerOwnsOrder($db, $body['order_id'] ?? '', $auth)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Seul l\'acheteur peut confirmer la réception']);
+                return;
+            }
             $order_id = $body['order_id'] ?? '';
             $user_id  = $body['user_id']  ?? '';
 
@@ -798,6 +808,11 @@ function handleApiPost() {
 
         // ── refuser_commande (artiste refuse) ─────────────────────
         if ($action === 'refuser_commande') {
+            if (!arkylIsAdmin($auth) && !arkylArtistOwnsOrder($db, $body['order_id'] ?? '', $auth)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Accès non autorisé à cette commande']);
+                return;
+            }
             $order_id    = $body['order_id'] ?? '';
             $raison      = $body['raison'] ?? 'Refus sans motif';
             $artist_name = $body['artist_name'] ?? '';
@@ -833,6 +848,17 @@ function handleApiPost() {
         if ($action === 'mark_notifications_read') {
             $artist_id   = $body['artist_id']   ?? '';
             $artist_name = $body['artist_name'] ?? '';
+            if (!arkylIsAdmin($auth)
+                && (($artist_id !== '' && !arkylOwnsId($auth, $artist_id))
+                 || ($artist_name !== '' && !arkylOwnsArtistName($auth, $artist_name)))) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Accès non autorisé']);
+                return;
+            }
+            if ($artist_id === '' && $artist_name === '') {
+                echo json_encode(['success' => true]);
+                return;
+            }
 
             $db->prepare("
                 UPDATE artist_notifications
@@ -847,6 +873,7 @@ function handleApiPost() {
 
         // ── liberer_fonds (admin confirme le virement à l'artiste) ───
         if ($action === 'liberer_fonds') {
+            arkylRequireAdmin();
             $order_id          = $body['order_id']          ?? '';
             $payment_method    = $body['payment_method']    ?? 'Virement manuel';
             $payment_reference = $body['payment_reference'] ?? null;
@@ -997,6 +1024,7 @@ function handleApiPost() {
 
         // ── list_transactions (historique des virements admin) ───────
         if ($action === 'list_transactions') {
+            arkylRequireAdmin();
             $limit = max(1, min(100, intval($_GET['limit'] ?? 30)));
             try {
                 $db->exec("
@@ -1021,13 +1049,14 @@ function handleApiPost() {
                 $txs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 echo json_encode(['success' => true, 'transactions' => $txs]);
             } catch (Exception $e) {
-                echo json_encode(['success' => false, 'transactions' => [], 'error' => $e->getMessage()]);
+                echo json_encode(['success' => false, 'transactions' => [], 'error' => arkylSafeError($e)]);
             }
             return;
         }
 
         // ── interrompre_livraison (admin bloque la procédure) ───────
         if ($action === 'interrompre_livraison') {
+            arkylRequireAdmin();
             $order_id   = $body['order_id']  ?? '';
             $raison     = $body['raison']    ?? "Litige en cours — procédure bloquée par l'admin";
             $admin_name = $body['admin_name'] ?? 'admin';
@@ -1111,95 +1140,48 @@ function handleApiPost() {
             return;
         }
 
-        // ── create (fallback manuel, hors webhook Stripe) ─────────
+        // ── create : rattrapage APRÈS paiement (le webhook Stripe est la voie principale) ──
+        // Une commande n'est créée que si Stripe confirme que la session est PAYÉE.
         if ($action === 'create') {
-            // Traité uniquement si l'ordre n'existe pas encore (idempotence)
-            $order_number = $body['order_number'] ?? $body['order_id'] ?? '';
-            if ($order_number) {
-                $check = $db->prepare("SELECT id FROM orders WHERE order_number = :on LIMIT 1");
-                $check->execute([':on' => $order_number]);
-                if ($check->fetch()) {
-                    echo json_encode(['success' => true, 'info' => 'already_exists']);
-                    return;
-                }
+            $sid = trim((string) ($body['stripe_session_id'] ?? ''));
+            if ($sid === '' || strpos($sid, 'cs_') !== 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Commande impossible sans paiement Stripe confirmé (stripe_session_id requis).']);
+                return;
             }
-            // Création simplifiée (le webhook Stripe est la voie principale)
-            $stmt = $db->prepare("
-                INSERT INTO orders
-                    (order_number, user_id, user_name, user_email, status, escrow_status,
-                     subtotal, tax, shipping_cost, shipping_name, shipping_address,
-                     payment_method, total, created_at)
-                VALUES
-                    (:on, :uid, :uname, :uemail, 'En préparation', 'payée_en_attente',
-                     :sub, :tax, :ship, :sname, :saddr, :pm, :total, CURRENT_TIMESTAMP)
-                RETURNING id, order_number
-            ");
-            $stmt->execute([
-                ':on'    => $order_number ?: ('ARKYL-' . strtoupper(substr(uniqid(), -8))),
-                ':uid'   => $body['user_id']   ?? '',
-                ':uname' => $body['user_name']  ?? '',
-                ':uemail'=> $body['user_email'] ?? '',
-                ':sub'   => $body['subtotal']   ?? 0,
-                ':tax'   => $body['tax']        ?? 0,
-                ':ship'  => $body['shipping_cost'] ?? 0,
-                ':sname' => $body['shipping_name'] ?? '',
-                ':saddr' => $body['shipping_address'] ?? '',
-                ':pm'    => $body['payment_method'] ?? 'Stripe',
-                ':total' => $body['total'] ?? 0,
-            ]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            // Insérer les items
-            if ($row && !empty($body['items'])) {
-                $ins = $db->prepare("
-                    INSERT INTO order_items
-                        (order_id, artwork_id, title, artist_name, artist_id, price, quantity, image_url)
-                    VALUES (:oid, :aid, :title, :aname, :artid, :price, :qty, :img)
-                ");
-                foreach ($body['items'] as $item) {
-                    $ins->execute([
-                        ':oid'   => $row['id'],
-                        ':aid'   => $item['artwork_id'] ?? $item['id'] ?? null,
-                        ':title' => $item['title'] ?? '',
-                        ':aname' => $item['artist_name'] ?? $item['artist'] ?? '',
-                        ':artid' => (string)($item['artist_id'] ?? ''),
-                        ':price' => $item['price'] ?? 0,
-                        ':qty'   => $item['quantity'] ?? 1,
-                        ':img'   => $item['image_url'] ?? $item['image'] ?? '',
-                    ]);
-                }
+            if (!class_exists('\\Stripe\\Stripe')) {
+                throw new Exception('Service de paiement indisponible.');
             }
-
-            // ✅ FIX : Marquer les œuvres comme vendues + notifier les artistes
-            if ($row && !empty($body['items'])) {
-                // Marquer chaque œuvre vendue
-                $markSold = $db->prepare("
-                    UPDATE artworks SET is_sold = TRUE, sold_at = NOW(), badge = 'Vendu', status = 'vendue'
-                    WHERE id = :artwork_id
-                ");
-                foreach ($body['items'] as $item) {
-                    $aid = $item['artwork_id'] ?? $item['id'] ?? null;
-                    if ($aid) $markSold->execute([':artwork_id' => intval($aid)]);
-                }
-
-                // Notifier les artistes via notify_helpers
-                require_once __DIR__ . '/notify_helpers.php';
-                $orderNum   = $row['order_number'] ?? $order_number;
-                $buyerName  = $body['user_name'] ?? $body['user_email'] ?? 'Client';
-                $totalOrder = $body['total'] ?? 0;
-                $shipAddr   = $body['shipping_address'] ?? '';
-                $shipName   = $body['shipping_name'] ?? '';
-                try {
-                    notifyArtists($db, (int)$row['id'], $orderNum, $body['items'], $buyerName, $totalOrder, $shipAddr, $shipName);
-                } catch (Exception $e) {
-                    error_log('⚠️ notifyArtists (create fallback) : ' . $e->getMessage());
-                }
+            arkylConfigureStripe();
+            try {
+                $cs = \Stripe\Checkout\Session::retrieve($sid);
+            } catch (\Throwable $se) {
+                error_log('ARKYL create — session Stripe introuvable : ' . $se->getMessage());
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Session de paiement introuvable.']);
+                return;
             }
-
+            if (($cs->payment_status ?? '') !== 'paid') {
+                http_response_code(402);
+                echo json_encode(['success' => false, 'error' => 'Paiement non confirmé.']);
+                return;
+            }
+            $buyer = (string) ($cs->metadata->user_id ?? $cs->client_reference_id ?? '');
+            if (!arkylIsAdmin($auth) && !arkylOwnsId($auth, $buyer)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Cette commande ne vous appartient pas.']);
+                return;
+            }
+            $res = arkylCreateOrderFromSession($db, $cs);
+            if ($res['status'] === 'skipped') {
+                echo json_encode(['success' => false, 'error' => 'Commande non créée (' . ($res['reason'] ?? 'inconnu') . ').']);
+                return;
+            }
             echo json_encode([
-                'success'      => (bool)$row,
-                'order_id'     => $row['id'] ?? null,
-                'order_number' => $row['order_number'] ?? null,
+                'success'      => true,
+                'order_id'     => $res['order_id'],
+                'order_number' => $res['order_number'],
+                'info'         => $res['status'] === 'exists' ? 'already_exists' : 'created',
             ]);
             return;
         }
@@ -1208,7 +1190,7 @@ function handleApiPost() {
 
     } catch (Exception $e) {
         error_log('❌ api_commandes POST : ' . $e->getMessage());
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => arkylSafeError($e)]);
     }
 }
 
@@ -1216,7 +1198,7 @@ function handleApiPost() {
 // POST — Webhook Stripe (signature vérifiée)
 // ═══════════════════════════════════════════════════════════════════
 function handleStripeWebhook() {
-    \Stripe\Stripe::setApiKey(getenv('STRIPE_SECRET_KEY') ?: 'sk_test_51T2gpFF55lBdracChUzrVSa166Skh4ob49dtF3j0pa27zcWMk1YLnvt5Wz788K7O0CpIMJPMZcaKDqG241vgQ8tj00EY87nxyZ');
+    arkylConfigureStripe();
     $endpoint_secret = getenv('STRIPE_WEBHOOK_SECRET') ?: 'whsec_yjPEMxUgwPmuDWvS48z4fFQz7PpqcLaP';
 
     $payload    = @file_get_contents('php://input');
@@ -1238,283 +1220,58 @@ function handleStripeWebhook() {
 
     $session = $event->data->object;
 
-// 🆕 RÉCUPÉRATION DE TOUTES LES METADATA
-$order_id          = $session->metadata->order_id          ?? '';
-$user_id           = $session->metadata->user_id           ?? $session->client_reference_id ?? '';
-$user_name         = $session->metadata->user_name         ?? ($session->customer_details->name ?? '');
-$user_email        = $session->metadata->user_email        ?? ($session->customer_details->email ?? $session->customer_email ?? '');
-$artist_id         = $session->metadata->artist_id         ?? null;
-$shipping_cost     = floatval($session->metadata->shipping_cost     ?? 3000);
-$shipping_mode     = $session->metadata->shipping_mode     ?? 'La Poste';
-$shipping_address  = $session->metadata->shipping_address  ?? '';
-$commission_amount = floatval($session->metadata->commission_amount ?? 0); // Part ARKYL (35%)
-$artist_payout     = floatval($session->metadata->artist_payout     ?? 0); // Part artiste (65%)
-
-$payment_method = 'Carte bancaire (Stripe)';
-
-if (empty($order_id) || empty($user_id)) {
-    error_log("⚠️ Webhook ARKYL — order_id ou user_id manquant. Session ID : " . $session->id);
-    http_response_code(200);
-    exit();
-}
-
-try {
-    $db = getDatabase();
-
-    // ── Création des tables si BDD vierge (perte Render) ─────────────
-    $db->exec("
-        CREATE TABLE IF NOT EXISTS orders (
-            id SERIAL PRIMARY KEY, order_number VARCHAR(255) UNIQUE,
-            user_id VARCHAR(255), user_name VARCHAR(255), user_email VARCHAR(255),
-            artist_id VARCHAR(255), status VARCHAR(100) DEFAULT 'En préparation',
-            escrow_status VARCHAR(50) DEFAULT 'payée_en_attente',
-            escrow_auto_release_date TIMESTAMPTZ,
-            subtotal NUMERIC(12,2) DEFAULT 0, tax NUMERIC(12,2) DEFAULT 0,
-            shipping_cost NUMERIC(12,2) DEFAULT 0, shipping_name VARCHAR(255),
-            shipping_address TEXT, payment_method VARCHAR(100),
-            total NUMERIC(12,2) DEFAULT 0, commission_amount NUMERIC(12,2) DEFAULT 0,
-            artist_payout NUMERIC(12,2) DEFAULT 0, stripe_session_id VARCHAR(255),
-            tracking_number VARCHAR(255), carrier VARCHAR(100),
-            shipping_proof_url TEXT, updated_by VARCHAR(255),
-            updated_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-        )
-    ");
-    $db->exec("
-        CREATE TABLE IF NOT EXISTS order_items (
-            id SERIAL PRIMARY KEY, order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
-            artwork_id INTEGER, title VARCHAR(255), artist_name VARCHAR(255),
-            artist_id VARCHAR(255), price NUMERIC(12,2) DEFAULT 0,
-            quantity INTEGER DEFAULT 1, image_url TEXT,
-            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-        )
-    ");
-    $db->exec("
-        CREATE TABLE IF NOT EXISTS cart (
-            id SERIAL PRIMARY KEY, user_id VARCHAR(255), artwork_id INTEGER,
-            quantity INTEGER DEFAULT 1, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, artwork_id)
-        )
-    ");
-    $db->exec("
-        CREATE TABLE IF NOT EXISTS artworks (
-            id SERIAL PRIMARY KEY, title VARCHAR(255), price NUMERIC(12,2),
-            category VARCHAR(100), technique VARCHAR(100), technique_custom VARCHAR(100),
-            width NUMERIC(8,2), height NUMERIC(8,2), depth NUMERIC(8,2),
-            dimensions TEXT, description TEXT, artist_id VARCHAR(255),
-            artist_name VARCHAR(255), artist_country VARCHAR(100),
-            badge VARCHAR(100) DEFAULT 'Disponible', status VARCHAR(50) DEFAULT 'publiée',
-            image_url TEXT, photos TEXT, weight_g INTEGER DEFAULT 0,
-            is_sold BOOLEAN DEFAULT FALSE, sold_at TIMESTAMPTZ,
-            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-        )
-    ");
-    $db->exec("
-        CREATE TABLE IF NOT EXISTS order_timeline (
-            id SERIAL PRIMARY KEY, order_id INTEGER, status VARCHAR(100),
-            note TEXT, updated_by_role VARCHAR(50),
-            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-        )
-    ");
-    $db->exec("
-        CREATE TABLE IF NOT EXISTS artist_notifications (
-            id SERIAL PRIMARY KEY, artist_id VARCHAR(255), artist_name VARCHAR(255),
-            type VARCHAR(100) DEFAULT 'new_order',
-            order_id INTEGER, order_number VARCHAR(255), title VARCHAR(255),
-            message TEXT, is_read BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-        )
-    ");
-    try { $db->exec("ALTER TABLE artist_notifications ADD COLUMN IF NOT EXISTS type VARCHAR(100) DEFAULT 'new_order'"); } catch (Exception $e) {}
-
-    // ─── MIGRATIONS — colonnes ajoutées après création initiale ──────
-    $migrations = [
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS commission_amount NUMERIC(12,2) DEFAULT 0",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS artist_payout NUMERIC(12,2) DEFAULT 0",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS stripe_session_id VARCHAR(255)",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_address TEXT",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_name VARCHAR(255)",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)",
-        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS artist_id VARCHAR(255)",
-        "ALTER TABLE artworks ADD COLUMN IF NOT EXISTS is_sold BOOLEAN DEFAULT FALSE",
-        "ALTER TABLE artworks ADD COLUMN IF NOT EXISTS sold_at TIMESTAMPTZ",
-        "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS artist_id VARCHAR(255)",
-    ];
-    foreach ($migrations as $sql) {
-        try { $db->exec($sql); } catch (Exception $e) { /* colonne déjà présente */ }
-    }
-
-    // ─────────────────────────────────────────────────────────────────
-    // ÉTAPE 3 — Vérifier l'idempotence (éviter les doublons)
-    // ─────────────────────────────────────────────────────────────────
-    $checkStmt = $db->prepare("SELECT id FROM orders WHERE order_number = :order_number LIMIT 1");
-    $checkStmt->execute([':order_number' => $order_id]);
-    if ($checkStmt->fetch()) {
-        error_log("ℹ️ Webhook ARKYL — Commande $order_id déjà traitée, ignorée (idempotence)");
-        http_response_code(200);
-        exit();
-    }
-
-    // ─────────────────────────────────────────────────────────────────
-    // ÉTAPE 4 — Récupérer le contenu du panier + artist_id de chaque œuvre
-    // ─────────────────────────────────────────────────────────────────
-    $cartStmt = $db->prepare("
-        SELECT c.quantity, c.artwork_id,
-               a.title, a.price, a.image_url, a.artist_name,
-               a.artist_id
-        FROM cart c
-        INNER JOIN artworks a ON c.artwork_id = a.id
-        WHERE c.user_id = :user_id
-    ");
-    $cartStmt->execute([':user_id' => $user_id]);
-    $cartItems = $cartStmt->fetchAll(PDO::FETCH_ASSOC);
-
-    if (empty($cartItems)) {
-        error_log("⚠️ Webhook ARKYL — Panier vide pour user_id: $user_id, order_id: $order_id");
-        http_response_code(200);
-        exit();
-    }
-
-    // ─────────────────────────────────────────────────────────────────
-    // ÉTAPE 5 — Calculer les totaux
-    // ─────────────────────────────────────────────────────────────────
-    $subtotal_fcfa = 0;
-    foreach ($cartItems as $item) {
-        $subtotal_fcfa += floatval($item['price']) * intval($item['quantity']);
-    }
-
-    $tva_rate   = 0.18;
-    $tax_fcfa   = round($subtotal_fcfa * $tva_rate);
-    $total_fcfa = $subtotal_fcfa + $shipping_cost;
-
-    $auto_release_date = (new DateTime())->modify('+21 days')->format('Y-m-d H:i:s');
-
-    // ─────────────────────────────────────────────────────────────────
-    // ÉTAPE 6 — Créer la commande + items + marquer vendues + vider panier
-    // Répartition : Commission ARKYL 35% | Artiste 65% | Port non taxé
-    // ─────────────────────────────────────────────────────────────────
-    $db->beginTransaction();
-
-    // 6a. Insérer la commande
-    $insertOrder = $db->prepare("
-        INSERT INTO orders (
-            order_number, user_id, user_name, user_email,
-            artist_id, status, escrow_status, escrow_auto_release_date,
-            subtotal, tax, shipping_cost, shipping_name, shipping_address,
-            payment_method, total,
-            commission_amount, artist_payout,
-            stripe_session_id, created_at
-        ) VALUES (
-            :order_number, :user_id, :user_name, :user_email,
-            :artist_id, 'En préparation', 'payée_en_attente', :auto_release_date,
-            :subtotal, :tax, :shipping_cost, :shipping_name, :shipping_address,
-            :payment_method, :total,
-            :commission_amount, :artist_payout,
-            :stripe_session_id, CURRENT_TIMESTAMP
-        )
-        RETURNING id
-    ");
-
-    $insertOrder->execute([
-        ':order_number'      => $order_id,
-        ':user_id'           => $user_id,
-        ':user_name'         => $user_name,
-        ':user_email'        => $user_email,
-        ':artist_id'         => $artist_id,
-        ':auto_release_date' => $auto_release_date,
-        ':subtotal'          => $subtotal_fcfa,
-        ':tax'               => $tax_fcfa,
-        ':shipping_cost'     => $shipping_cost,
-        ':shipping_name'     => $shipping_mode,
-        ':shipping_address'  => $shipping_address,
-        ':payment_method'    => $payment_method,
-        ':total'             => $total_fcfa,
-        ':commission_amount' => $commission_amount, // 35% — calculé dans api_stripe_checkout.php
-        ':artist_payout'     => $artist_payout,     // 65% — calculé dans api_stripe_checkout.php
-        ':stripe_session_id' => $session->id,
-    ]);
-
-    $new_order_db_id = $insertOrder->fetchColumn();
-
-    // 6b. Insérer chaque article avec son artist_id
-    $insertItem = $db->prepare("
-        INSERT INTO order_items
-            (order_id, artwork_id, title, artist_name, artist_id, price, quantity, image_url)
-        VALUES
-            (:order_id, :artwork_id, :title, :artist_name, :artist_id, :price, :quantity, :image_url)
-    ");
-
-    foreach ($cartItems as $item) {
-        $insertItem->execute([
-            ':order_id'    => $new_order_db_id,
-            ':artwork_id'  => $item['artwork_id'],
-            ':title'       => $item['title'],
-            ':artist_name' => $item['artist_name'] ?? '',
-            ':artist_id'   => (string)($item['artist_id'] ?? ''),
-            ':price'       => $item['price'],
-            ':quantity'    => $item['quantity'],
-            ':image_url'   => $item['image_url'] ?? '',
-        ]);
-    }
-
-    // 6c. Marquer les œuvres comme vendues (is_sold + sold_at)
-    $markSold = $db->prepare("
-        UPDATE artworks SET is_sold = TRUE, sold_at = NOW() WHERE id = :artwork_id
-    ");
-    foreach ($cartItems as $item) {
-        $markSold->execute([':artwork_id' => $item['artwork_id']]);
-    }
-
-    // 6d. Créer l'entrée dans order_timeline
-    $db->prepare("
-        INSERT INTO order_timeline (order_id, status, note, updated_by_role)
-        VALUES (:order_id, 'En préparation', 'Commande créée — paiement Stripe validé', 'system')
-    ")->execute([':order_id' => $new_order_db_id]);
-
-    // 6e. Vider le panier
-    $db->prepare("DELETE FROM cart WHERE user_id = :user_id")
-       ->execute([':user_id' => $user_id]);
-
-    $db->commit();
-
-    // ─────────────────────────────────────────────────────────────────
-    // ÉTAPE 7 — Notifier chaque artiste via notifyArtists() (notify_helpers.php)
-    // Email + notification BDD avec les mêmes templates que api_commandes.php
-    // ─────────────────────────────────────────────────────────────────
     try {
-        notifyArtists(
-            $db,
-            $new_order_db_id,  // INTEGER id de la commande en BDD
-            $order_id,         // numéro lisible ex: ARKYL-XXXXXXXX
-            $cartItems,        // items avec artist_id, title, price, quantity
-            $user_name ?: $user_email,
-            $subtotal_fcfa + $shipping_cost,
-            $shipping_address,
-            $shipping_mode
-        );
-    } catch (Exception $e) {
-        error_log("⚠️ Webhook ARKYL — notifyArtists échouée : " . $e->getMessage());
+        $db  = getDatabase();
+        $res = arkylCreateOrderFromSession($db, $session);
+        error_log('ARKYL webhook (api_commandes) : ' . json_encode($res));
+    } catch (Throwable $e) {
+        error_log('❌ Webhook ARKYL — erreur : ' . $e->getMessage());
     }
-
-    error_log("✅ Webhook ARKYL — Commande $order_id créée (db_id: $new_order_db_id) | "
-        . count($cartItems) . " article(s) | "
-        . "Commission ARKYL (35%) : {$commission_amount} FCFA | "
-        . "Reversement artiste (65%) : {$artist_payout} FCFA | "
-        . "Livraison (non taxée) : {$shipping_cost} FCFA");
-
-    } catch (Exception $e) {
-        if (isset($db) && $db->inTransaction()) {
-            $db->rollBack();
-        }
-        error_log("❌ Webhook ARKYL — Erreur BDD : " . $e->getMessage());
-    }
-
-    // Toujours répondre 200 à Stripe
+    // Toujours répondre 200 à Stripe (sinon il rejoue l'événement en boucle)
     http_response_code(200);
     echo json_encode(['received' => true]);
-} // end handleStripeWebhook
-?>
+}
 
+// ═══════════════════════════════════════════════════════════════════
+// Configuration Stripe + contrôles d'appartenance d'une commande
+// ═══════════════════════════════════════════════════════════════════
+function arkylConfigureStripe() {
+    \Stripe\Stripe::setApiKey(getenv('STRIPE_SECRET_KEY') ?: 'sk_test_51T2gpFF55lBdracChUzrVSa166Skh4ob49dtF3j0pa27zcWMk1YLnvt5Wz788K7O0CpIMJPMZcaKDqG241vgQ8tj00EY87nxyZ');
+}
 
+/** L'utilisateur connecté est-il l'un des artistes de cette commande ? */
+function arkylArtistOwnsOrder(PDO $db, $orderRef, array $auth): bool {
+    $orderRef = (string) $orderRef;
+    if ($orderRef === '') {
+        return false;
+    }
+    $conds  = [];
+    $params = [':ref1' => $orderRef, ':ref2' => $orderRef];
+    foreach (array_values($auth['ids']) as $i => $id) {
+        $conds[] = "oi.artist_id = :a$i";
+        $params[":a$i"] = (string) $id;
+    }
+    foreach (array_values($auth['names']) as $i => $n) {
+        $conds[] = "LOWER(oi.artist_name) = LOWER(:n$i)";
+        $params[":n$i"] = (string) $n;
+    }
+    if (!$conds) {
+        return false;
+    }
+    $st = $db->prepare("SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                        WHERE (o.id::text = :ref1 OR o.order_number = :ref2) AND (" . implode(' OR ', $conds) . ") LIMIT 1");
+    $st->execute($params);
+    return (bool) $st->fetchColumn();
+}
 
-
-
+/** L'utilisateur connecté est-il l'acheteur de cette commande ? */
+function arkylBuyerOwnsOrder(PDO $db, $orderRef, array $auth): bool {
+    $orderRef = (string) $orderRef;
+    if ($orderRef === '') {
+        return false;
+    }
+    $st = $db->prepare('SELECT user_id FROM orders WHERE id::text = :ref1 OR order_number = :ref2 LIMIT 1');
+    $st->execute([':ref1' => $orderRef, ':ref2' => $orderRef]);
+    $uid = $st->fetchColumn();
+    return $uid !== false && arkylOwnsId($auth, $uid);
+}

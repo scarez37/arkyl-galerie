@@ -1,44 +1,50 @@
 <?php
 /**
- * api_interactions.php - Gère les Likes et Commentaires
+ * api_interactions.php — J'aime des œuvres (PostgreSQL, compte connecté obligatoire)
+ *   GET  ?action=get_user_likes            → ids des œuvres aimées par l'utilisateur connecté
+ *   POST {action:'toggle_like', artwork_id} → aime / n'aime plus
  */
-session_start();
-require_once 'config_mysql.php';
-header('Content-Type: application/json');
+require_once __DIR__ . '/auth_helper.php';
+require_once __DIR__ . '/db_config.php';
 
-$data = json_decode(file_get_contents('php://input'), true);
-$action = $data['action'] ?? '';
-
-// Vérifier si l'utilisateur est connecté
-if (!isset($_SESSION['user_id'])) {
-    echo json_encode(['success' => false, 'message' => 'Non connecté']);
-    exit;
-}
-
-$user_id = $_SESSION['user_id'];
-$db = getDB();
+$auth    = arkylRequireAuth();
+$userId  = (string) $auth['sub'];
 
 try {
+    $db = getDatabase();
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+    if ($method === 'GET') {
+        if (($_GET['action'] ?? '') !== 'get_user_likes') {
+            arkylJsonError(400, 'Action inconnue.');
+        }
+        $st = $db->prepare('SELECT artwork_id FROM likes WHERE user_id = :u');
+        $st->execute([':u' => $userId]);
+        echo json_encode(['success' => true, 'data' => array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN))]);
+        exit;
+    }
+
+    $data   = arkylJsonBody();
+    $action = $data['action'] ?? '';
+
     if ($action === 'toggle_like') {
-        $artwork_id = $data['artwork_id'];
-
-        // Vérifier si le like existe déjà
-        $check = $db->prepare("SELECT id FROM likes WHERE user_id = ? AND artwork_id = ?");
-        $check->execute([$user_id, $artwork_id]);
-
-        if ($check->fetch()) {
-            // Si oui, on l'enlève (Unlike)
-            $stmt = $db->prepare("DELETE FROM likes WHERE user_id = ? AND artwork_id = ?");
-            $stmt->execute([$user_id, $artwork_id]);
+        $artworkId = intval($data['artwork_id'] ?? 0);
+        if ($artworkId <= 0) {
+            arkylJsonError(400, 'artwork_id manquant.');
+        }
+        $del = $db->prepare('DELETE FROM likes WHERE user_id = :u AND artwork_id = :a');
+        $del->execute([':u' => $userId, ':a' => $artworkId]);
+        if ($del->rowCount() > 0) {
             echo json_encode(['success' => true, 'status' => 'unliked']);
         } else {
-            // Si non, on l'ajoute (Like)
-            $stmt = $db->prepare("INSERT INTO likes (user_id, artwork_id) VALUES (?, ?)");
-            $stmt->execute([$user_id, $artwork_id]);
+            $db->prepare('INSERT INTO likes (user_id, artwork_id) VALUES (:u, :a) ON CONFLICT DO NOTHING')
+               ->execute([':u' => $userId, ':a' => $artworkId]);
             echo json_encode(['success' => true, 'status' => 'liked']);
         }
+        exit;
     }
-} catch (Exception $e) {
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+
+    arkylJsonError(400, 'Action inconnue.');
+} catch (Throwable $e) {
+    arkylJsonError(500, arkylSafeError($e));
 }
-?>

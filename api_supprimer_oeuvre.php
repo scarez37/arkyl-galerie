@@ -1,12 +1,9 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 require_once __DIR__ . '/cors_helper.php';
 
 // ==================== API SUPPRESSION D'ŒUVRE (VERSION POSTGRESQL) ====================
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -16,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/db_config.php';
 
 try {
+    $authS = arkylRequireAuth();   // identité d'abord, avant toute lecture en base
     $db = getDatabase();
     $data = json_decode(file_get_contents('php://input'), true);
 
@@ -27,7 +25,7 @@ try {
     $artwork_id = intval($data['id']);
 
     // 2. Vérifier que l'œuvre existe
-    $stmt = $db->prepare("SELECT id, title FROM artworks WHERE id = :id");
+    $stmt = $db->prepare("SELECT id, title, artist_id FROM artworks WHERE id = :id");
     $stmt->execute([':id' => $artwork_id]);
     $artwork = $stmt->fetch(PDO::FETCH_ASSOC);
     
@@ -36,6 +34,13 @@ try {
         exit;
     }
     
+    // Seul le propriétaire de l'œuvre (ou l'administrateur) peut la supprimer
+    if (!arkylIsAdmin($authS) && !arkylOwnsId($authS, $artwork['artist_id'])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => "Accès refusé : cette œuvre n'est pas la vôtre."]);
+        exit;
+    }
+
     // 3. SUPPRESSION DE L'ŒUVRE
     $deleteStmt = $db->prepare("DELETE FROM artworks WHERE id = :id");
     $deleteStmt->execute([':id' => $artwork_id]);
@@ -62,7 +67,7 @@ try {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'message' => 'Erreur serveur : ' . $e->getMessage()
+        'message' => 'Erreur serveur : ' . arkylSafeError($e)
     ]);
 }
 ?>

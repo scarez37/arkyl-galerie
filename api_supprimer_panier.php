@@ -1,14 +1,11 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 // ==================== API PANIER — SUPPRIMER / METTRE À JOUR ====================
 // Gère deux actions :
 //   action=supprimer  → retire un article du panier
 //   action=quantite   → met à jour la quantité d'un article
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -23,7 +20,7 @@ try {
     $data  = json_decode($input, true);
 
     $action     = $data['action']     ?? '';
-    $user_id    = $data['user_id']    ?? '';
+    $user_id    = arkylActorId($data['user_id'] ?? '');
     $artwork_id = intval($data['artwork_id'] ?? 0);
 
     if (empty($user_id) || $artwork_id <= 0 || empty($action)) {
@@ -82,7 +79,7 @@ try {
     http_response_code(400);
     echo json_encode([
         'success' => false,
-        'message' => $e->getMessage()
+        'message' => arkylSafeError($e)
     ]);
 }
 ?>

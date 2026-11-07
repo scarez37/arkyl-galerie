@@ -4,5 +4,10 @@
 Dockerfile
 render.yaml
 composer.json
-version.txt
 vendor/
+supabase/
+scripts/
+docs/
+.htaccess
+.dockerignore
+.env.example

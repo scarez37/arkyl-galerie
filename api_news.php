@@ -1,9 +1,6 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -30,6 +27,7 @@ try {
 
     // AJOUTER UNE NEWS
     if ($method === 'POST' && $action === 'add') {
+        arkylRequireAdmin();
         $stmt = $db->prepare(
             "INSERT INTO news (icon, gradient, text, is_image) VALUES (:icon, :gradient, :text, :is_image)"
         );
@@ -45,6 +43,7 @@ try {
 
     // MODIFIER UNE NEWS
     if ($method === 'POST' && $action === 'update') {
+        arkylRequireAdmin();
         $id = intval($body['id'] ?? 0);
         if (!$id) {
             echo json_encode(['success' => false, 'error' => 'ID manquant']);
@@ -66,6 +65,7 @@ try {
 
     // SUPPRIMER UNE NEWS
     if ($method === 'POST' && $action === 'delete') {
+        arkylRequireAdmin();
         $id = intval($body['id'] ?? 0);
         if (!$id) {
             echo json_encode(['success' => false, 'error' => 'ID manquant']);
@@ -80,5 +80,5 @@ try {
     echo json_encode(['success' => false, 'error' => 'Action inconnue: ' . $action]);
 
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => arkylSafeError($e)]);
 }

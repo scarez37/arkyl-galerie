@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <script src="/api-client.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Connexion Artiste - ARKYL</title>
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
@@ -298,6 +299,7 @@
                 localStorage.setItem(`arkyl_artist_account_email_${userEmail.toLowerCase()}`, JSON.stringify(artistAccount));
                 localStorage.setItem('arkyl_current_user', JSON.stringify(currentUser));
                 localStorage.setItem('user_id', String(userId));
+                if (result.token) ArkylAPI.setToken(result.token, result.expires_in);   // jeton de session délivré par le serveur
                 localStorage.setItem('user_name', userName);
                 localStorage.setItem('user_email', userEmail);
 

@@ -91,7 +91,10 @@ const AuthManager = {
                 JSON.stringify(currentUser)
             );
             
-            // ── 4. Token de session (optionnel) ──
+            // ── 4. Token de session délivré par le serveur ──
+            if (userData.token && window.ArkylAPI) {
+                window.ArkylAPI.setToken(userData.token, userData.expires_in);
+            }
             if (userData.session_token) {
                 localStorage.setItem(this.KEYS.SESSION_TOKEN, userData.session_token);
                 

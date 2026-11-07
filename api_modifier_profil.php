@@ -1,13 +1,7 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 // ==================== API MODIFIER PROFIL ARTISTE ====================
 ob_start();
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Access-Control-Allow-Credentials: true');
-header('Cross-Origin-Embedder-Policy: unsafe-none');
-header('Cross-Origin-Opener-Policy: unsafe-none');
-header('Cross-Origin-Resource-Policy: cross-origin');
 header('Content-Type: application/json; charset=utf-8');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); ob_end_clean(); exit; }
@@ -102,6 +96,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $salesStmt->execute([':id' => (string)$user['id']]);
         $salesRow = $salesStmt->fetch(PDO::FETCH_ASSOC);
 
+        // E-mail et téléphone = données privées : visibles uniquement par l'artiste lui-même ou l'administrateur
+        $authG = arkylAuth();
+        $mine  = arkylIsAdmin($authG) || arkylOwnsId($authG, $user['id']);
+
         // ⭐ FIX Bug 2 : retourner specialty désérialisée (tableau, pas string JSON)
         $specialtyArray = parseSpecialty($user['specialty']);
 
@@ -110,13 +108,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'artist'  => [
                 'id'            => (string)$user['id'],   // toujours string
                 'name'          => $user['name'],
-                'email'         => $user['email'] ?? '',  // ⭐ FIX Bug 3
+                'email'         => $mine ? ($user['email'] ?? '') : '',
                 'avatar'        => $user['avatar'],
                 'avatar_style'  => $user['avatar_style'] ?? 'slices',
                 'bio'           => $user['bio'],
                 'specialty'     => $specialtyArray,       // ⭐ tableau, pas JSON string
                 'country'       => $user['country'],
-                'phone'         => $user['phone'] ?? '',
+                'phone'         => $mine ? ($user['phone'] ?? '') : '',
                 'website'       => $user['website'],
                 'social'        => $user['social'],
                 'artworks_count'=> (int)($countRow['total'] ?? 0),
@@ -127,65 +125,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         ]);
     } catch (Exception $e) {
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => arkylSafeError($e)]);
     }
     exit;
 }
 
-// ── POST : mise à jour du profil ─────────────────────────────────────────────
+// ── POST : mise à jour du profil (propriétaire ou administrateur uniquement) ───
 try {
-    $db = getDatabase();
+    $auth = arkylRequireAuth();
+    $db   = getDatabase();
     ensureColumns($db);
 
-    $data = json_decode(file_get_contents('php://input'), true);
+    $data = arkylJsonBody();
 
-    $artist_id    = trim($data['artist_id']    ?? '');
-    $name         = trim($data['name']         ?? '');
-    $email        = trim($data['email']        ?? '');
-    $phone        = trim($data['phone']        ?? '');
-    $country      = trim($data['country']      ?? '');
-    $specialty    = $data['specialty']         ?? [];
-    $bio          = trim($data['bio']          ?? '');
-    $website      = trim($data['website']      ?? '');
-    $social       = trim($data['social']       ?? '');
-    $avatar       = $data['avatar']            ?? null;
-    $avatar_style = $data['avatar_style']      ?? null;
+    $artist_id    = trim((string) ($data['artist_id'] ?? ''));
+    $name         = trim((string) ($data['name']      ?? ''));
+    $email        = trim((string) ($data['email']     ?? ''));
+    $phone        = trim((string) ($data['phone']     ?? ''));
+    $country      = trim((string) ($data['country']   ?? ''));
+    $specialty    = $data['specialty']                ?? [];
+    $bio          = trim((string) ($data['bio']       ?? ''));
+    $website      = trim((string) ($data['website']   ?? ''));
+    $social       = trim((string) ($data['social']    ?? ''));
+    $avatar       = $data['avatar']                   ?? null;
+    $avatar_style = $data['avatar_style']             ?? null;
 
     if (!$artist_id || !$name || !$email) {
         throw new Exception("Champs obligatoires manquants (artist_id, name, email).");
     }
-
-    // ⭐ FIX Bug 1 : Vérifier/créer dans 'artists' (plus 'users')
-    // ⭐ FIX Bug 4 : Comparer artist_id en text pour éviter mismatch int/string
-    $check = $db->prepare("SELECT id FROM artists WHERE id::text = :id OR email = :email");
-    $check->execute([':id' => (string)$artist_id, ':email' => $email]);
-    $existing = $check->fetch(PDO::FETCH_ASSOC);
-    if (!$existing) {
-        // L'artiste n'existe pas encore — créer l'entrée
-        // ⭐ FIX : Utiliser google_id séparé si la colonne id est SERIAL
-        try {
-            // Essayer d'abord avec id explicite (si la table accepte les IDs externes)
-            $insert = $db->prepare("INSERT INTO artists (id, name, email) VALUES (:id, :name, :email) ON CONFLICT (id) DO NOTHING");
-            $insert->execute([':id' => $artist_id, ':name' => $name, ':email' => $email]);
-        } catch (Exception $insertErr) {
-            // Si id est SERIAL, insérer sans id et stocker google_id ailleurs
-            $db->prepare("INSERT INTO artists (name, email) VALUES (:name, :email) ON CONFLICT (email) DO NOTHING")
-               ->execute([':name' => $name, ':email' => $email]);
-        }
-        // Re-récupérer l'artiste (peut avoir un id différent si SERIAL)
-        $check2 = $db->prepare("SELECT id FROM artists WHERE email = :email LIMIT 1");
-        $check2->execute([':email' => $email]);
-        $existing = $check2->fetch(PDO::FETCH_ASSOC);
-        if ($existing) $artist_id = (string)$existing['id'];
-    } else {
-        // Utiliser l'id réel de la BDD (pas forcément le Google ID)
-        $artist_id = (string)$existing['id'];
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        throw new Exception("Adresse e-mail invalide.");
     }
 
-    // ⭐ FIX Bug 2 : Stocker specialty en JSON array (pas en string plate)
+    // ── Retrouver LA ligne artiste du compte connecté ─────────────────
+    $isAdm = arkylIsAdmin($auth);
+    $q = $db->prepare('SELECT id FROM artists WHERE id::text = :id LIMIT 1');
+    $q->execute([':id' => $artist_id]);
+    $existing = $q->fetch(PDO::FETCH_ASSOC);
+
+    if ($existing) {
+        if (!$isAdm && !arkylOwnsId($auth, $existing['id'])) {
+            throw new Exception("Accès refusé : ce profil n'est pas le vôtre.");
+        }
+    } elseif (!$isAdm) {
+        // L'identifiant fourni (ex. identifiant Google) n'est pas une ligne artists :
+        // on cherche le compte artiste lié au compte connecté, sinon on le crée
+        // avec l'e-mail VÉRIFIÉ du compte (jamais celui saisi dans le navigateur).
+        if (!arkylOwnsId($auth, $artist_id)) {
+            throw new Exception("Accès refusé : ce profil n'est pas le vôtre.");
+        }
+        $gid = (($auth['prov'] ?? '') === 'google') ? (string) $auth['sub'] : null;
+        $q = $db->prepare('SELECT id FROM artists WHERE (google_id IS NOT NULL AND google_id = :g) OR LOWER(email) = :e LIMIT 1');
+        $q->execute([':g' => (string) $gid, ':e' => mb_strtolower((string) ($auth['email'] ?? ''))]);
+        $existing = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$existing) {
+            $ins = $db->prepare('INSERT INTO artists (name, email, google_id) VALUES (:n, :e, :g) RETURNING id');
+            $ins->execute([':n' => $name, ':e' => mb_strtolower((string) $auth['email']), ':g' => $gid]);
+            $existing = ['id' => $ins->fetchColumn()];
+        }
+    } else {
+        throw new Exception('Artiste introuvable.');
+    }
+    $artist_id = (string) $existing['id'];
+
+    // ⭐ specialty stockée en JSON (tableau)
     $specialtyJson = json_encode(is_array($specialty)
         ? $specialty
-        : array_filter(array_map('trim', explode(',', $specialty)))
+        : array_filter(array_map('trim', explode(',', (string) $specialty)))
     );
 
     $setClause = "name = :name, email = :email, phone = :phone, country = :country,
@@ -199,9 +205,8 @@ try {
         ':bio'       => $bio,
         ':website'   => $website,
         ':social'    => $social,
-        ':id'        => (string)$artist_id,
+        ':id'        => $artist_id,
     ];
-
     if ($avatar !== null) {
         $setClause .= ", avatar = :avatar";
         $params[':avatar'] = $avatar;
@@ -211,20 +216,22 @@ try {
         $params[':avatar_style'] = $avatar_style;
     }
 
-    // ⭐ FIX : Comparer id::text ou email pour compatibilité int/string/Google ID
-    $stmt = $db->prepare("UPDATE artists SET $setClause WHERE id::text = :id OR (id::text != :id AND email = :email_fb)");
-    $params[':email_fb'] = $email;
-    $stmt->execute($params);
-
-    // Synchroniser le nom dans les œuvres si changé
-    if ($name) {
-        $db->prepare("UPDATE artworks SET artist_name = :name WHERE artist_id::text = :id")
-           ->execute([':name' => $name, ':id' => (string)$artist_id]);
+    try {
+        $db->prepare("UPDATE artists SET $setClause WHERE id::text = :id")->execute($params);
+    } catch (PDOException $e) {
+        if ($e->getCode() === '23505') {
+            throw new Exception('Cette adresse e-mail est déjà utilisée par un autre compte.');
+        }
+        throw $e;
     }
+
+    // Synchroniser le nom dans les œuvres
+    $db->prepare("UPDATE artworks SET artist_name = :name WHERE artist_id::text = :id")
+       ->execute([':name' => $name, ':id' => $artist_id]);
 
     echo json_encode(['success' => true, 'message' => 'Profil mis à jour avec succès.']);
 
-} catch (Exception $e) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+} catch (Throwable $e) {
+    http_response_code($e instanceof PDOException ? 500 : 400);
+    echo json_encode(['success' => false, 'message' => arkylSafeError($e)]);
 }

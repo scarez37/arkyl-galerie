@@ -1,18 +1,16 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 /**
  * API GET FAVORIS
  * Récupère la liste des favoris d'un utilisateur avec les détails des œuvres
  */
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-
-// 🔧 UTILISER LA CONFIGURATION CENTRALISÉE
 require_once __DIR__ . '/db_config.php';
 
 try {
     $db = getDatabase();
     
-    $user_id = $_GET['user_id'] ?? '';
+    $user_id = arkylActorId($_GET['user_id'] ?? '');
     
     if (empty($user_id)) {
         echo json_encode(['success' => false, 'message' => 'User ID manquant'], JSON_UNESCAPED_UNICODE);
@@ -24,7 +22,7 @@ try {
         id SERIAL PRIMARY KEY,
         user_id TEXT NOT NULL,
         artwork_id INTEGER NOT NULL,
-        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        added_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, artwork_id),
         FOREIGN KEY (artwork_id) REFERENCES artworks(id)
     )");
@@ -102,7 +100,7 @@ try {
     echo json_encode([
         'success' => false,
         'message' => 'Erreur',
-        'error' => $e->getMessage()
+        'error' => arkylSafeError($e)
     ], JSON_UNESCAPED_UNICODE);
 }
 ?>

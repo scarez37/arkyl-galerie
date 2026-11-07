@@ -1,13 +1,7 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 require_once __DIR__ . '/cors_helper.php';
-
-header('Cross-Origin-Embedder-Policy: unsafe-none');
-header('Cross-Origin-Opener-Policy: unsafe-none');
-header('Cross-Origin-Resource-Policy: cross-origin');
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, OPTIONS');
-
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -17,7 +11,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/db_config.php';
 
 // 🔍 Log de débogage
-error_log("api_galerie_publique.php appelée avec : " . print_r($_GET, true));
 
 try {
     $db = getDatabase();
@@ -57,7 +50,7 @@ try {
 
         // ⭐ FIX : admin=1 → aucun filtre sur le statut ni is_sold
         //          (le panneau admin doit voir TOUTES les œuvres)
-        $isAdmin = isset($_GET['admin']) && $_GET['admin'] === '1';
+        $isAdmin = isset($_GET['admin']) && $_GET['admin'] === '1' && arkylIsAdmin();   // vue admin : réservée à l'administrateur connecté
 
         $includeSold = isset($_GET['include_sold']) && $_GET['include_sold'] === '1';
 
@@ -182,7 +175,7 @@ try {
 } catch (Exception $e) {
     echo json_encode([
         'success' => false,
-        'message' => "Erreur : " . $e->getMessage()
+        'message' => "Erreur : " . arkylSafeError($e)
     ], JSON_UNESCAPED_UNICODE);
 }
 

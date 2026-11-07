@@ -1,0 +1,23 @@
+# ===================================================================
+# .htaccess — Apache (Docker / Railway / Render)
+# ===================================================================
+
+# 1) Transmet l'en-tête Authorization à PHP (sinon Apache + mod_php le supprime
+#    et la connexion par jeton ne fonctionne pas).
+SetEnvIf Authorization "(.+)" HTTP_AUTHORIZATION=$1
+
+# 2) Pas de liste de dossiers ; l'accueil est index.php puis index.html
+Options -Indexes
+DirectoryIndex index.php index.html
+
+# 3) Fichiers internes : jamais servis (config, outils, documentation, SQL…)
+<FilesMatch "(?i)^(composer\.(json|lock)|Dockerfile|render\.yaml|vercel\.json|router\.php|db_config\.php|bootstrap\.php|auth_helper\.php|cors_helper\.php|cors_init\.php|notify_helpers\.php|stripe_order_helper\.php)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "(?i)\.(sql|md|lock|ya?ml|sh|log|env|bak)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+RedirectMatch 404 "(?i)^/(\.git|vendor|supabase|scripts|docs|node_modules)(/|$)"

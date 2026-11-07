@@ -1,17 +1,15 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 // ==================== API COMPTER FAVORIS ====================
 // Fichier: api_get_favorites_count.php
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-
-// 🛠️ CORRECTION : On utilise db_config.php pour PostgreSQL !
 require_once __DIR__ . '/db_config.php';
 
 try {
     $db = getDatabase();
     
-    $user_id = $_GET['user_id'] ?? '';
+    $user_id = arkylActorId($_GET['user_id'] ?? '');
     
     if (empty($user_id)) {
         echo json_encode(['success' => false, 'message' => 'User ID manquant']);
@@ -32,7 +30,7 @@ try {
     echo json_encode([
         'success' => false,
         'message' => 'Erreur',
-        'error' => $e->getMessage()
+        'error' => arkylSafeError($e)
     ]);
 }
 ?>

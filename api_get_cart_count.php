@@ -1,36 +1,14 @@
 <?php
-// ==================== API COMPTER PANIER ====================
-// Fichier: api_get_cart_count.php
-
-header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+// api_get_cart_count.php — nombre d'articles du panier (PostgreSQL)
+require_once __DIR__ . '/auth_helper.php';
+require_once __DIR__ . '/db_config.php';
 
 try {
-    $db = new PDO('sqlite:/opt/render/project/src/galerie.db');
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    
-    $user_id = $_GET['user_id'] ?? '';
-    
-    if (empty($user_id)) {
-        echo json_encode(['success' => false, 'message' => 'User ID manquant']);
-        exit;
-    }
-    
-    // Compter les items dans le panier
-    $stmt = $db->prepare("SELECT COALESCE(SUM(quantity), 0) as count FROM cart WHERE user_id = :user_id");
-    $stmt->execute([':user_id' => $user_id]);
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    echo json_encode([
-        'success' => true,
-        'count' => intval($result['count'])
-    ]);
-    
-} catch (PDOException $e) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Erreur',
-        'error' => $e->getMessage()
-    ]);
+    $user_id = arkylActorId($_GET['user_id'] ?? '');   // visiteur anonyme OU compte connecté vérifié
+    $db = getDatabase();
+    $st = $db->prepare('SELECT COALESCE(SUM(quantity), 0) FROM cart WHERE user_id = :u');
+    $st->execute([':u' => $user_id]);
+    echo json_encode(['success' => true, 'count' => (int) $st->fetchColumn()]);
+} catch (Throwable $e) {
+    arkylJsonError(500, arkylSafeError($e));
 }
-?>

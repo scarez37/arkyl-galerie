@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 require_once __DIR__ . '/cors_helper.php';
 
 /**
@@ -6,15 +7,12 @@ require_once __DIR__ . '/cors_helper.php';
  * Récupère le contenu du panier d'un utilisateur avec les détails des œuvres
  */
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-
-// 🔧 UTILISER LA CONFIGURATION CENTRALISÉE
 require_once __DIR__ . '/db_config.php';
 
 try {
     $db = getDatabase();
     
-    $user_id = $_GET['user_id'] ?? '';
+    $user_id = arkylActorId($_GET['user_id'] ?? '');
     
     if (empty($user_id)) {
         echo json_encode(['success' => false, 'message' => 'User ID manquant'], JSON_UNESCAPED_UNICODE);
@@ -111,7 +109,7 @@ try {
     echo json_encode([
         'success' => false,
         'message' => 'Erreur lors de la récupération du panier',
-        'error' => $e->getMessage()
+        'error' => arkylSafeError($e)
     ], JSON_UNESCAPED_UNICODE);
 }
 ?>

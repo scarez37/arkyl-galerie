@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env
+.env.*
+node_modules
+vendor
+supabase
+scripts
+docs
+*.md

@@ -1,12 +1,6 @@
 <?php
-header('Cross-Origin-Embedder-Policy: unsafe-none');
-header('Cross-Origin-Opener-Policy: unsafe-none');
-header('Cross-Origin-Resource-Policy: cross-origin');
+require_once __DIR__ . '/auth_helper.php';
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -61,6 +55,11 @@ try {
 
     // POST add — publier un nouveau post
     if ($method === 'POST' && $action === 'add') {
+        $authP = arkylRequireAuth();
+        if (!arkylIsAdmin($authP) && arkylArtistId($authP) === null) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Réservé aux artistes']); exit;
+        }
         $id = $body['id'] ?? ('post_' . time() . '_' . bin2hex(random_bytes(4)));
         $photosArr = $body['photos'] ?? [];
         if (empty($photosArr) && !empty($body['media_url'])) {
@@ -75,7 +74,7 @@ try {
         ");
         $stmt->execute([
             ':id'            => $id,
-            ':artist_id'     => $body['artist_id']     ?? '',
+            ':artist_id'     => !empty($body['artist_id']) ? arkylActorId($body['artist_id'], false) : (arkylArtistId($authP) ?? (string) $authP['sub']),   // doit appartenir au compte connecté
             ':artist_name'   => $body['artist_name']   ?? 'Artiste',
             ':artist_avatar' => $body['artist_avatar']  ?? '',
             ':media_url'     => $body['media_url']     ?? '',
@@ -90,10 +89,11 @@ try {
 
     // POST like — incrémenter/décrémenter les likes
     if ($method === 'POST' && $action === 'like') {
+        arkylRequireAuth();
         $id    = $body['id']    ?? '';
-        $delta = intval($body['delta'] ?? 1); // +1 like, -1 unlike
+        $delta = (intval($body['delta'] ?? 1) >= 0) ? 1 : -1; // +1 like, -1 unlike (jamais plus)
         if (!$id) { echo json_encode(['success' => false, 'error' => 'ID manquant']); exit; }
-        $stmt = $db->prepare("UPDATE artist_posts SET likes = MAX(0, likes + :delta) WHERE id = :id");
+        $stmt = $db->prepare("UPDATE artist_posts SET likes = GREATEST(0, likes + :delta) WHERE id = :id");
         $stmt->execute([':delta' => $delta, ':id' => $id]);
         echo json_encode(['success' => true, 'posts' => getAllPosts($db)]);
         exit;
@@ -101,9 +101,10 @@ try {
 
     // POST comment — ajouter un commentaire
     if ($method === 'POST' && $action === 'comment') {
+        $authC = arkylRequireAuth();
         $id     = $body['id']     ?? '';
-        $author = $body['author'] ?? 'Visiteur';
-        $text   = trim($body['text'] ?? '');
+        $author = $authC['name'] ?? 'Membre';   // auteur = compte connecté, pas une valeur du navigateur
+        $text   = mb_substr(trim($body['text'] ?? ''), 0, 1000);
         if (!$id || !$text) { echo json_encode(['success' => false, 'error' => 'ID ou texte manquant']); exit; }
         $stmt = $db->prepare("SELECT comments FROM artist_posts WHERE id = :id");
         $stmt->execute([':id' => $id]);
@@ -119,13 +120,14 @@ try {
 
     // POST delete — supprimer (propriétaire uniquement)
     if ($method === 'POST' && $action === 'delete') {
+        $authD = arkylRequireAuth();
         $id        = $body['id']        ?? '';
         $artist_id = $body['artist_id'] ?? '';
         if (!$id) { echo json_encode(['success' => false, 'error' => 'ID manquant']); exit; }
         $stmt = $db->prepare("SELECT artist_id FROM artist_posts WHERE id = :id");
         $stmt->execute([':id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($row && $row['artist_id'] !== $artist_id) {
+        if ($row && !arkylIsAdmin($authD) && !arkylOwnsId($authD, $row['artist_id'])) {
             echo json_encode(['success' => false, 'error' => 'Non autorisé']); exit;
         }
         $stmt = $db->prepare("DELETE FROM artist_posts WHERE id = :id");
@@ -137,5 +139,5 @@ try {
     echo json_encode(['success' => false, 'error' => 'Action inconnue : ' . $action]);
 
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => arkylSafeError($e)]);
 }

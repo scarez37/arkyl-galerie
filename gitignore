@@ -1,0 +1,20 @@
+# Dépendances installées
+/vendor/
+/node_modules/
+
+# Secrets et configuration locale — ne JAMAIS les envoyer sur GitHub
+.env
+.env.*
+!.env.example
+
+# Anciennes bases SQLite / sauvegardes / journaux
+*.db
+*.sqlite
+*.sql.gz
+*.dump
+*.log
+/backup/
+
+# Système
+.DS_Store
+Thumbs.db

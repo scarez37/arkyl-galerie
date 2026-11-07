@@ -1,3 +1,24 @@
+// ============ SÉCURITÉ : échappement des textes saisis par les utilisateurs ============
+// Tout texte venant d'un utilisateur (titre d'œuvre, nom d'artiste, bio, commentaire…) doit
+// passer par escapeHtml() avant d'être inséré dans du HTML (innerHTML, gabarits `...`),
+// sinon un visiteur malveillant peut y glisser du code qui s'exécute chez les autres.
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+// Valeur placée dans un gestionnaire HTML : onclick="fonction('${escapeJsAttr(x)}')"
+function escapeJsAttr(value) {
+    return escapeHtml(String(value ?? '').replace(/[\\'"<>&\n\r\u2028\u2029]/g, function (c) {
+        return '\\x' + c.charCodeAt(0).toString(16).padStart(2, '0');
+    }));
+}
+// Adresse (href) : seuls http(s), mailto, tel et les chemins relatifs sont acceptés
+function safeUrl(value) {
+    const v = String(value ?? '').trim();
+    return /^(https?:\/\/|mailto:|tel:|\/|\.\/|#|data:image\/|data:application\/pdf)/i.test(v) ? v : (v === '' ? '' : 'https://' + v.replace(/^[a-z][a-z0-9+.-]*:/i, ''));
+}
+
 // enterGallery définie dans index.html (inline) pour être disponible immédiatement
         // app.js enrichit la fonction après son chargement (defer)
         (function() {
@@ -706,7 +727,7 @@
         var appData = window.appData;
 
         // ==================== GOOGLE AUTHENTICATION ====================
-        if (typeof window.ADMIN_EMAILS === 'undefined') window.ADMIN_EMAILS = ['scarez37@gmail.com', 'arkyl.app@gmail.com'];
+        if (typeof window.ADMIN_EMAILS === 'undefined') window.ADMIN_EMAILS = []; // l'administrateur est désormais déterminé par le SERVEUR (variable ADMIN_EMAILS de l'hébergeur)
         var ADMIN_EMAILS = window.ADMIN_EMAILS;
         
         // ==================== ARTISTS DATA ====================
@@ -854,9 +875,28 @@
         }
         
         // Gérer la réponse d'authentification Google
-        function handleGoogleCredentialResponse(response) {
+        async function handleGoogleCredentialResponse(response) {
             try {
-                // Décoder le JWT token pour extraire les informations utilisateur
+                // 🔐 Le SERVEUR vérifie le jeton Google et délivre le jeton de session ARKYL.
+                //    Les droits (admin, artiste) viennent de sa réponse, plus du navigateur.
+                let session = null;
+                try {
+                    const r = await fetch('/auth.php?action=google_session', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ credential: response.credential })
+                    });
+                    session = await r.json();
+                } catch (netErr) {
+                    console.warn('⚠️ google_session — erreur réseau:', netErr);
+                }
+                if (!session || !session.success) {
+                    showToast('❌ ' + ((session && session.message) || 'Connexion Google impossible. Réessayez.'));
+                    return;
+                }
+                window.ArkylAPI.setToken(session.token, session.expires_in);
+
+                // Décoder le JWT Google (affichage uniquement : nom, photo)
                 const payload = parseJwt(response.credential);
                 
                 // Vérifier s'il existe un compte artiste pour CET utilisateur spécifique
@@ -869,16 +909,19 @@
                 let isArtist = false;
                 let artistName = null;
 
+                // Compte artiste trouvé sous la clé Google ID ou la clé e-mail de CET utilisateur
+                // (l'ancienne comparaison d'e-mail était toujours vraie : supprimée)
                 if (existingArtistAccount) {
-                    // Comparaison email insensible à la casse
-                    const emailMatch = existingArtistAccount.email?.toLowerCase() === payload.email?.toLowerCase();
-                    if (emailMatch || existingArtistAccount) {
-                        isArtist = true;
-                        artistName = existingArtistAccount.name;
-                        // Toujours migrer/synchroniser vers la clé Google ID
-                        safeStorage.set(userKey, existingArtistAccount);
-                        console.log('✅ Compte artiste existant détecté:', artistName);
-                    }
+                    isArtist = true;
+                    artistName = existingArtistAccount.name;
+                    // Toujours migrer/synchroniser vers la clé Google ID
+                    safeStorage.set(userKey, existingArtistAccount);
+                    console.log('✅ Compte artiste existant détecté:', artistName);
+                }
+                // Le serveur fait foi : compte artiste lié à ce compte Google en base
+                if (session.user && session.user.isArtist) {
+                    isArtist = true;
+                    artistName = artistName || session.user.artist_name;
                 }
                 
                 // Créer les données utilisateur à partir du profil Google
@@ -889,9 +932,10 @@
                     picture: payload.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.name)}&background=random`,
                     googleId: payload.sub,
                     emailVerified: payload.email_verified,
-                    isAdmin: ADMIN_EMAILS.includes(payload.email.toLowerCase()),
+                    isAdmin: !!(session.user && session.user.isAdmin),   // décidé par le serveur
                     isArtist: isArtist,
-                    artistName: artistName
+                    artistName: artistName,
+                    ...(session.user && session.user.artist_id ? { user_id: session.user.artist_id, artist_id: session.user.artist_id } : {})
                 };
                 
                 console.log('✅ Authentification Google réussie:', userData.email);
@@ -976,6 +1020,7 @@
                 if (data.success) {
                     // Compte artiste trouvé en BDD → mettre à jour currentUser et entrer
                     console.log('🎨 Compte artiste BDD trouvé:', data.artist_name);
+                    if (data.token) window.ArkylAPI.setToken(data.token, data.expires_in);
                     currentUser.isArtist    = true;
                     currentUser.user_id     = data.user_id;
                     currentUser.artist_id   = data.user_id;
@@ -1168,6 +1213,7 @@
             }
             
             // Déconnecter le compte utilisateur
+            if (window.ArkylAPI) window.ArkylAPI.clearToken();   // supprime le jeton de session
             currentUser = null;
             safeStorage.remove('arkyl_current_user');
             
@@ -1288,7 +1334,7 @@
                         userAvatar.src = currentUser.picture || '';
                     }
                     // Add artist badge to username display
-                    userName.innerHTML = `${currentUser.name} <span class="artist-badge-nav">Artiste</span>`;
+                    userName.innerHTML = `${escapeHtml(currentUser.name)} <span class="artist-badge-nav">Artiste</span>`;
                 } else {
                     userAvatar.src = currentUser.picture;
                     userName.textContent = currentUser.name;
@@ -1623,10 +1669,10 @@
                 artworks.forEach(artwork => {
                     html += `
                         <div style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; display: flex; align-items: center; gap: 15px; transition: all 0.3s ease; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'" onclick="switchAdminTab('artworks'); setTimeout(() => document.getElementById('artwork-${artwork.id}')?.scrollIntoView({behavior: 'smooth', block: 'center'}), 300);">
-                            <img loading="lazy" src="${artwork.image}" alt="${artwork.title}" style="width: 60px; height: 60px; border-radius: 8px; object-fit: cover;">
+                            <img loading="lazy" src="${escapeHtml(artwork.image)}" alt="${escapeHtml(artwork.title)}" style="width: 60px; height: 60px; border-radius: 8px; object-fit: cover;">
                             <div style="flex: 1;">
-                                <div style="font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; color: white; margin-bottom: 3px;">${artwork.title}</div>
-                                <div style="font-family: 'Inter', sans-serif; font-size: 13px; color: rgba(255,255,255,0.6);">par ${artwork.artist} • ${artwork.category}</div>
+                                <div style="font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; color: white; margin-bottom: 3px;">${escapeHtml(artwork.title)}</div>
+                                <div style="font-family: 'Inter', sans-serif; font-size: 13px; color: rgba(255,255,255,0.6);">par ${escapeHtml(artwork.artist)} • ${escapeHtml(artwork.category)}</div>
                             </div>
                             <div style="font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; color: #9333ea;">${formatPrice(artwork.price)}</div>
                         </div>
@@ -1650,13 +1696,13 @@
                 artists.forEach(artistName => {
                     const artist = artistsData[artistName] || {};
                     html += `
-                        <div style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; display: flex; align-items: center; gap: 15px; transition: all 0.3s ease; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'" onclick="switchAdminTab('artists'); setTimeout(() => document.querySelector('[data-artist-name=\\'${artistName}\\']')?.scrollIntoView({behavior: 'smooth', block: 'center'}), 300);">
+                        <div style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; display: flex; align-items: center; gap: 15px; transition: all 0.3s ease; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'" onclick="switchAdminTab('artists'); setTimeout(() => document.querySelector('[data-artist-name=\\'${escapeHtml(artistName)}\\']')?.scrollIntoView({behavior: 'smooth', block: 'center'}), 300);">
                             <div style="width: 60px; height: 60px; border-radius: 50%; background: ${artist.avatarGradient || 'linear-gradient(135deg, #667eea, #764ba2)'}; display: flex; align-items: center; justify-content: center; font-size: 28px;">
-                                ${artist.avatar || '👤'}
+                                ${escapeHtml(artist.avatar) || '👤'}
                             </div>
                             <div style="flex: 1;">
-                                <div style="font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; color: white; margin-bottom: 3px;">${artistName}</div>
-                                <div style="font-family: 'Inter', sans-serif; font-size: 13px; color: rgba(255,255,255,0.6);">${artist.specialty || 'Artiste'}</div>
+                                <div style="font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; color: white; margin-bottom: 3px;">${escapeHtml(artistName)}</div>
+                                <div style="font-family: 'Inter', sans-serif; font-size: 13px; color: rgba(255,255,255,0.6);">${escapeHtml(artist.specialty) || 'Artiste'}</div>
                             </div>
                         </div>
                     `;
@@ -1681,7 +1727,7 @@
                         <div style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; display: flex; align-items: center; gap: 15px; transition: all 0.3s ease; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'" onclick="goToAdminNews();">
                             <div style="font-size: 32px;">${item.icon || '📢'}</div>
                             <div style="flex: 1;">
-                                <div style="font-family: 'Inter', sans-serif; font-size: 14px; color: white;">${item.text}</div>
+                                <div style="font-family: 'Inter', sans-serif; font-size: 14px; color: white;">${escapeHtml(item.text)}</div>
                             </div>
                         </div>
                     `;
@@ -1738,15 +1784,15 @@
             container.innerHTML = filteredProducts.map(product => `
                 <div class="admin-item-card" id="artwork-${product.id}">
                     <div class="admin-item-image">
-                        <img loading="lazy" src="${product.image}" alt="${product.title}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23ddd%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2240%22%3E🎨%3C/text%3E%3C/svg%3E'">
+                        <img loading="lazy" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.title)}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23ddd%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2240%22%3E🎨%3C/text%3E%3C/svg%3E'">
                     </div>
                     <div class="admin-item-info">
-                        <div class="admin-item-title">${product.title}</div>
-                        <div class="admin-item-subtitle">par ${product.artist}</div>
+                        <div class="admin-item-title">${escapeHtml(product.title)}</div>
+                        <div class="admin-item-subtitle">par ${escapeHtml(product.artist)}</div>
                         <div class="admin-item-meta">
                             <span>💰 ${formatPrice(product.price)}</span>
-                            <span>🏷️ ${product.category}</span>
-                            <span>🏆 ${product.badge}</span>
+                            <span>🏷️ ${escapeHtml(product.category)}</span>
+                            <span>🏆 ${escapeHtml(product.badge)}</span>
                         </div>
                     </div>
                     <div class="admin-item-actions">
@@ -1795,24 +1841,24 @@
             }
             
             container.innerHTML = filteredArtists.map(([name, data]) => `
-                <div class="admin-item-card" data-artist-name="${name}">
+                <div class="admin-item-card" data-artist-name="${escapeHtml(name)}">
                     <div class="admin-item-image admin-artist-avatar">
-                        ${data.avatar}
+                        ${escapeHtml(data.avatar)}
                     </div>
                     <div class="admin-item-info">
-                        <div class="admin-item-title">${name}</div>
-                        <div class="admin-item-subtitle">${data.specialty}</div>
+                        <div class="admin-item-title">${escapeHtml(name)}</div>
+                        <div class="admin-item-subtitle">${escapeHtml(data.specialty)}</div>
                         <div class="admin-item-meta">
-                            <span>📧 ${data.email}</span>
+                            <span>📧 ${escapeHtml(data.email)}</span>
                             <span>👥 ${data.followers} followers</span>
                             <span>🖼️ ${data.works} œuvres</span>
                             <span>⭐ ${data.rating}/5</span>
                         </div>
                     </div>
                     <div class="admin-item-actions">
-                        <button class="admin-btn-secondary" style="background:rgba(212,175,55,0.15);color:#d4af37;border:1px solid rgba(212,175,55,0.3);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;" onclick="adminVoirProfilArtiste('${name}')">👁️ Voir profil</button>
-                        <button class="admin-btn-edit" onclick="editArtist('${name}')">✏️ Modifier</button>
-                        <button class="admin-btn-delete" onclick="deleteArtist('${name}')">🗑️ Supprimer</button>
+                        <button class="admin-btn-secondary" style="background:rgba(212,175,55,0.15);color:#d4af37;border:1px solid rgba(212,175,55,0.3);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;" onclick="adminVoirProfilArtiste('${escapeJsAttr(name)}')">👁️ Voir profil</button>
+                        <button class="admin-btn-edit" onclick="editArtist('${escapeJsAttr(name)}')">✏️ Modifier</button>
+                        <button class="admin-btn-delete" onclick="deleteArtist('${escapeJsAttr(name)}')">🗑️ Supprimer</button>
                     </div>
                 </div>
             `).join('');
@@ -1847,8 +1893,8 @@
             if (!artist) artist = { name, ...data };
 
             const avatarHtml = (artist.avatar && (artist.avatar.startsWith('http') || artist.avatar.startsWith('data:')))
-                ? `<img src="${artist.avatar}" style="width:90px;height:90px;border-radius:50%;object-fit:cover;border:3px solid #d4af37;">`
-                : `<div style="font-size:70px;line-height:90px;">${artist.avatar || '👨🏿‍🎨'}</div>`;
+                ? `<img src="${escapeHtml(artist.avatar)}" style="width:90px;height:90px;border-radius:50%;object-fit:cover;border:3px solid #d4af37;">`
+                : `<div style="font-size:70px;line-height:90px;">${escapeHtml(artist.avatar) || '👨🏿‍🎨'}</div>`;
 
             const specialty = Array.isArray(artist.specialty) ? artist.specialty.join(', ') : (artist.specialty || '—');
             const dateInscription = artist.created_at ? new Date(artist.created_at).toLocaleDateString('fr-FR', {day:'2-digit',month:'long',year:'numeric'}) : '—';
@@ -1858,7 +1904,7 @@
             try { social = typeof artist.social === 'string' ? JSON.parse(artist.social) : (artist.social || {}); } catch(e) {}
 
             const socialHtml = Object.entries(social).filter(([k,v])=>v).map(([k,v]) => `
-                <a href="${v}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;color:#d4af37;text-decoration:none;background:rgba(212,175,55,0.1);padding:5px 12px;border-radius:20px;font-size:13px;border:1px solid rgba(212,175,55,0.2);">
+                <a href="${escapeHtml(safeUrl(v))}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;color:#d4af37;text-decoration:none;background:rgba(212,175,55,0.1);padding:5px 12px;border-radius:20px;font-size:13px;border:1px solid rgba(212,175,55,0.2);">
                     ${k==='instagram'?'📸':k==='facebook'?'📘':k==='twitter'?'🐦':k==='tiktok'?'🎵':'🔗'} ${k}
                 </a>`).join('') || '<span style="opacity:0.5;font-size:13px;">Aucun réseau social</span>';
 
@@ -1868,9 +1914,9 @@
                 <div style="background:linear-gradient(135deg,rgba(212,175,55,0.15),rgba(139,90,43,0.2));padding:30px;border-radius:20px 20px 0 0;text-align:center;position:relative;">
                     <button onclick="document.getElementById('adminProfilArtisteModal').style.display='none'" style="position:absolute;top:15px;right:15px;background:rgba(255,255,255,0.1);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;">×</button>
                     <div style="margin-bottom:12px;">${avatarHtml}</div>
-                    <h2 style="color:#d4af37;margin:0 0 4px;font-size:22px;">${artist.name || name}</h2>
-                    <div style="color:rgba(255,255,255,0.6);font-size:14px;">${specialty}</div>
-                    ${artist.country ? `<div style="margin-top:6px;font-size:13px;opacity:0.7;">📍 ${artist.country}</div>` : ''}
+                    <h2 style="color:#d4af37;margin:0 0 4px;font-size:22px;">${escapeHtml(artist.name) || escapeHtml(name)}</h2>
+                    <div style="color:rgba(255,255,255,0.6);font-size:14px;">${escapeHtml(specialty)}</div>
+                    ${artist.country ? `<div style="margin-top:6px;font-size:13px;opacity:0.7;">📍 ${escapeHtml(artist.country)}</div>` : ''}
                 </div>
 
                 <!-- Stats rapides -->
@@ -1897,15 +1943,15 @@
                         <div style="display:grid;gap:10px;">
                             <div style="display:flex;align-items:center;gap:10px;">
                                 <span style="opacity:0.5;min-width:20px;">📧</span>
-                                <span style="color:rgba(255,255,255,0.9);font-size:14px;">${artist.email || '—'}</span>
+                                <span style="color:rgba(255,255,255,0.9);font-size:14px;">${escapeHtml(artist.email) || '—'}</span>
                             </div>
                             <div style="display:flex;align-items:center;gap:10px;">
                                 <span style="opacity:0.5;min-width:20px;">📞</span>
-                                <span style="color:rgba(255,255,255,0.9);font-size:14px;">${artist.phone || '—'}</span>
+                                <span style="color:rgba(255,255,255,0.9);font-size:14px;">${escapeHtml(artist.phone) || '—'}</span>
                             </div>
                             ${artist.website ? `<div style="display:flex;align-items:center;gap:10px;">
                                 <span style="opacity:0.5;min-width:20px;">🌐</span>
-                                <a href="${artist.website}" target="_blank" style="color:#d4af37;font-size:14px;text-decoration:none;">${artist.website}</a>
+                                <a href="${escapeHtml(safeUrl(artist.website))}" target="_blank" style="color:#d4af37;font-size:14px;text-decoration:none;">${escapeHtml(artist.website)}</a>
                             </div>` : ''}
                             <div style="display:flex;align-items:center;gap:10px;">
                                 <span style="opacity:0.5;min-width:20px;">📅</span>
@@ -1917,7 +1963,7 @@
                     <!-- Bio -->
                     ${artist.bio ? `<div style="margin-bottom:20px;">
                         <div style="color:#d4af37;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;border-bottom:1px solid rgba(212,175,55,0.2);padding-bottom:6px;">📝 Biographie</div>
-                        <p style="color:rgba(255,255,255,0.75);font-size:14px;line-height:1.6;margin:0;">${artist.bio}</p>
+                        <p style="color:rgba(255,255,255,0.75);font-size:14px;line-height:1.6;margin:0;">${escapeHtml(artist.bio)}</p>
                     </div>` : ''}
 
                     <!-- Réseaux sociaux -->
@@ -1928,7 +1974,7 @@
 
                     <!-- Actions -->
                     <div style="display:flex;gap:10px;justify-content:center;margin-top:24px;">
-                        <button onclick="document.getElementById('adminProfilArtisteModal').style.display='none';editArtist('${name}')" style="background:rgba(212,175,55,0.15);color:#d4af37;border:1px solid rgba(212,175,55,0.4);padding:10px 20px;border-radius:10px;cursor:pointer;font-size:14px;">✏️ Modifier</button>
+                        <button onclick="document.getElementById('adminProfilArtisteModal').style.display='none';editArtist('${escapeJsAttr(name)}')" style="background:rgba(212,175,55,0.15);color:#d4af37;border:1px solid rgba(212,175,55,0.4);padding:10px 20px;border-radius:10px;cursor:pointer;font-size:14px;">✏️ Modifier</button>
                         <button onclick="document.getElementById('adminProfilArtisteModal').style.display='none'" style="background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.1);padding:10px 20px;border-radius:10px;cursor:pointer;font-size:14px;">Fermer</button>
                     </div>
                 </div>
@@ -2026,7 +2072,7 @@
                             }
                         </div>
                         <div class="top-artist-info">
-                            <div class="top-artist-name">${name}</div>
+                            <div class="top-artist-name">${escapeHtml(name)}</div>
                             <div class="top-artist-count">${count} œuvre${count > 1 ? 's' : ''}</div>
                         </div>
                     </div>
@@ -2054,7 +2100,7 @@
                 <div class="recent-activity-item">
                     <div class="activity-icon">${activity.icon}</div>
                     <div class="activity-details">
-                        <div class="activity-title">${activity.title}</div>
+                        <div class="activity-title">${escapeHtml(activity.title)}</div>
                         <div class="activity-time">${formatActivityTime(activity.timestamp)}</div>
                     </div>
                 </div>
@@ -2121,15 +2167,15 @@
             container.innerHTML = products.map(product => `
                 <div class="admin-item-card" id="artwork-${product.id}">
                     <div class="admin-item-image">
-                        <img loading="lazy" src="${product.image}" alt="${product.title}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23ddd%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2240%22%3E🎨%3C/text%3E%3C/svg%3E'">
+                        <img loading="lazy" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.title)}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23ddd%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2240%22%3E🎨%3C/text%3E%3C/svg%3E'">
                     </div>
                     <div class="admin-item-info">
-                        <div class="admin-item-title">${product.title}</div>
-                        <div class="admin-item-subtitle">par ${product.artist}</div>
+                        <div class="admin-item-title">${escapeHtml(product.title)}</div>
+                        <div class="admin-item-subtitle">par ${escapeHtml(product.artist)}</div>
                         <div class="admin-item-meta">
                             <span>💰 ${formatPrice(product.price)}</span>
-                            <span>🏷️ ${product.category}</span>
-                            <span>🏆 ${product.badge}</span>
+                            <span>🏷️ ${escapeHtml(product.category)}</span>
+                            <span>🏆 ${escapeHtml(product.badge)}</span>
                         </div>
                     </div>
                     <div class="admin-item-actions">
@@ -2161,7 +2207,7 @@
             const artistNames = Object.keys(artistsData);
             
             select.innerHTML = '<option value="">-- Sélectionner un artiste --</option>' + 
-                artistNames.map(name => `<option value="${name}">${name}</option>`).join('');
+                artistNames.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
         }
 
         function editArtwork(id) {
@@ -2299,24 +2345,24 @@
             }
             
             container.innerHTML = artists.map(([name, data]) => `
-                <div class="admin-item-card" data-artist-name="${name}">
+                <div class="admin-item-card" data-artist-name="${escapeHtml(name)}">
                     <div class="admin-item-image admin-artist-avatar">
-                        ${data.avatar}
+                        ${escapeHtml(data.avatar)}
                     </div>
                     <div class="admin-item-info">
-                        <div class="admin-item-title">${name}</div>
-                        <div class="admin-item-subtitle">${data.specialty}</div>
+                        <div class="admin-item-title">${escapeHtml(name)}</div>
+                        <div class="admin-item-subtitle">${escapeHtml(data.specialty)}</div>
                         <div class="admin-item-meta">
-                            <span>📧 ${data.email}</span>
+                            <span>📧 ${escapeHtml(data.email)}</span>
                             <span>👥 ${data.followers} followers</span>
                             <span>🖼️ ${data.works} œuvres</span>
                             <span>⭐ ${data.rating}/5</span>
                         </div>
                     </div>
                     <div class="admin-item-actions">
-                        <button class="admin-btn-secondary" style="background:rgba(212,175,55,0.15);color:#d4af37;border:1px solid rgba(212,175,55,0.3);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;" onclick="adminVoirProfilArtiste('${name}')">👁️ Voir profil</button>
-                        <button class="admin-btn-edit" onclick="editArtist('${name}')">✏️ Modifier</button>
-                        <button class="admin-btn-delete" onclick="deleteArtist('${name}')">🗑️ Supprimer</button>
+                        <button class="admin-btn-secondary" style="background:rgba(212,175,55,0.15);color:#d4af37;border:1px solid rgba(212,175,55,0.3);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;" onclick="adminVoirProfilArtiste('${escapeJsAttr(name)}')">👁️ Voir profil</button>
+                        <button class="admin-btn-edit" onclick="editArtist('${escapeJsAttr(name)}')">✏️ Modifier</button>
+                        <button class="admin-btn-delete" onclick="deleteArtist('${escapeJsAttr(name)}')">🗑️ Supprimer</button>
                     </div>
                 </div>
             `).join('');
@@ -3245,7 +3291,7 @@
             const mainImg    = photos[0] || null;
             const artistName = product.artist_name || product.artist || 'Artiste inconnu';
             const imageHTML  = mainImg
-                ? `<img src="${mainImg}" alt="${product.title}"
+                ? `<img src="${escapeHtml(mainImg)}" alt="${escapeHtml(product.title)}"
                         style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;"
                         loading="lazy"
                         onerror="this.style.display='none'">`
@@ -3254,13 +3300,13 @@
             return `
             <div class="product-card" onclick="viewProductDetailFromAPI(${product.id})">
                 <div class="product-image" style="position:relative;">
-                    <span class="product-badge">${product.badge || 'Disponible'}</span>
+                    <span class="product-badge">${escapeHtml(product.badge) || 'Disponible'}</span>
                     <button class="like-button" onclick="toggleFavorite(event, ${product.id})">❤️</button>
                     ${imageHTML}
                 </div>
                 <div class="product-info">
-                    <div class="product-title">${product.title}</div>
-                    <div class="product-artist" onclick="viewArtistDetail(event, '${artistName}')">par ${artistName}</div>
+                    <div class="product-title">${escapeHtml(product.title)}</div>
+                    <div class="product-artist" onclick="viewArtistDetail(event, '${escapeJsAttr(artistName)}')">par ${escapeHtml(artistName)}</div>
                     <div class="product-footer">
                         <div class="product-price">${formatPrice(product.price)}</div>
                         <button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>
@@ -3276,14 +3322,14 @@
          */
         function renderOrderItemRow(item) {
             const thumb = (item.image || item.image_url)
-                ? `<img src="${item.image || item.image_url}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;">`
+                ? `<img src="${escapeHtml(item.image) || escapeHtml(item.image_url)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;">`
                 : `<div style="width:48px;height:48px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">🎨</div>`;
             return `
             <div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);">
                 ${thumb}
                 <div style="flex:1;">
-                    <div style="font-weight:600;font-size:14px;">${item.title}</div>
-                    <div style="font-size:12px;opacity:0.6;">par ${item.artist || item.artist_name}</div>
+                    <div style="font-weight:600;font-size:14px;">${escapeHtml(item.title)}</div>
+                    <div style="font-size:12px;opacity:0.6;">par ${escapeHtml(item.artist) || escapeHtml(item.artist_name)}</div>
                 </div>
                 <div style="font-weight:700;color:var(--ocre);">${formatPrice((item.price || 0) * (item.quantity || 1))}</div>
             </div>`;
@@ -3303,11 +3349,11 @@
                 <div style="background:rgba(33,150,243,0.12);border:1px solid rgba(33,150,243,0.35);border-radius:12px;padding:14px 18px;margin:12px 0;">
                     <div style="font-weight:700;font-size:13px;margin-bottom:6px;color:#90caf9;">📦 Suivi de livraison</div>
                     <div style="font-size:14px;">
-                        ${order.carrier ? `<span style="opacity:0.7;">${order.carrier.toUpperCase()} · </span>` : ''}
-                        <strong>${order.tracking_number}</strong>
+                        ${order.carrier ? `<span style="opacity:0.7;">${escapeHtml(order.carrier.toUpperCase())} · </span>` : ''}
+                        <strong>${escapeHtml(order.tracking_number)}</strong>
                     </div>
                     ${trackUrl ? `<a href="${trackUrl}" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;padding:8px 18px;background:linear-gradient(135deg,#2196f3,#1976d2);color:white;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;">🔍 Suivre mon colis</a>` : ''}
-                    ${order.shipping_proof_url ? `<a href="${order.shipping_proof_url}" target="_blank" style="display:inline-block;margin:10px 0 0 10px;padding:8px 18px;background:rgba(255,255,255,0.1);color:white;border-radius:8px;font-size:13px;text-decoration:none;">📎 Voir preuve d'expédition</a>` : ''}
+                    ${order.shipping_proof_url ? `<a href="${escapeHtml(safeUrl(order.shipping_proof_url))}" target="_blank" style="display:inline-block;margin:10px 0 0 10px;padding:8px 18px;background:rgba(255,255,255,0.1);color:white;border-radius:8px;font-size:13px;text-decoration:none;">📎 Voir preuve d'expédition</a>` : ''}
                 </div>` : '';
 
             const confirmBtn = es === 'expédiée' ? `
@@ -3331,12 +3377,12 @@
             <div class="order-card">
                 <div class="order-header">
                     <div>
-                        <div class="order-id">Commande ${order.order_number || '#' + (order.server_id || order.id)}</div>
+                        <div class="order-id">Commande ${escapeHtml(order.order_number) || '#' + (order.server_id || order.id)}</div>
                         <div class="order-date">📅 ${order.date || new Date(order.created_at).toLocaleDateString('fr-FR')}</div>
                     </div>
                     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
                         <span class="order-status" style="background:${statusColor(order.status)}22;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}44;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;">
-                            ${statusIcon(order.status)} ${order.status}
+                            ${statusIcon(order.status)} ${escapeHtml(order.status)}
                         </span>
                         <span class="${es === 'fonds_libérés' ? 'funds-released-badge' : 'funds-locked-badge'}">
                             ${es === 'fonds_libérés' ? '✅ Fonds libérés' : '🔒 Fonds sécurisés'}
@@ -3373,11 +3419,11 @@
             const es = order.escrow_status || 'payée_en_attente';
 
             const carrierOptions = CARRIERS.map(c =>
-                `<option value="${c.id}" ${order.carrier === c.id ? 'selected' : ''}>${c.name}</option>`
+                `<option value="${c.id}" ${order.carrier === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
             ).join('');
 
             const statusOptions = DELIVERY_STATUSES.map(s =>
-                `<option value="${s.key}" ${order.status === s.key ? 'selected' : ''}>${s.icon} ${s.label}</option>`
+                `<option value="${s.key}" ${order.status === s.key ? 'selected' : ''}>${s.icon} ${escapeHtml(s.label)}</option>`
             ).join('');
 
             // ── Barre de progression escrow ──────────────────────────────────
@@ -3401,21 +3447,21 @@
                                 transition:all 0.3s;">
                                 ${i < stepIdx ? '✓' : s.icon}
                             </div>
-                            <div style="font-size:10px;opacity:${i <= stepIdx ? '1' : '0.35'};font-weight:${i === stepIdx ? '700' : '400'};text-align:center;white-space:nowrap;">${s.label}</div>
+                            <div style="font-size:10px;opacity:${i <= stepIdx ? '1' : '0.35'};font-weight:${i === stepIdx ? '700' : '400'};text-align:center;white-space:nowrap;">${escapeHtml(s.label)}</div>
                         </div>
                     `).join('')}
                 </div>`;
 
             const shippingBlock = order.shipping_address ? `
                 <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 16px;margin-bottom:15px;font-size:13px;">
-                    📍 <strong>Adresse :</strong> ${order.shipping_address}
-                    ${order.shipping_name ? ` · 🚚 ${order.shipping_name}` : ''}
+                    📍 <strong>Adresse :</strong> ${escapeHtml(order.shipping_address)}
+                    ${order.shipping_name ? ` · 🚚 ${escapeHtml(order.shipping_name)}` : ''}
                 </div>` : '';
 
             const trackingBlock = order.tracking_number ? `
                 <div style="background:rgba(33,150,243,0.1);border:1px solid rgba(33,150,243,0.3);border-radius:10px;padding:12px 16px;margin-bottom:15px;font-size:13px;">
-                    📦 Tracking : <strong>${order.tracking_number}</strong>
-                    ${order.carrier ? ` (${order.carrier.toUpperCase()})` : ''}
+                    📦 Tracking : <strong>${escapeHtml(order.tracking_number)}</strong>
+                    ${order.carrier ? ` (${escapeHtml(order.carrier.toUpperCase())})` : ''}
                     ${trackUrl ? ` · <a href="${trackUrl}" target="_blank" style="color:#90caf9;">Suivre</a>` : ''}
                 </div>` : '';
 
@@ -3429,14 +3475,14 @@
             <div class="admin-order-card" id="order-card-${orderId}">
                 <div style="display:flex;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:15px;">
                     <div>
-                        <div style="font-size:18px;font-weight:700;color:var(--ocre);">📦 ${order.order_number || '#' + orderId}</div>
-                        <div style="font-size:14px;opacity:0.8;margin-top:4px;">👤 ${order.user || order.user_name}${order.userEmail ? ` (${order.userEmail})` : ''}</div>
+                        <div style="font-size:18px;font-weight:700;color:var(--ocre);">📦 ${escapeHtml(order.order_number) || '#' + orderId}</div>
+                        <div style="font-size:14px;opacity:0.8;margin-top:4px;">👤 ${order.user || escapeHtml(order.user_name)}${order.userEmail ? ` (${escapeHtml(order.userEmail)})` : ''}</div>
                         <div style="font-size:13px;opacity:0.6;margin-top:2px;">📅 ${order.date}</div>
                     </div>
                     <div style="text-align:right;">
                         <div style="font-size:22px;font-weight:800;color:var(--ocre);margin-bottom:8px;">${formatPrice(parseFloat(order.total) || 0)}</div>
                         <span style="padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;background:${statusColor(order.status)}33;color:${statusColor(order.status)};border:1px solid ${statusColor(order.status)}66;">
-                            ${statusIcon(order.status)} ${order.status}
+                            ${statusIcon(order.status)} ${escapeHtml(order.status)}
                         </span>
                     </div>
                 </div>
@@ -3456,10 +3502,10 @@
                 <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:18px;margin-bottom:12px;">
                     <div style="font-weight:700;margin-bottom:14px;font-size:14px;">ℹ️ Informations d'expédition</div>
                     <div style="font-size:13px;opacity:0.75;line-height:1.8;">
-                        <div>📦 <strong>Statut :</strong> ${order.status}</div>
-                        ${order.carrier ? `<div>🚚 <strong>Transporteur :</strong> ${order.carrier}</div>` : ''}
-                        ${order.tracking_number ? `<div>🔢 <strong>Numéro de suivi :</strong> ${order.tracking_number}${trackUrl ? ` · <a href="${trackUrl}" target="_blank" style="color:#90caf9;">Suivre →</a>` : ''}</div>` : ''}
-                        ${order.shipping_proof_url ? `<div>📎 <strong>Preuve d'expédition :</strong> <a href="${order.shipping_proof_url}" target="_blank" style="color:#90caf9;">Voir le document →</a></div>` : ''}
+                        <div>📦 <strong>Statut :</strong> ${escapeHtml(order.status)}</div>
+                        ${order.carrier ? `<div>🚚 <strong>Transporteur :</strong> ${escapeHtml(order.carrier)}</div>` : ''}
+                        ${order.tracking_number ? `<div>🔢 <strong>Numéro de suivi :</strong> ${escapeHtml(order.tracking_number)}${trackUrl ? ` · <a href="${trackUrl}" target="_blank" style="color:#90caf9;">Suivre →</a>` : ''}</div>` : ''}
+                        ${order.shipping_proof_url ? `<div>📎 <strong>Preuve d'expédition :</strong> <a href="${escapeHtml(safeUrl(order.shipping_proof_url))}" target="_blank" style="color:#90caf9;">Voir le document →</a></div>` : ''}
                     </div>
                     <p style="font-size:11px;opacity:0.45;margin-top:14px;border-top:1px solid rgba(255,255,255,0.08);padding-top:10px;">
                         ⚙️ L'expédition est gérée directement par l'artiste depuis son espace ventes.
@@ -3494,7 +3540,7 @@
             if (item.image) {
                 return `
                     <div class="item-image">
-                        <img loading="lazy" src="${item.image}" alt="${item.title}" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size:50px;\\'>${emoji}</div>';">
+                        <img loading="lazy" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size:50px;\\'>${emoji}</div>';">
                         <div class="emoji-overlay">${emoji}</div>
                     </div>
                 `;
@@ -3513,7 +3559,7 @@
             if (item.image) {
                 return `
                     <div class="order-item-image">
-                        <img loading="lazy" src="${item.image}" alt="${item.title}" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size:1.5rem;\\'>${emoji}</div>';">
+                        <img loading="lazy" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size:1.5rem;\\'>${emoji}</div>';">
                         <div class="emoji-small">${emoji}</div>
                     </div>
                 `;
@@ -3577,10 +3623,10 @@
             if (clientAddress && clientAddress.nom) {
                 return `<div class="address-display">
                     <div class="address-display-text">
-                        <strong>${clientAddress.nom}</strong>
-                        📞 ${clientAddress.tel}<br>
+                        <strong>${escapeHtml(clientAddress.nom)}</strong>
+                        📞 ${escapeHtml(clientAddress.tel)}<br>
                         📌 ${[clientAddress.quartier, clientAddress.ville, clientAddress.pays].filter(Boolean).join(', ')}
-                        ${clientAddress.detail ? '<br>ℹ️ ' + clientAddress.detail : ''}
+                        ${clientAddress.detail ? '<br>ℹ️ ' + escapeHtml(clientAddress.detail) : ''}
                     </div>
                     <button class="address-edit-btn" onclick="editAddress()">✏️ Modifier</button>
                 </div>`;
@@ -3595,15 +3641,15 @@
             const a = clientAddress || {};
             return `<div class="address-form">
                 <div class="address-form-row">
-                    <input class="address-input" id="addr-nom"      placeholder="Nom complet *"       value="${a.nom      || ''}">
-                    <input class="address-input" id="addr-tel"      placeholder="Téléphone *"          value="${a.tel      || ''}" type="tel">
+                    <input class="address-input" id="addr-nom"      placeholder="Nom complet *"       value="${escapeHtml(a.nom)      || ''}">
+                    <input class="address-input" id="addr-tel"      placeholder="Téléphone *"          value="${escapeHtml(a.tel)      || ''}" type="tel">
                 </div>
                 <div class="address-form-row">
-                    <input class="address-input" id="addr-quartier" placeholder="Quartier / Zone"      value="${a.quartier || ''}">
-                    <input class="address-input" id="addr-ville"    placeholder="Ville *"              value="${a.ville    || ''}">
+                    <input class="address-input" id="addr-quartier" placeholder="Quartier / Zone"      value="${escapeHtml(a.quartier) || ''}">
+                    <input class="address-input" id="addr-ville"    placeholder="Ville *"              value="${escapeHtml(a.ville)    || ''}">
                 </div>
-                <input class="address-input full-width" id="addr-pays"   placeholder="Pays"            value="${a.pays    || "Côte d'Ivoire"}">
-                <input class="address-input full-width" id="addr-detail" placeholder="Précisions (immeuble, point de repère...)" value="${a.detail  || ''}">
+                <input class="address-input full-width" id="addr-pays"   placeholder="Pays"            value="${escapeHtml(a.pays)    || "Côte d'Ivoire"}">
+                <input class="address-input full-width" id="addr-detail" placeholder="Précisions (immeuble, point de repère...)" value="${escapeHtml(a.detail)  || ''}">
                 <div style="display:grid;grid-template-columns:${withCancel ? '1fr 1fr' : '1fr'};gap:8px;">
                     ${withCancel ? '<button class="address-cancel-btn" onclick="cancelAddressEdit()">Annuler</button>' : ''}
                     <button class="address-save-btn" onclick="saveClientAddress()">💾 Enregistrer l'adresse</button>
@@ -3682,7 +3728,7 @@
                 if (!isSold) subtotal += itemTotal;
 
                 const imgHtml = item.image
-                    ? `<img loading="lazy" src="${item.image}" alt="${item.title}" style="width:100%;height:100%;object-fit:contain;${isSold ? 'filter:grayscale(100%);opacity:0.5;' : ''}" onerror="this.style.display='none'">`
+                    ? `<img loading="lazy" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="width:100%;height:100%;object-fit:contain;${isSold ? 'filter:grayscale(100%);opacity:0.5;' : ''}" onerror="this.style.display='none'">`
                     : `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:48px;${isSold ? 'filter:grayscale(100%);opacity:0.5;' : ''}">${item.emoji || '🎨'}</span>`;
 
                 if (isSold) {
@@ -3695,8 +3741,8 @@
                             </div>
                         </div>
                         <div class="cart-item-body">
-                            <div class="cart-item-title" style="text-decoration:line-through;opacity:0.6;">${item.title}</div>
-                            <div class="cart-item-artist" style="opacity:0.5;">par ${item.artist || 'Artiste ARKYL'}</div>
+                            <div class="cart-item-title" style="text-decoration:line-through;opacity:0.6;">${escapeHtml(item.title)}</div>
+                            <div class="cart-item-artist" style="opacity:0.5;">par ${escapeHtml(item.artist) || 'Artiste ARKYL'}</div>
                             <div style="font-size:12px;color:#f87171;font-weight:600;margin:6px 0;">⚠️ Cette œuvre a déjà été achetée par quelqu'un d'autre</div>
                             <div class="cart-item-actions">
                                 <button class="cart-remove-btn" id="remove-btn-${item.id}" onclick="confirmRemoveFromCart('${item.id}', this)" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#f87171;">
@@ -3711,8 +3757,8 @@
                     <div class="cart-item" id="cart-item-${item.id}">
                         <div class="cart-item-img">${imgHtml}</div>
                         <div class="cart-item-body">
-                            <div class="cart-item-title">${item.title}</div>
-                            <div class="cart-item-artist">par ${item.artist || 'Artiste ARKYL'}</div>
+                            <div class="cart-item-title">${escapeHtml(item.title)}</div>
+                            <div class="cart-item-artist">par ${escapeHtml(item.artist) || 'Artiste ARKYL'}</div>
                             <div class="cart-item-price-row">
                                 <span class="cart-item-price">${formatPrice(item.price)}</span>
                                 <span class="cart-item-unit">/ unité</span>
@@ -4182,7 +4228,7 @@
             const zoneLabels = { ci: "Côte d'Ivoire", uemoa: 'Zone UEMOA', afrique: 'Afrique', europe: 'Europe', international: 'International' };
             const optsPays = Object.entries(PAYS_PAR_ZONE).map(([zone, liste]) =>
                 `<optgroup label="── ${zoneLabels[zone]} ──" style="color:#d4af37;background:#111;">` +
-                liste.map(p => `<option value="${p.code}" ${p.code === savedCode ? 'selected' : ''}>${p.nom}</option>`).join('') +
+                liste.map(p => `<option value="${p.code}" ${p.code === savedCode ? 'selected' : ''}>${escapeHtml(p.nom)}</option>`).join('') +
                 `</optgroup>`
             ).join('');
 
@@ -4332,11 +4378,11 @@
                 // Afficher les provenances multiples si besoin
                 const originesEtrangeres = (calcul.details || [])
                     .filter(d => d.orig && d.orig !== "cote d'ivoire")
-                    .map(d => `<span style="opacity:0.55;font-size:11px;">🌍 ${d.title} : ${d.orig} → ${paysNomDest}</span>`)
+                    .map(d => `<span style="opacity:0.55;font-size:11px;">🌍 ${escapeHtml(d.title)} : ${d.orig} → ${paysNomDest}</span>`)
                     .join('<br>');
                 detTxt.innerHTML = `Zone <strong style="color:#d4af37">${nomZonePostale(calcul.zonePrincipale||'ci')}</strong> · ${kg} kg`
                     + (originesEtrangeres ? '<br>' + originesEtrangeres : '')
-                    + `<br><span style="opacity:0.6">${ville}</span>`;
+                    + `<br><span style="opacity:0.6">${escapeHtml(ville)}</span>`;
                 montant.textContent = formatPrice(calcul.cout);
                 preview.style.display = 'flex';
             }
@@ -4740,7 +4786,7 @@
                 ]}
             ];
             return groupes.map(g =>
-                `<optgroup label="${g.label}">${g.pays.map(p => `<option value="${p}">${p}</option>`).join('')}</optgroup>`
+                `<optgroup label="${escapeHtml(g.label)}">${g.pays.map(p => `<option value="${p}">${p}</option>`).join('')}</optgroup>`
             ).join('');
         }
 
@@ -5382,7 +5428,7 @@
                 <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid rgba(212,175,55,0.4);border-radius:24px;padding:40px;max-width:460px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.6);">
                     <div style="font-size:70px;margin-bottom:16px;">🎉</div>
                     <h2 style="font-size:26px;font-weight:900;color:var(--or);margin-bottom:8px;">Paiement confirmé !</h2>
-                    <p style="opacity:0.8;margin-bottom:6px;">Commande <strong style="color:var(--ocre);">${order.order_number}</strong></p>
+                    <p style="opacity:0.8;margin-bottom:6px;">Commande <strong style="color:var(--ocre);">${escapeHtml(order.order_number)}</strong></p>
                     <p style="opacity:0.6;font-size:14px;margin-bottom:24px;">${itemsCount} œuvre${itemsCount > 1 ? 's' : ''} · ${formatPrice(total)}</p>
 
                     <div style="background:rgba(76,175,80,0.15);border:1px solid rgba(76,175,80,0.4);border-radius:14px;padding:16px;margin-bottom:24px;font-size:14px;text-align:left;">
@@ -5476,6 +5522,7 @@
 
             const payload = {
                 action:           'create',
+                stripe_session_id: order.stripe_session_id || order.stripeSessionId || '',   // vérifié auprès de Stripe côté serveur
                 user_id:          userId,
                 user_name:        order.user_name || order.user || currentUser?.name || '',
                 user_email:       order.user_email || order.userEmail || currentUser?.email || '',
@@ -5578,8 +5625,8 @@
                         ${statusIcon(t.status)}
                     </div>
                     <div style="flex:1;">
-                        <div style="font-weight:600;font-size:13px;color:${statusColor(t.status)};">${t.status}</div>
-                        <div style="font-size:12px;opacity:0.7;margin-top:2px;">${t.note || ''}</div>
+                        <div style="font-weight:600;font-size:13px;color:${statusColor(t.status)};">${escapeHtml(t.status)}</div>
+                        <div style="font-size:12px;opacity:0.7;margin-top:2px;">${escapeHtml(t.note) || ''}</div>
                         <div style="font-size:11px;opacity:0.5;margin-top:2px;">${t.created_at ? new Date(t.created_at).toLocaleString('fr-FR') : ''} ${t.updated_by_role === 'artist' ? '· Artiste' : t.updated_by_role === 'admin' ? '· Admin' : ''}</div>
                     </div>
                 </div>
@@ -5589,7 +5636,7 @@
                 ${i > 0 ? `<div class="escrow-connector ${i <= stepIdx ? 'done' : ''}"></div>` : ''}
                 <div class="escrow-step ${i < stepIdx ? 'done' : i === stepIdx ? 'active' : ''}">
                     <div class="escrow-step-dot">${i < stepIdx ? '✓' : s.icon}</div>
-                    <div class="escrow-step-label">${s.label}</div>
+                    <div class="escrow-step-label">${escapeHtml(s.label)}</div>
                 </div>
             `).join('');
 
@@ -5875,7 +5922,7 @@
                         transition:all 0.3s;">
                         ${i < stepIdx ? '✓' : s.icon}
                     </div>
-                    <div style="font-size:10px;opacity:${i <= stepIdx ? '1' : '0.4'};font-weight:${i === stepIdx ? '700' : '400'};text-align:center;">${s.label}</div>
+                    <div style="font-size:10px;opacity:${i <= stepIdx ? '1' : '0.4'};font-weight:${i === stepIdx ? '700' : '400'};text-align:center;">${escapeHtml(s.label)}</div>
                 </div>
             `).join('');
 
@@ -5944,7 +5991,7 @@
                         </div>
                         ${order.tracking_number ? `
                         <div style="margin-top:12px;font-size:13px;opacity:0.8;">
-                            📦 ${order.carrier ? order.carrier.toUpperCase() + ' · ' : ''}${order.tracking_number}
+                            📦 ${order.carrier ? escapeHtml(order.carrier.toUpperCase()) + ' · ' : ''}${escapeHtml(order.tracking_number)}
                             ${trackUrl ? `<a href="${trackUrl}" target="_blank" style="color:#90caf9;margin-left:8px;">Suivre →</a>` : ''}
                         </div>` : ''}
                     </div>`;
@@ -5972,7 +6019,7 @@
                 <div style="background:rgba(212,175,55,0.1);border:1.5px solid rgba(212,175,55,0.4);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
                     <div style="font-size:12px;font-weight:700;color:#ffe082;letter-spacing:0.5px;margin-bottom:8px;text-transform:uppercase;">📍 Adresse de livraison du client</div>
                     <div style="font-size:14px;font-weight:600;color:white;line-height:1.7;">${rawAddr.replace(/,\s*/g, '<br>')}</div>
-                    ${order.shipping_mode || order.shippingMode ? `<div style="margin-top:8px;font-size:12px;color:rgba(255,255,255,0.55);">🚚 Mode : ${order.shipping_name || order.shippingName || (order.shipping_mode || order.shippingMode)}</div>` : ''}
+                    ${order.shipping_mode || order.shippingMode ? `<div style="margin-top:8px;font-size:12px;color:rgba(255,255,255,0.55);">🚚 Mode : ${escapeHtml(order.shipping_name) || escapeHtml(order.shippingName) || (order.shipping_mode || order.shippingMode)}</div>` : ''}
                 </div>` : `
                 <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.25);border-radius:12px;padding:12px 16px;margin-bottom:14px;">
                     <div style="font-size:13px;color:#f87171;">⚠️ Adresse de livraison non renseignée — contactez l'admin</div>
@@ -5989,8 +6036,8 @@
                     <!-- En-tête commande -->
                     <div style="display:flex;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
                         <div>
-                            <div style="font-size:16px;font-weight:700;color:var(--ocre);">📦 ${order.order_number || '#' + orderId}${newBadge}</div>
-                            <div style="font-size:13px;opacity:0.7;margin-top:3px;">👤 ${order.user_name || 'Acheteur'}</div>
+                            <div style="font-size:16px;font-weight:700;color:var(--ocre);">📦 ${escapeHtml(order.order_number) || '#' + orderId}${newBadge}</div>
+                            <div style="font-size:13px;opacity:0.7;margin-top:3px;">👤 ${escapeHtml(order.user_name) || 'Acheteur'}</div>
                             <div style="font-size:12px;opacity:0.5;">📅 ${order.created_at ? new Date(order.created_at).toLocaleDateString('fr-FR') : ''}</div>
                         </div>
                         <div style="text-align:right;">
@@ -6011,9 +6058,9 @@
                         ${myItems.map(item => `
                             <div style="display:flex;gap:10px;align-items:center;padding:6px 0;">
                                 ${item.image_url||item.image
-                                    ? `<img src="${item.image_url||item.image}" style="width:44px;height:44px;border-radius:6px;object-fit:cover;">`
+                                    ? `<img src="${escapeHtml(item.image_url)||escapeHtml(item.image)}" style="width:44px;height:44px;border-radius:6px;object-fit:cover;">`
                                     : '<div style="width:44px;height:44px;border-radius:6px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">🎨</div>'}
-                                <div style="flex:1;font-size:13px;font-weight:600;">${item.title}</div>
+                                <div style="flex:1;font-size:13px;font-weight:600;">${escapeHtml(item.title)}</div>
                                 <div style="font-weight:700;color:var(--ocre);font-size:13px;">${formatPrice((item.price||0)*(item.quantity||1))}</div>
                             </div>`).join('')}
                     </div>
@@ -6216,7 +6263,7 @@
                 // Ajouter une mini-image si disponible
                 const miniImage = notif.packageImage ? `
                     <div style="width: 50px; height: 50px; border-radius: 8px; overflow: hidden; margin-right: 12px; flex-shrink: 0;">
-                        <img loading="lazy" src="${notif.packageImage}" 
+                        <img loading="lazy" src="${escapeHtml(notif.packageImage)}" 
                              alt="Colis" 
                              style="width: 100%; height: 100%; object-fit: cover;"
                              onerror="this.parentElement.style.display='none'">
@@ -6230,8 +6277,8 @@
                      style="display: flex; align-items: center;">
                     ${miniImage}
                     <div style="flex: 1; min-width: 0;">
-                        <div class="notif-title">${notif.title}</div>
-                        <div class="notif-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${notif.text}</div>
+                        <div class="notif-title">${escapeHtml(notif.title)}</div>
+                        <div class="notif-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(notif.text)}</div>
                         <div class="notif-time">${notif.time}</div>
                     </div>
                 </div>
@@ -6314,7 +6361,7 @@
             if (notif.packageImage) {
                 packageImageContainer.innerHTML = `
                     <div style="width: 100%; height: 200px; border-radius: 16px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
-                        <img loading="lazy" src="${notif.packageImage}" 
+                        <img loading="lazy" src="${escapeHtml(notif.packageImage)}" 
                              alt="Colis" 
                              style="width: 100%; height: 100%; object-fit: cover;"
                              onerror="this.parentElement.style.display='none'">
@@ -6328,8 +6375,8 @@
             const details = parseNotificationDetails(notif);
             const detailsHTML = details.map(detail => `
                 <div class="notification-modal-detail-item">
-                    <span class="notification-modal-detail-label">${detail.label}</span>
-                    <span class="notification-modal-detail-value">${detail.value}</span>
+                    <span class="notification-modal-detail-label">${escapeHtml(detail.label)}</span>
+                    <span class="notification-modal-detail-value">${escapeHtml(detail.value)}</span>
                 </div>
             `).join('');
 
@@ -6347,8 +6394,8 @@
                             ${notif.orderDetails.items.map(item => {
                                 const emoji = getDefaultEmoji(item);
                                 const imageHtml = item.image 
-                                    ? `<img loading="lazy" src="${item.image}" 
-                                            alt="${item.title}" 
+                                    ? `<img loading="lazy" src="${escapeHtml(item.image)}" 
+                                            alt="${escapeHtml(item.title)}" 
                                             style="width: 100%; height: 100%; object-fit: cover;"
                                             onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size:3rem;display:flex;align-items:center;justify-content:center;height:100%;\\'>${emoji}</div>';">`
                                     : `<div style="font-size: 3rem; display: flex; align-items: center; justify-content: center; height: 100%;">${emoji}</div>`;
@@ -6363,11 +6410,11 @@
                                                 ${emoji}
                                             </div>` : ''}
                                         </div>
-                                        <div style="font-size: 12px; font-weight: 600; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.title}">
-                                            ${item.title}
+                                        <div style="font-size: 12px; font-weight: 600; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(item.title)}">
+                                            ${escapeHtml(item.title)}
                                         </div>
                                         <div style="font-size: 11px; opacity: 0.7; margin-bottom: 4px;">
-                                            ${item.artist}
+                                            ${escapeHtml(item.artist)}
                                         </div>
                                         <div style="font-size: 12px; font-weight: 700; color: var(--ocre);">
                                             ${item.quantity > 1 ? `${item.quantity}× ` : ''}${formatPrice(item.price * item.quantity)}
@@ -6390,8 +6437,8 @@
                             ${notif.artistDetails.items.map(item => {
                                 const emoji = getDefaultEmoji(item);
                                 const imageHtml = item.image 
-                                    ? `<img loading="lazy" src="${item.image}" 
-                                            alt="${item.title}" 
+                                    ? `<img loading="lazy" src="${escapeHtml(item.image)}" 
+                                            alt="${escapeHtml(item.title)}" 
                                             style="width: 100%; height: 100%; object-fit: cover;"
                                             onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size:3rem;display:flex;align-items:center;justify-content:center;height:100%;\\'>${emoji}</div>';">`
                                     : `<div style="font-size: 3rem; display: flex; align-items: center; justify-content: center; height: 100%;">${emoji}</div>`;
@@ -6406,8 +6453,8 @@
                                                 ${emoji}
                                             </div>` : ''}
                                         </div>
-                                        <div style="font-size: 12px; font-weight: 600; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.title}">
-                                            ${item.title}
+                                        <div style="font-size: 12px; font-weight: 600; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(item.title)}">
+                                            ${escapeHtml(item.title)}
                                         </div>
                                         <div style="font-size: 12px; font-weight: 700; color: var(--ocre);">
                                             ${item.quantity > 1 ? `${item.quantity}× ` : ''}${formatPrice(item.price * item.quantity)}
@@ -6930,7 +6977,7 @@
                     imageSection = `
                         <div class="product-detail-image" style="position: relative;">
                             <!-- Image principale -->
-                            <img id="mainProductImage" src="${photos[0]}" alt="${product.title}" style="width:100%;height:100%;object-fit:cover;border-radius:20px;cursor:pointer;" loading="lazy" onclick="openImageLightbox('${photos[0]}')" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
+                            <img id="mainProductImage" src="${escapeHtml(photos[0])}" alt="${escapeHtml(product.title)}" style="width:100%;height:100%;object-fit:cover;border-radius:20px;cursor:pointer;" loading="lazy" onclick="openImageLightbox('${escapeJsAttr(photos[0])}')" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
                             
                             <!-- Indicateur de photo (1/5) -->
                             <div style="position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.7); color: white; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
@@ -6956,7 +7003,7 @@
                             <div style="display: flex; gap: 10px; margin-top: 15px; overflow-x: auto; padding: 5px 0;">
                                 ${photos.map((photo, index) => `
                                     <div onclick="changeMainPhoto(${index})" style="width: 80px; height: 80px; border-radius: 12px; overflow: hidden; cursor: pointer; border: 3px solid ${index === 0 ? 'rgba(212, 165, 116, 0.8)' : 'rgba(255,255,255,0.3)'}; transition: all 0.3s ease; flex-shrink: 0;" class="thumbnail-photo" data-index="${index}" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                                        <img loading="lazy" src="${photo}" alt="Photo ${index + 1}" style="width: 100%; height: 100%; object-fit: cover;">
+                                        <img loading="lazy" src="${escapeHtml(photo)}" alt="Photo ${index + 1}" style="width: 100%; height: 100%; object-fit: cover;">
                                     </div>
                                 `).join('')}
                             </div>
@@ -6966,7 +7013,7 @@
                     // Une seule photo - affichage classique
                     imageSection = `
                         <div class="product-detail-image">
-                            <img src="${photos[0] || product.image}" alt="${product.title}" style="width:100%;height:100%;object-fit:cover;border-radius:20px;cursor:pointer;" loading="lazy" onclick="openImageLightbox('${photos[0] || product.image}')" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
+                            <img src="${escapeHtml(photos[0]) || escapeHtml(product.image)}" alt="${escapeHtml(product.title)}" style="width:100%;height:100%;object-fit:cover;border-radius:20px;cursor:pointer;" loading="lazy" onclick="openImageLightbox('${escapeJsAttr(photos[0]) || escapeJsAttr(product.image)}')" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
                             <button class="like-button" onclick="toggleFavorite(event, ${product.id})" style="position:absolute;top:20px;right:20px;">
                                 ${favorites.includes(product.id) ? '❤️' : '🤍'}
                             </button>
@@ -7008,20 +7055,20 @@
                         <div class="product-detail-grid">
                             ${imageSection}
                             <div class="product-detail-info">
-                                <div class="product-detail-title">${title}</div>
-                                <div class="product-detail-artist" onclick="viewArtistDetail(event, '${artist}')">
-                                    👨‍🎨 par ${artist}
+                                <div class="product-detail-title">${escapeHtml(title)}</div>
+                                <div class="product-detail-artist" onclick="viewArtistDetail(event, '${escapeJsAttr(artist)}')">
+                                    👨‍🎨 par ${escapeHtml(artist)}
                                 </div>
                                 <div class="product-detail-price">${formatPrice(product.price)}</div>
                             
                             <div class="product-detail-meta">
                                 <div class="meta-item">
                                     <div class="meta-label">Catégorie</div>
-                                    <div class="meta-value">${category}</div>
+                                    <div class="meta-value">${escapeHtml(category)}</div>
                                 </div>
                                 <div class="meta-item">
                                     <div class="meta-label">Statut</div>
-                                    <div class="meta-value">${product.badge || 'Disponible'}</div>
+                                    <div class="meta-value">${escapeHtml(product.badge) || 'Disponible'}</div>
                                 </div>
                                 <div class="meta-item">
                                     <div class="meta-label">Dimensions</div>
@@ -7035,7 +7082,7 @@
 
                             <div class="product-detail-description">
                                 <h3 style="margin-bottom:10px;">Description</h3>
-                                <p>${description}</p>
+                                <p>${escapeHtml(description)}</p>
                             </div>
 
                             <div class="product-detail-actions">
@@ -7242,7 +7289,7 @@
             const avatarStyle = (serverArtistProfile && serverArtistProfile.avatar_style) || 'slices';
             const avatarDisplay = (artist && artist.profileImage)
                 ? buildAvatarDisplay(artist.profileImage, avatarStyle, artistName)
-                : `<div class="artist-detail-avatar">${artist ? (artist.avatar || '👤') : '👤'}</div>`;
+                : `<div class="artist-detail-avatar">${artist ? (escapeHtml(artist.avatar) || '👤') : '👤'}</div>`;
 
             // Construire les cartes d'œuvres
             const worksHTML = artistWorks.length > 0
@@ -7250,17 +7297,17 @@
                     ${artistWorks.map(art => `
                         <div class="product-card" onclick="viewProductDetail(${art.id})">
                             <div class="product-image">
-                                <span class="product-badge">${art.badge || art.category || '🎨'}</span>
+                                <span class="product-badge">${escapeHtml(art.badge) || escapeHtml(art.category) || '🎨'}</span>
                                 <button class="like-button" onclick="toggleFavorite(event, ${art.id})">
                                     ${(typeof favorites !== 'undefined' && favorites.includes(art.id)) ? '❤️' : '🤍'}
                                 </button>
-                                <img src="${art.image_url || art.image || ''}" alt="${art.title}"
+                                <img src="${escapeHtml(art.image_url) || escapeHtml(art.image) || ''}" alt="${escapeHtml(art.title)}"
                                      style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy"
                                      onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
                             </div>
                             <div class="product-info">
-                                <div class="product-title">${art.title}</div>
-                                <div class="product-artist">par ${art.artist_name || artistName}</div>
+                                <div class="product-title">${escapeHtml(art.title)}</div>
+                                <div class="product-artist">par ${escapeHtml(art.artist_name) || escapeHtml(artistName)}</div>
                                 <div class="product-footer">
                                     <div class="product-price">${formatPrice(art.price || 0)}</div>
                                     <button class="add-cart-btn" onclick="addToCart(event, ${art.id})">+ Panier</button>
@@ -7279,10 +7326,10 @@
                 <div class="artist-detail">
                     <div class="artist-detail-header">
                         ${avatarDisplay}
-                        <h1 class="artist-detail-name">${artistName}</h1>
-                        <p class="artist-detail-specialty">${artist ? (artist.specialty || 'Artiste') : 'Artiste'}</p>
+                        <h1 class="artist-detail-name">${escapeHtml(artistName)}</h1>
+                        <p class="artist-detail-specialty">${artist ? (escapeHtml(artist.specialty) || 'Artiste') : 'Artiste'}</p>
                         <div style="display:flex;gap:10px;justify-content:center;margin-top:15px;">
-                            ${!isOwnProfile ? `<button class="btn follow-artist-btn" id="followBtn-${artistName.replace(/\s+/g, '-')}" onclick="toggleFollowArtist('${artistName}')" ${isFollowingArtist(artistName) ? 'data-following="true"' : ''}>
+                            ${!isOwnProfile ? `<button class="btn follow-artist-btn" id="followBtn-${artistName.replace(/\s+/g, '-')}" onclick="toggleFollowArtist('${escapeJsAttr(artistName)}')" ${isFollowingArtist(artistName) ? 'data-following="true"' : ''}>
                                 ${isFollowingArtist(artistName) ? '✓ Abonné' : '+ Suivre'}
                             </button>` : ''}
                             ${isOwnProfile ? `<button class="btn-edit-artist-profile" onclick="openArtistEditModal()">✏️ Modifier mon profil</button>` : ''}
@@ -7307,11 +7354,11 @@
                     ${artist && artist.bio ? `
                     <div class="artist-bio">
                         <h3 style="margin-bottom:15px;">📖 Biographie</h3>
-                        <p>${artist.bio}</p>
+                        <p>${escapeHtml(artist.bio)}</p>
                     </div>` : ''}
 
                     <div class="artist-artworks-section">
-                        <h2 class="section-heading">🎨 Œuvres de ${artistName} (${artistWorks.length})</h2>
+                        <h2 class="section-heading">🎨 Œuvres de ${escapeHtml(artistName)} (${artistWorks.length})</h2>
                         ${worksHTML}
                     </div>
                 </div>
@@ -7545,12 +7592,12 @@
             // shape: 'circle' pour les petits formats, sinon utilise le style de l'artiste
             const img = artist.profile_image;
             const style = artist.avatar_style || 'slices';
-            const fallback = `<div style="font-size:${Math.round(size*0.45)}px;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">${artist.avatar || '🎨'}</div>`;
+            const fallback = `<div style="font-size:${Math.round(size*0.45)}px;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">${escapeHtml(artist.avatar) || '🎨'}</div>`;
 
             if (!img || img === 'undefined') return fallback;
 
             if (shape === 'circle' || style === 'circle') {
-                return `<img loading="lazy" src="${img}" alt="${artist.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentElement.innerHTML='${artist.avatar || '🎨'}'">`;
+                return `<img loading="lazy" src="${escapeHtml(img)}" alt="${escapeHtml(artist.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentElement.innerHTML='${escapeJsAttr(artist.avatar) || '🎨'}'">`;
             }
 
             if (style === 'slices') {
@@ -7558,7 +7605,7 @@
                 const slices = cfg.map((s, i) => {
                     const h = s.hPct + '%';
                     const alignSelf = s.hPct === 100 ? 'stretch' : s.vAlign;
-                    return `<div style="flex:1;border-radius:2px;background-image:url('${img}');background-position:${s.xPos}% center;background-size:${cfg.length * 110}% auto;height:${h};align-self:${alignSelf};"></div>`;
+                    return `<div style="flex:1;border-radius:2px;background-image:url('${escapeHtml(img)}');background-position:${s.xPos}% center;background-size:${cfg.length * 110}% auto;height:${h};align-self:${alignSelf};"></div>`;
                 }).join('');
                 return `<div style="display:flex;flex-direction:row;gap:2px;align-items:stretch;width:100%;height:100%;">${slices}</div>`;
             }
@@ -7566,7 +7613,7 @@
                 const cfg = SLICE_CONFIG.hslices;
                 const slices = cfg.map(s => {
                     const alignSelf = s.wPct === 100 ? 'stretch' : s.hAlign;
-                    return `<div style="border-radius:2px;background-image:url('${img}');background-position:center ${s.yPos}%;background-size:auto ${cfg.length * 110}%;width:${s.wPct}%;align-self:${alignSelf};flex:1;"></div>`;
+                    return `<div style="border-radius:2px;background-image:url('${escapeHtml(img)}');background-position:center ${s.yPos}%;background-size:auto ${cfg.length * 110}%;width:${s.wPct}%;align-self:${alignSelf};flex:1;"></div>`;
                 }).join('');
                 return `<div style="display:flex;flex-direction:column;gap:2px;align-items:stretch;width:100%;height:100%;">${slices}</div>`;
             }
@@ -7574,12 +7621,12 @@
                 const s2 = Math.round(size * 0.55);
                 return `<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;">
                     <div style="width:${s2}px;height:${s2}px;transform:rotate(45deg);border-radius:4px;overflow:hidden;">
-                        <img src="${img}" style="width:100%;height:100%;object-fit:cover;transform:rotate(-45deg) scale(1.45);">
+                        <img src="${escapeHtml(img)}" style="width:100%;height:100%;object-fit:cover;transform:rotate(-45deg) scale(1.45);">
                     </div>
                 </div>`;
             }
             // square / fallback
-            return `<img loading="lazy" src="${img}" alt="${artist.name}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='${artist.avatar || '🎨'}'">`;
+            return `<img loading="lazy" src="${escapeHtml(img)}" alt="${escapeHtml(artist.name)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='${escapeJsAttr(artist.avatar) || '🎨'}'">`;
         }
         // ═══════════════════════════════════════════════════════
         // SYSTÈME DE POSTS ARTISTE (images/vidéos hors galerie)
@@ -7791,8 +7838,8 @@
                 const isVid = f.type.startsWith('video/');
                 return `<div style="position:relative;width:72px;height:72px;border-radius:10px;overflow:hidden;border:2px solid ${i===0?'#d4af37':'rgba(255,255,255,0.2)'};">
                     ${isVid
-                        ? `<video src="${url}" style="width:100%;height:100%;object-fit:cover;" muted></video><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;">🎬</div>`
-                        : `<img src="${url}" style="width:100%;height:100%;object-fit:cover;">`}
+                        ? `<video src="${escapeHtml(url)}" style="width:100%;height:100%;object-fit:cover;" muted></video><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;">🎬</div>`
+                        : `<img src="${escapeHtml(url)}" style="width:100%;height:100%;object-fit:cover;">`}
                     ${i===0 ? '<div style="position:absolute;bottom:2px;left:2px;background:#d4af37;color:#000;font-size:8px;font-weight:800;padding:1px 5px;border-radius:6px;">1ère</div>' : ''}
                     <button onclick="event.stopPropagation();removePostFile(${i})"
                         style="position:absolute;top:2px;right:2px;background:rgba(220,53,69,0.85);border:none;border-radius:50%;width:18px;height:18px;color:white;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;">×</button>
@@ -7991,8 +8038,8 @@
                     ${postPhotos.map((_,i) => `<div style="width:6px;height:6px;border-radius:50%;background:${i===0?'rgba(255,255,255,0.95)':'rgba(255,255,255,0.4)'};box-shadow:0 1px 3px rgba(0,0,0,0.5);"></div>`).join('')}
                    </div>` : '';
             const mediaBlock = post.media_type === 'video'
-                ? `<video src="${post.media_url}" poster="${videoPoster}" preload="none" style="width:100%;display:block;border-radius:16px 16px 0 0;max-height:340px;object-fit:cover;" controls muted playsinline></video>`
-                : `<img loading="lazy" src="${postPhotos[0]}" alt="Post"
+                ? `<video src="${escapeHtml(post.media_url)}" poster="${escapeHtml(videoPoster)}" preload="none" style="width:100%;display:block;border-radius:16px 16px 0 0;max-height:340px;object-fit:cover;" controls muted playsinline></video>`
+                : `<img loading="lazy" src="${escapeHtml(postPhotos[0])}" alt="Post"
                         style="width:100%;display:block;border-radius:16px 16px 0 0;"
                         onerror="this.parentElement.innerHTML='<div style=\'min-height:160px;display:flex;align-items:center;justify-content:center;font-size:60px;background:rgba(255,255,255,0.06);border-radius:16px 16px 0 0;\'>🎨</div>'">`;
 
@@ -8024,13 +8071,13 @@
                     <!-- Artiste -->
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
                         <div style="width:26px;height:26px;border-radius:50%;background:rgba(212,175,55,0.2);display:flex;align-items:center;justify-content:center;font-size:14px;overflow:hidden;flex-shrink:0;">
-                            ${post.artist_avatar ? `<img src="${post.artist_avatar}" style="width:100%;height:100%;object-fit:cover;">` : '🎨'}
+                            ${post.artist_avatar ? `<img src="${escapeHtml(post.artist_avatar)}" style="width:100%;height:100%;object-fit:cover;">` : '🎨'}
                         </div>
-                        <span style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.85);">${post.artist_name}</span>
+                        <span style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.85);">${escapeHtml(post.artist_name)}</span>
                         <span style="font-size:11px;color:rgba(255,255,255,0.3);margin-left:auto;">${new Date(post.created_at).toLocaleDateString('fr-FR')}</span>
                     </div>
 
-                    ${post.caption ? `<div style="font-size:13px;color:rgba(255,255,255,0.8);margin-bottom:8px;line-height:1.4;">${post.caption}</div>` : ''}
+                    ${post.caption ? `<div style="font-size:13px;color:rgba(255,255,255,0.8);margin-bottom:8px;line-height:1.4;">${escapeHtml(post.caption)}</div>` : ''}
 
 
                 </div>
@@ -8059,7 +8106,7 @@
             const detailCarId = 'pdCar_' + post.id;
 
             const mediaBlock = post.media_type === 'video'
-                ? `<video src="${post.media_url}" poster="${videoPoster}" preload="metadata"
+                ? `<video src="${escapeHtml(post.media_url)}" poster="${escapeHtml(videoPoster)}" preload="metadata"
                         style="width:100%;max-height:70vh;object-fit:contain;border-radius:16px;display:block;background:#000;"
                         controls playsinline></video>`
                 : `<div id="${detailCarId}" style="position:relative;overflow:hidden;border-radius:16px;background:#111;">
@@ -8076,7 +8123,7 @@
             const commentsHTML = (post.comments && post.comments.length > 0)
                 ? post.comments.map(c => `
                     <div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:13px;color:rgba(255,255,255,0.75);">
-                        <span style="font-weight:700;color:#d4af37;margin-right:6px;">${c.author || 'Anonyme'}</span>${c.text || ''}
+                        <span style="font-weight:700;color:#d4af37;margin-right:6px;">${escapeHtml(c.author) || 'Anonyme'}</span>${escapeHtml(c.text) || ''}
                     </div>`).join('')
                 : `<div style="font-size:13px;color:rgba(255,255,255,0.3);padding:8px 0;">Aucun commentaire pour l'instant.</div>`;
 
@@ -8089,10 +8136,10 @@
                     <!-- Header artiste -->
                     <div style="display:flex;align-items:center;gap:12px;padding:16px;border-bottom:1px solid rgba(255,255,255,0.08);">
                         <div style="width:42px;height:42px;border-radius:50%;background:rgba(212,175,55,0.2);border:2px solid rgba(212,175,55,0.4);display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden;flex-shrink:0;">
-                            ${post.artist_avatar ? `<img src="${post.artist_avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : '🎨'}
+                            ${post.artist_avatar ? `<img src="${escapeHtml(post.artist_avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : '🎨'}
                         </div>
                         <div>
-                            <div style="font-weight:700;font-size:15px;color:#fff;">${post.artist_name || 'Artiste'}</div>
+                            <div style="font-weight:700;font-size:15px;color:#fff;">${escapeHtml(post.artist_name) || 'Artiste'}</div>
                             <div style="font-size:11px;color:rgba(255,255,255,0.4);">${new Date(post.created_at).toLocaleDateString('fr-FR', {day:'numeric',month:'long',year:'numeric'})}</div>
                         </div>
                         <button onclick="document.getElementById('postDetailOverlay').remove()"
@@ -8104,7 +8151,7 @@
 
                     <!-- Contenu -->
                     <div style="padding:16px;">
-                        ${post.caption ? `<p style="font-size:15px;color:rgba(255,255,255,0.9);line-height:1.6;margin:0 0 16px;">${post.caption}</p>` : ''}
+                        ${post.caption ? `<p style="font-size:15px;color:rgba(255,255,255,0.9);line-height:1.6;margin:0 0 16px;">${escapeHtml(post.caption)}</p>` : ''}
 
                         <!-- Actions like/comment -->
                         <div style="display:flex;align-items:center;gap:16px;padding:12px 0;border-top:1px solid rgba(255,255,255,0.08);border-bottom:1px solid rgba(255,255,255,0.08);">
@@ -8209,7 +8256,7 @@
                         ${similar.map(s => {
                             const si = s.image_url||s.image||'';
                             return si ? `<div style="break-inside:avoid;margin-bottom:6px;border-radius:10px;overflow:hidden;cursor:pointer;" onclick="openArtistImageOverlay(${s.id})">
-                                <img loading="lazy" src="${si}" alt="${s.title||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='80px'">
+                                <img loading="lazy" src="${si}" alt="${escapeHtml(s.title)||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='80px'">
                             </div>` : '';
                         }).join('')}
                     </div>
@@ -8239,11 +8286,11 @@
                         style="background:rgba(0,0,0,0.07);border:none;color:#333;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;"
                         onmouseover="this.style.background='rgba(0,0,0,0.13)'"
                         onmouseout="this.style.background='rgba(0,0,0,0.07)'">←</button>
-                    <button onclick="document.getElementById('artistPinOverlay').remove();navigateTo('home');setTimeout(()=>{ if(typeof afficherOeuvresFiltrees==='function'){ window.currentArtistFilter='${artistName}'; afficherOeuvresFiltrees(); } if(typeof showToast==='function') showToast('🎨 Galerie de ${artistName}'); },100);"
+                    <button onclick="document.getElementById('artistPinOverlay').remove();navigateTo('home');setTimeout(()=>{ if(typeof afficherOeuvresFiltrees==='function'){ window.currentArtistFilter='${escapeHtml(artistName)}'; afficherOeuvresFiltrees(); } if(typeof showToast==='function') showToast('🎨 Galerie de ${escapeHtml(artistName)}'); },100);"
                         style="background:transparent;border:none;font-size:13px;font-weight:600;color:#2a2a2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center;cursor:pointer;padding:8px 12px;border-radius:20px;transition:all 0.2s;"
                         onmouseover="this.style.background='rgba(0,0,0,0.06)';this.style.color='#b8962e'"
                         onmouseout="this.style.background='transparent';this.style.color='#2a2a2a'"
-                        title="Voir la galerie de ${artistName}">${artistName}</button>
+                        title="Voir la galerie de ${escapeHtml(artistName)}">${escapeHtml(artistName)}</button>
                     <button onclick="toggleSocialLike(event,${work.id},this)"
                         style="background:rgba(0,0,0,0.07);border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;"
                         onmouseover="this.style.background='rgba(0,0,0,0.13)'"
@@ -8257,7 +8304,7 @@
                     <div id="${carouselId}_track" style="display:flex;transition:transform 0.3s ease;will-change:transform;">
                         ${photos.map(p => `
                             <div style="flex:0 0 100%;width:100%;">
-                                <img src="${p}" alt="${work.title||''}"
+                                <img src="${p}" alt="${escapeHtml(work.title)||''}"
                                      style="width:100%;max-height:72vh;object-fit:contain;display:block;"
                                      onerror="this.style.minHeight='200px'">
                             </div>`).join('')}
@@ -8276,8 +8323,8 @@
 
                 <div style="padding:14px 16px 18px;display:flex;gap:10px;align-items:center;">
                     <div style="flex:1;min-width:0;">
-                        <div style="font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:3px;line-height:1.3;">${work.title||'Sans titre'}</div>
-                        <div style="font-size:12px;color:rgba(0,0,0,0.45);">par ${artistName}</div>
+                        <div style="font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:3px;line-height:1.3;">${escapeHtml(work.title)||'Sans titre'}</div>
+                        <div style="font-size:12px;color:rgba(0,0,0,0.45);">par ${escapeHtml(artistName)}</div>
                     </div>
                     <button onclick="document.getElementById('artistPinOverlay').remove();viewProductDetailFromAPI(${work.id});"
                         style="flex-shrink:0;background:linear-gradient(135deg,#d4af37,#b8962e);border:none;color:#1a1a1a;padding:10px 16px;border-radius:22px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.2s;"
@@ -8434,13 +8481,13 @@
                 document.head.appendChild(s);
             }
             if(carousel) carousel.innerHTML = followed.map(artist => `
-                <div class="avatar-story-item" onclick="scrollToArtistLoops('${artist.name}')">
+                <div class="avatar-story-item" onclick="scrollToArtistLoops('${escapeJsAttr(artist.name)}')">
                     <div class="avatar-story-ring">
                         <div class="avatar-story-inner">
                             ${buildMiniAvatar(artist, 66, null)}
                         </div>
                     </div>
-                    <div class="avatar-story-name">${artist.name.split(' ')[0]}</div>
+                    <div class="avatar-story-name">${escapeHtml(artist.name.split(' ')[0])}</div>
                 </div>
             `).join('');
 
@@ -8503,7 +8550,7 @@
                 const imgSrc = (work.image_url && work.image_url !== 'undefined') ? work.image_url : '';
                 return `<div style="break-inside:avoid;margin-bottom:6px;border-radius:10px;overflow:hidden;cursor:pointer;position:relative;"
                              onclick="openArtistImageOverlay(${work.id})">
-                    ${imgSrc ? `<img loading="lazy" src="${imgSrc}" alt="${work.title||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='80px'">` : `<div style="width:100%;min-height:120px;display:flex;align-items:center;justify-content:center;font-size:48px;background:rgba(255,255,255,0.06);border-radius:10px;">🎨</div>`}
+                    ${imgSrc ? `<img loading="lazy" src="${escapeHtml(imgSrc)}" alt="${escapeHtml(work.title)||''}" style="width:100%;height:auto;display:block;border-radius:10px;" onerror="this.style.minHeight='80px'">` : `<div style="width:100%;min-height:120px;display:flex;align-items:center;justify-content:center;font-size:48px;background:rgba(255,255,255,0.06);border-radius:10px;">🎨</div>`}
                     ${work.is_sold ? '<div style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.65);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;">🔴 Vendu</div>' : ''}
                     <button onclick="event.stopPropagation();toggleSocialLike(event,${work.id},this)"
                         style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.5);border:none;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;">
@@ -8734,8 +8781,8 @@
                         ? post.media_url.replace('/video/upload/','/video/upload/so_0,w_600,f_jpg/').replace(/\.mp4$/,'.jpg')
                         : '';
                     const media = post.media_type === 'video'
-                        ? '<video src="' + post.media_url + '" poster="' + poster + '" preload="none" style="width:100%;height:200px;object-fit:cover;display:block;" controls muted playsinline></video>'
-                        : '<img src="' + post.media_url + '" style="width:100%;height:200px;object-fit:cover;display:block;" loading="lazy" onerror="this.style.display=\'none\'">';
+                        ? '<video src="' + escapeHtml(post.media_url) + '" poster="' + poster + '" preload="none" style="width:100%;height:200px;object-fit:cover;display:block;" controls muted playsinline></video>'
+                        : '<img src="' + escapeHtml(post.media_url) + '" style="width:100%;height:200px;object-fit:cover;display:block;" loading="lazy" onerror="this.style.display=\'none\'">';
                     const badge = post.media_type === 'video' ? '🎬 VIDÉO' : '📸 PHOTO';
                     const dateStr = post.created_at ? new Date(post.created_at).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'}) : '';
                     const caption = post.caption || '<em style="opacity:0.4">Sans légende</em>';
@@ -8748,7 +8795,7 @@
                         '<div style="padding:12px 14px;">' +
                             '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
                                 '<div style="flex:1;min-width:0;">' +
-                                    '<div style="font-size:13px;color:rgba(255,255,255,0.85);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + caption + '</div>' +
+                                    '<div style="font-size:13px;color:rgba(255,255,255,0.85);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(caption) + '</div>' +
                                     '<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:4px;">' + dateStr + ' · ' + likesC + ' ❤️ · ' + cmtC + ' 💬</div>' +
                                 '</div>' +
                                 '<button onclick="deleteArtistPost(\'' + post.id + '\')" ' +
@@ -8842,7 +8889,7 @@
                 const previewImgs = artistWorks.slice(0, 3).map(work =>
                     work.image_url && work.image_url !== 'undefined'
                         ? `<div style="flex:1;min-width:0;aspect-ratio:1/1;border-radius:10px;overflow:hidden;background:rgba(255,255,255,0.06);">
-                               <img src="${work.image_url}" alt="${work.title}" style="width:100%;height:100%;object-fit:cover;"
+                               <img src="${escapeHtml(work.image_url)}" alt="${escapeHtml(work.title)}" style="width:100%;height:100%;object-fit:cover;"
                                    onerror="this.parentElement.innerHTML='<div style=\"width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px;\">🎨</div>'">
                            </div>`
                         : `<div style="flex:1;min-width:0;aspect-ratio:1/1;border-radius:10px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:24px;">🎨</div>`
@@ -8852,7 +8899,7 @@
                 <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:20px;overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;cursor:pointer;"
                      onmouseover="this.style.transform='translateY(-4px)';this.style.boxShadow='0 16px 40px rgba(0,0,0,0.4)'"
                      onmouseout="this.style.transform='';this.style.boxShadow=''"
-                     onclick="viewArtistDetail(event, '${artist.name}')">
+                     onclick="viewArtistDetail(event, '${escapeJsAttr(artist.name)}')">
                     <div style="position:relative;height:72px;background:linear-gradient(135deg,rgba(212,175,55,0.2),rgba(160,120,32,0.1));">
                         <div style="position:absolute;bottom:-33px;left:50%;transform:translateX(-50%);">
                             <div style="width:66px;height:66px;border-radius:50%;padding:3px;background:linear-gradient(135deg,#d4af37,#a07820);box-shadow:0 4px 16px rgba(0,0,0,0.4);">
@@ -8863,8 +8910,8 @@
                         </div>
                     </div>
                     <div style="padding:42px 14px 14px;text-align:center;">
-                        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:2px;">${artist.name}</div>
-                        <div style="font-size:11px;color:#d4af37;margin-bottom:10px;">${artist.specialty || ''}</div>
+                        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:2px;">${escapeHtml(artist.name)}</div>
+                        <div style="font-size:11px;color:#d4af37;margin-bottom:10px;">${escapeHtml(artist.specialty) || ''}</div>
                         <div style="display:flex;justify-content:center;gap:16px;margin-bottom:12px;">
                             <div>
                                 <div style="font-size:17px;font-weight:800;color:#fff;">${artistWorks.length}</div>
@@ -8875,12 +8922,12 @@
                             ? `<div style="display:flex;gap:5px;margin-bottom:12px;">${previewImgs}${artistWorks.length > 3 ? `<div style="flex:0 0 30px;aspect-ratio:1/1;border-radius:8px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,0.5);font-weight:700;">+${artistWorks.length-3}</div>` : ''}</div>`
                             : `<div style="font-size:11px;color:rgba(255,255,255,0.25);margin-bottom:12px;">Aucune œuvre publiée</div>`}
                         <div style="display:flex;gap:7px;">
-                            <button onclick="event.stopPropagation();viewArtistDetail(event,'${artist.name}')"
+                            <button onclick="event.stopPropagation();viewArtistDetail(event,'${escapeJsAttr(artist.name)}')"
                                 style="flex:1;padding:8px 4px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.3);border-radius:10px;color:#d4af37;font-size:11px;font-weight:600;cursor:pointer;transition:background 0.2s;"
                                 onmouseover="this.style.background='rgba(212,175,55,0.25)'" onmouseout="this.style.background='rgba(212,175,55,0.12)'">
                                 👁️ Profil
                             </button>
-                            <button onclick="event.stopPropagation();unfollowArtist('${artist.name}')"
+                            <button onclick="event.stopPropagation();unfollowArtist('${escapeJsAttr(artist.name)}')"
                                 style="flex:1;padding:8px 4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;cursor:pointer;transition:all 0.2s;"
                                 onmouseover="this.style.background='rgba(220,53,69,0.18)';this.style.color='#ff6b7a';this.style.borderColor='rgba(220,53,69,0.35)'"
                                 onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='rgba(255,255,255,0.6)';this.style.borderColor='rgba(255,255,255,0.12)'">
@@ -8950,12 +8997,12 @@
                 <div style="background: white; width: 100%; max-width: 600px; border-radius: 20px 20px 0 0; padding: 20px; animation: slideUpMenu 0.3s;">
                     <div style="width: 40px; height: 4px; background: #e0e0e0; border-radius: 2px; margin: 0 auto 20px;"></div>
                     
-                    <button onclick="viewArtistDetail(event, '${artistName}'); document.body.removeChild(this.closest('div').parentElement)" style="width: 100%; background: none; border: none; padding: 16px; text-align: left; font-size: 15px; font-weight: 500; color: #1a1a1a; cursor: pointer; border-radius: 12px; margin-bottom: 8px;" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='none'">
-                        👤 Voir le profil de ${artistName}
+                    <button onclick="viewArtistDetail(event, '${escapeJsAttr(artistName)}'); document.body.removeChild(this.closest('div').parentElement)" style="width: 100%; background: none; border: none; padding: 16px; text-align: left; font-size: 15px; font-weight: 500; color: #1a1a1a; cursor: pointer; border-radius: 12px; margin-bottom: 8px;" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='none'">
+                        👤 Voir le profil de ${escapeHtml(artistName)}
                     </button>
                     
-                    <button onclick="unfollowArtist('${artistName}'); document.body.removeChild(this.closest('div').parentElement)" style="width: 100%; background: none; border: none; padding: 16px; text-align: left; font-size: 15px; font-weight: 500; color: #f44336; cursor: pointer; border-radius: 12px; margin-bottom: 8px;" onmouseover="this.style.background='#ffebee'" onmouseout="this.style.background='none'">
-                        ❌ Ne plus suivre ${artistName}
+                    <button onclick="unfollowArtist('${escapeJsAttr(artistName)}'); document.body.removeChild(this.closest('div').parentElement)" style="width: 100%; background: none; border: none; padding: 16px; text-align: left; font-size: 15px; font-weight: 500; color: #f44336; cursor: pointer; border-radius: 12px; margin-bottom: 8px;" onmouseover="this.style.background='#ffebee'" onmouseout="this.style.background='none'">
+                        ❌ Ne plus suivre ${escapeHtml(artistName)}
                     </button>
                     
                     <button onclick="document.body.removeChild(this.parentElement.parentElement)" style="width: 100%; background: #f0f0f0; border: none; padding: 16px; text-align: center; font-size: 15px; font-weight: 600; color: #666; cursor: pointer; border-radius: 12px; margin-top: 12px;">
@@ -9174,13 +9221,13 @@
                         const artistName = product.artist || product.artist_name || 'Artiste ARKYL';
                         return `<div class="product-card" onclick="viewProductDetailFromAPI(${product.id})">
                             <div class="product-image">
-                                <span class="product-badge">${product.badge || 'Disponible'}</span>
+                                <span class="product-badge">${escapeHtml(product.badge) || 'Disponible'}</span>
                                 <button class="like-button" onclick="toggleFavorite(event, ${product.id})">${favorites.includes(product.id) ? '❤️' : '🤍'}</button>
-                                ${imgSrc ? `<img src="${imgSrc}" alt="${product.title}" style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">` : `<span style="font-size:60px;">🎨</span>`}
+                                ${imgSrc ? `<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(product.title)}" style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">` : `<span style="font-size:60px;">🎨</span>`}
                             </div>
                             <div class="product-info">
-                                <div class="product-title">${product.title}</div>
-                                <div class="product-artist" onclick="viewArtistDetail(event, '${artistName}')">par ${artistName}</div>
+                                <div class="product-title">${escapeHtml(product.title)}</div>
+                                <div class="product-artist" onclick="viewArtistDetail(event, '${escapeJsAttr(artistName)}')">par ${escapeHtml(artistName)}</div>
                                 <div class="product-footer">
                                     <div class="product-price">${formatPrice(product.price)}</div>
                                     <button class="add-cart-btn" onclick="addToCart(event, ${product.id})">+ Panier</button>
@@ -9367,13 +9414,13 @@
             const bio     = document.getElementById('reg-bio').value.trim();
 
             document.getElementById('regReviewCard').innerHTML = `
-                ${avatarSrc ? `<div class="reg-review-row"><span>Avatar</span><span><img loading="lazy" src="${avatarSrc}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;border:2px solid var(--or);" /></span></div>` : ''}
-                <div class="reg-review-row"><span>Nom</span><span>${name}</span></div>
-                <div class="reg-review-row"><span>Email</span><span>${email}</span></div>
-                <div class="reg-review-row"><span>Téléphone</span><span>${phone}</span></div>
-                <div class="reg-review-row"><span>Pays</span><span>${country}</span></div>
+                ${avatarSrc ? `<div class="reg-review-row"><span>Avatar</span><span><img loading="lazy" src="${escapeHtml(avatarSrc)}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;border:2px solid var(--or);" /></span></div>` : ''}
+                <div class="reg-review-row"><span>Nom</span><span>${escapeHtml(name)}</span></div>
+                <div class="reg-review-row"><span>Email</span><span>${escapeHtml(email)}</span></div>
+                <div class="reg-review-row"><span>Téléphone</span><span>${escapeHtml(phone)}</span></div>
+                <div class="reg-review-row"><span>Pays</span><span>${escapeHtml(country)}</span></div>
                 <div class="reg-review-row"><span>Spécialité(s)</span><span>${specs.join(', ')}</span></div>
-                ${bio ? `<div class="reg-review-row"><span>Bio</span><span style="max-width:55%;text-align:right;line-height:1.4;">${bio}</span></div>` : ''}
+                ${bio ? `<div class="reg-review-row"><span>Bio</span><span style="max-width:55%;text-align:right;line-height:1.4;">${escapeHtml(bio)}</span></div>` : ''}
             `;
         }
 
@@ -9417,6 +9464,7 @@
 
                 const result = await resp.json();
                 console.log('[Register] Réponse serveur:', result);
+                if (result.success && result.token) window.ArkylAPI.setToken(result.token, result.expires_in);
 
                 if (!result.success) {
                     showToast('❌ ' + (result.message || 'Erreur inscription'), 'error');
@@ -9661,12 +9709,12 @@
             const items = recent.map(n => {
                 const date = new Date(n.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
                 const unread = !n.is_read ? 'background:rgba(196,106,75,0.12);border-left:3px solid var(--terre-cuite,#c46a4b);' : 'border-left:3px solid transparent;';
-                return `<div style="${unread}padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;transition:background 0.15s;" onclick="openNotifOrder('${n.order_number}')" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='${!n.is_read ? 'rgba(196,106,75,0.12)' : 'transparent'}'">
+                return `<div style="${unread}padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;transition:background 0.15s;" onclick="openNotifOrder('${escapeJsAttr(n.order_number)}')" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='${!n.is_read ? 'rgba(196,106,75,0.12)' : 'transparent'}'">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-                        <span style="font-size:13px;font-weight:600;color:#fff;line-height:1.4;">${n.title}</span>
+                        <span style="font-size:13px;font-weight:600;color:#fff;line-height:1.4;">${escapeHtml(n.title)}</span>
                         <span style="font-size:11px;color:#666;white-space:nowrap;">${date}</span>
                     </div>
-                    <p style="margin:4px 0 0;font-size:12px;color:#aaa;line-height:1.4;">${n.message}</p>
+                    <p style="margin:4px 0 0;font-size:12px;color:#aaa;line-height:1.4;">${escapeHtml(n.message)}</p>
                 </div>`;
             }).join('');
             // CTA bas du dropdown
@@ -10008,7 +10056,7 @@
             const navAvatar = document.getElementById('navAvatar');
             if (navAvatar) {
                 if (acc.avatar && (acc.avatar.startsWith('http') || acc.avatar.startsWith('data:'))) {
-                    navAvatar.innerHTML = `<img loading="lazy" src="${acc.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
+                    navAvatar.innerHTML = `<img loading="lazy" src="${escapeHtml(acc.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
                 } else {
                     navAvatar.textContent = acc.avatar || '🎨';
                 }
@@ -10018,7 +10066,7 @@
             const welcomeAvatar = document.getElementById('welcomeAvatar');
             if (welcomeAvatar) {
                 if (acc.avatar && (acc.avatar.startsWith('http') || acc.avatar.startsWith('data:'))) {
-                    welcomeAvatar.innerHTML = `<img loading="lazy" src="${acc.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
+                    welcomeAvatar.innerHTML = `<img loading="lazy" src="${escapeHtml(acc.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
                 } else {
                     welcomeAvatar.textContent = acc.avatar || '🎨';
                 }
@@ -10034,9 +10082,9 @@
             if (welcomeBio) welcomeBio.textContent = acc.bio || 'Publiez vos œuvres et développez votre carrière sur ARKYL.';
 
             let meta = '';
-            if (acc.country)   meta += '<span>📍 ' + acc.country + '</span>';
+            if (acc.country)   meta += '<span>📍 ' + escapeHtml(acc.country) + '</span>';
             if (acc.specialty && acc.specialty.length) meta += '<span>🎨 ' + acc.specialty.join(' · ') + '</span>';
-            if (acc.email)     meta += '<span>✉️ ' + acc.email + '</span>';
+            if (acc.email)     meta += '<span>✉️ ' + escapeHtml(acc.email) + '</span>';
             
             const welcomeMeta = document.getElementById('welcomeMeta');
             if (welcomeMeta) welcomeMeta.innerHTML = meta;
@@ -10260,7 +10308,7 @@
             const grid = document.getElementById('photosPreviewGrid');
             grid.innerHTML = currentPhotosData.map((photo, index) => `
                 <div style="position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: rgba(255,255,255,0.1); border: 2px solid ${index === 0 ? 'rgba(212, 165, 116, 0.8)' : 'rgba(255,255,255,0.2)'};">
-                    <img loading="lazy" src="${photo}" alt="Photo ${index + 1}" style="width: 100%; height: 100%; object-fit: cover;">
+                    <img loading="lazy" src="${escapeHtml(photo)}" alt="Photo ${index + 1}" style="width: 100%; height: 100%; object-fit: cover;">
                     ${index === 0 ? '<div style="position: absolute; top: 4px; left: 4px; background: rgba(212, 165, 116, 0.95); color: white; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700;">PRINCIPALE</div>' : ''}
                     <button onclick="removePhotoAtIndex(${index})" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,0,0,0.8)'" onmouseout="this.style.background='rgba(0,0,0,0.7)'">×</button>
                     ${index > 0 ? `<button onclick="setMainPhoto(${index})" style="position: absolute; bottom: 4px; left: 4px; background: rgba(255,255,255,0.9); color: #333; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: 600; transition: all 0.2s;" onmouseover="this.style.background='rgba(212, 165, 116, 0.9)'; this.style.color='white'" onmouseout="this.style.background='rgba(255,255,255,0.9)'; this.style.color='#333'">⭐ Principale</button>` : ''}
@@ -10741,7 +10789,7 @@
                 // Determine what to display: photo or emoji
                 let imageContent = '';
                 if (a.photo) {
-                    imageContent = `<img loading="lazy" src="${a.photo}" alt="${a.title}" style="width:100%;height:100%;object-fit:cover;">`;
+                    imageContent = `<img loading="lazy" src="${a.photo}" alt="${escapeHtml(a.title)}" style="width:100%;height:100%;object-fit:cover;">`;
                 } else {
                     imageContent = `<span style="font-size:70px;">${a.emoji || '🎨'}</span>`;
                 }
@@ -10750,12 +10798,12 @@
                 <div class="artwork-card">
                     <div class="artwork-image">
                         ${imageContent}
-                        <div class="artwork-status ${a.status}">${a.status==='published'?'Publiée':'En attente'}</div>
+                        <div class="artwork-status ${escapeHtml(a.status)}">${a.status==='published'?'Publiée':'En attente'}</div>
                     </div>
                     <div class="artwork-info">
-                        <div class="artwork-title">${a.title}</div>
+                        <div class="artwork-title">${escapeHtml(a.title)}</div>
                         <div class="artwork-price">${formatPrice(a.price)}</div>
-                        <div class="artwork-meta"><span>🏷️ ${a.category}</span><span>👁️ 0 vues</span></div>
+                        <div class="artwork-meta"><span>🏷️ ${escapeHtml(a.category)}</span><span>👁️ 0 vues</span></div>
                         <div class="artwork-actions">
                             <button class="btn-small btn-edit" onclick="openArtworkModal(${a.id})">✏️ Modifier</button>
                             <button class="btn-small btn-delete" onclick="deleteArtwork(${a.id})">🗑️ Supprimer</button>
@@ -10807,10 +10855,10 @@
             if (!db.sales.length) { tbody.innerHTML='<tr><td colspan="5" style="text-align:center;opacity:0.7;">Aucune vente</td></tr>'; return; }
             tbody.innerHTML = db.sales.map(s => `<tr>
                 <td>${new Date(s.date).toLocaleDateString('fr-FR')}</td>
-                <td><strong>${s.artwork}</strong></td>
-                <td>${s.client}</td>
+                <td><strong>${escapeHtml(s.artwork)}</strong></td>
+                <td>${escapeHtml(s.client)}</td>
                 <td><strong>${formatPrice(s.price)}</strong></td>
-                <td><span style="background:${s.status==='Livrée'?'rgba(76,175,80,0.3)':'rgba(255,193,7,0.3)'};padding:5px 12px;border-radius:12px;font-size:12px;">${s.status}</span></td>
+                <td><span style="background:${s.status==='Livrée'?'rgba(76,175,80,0.3)':'rgba(255,193,7,0.3)'};padding:5px 12px;border-radius:12px;font-size:12px;">${escapeHtml(s.status)}</span></td>
             </tr>`).join('');
         }
 
@@ -10830,12 +10878,12 @@
             }
             grid.innerHTML = filtered.map(p => `
                 <div class="artwork-card" onclick="artistViewProductDetail(${p.id})">
-                    <div class="artwork-image"><img src="${p.image}" alt="${p.title}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'"></div>
+                    <div class="artwork-image"><img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.title)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'"></div>
                     <div class="artwork-info">
-                        <div class="artwork-title">${p.title}</div>
-                        <div style="font-size:13px;opacity:0.8;margin-bottom:8px;cursor:pointer;" onclick="artistViewArtistDetail(event,'${p.artist}')">par ${p.artist}</div>
+                        <div class="artwork-title">${escapeHtml(p.title)}</div>
+                        <div style="font-size:13px;opacity:0.8;margin-bottom:8px;cursor:pointer;" onclick="artistViewArtistDetail(event,'${escapeJsAttr(p.artist)}')">par ${escapeHtml(p.artist)}</div>
                         <div class="artwork-price">${formatPrice(p.price)}</div>
-                        <div class="artwork-meta"><span>🏷️ ${p.category}</span><span>${p.badge}</span></div>
+                        <div class="artwork-meta"><span>🏷️ ${escapeHtml(p.category)}</span><span>${escapeHtml(p.badge)}</span></div>
                     </div>
                 </div>`).join('');
         }
@@ -10857,20 +10905,20 @@
             document.getElementById('artistProductDetailContainer').innerHTML = `
                 <div class="product-detail">
                     <div class="product-detail-grid">
-                        <div class="product-detail-image"><img src="${product.image}" alt="${product.title}" style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'"></div>
+                        <div class="product-detail-image"><img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.title)}" style="width:100%;height:100%;object-fit:contain;background:rgba(0,0,0,0.2);border-radius:20px;" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'"></div>
                         <div class="product-detail-info">
-                            <div class="product-detail-title">${product.title}</div>
-                            <div class="product-detail-artist" onclick="artistViewArtistDetail(event,'${product.artist}')" style="cursor:pointer;">👨‍🎨 par ${product.artist}</div>
+                            <div class="product-detail-title">${escapeHtml(product.title)}</div>
+                            <div class="product-detail-artist" onclick="artistViewArtistDetail(event,'${escapeJsAttr(product.artist)}')" style="cursor:pointer;">👨‍🎨 par ${escapeHtml(product.artist)}</div>
                             <div class="product-detail-price">${formatPrice(product.price)}</div>
                             <div class="product-detail-meta">
-                                <div class="meta-item"><div class="meta-label">Catégorie</div><div class="meta-value">${product.category}</div></div>
-                                <div class="meta-item"><div class="meta-label">Statut</div><div class="meta-value">${product.badge}</div></div>
+                                <div class="meta-item"><div class="meta-label">Catégorie</div><div class="meta-value">${escapeHtml(product.category)}</div></div>
+                                <div class="meta-item"><div class="meta-label">Statut</div><div class="meta-value">${escapeHtml(product.badge)}</div></div>
                                 <div class="meta-item"><div class="meta-label">Dimensions</div><div class="meta-value">80 × 60 cm</div></div>
                                 <div class="meta-item"><div class="meta-label">Technique</div><div class="meta-value">Huile sur toile</div></div>
                             </div>
                             <div class="product-detail-description">
                                 <h3 style="margin-bottom:10px;">Description</h3>
-                                <p>Cette magnifique œuvre capture l'essence de l'art africain contemporain. Créée avec passion, elle représente ${product.title.toLowerCase()} à travers le regard unique de ${product.artist}.</p>
+                                <p>Cette magnifique œuvre capture l'essence de l'art africain contemporain. Créée avec passion, elle représente ${escapeHtml(product.title.toLowerCase())} à travers le regard unique de ${escapeHtml(product.artist)}.</p>
                             </div>
                             <div class="product-detail-actions">
                                 <button class="btn-large btn-primary" onclick="showToast('Fonctionnalité disponible pour les clients')">🛒 Voir dans la boutique</button>
@@ -11128,7 +11176,7 @@
                 const savedStyle = acc.avatarStyle || 'slices';
                 renderProfilePreview(previewContainer, acc.avatar, savedStyle);
             } else {
-                previewContainer.innerHTML = `<div class="profile-emoji-preview">${acc.avatar || '👤'}</div>`;
+                previewContainer.innerHTML = `<div class="profile-emoji-preview">${escapeHtml(acc.avatar) || '👤'}</div>`;
             }
             
             // Fill all form fields with existing data
@@ -11335,9 +11383,9 @@
                 if (!_items.length) { sec.style.display='none'; return; }
                 sec.style.display = 'block';
                 var slides = _items.map(function(n){
-                    return '<div class="arkyl-banner-slide"><img src="'+n.icon+'" alt="'+n.text+'" loading="lazy" onerror="this.style.minHeight=\'120px\'">'
+                    return '<div class="arkyl-banner-slide"><img src="'+n.icon+'" alt="'+escapeHtml(n.text)+'" loading="lazy" onerror="this.style.minHeight=\'120px\'">'
                         +'<div class="arkyl-banner-caption"><span class="banner-tag">Actualité</span>'
-                        +'<div class="banner-title">'+n.text+'</div></div></div>';
+                        +'<div class="banner-title">'+escapeHtml(n.text)+'</div></div></div>';
                 }).join('');
                 var dots = _items.map(function(_,i){
                     return '<button class="arkyl-banner-dot'+(i===0?' active':'')+'" onclick="window._bannerGoTo('+i+')"></button>';
@@ -11437,7 +11485,7 @@
                         <div class="news-ticker-icon ${news.gradient}">
                             ${iconHTML}
                         </div>
-                        <span class="news-ticker-text">${news.text}</span>
+                        <span class="news-ticker-text">${escapeHtml(news.text)}</span>
                     </div>
                 `;
             }).join('');
@@ -11469,7 +11517,7 @@
                             ${iconDisplay}
                         </div>
                         <div style="flex: 1;">
-                            <div style="font-size: 15px; font-weight: 600; margin-bottom: 5px;">${news.text}</div>
+                            <div style="font-size: 15px; font-weight: 600; margin-bottom: 5px;">${escapeHtml(news.text)}</div>
                             <div style="font-size: 12px; opacity: 0.7;">Gradient: ${news.gradient} ${news.isImage ? '· Image' : '· Emoji'}</div>
                         </div>
                         <div style="display: flex; gap: 10px;">
@@ -11818,7 +11866,7 @@
                     // Registration: update the avatar preview div
                     const previewEl = document.getElementById('regAvatarImg');
                     if (previewEl) {
-                        previewEl.innerHTML = `<img src="${base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                        previewEl.innerHTML = `<img src="${escapeHtml(base64)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
                     }
                     window.tempRegAvatar = base64;
                 } else {
@@ -11866,13 +11914,13 @@
                 return config.map(s => {
                     const h = s.hPct + '%';
                     const alignSelf = s.hPct === 100 ? 'stretch' : s.vAlign;
-                    return `<div style="flex:1;border-radius:5px;background-image:url('${imageUrl}');background-position:${s.xPos}% center;background-size:${config.length * 110}% auto;height:${h};align-self:${alignSelf};transition:transform 0.3s ease;"></div>`;
+                    return `<div style="flex:1;border-radius:5px;background-image:url('${escapeHtml(imageUrl)}');background-position:${s.xPos}% center;background-size:${config.length * 110}% auto;height:${h};align-self:${alignSelf};transition:transform 0.3s ease;"></div>`;
                 }).join('');
             } else {
                 return config.map(s => {
                     const w = s.wPct + '%';
                     const alignSelf = s.wPct === 100 ? 'stretch' : s.hAlign;
-                    return `<div style="border-radius:5px;background-image:url('${imageUrl}');background-position:center ${s.yPos}%;background-size:auto ${config.length * 110}%;width:${w};align-self:${alignSelf};flex:1;transition:transform 0.3s ease;"></div>`;
+                    return `<div style="border-radius:5px;background-image:url('${escapeHtml(imageUrl)}');background-position:center ${s.yPos}%;background-size:auto ${config.length * 110}%;width:${w};align-self:${alignSelf};flex:1;transition:transform 0.3s ease;"></div>`;
                 }).join('');
             }
         }
@@ -11889,19 +11937,19 @@
             } else if (style === 'diamond') {
                 return `<div style="${wrap}padding-top:30px;padding-bottom:30px;">
                     <div style="width:160px;height:160px;transform:rotate(45deg);border-radius:16px;overflow:hidden;border:4px solid var(--terre-cuite);box-shadow:0 8px 24px rgba(0,0,0,0.4);">
-                        <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;transform:rotate(-45deg) scale(1.45);">
+                        <img src="${escapeHtml(imageUrl)}" style="width:100%;height:100%;object-fit:cover;transform:rotate(-45deg) scale(1.45);">
                     </div>
                 </div>`;
             } else if (style === 'square') {
                 return `<div style="${wrap}">
                     <div style="width:200px;height:200px;border-radius:24px;overflow:hidden;border:4px solid var(--terre-cuite);box-shadow:0 8px 24px rgba(0,0,0,0.4);">
-                        <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;">
+                        <img src="${escapeHtml(imageUrl)}" style="width:100%;height:100%;object-fit:cover;">
                     </div>
                 </div>`;
             } else {
                 // circle
                 return `<div style="${wrap}">
-                    <img loading="lazy" src="${imageUrl}" style="width:200px;height:200px;border-radius:50%;object-fit:cover;border:4px solid var(--terre-cuite);box-shadow:0 8px 24px rgba(0,0,0,0.4);" alt="${name}" onerror="this.style.display='none'">
+                    <img loading="lazy" src="${escapeHtml(imageUrl)}" style="width:200px;height:200px;border-radius:50%;object-fit:cover;border:4px solid var(--terre-cuite);box-shadow:0 8px 24px rgba(0,0,0,0.4);" alt="${escapeHtml(name)}" onerror="this.style.display='none'">
                 </div>`;
             }
         }
@@ -11926,19 +11974,19 @@
             } else if (style === 'circle') {
                 container.innerHTML = `
                     <div class="profile-display-wrapper style-circle">
-                        <img src="${imageUrl}" class="current-profile-preview" alt="Photo de profil">
+                        <img src="${escapeHtml(imageUrl)}" class="current-profile-preview" alt="Photo de profil">
                     </div>
                     ${styleSelectorHTML(style)}`;
             } else if (style === 'square') {
                 container.innerHTML = `
                     <div class="profile-display-wrapper style-square">
-                        <img src="${imageUrl}" class="current-profile-preview" alt="Photo de profil">
+                        <img src="${escapeHtml(imageUrl)}" class="current-profile-preview" alt="Photo de profil">
                     </div>
                     ${styleSelectorHTML(style)}`;
             } else if (style === 'diamond') {
                 container.innerHTML = `
                     <div class="profile-display-wrapper style-diamond">
-                        <img src="${imageUrl}" class="current-profile-preview" alt="Photo de profil">
+                        <img src="${escapeHtml(imageUrl)}" class="current-profile-preview" alt="Photo de profil">
                     </div>
                     ${styleSelectorHTML(style)}`;
             }
@@ -11955,7 +12003,7 @@
             const buttons = styles.map(s => 
                 `<button class="style-btn ${s.id === activeStyle ? 'active' : ''}" 
                     data-style="${s.id}" 
-                    title="${s.title}"
+                    title="${escapeHtml(s.title)}"
                     onclick="changeAvatarStyle('${s.id}')">${s.icon}</button>`
             ).join('');
             return `<div class="style-selector">${buttons}</div>`;
@@ -12138,7 +12186,7 @@
             if (photos.length > 1) {
                 imageSection = `
                     <div class="product-detail-image" style="position: relative;">
-                        <img id="mainProductImage" src="${photos[0]}" alt="${product.title}" style="width:100%;height:100%;object-fit:cover;border-radius:20px;cursor:pointer;" loading="lazy" onclick="openImageLightbox('${photos[0]}')" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
+                        <img id="mainProductImage" src="${escapeHtml(photos[0])}" alt="${escapeHtml(product.title)}" style="width:100%;height:100%;object-fit:cover;border-radius:20px;cursor:pointer;" loading="lazy" onclick="openImageLightbox('${escapeJsAttr(photos[0])}')" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
                         
                         <div style="position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.7); color: white; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
                             <span id="currentPhotoIndex">1</span>/${photos.length}
@@ -12154,7 +12202,7 @@
                         <div style="display: flex; gap: 10px; margin-top: 15px; overflow-x: auto; padding: 5px 0;">
                             ${photos.map((photo, index) => `
                                 <div onclick="changeMainPhoto(${index})" style="width: 80px; height: 80px; border-radius: 12px; overflow: hidden; cursor: pointer; border: 3px solid ${index === 0 ? 'rgba(212, 165, 116, 0.8)' : 'rgba(255,255,255,0.3)'};" class="thumbnail-photo" data-index="${index}">
-                                    <img loading="lazy" src="${photo}" alt="Photo ${index + 1}" style="width: 100%; height: 100%; object-fit: cover;">
+                                    <img loading="lazy" src="${escapeHtml(photo)}" alt="Photo ${index + 1}" style="width: 100%; height: 100%; object-fit: cover;">
                                 </div>
                             `).join('')}
                         </div>
@@ -12163,7 +12211,7 @@
             } else {
                 imageSection = `
                     <div class="product-detail-image">
-                        <img src="${photos[0] || product.image_url}" alt="${product.title}" style="width:100%;height:100%;object-fit:cover;border-radius:20px;cursor:pointer;" loading="lazy" onclick="openImageLightbox('${photos[0] || product.image_url}')" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
+                        <img src="${escapeHtml(photos[0]) || escapeHtml(product.image_url)}" alt="${escapeHtml(product.title)}" style="width:100%;height:100%;object-fit:cover;border-radius:20px;cursor:pointer;" loading="lazy" onclick="openImageLightbox('${escapeJsAttr(photos[0]) || escapeJsAttr(product.image_url)}')" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23ddd%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E🎨%3C/text%3E%3C/svg%3E'">
                         <button class="like-button" onclick="toggleFavorite(event, ${product.id})" style="position:absolute;top:20px;right:20px;">🤍</button>
                     </div>
                 `;
@@ -12222,8 +12270,8 @@
                     <div class="jm-gallery">
                         <div class="jm-main-img-wrap">
                             <img id="mainProductImage"
-                                 src="${photos[0] || ''}"
-                                 alt="${title}"
+                                 src="${escapeHtml(photos[0]) || ''}"
+                                 alt="${escapeHtml(title)}"
                                  class="jm-main-img"
                                  loading="lazy"
                                  onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22400%22%3E%3Crect fill=%22%23222%22 width=%22400%22 height=%22400%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2248%22%3E%F0%9F%8E%A8%3C/text%3E%3C/svg%3E'">
@@ -12250,14 +12298,14 @@
                     <!-- INFOS PRODUIT -->
                     <div class="jm-info">
                         <div class="jm-badge-row">
-                            <span class="jm-badge">${product.badge || 'Disponible'}</span>
-                            <span class="jm-category">${category}</span>
+                            <span class="jm-badge">${escapeHtml(product.badge) || 'Disponible'}</span>
+                            <span class="jm-category">${escapeHtml(category)}</span>
                         </div>
 
-                        <h1 class="jm-title">${title}</h1>
+                        <h1 class="jm-title">${escapeHtml(title)}</h1>
 
-                        <div class="jm-artist" onclick="viewArtistDetail(event, '${artistName}')">
-                            👨‍🎨 <span>${artistName}</span>
+                        <div class="jm-artist" onclick="viewArtistDetail(event, '${escapeJsAttr(artistName)}')">
+                            👨‍🎨 <span>${escapeHtml(artistName)}</span>
                             ${artistCountryText ? `<span class="jm-country">${artistCountryText}</span>` : ''}
                         </div>
 
@@ -12284,7 +12332,7 @@
                         ${description ? `
                         <div class="jm-desc">
                             <div class="jm-desc-title">Description</div>
-                            <div class="jm-desc-text">${description}</div>
+                            <div class="jm-desc-text">${escapeHtml(description)}</div>
                         </div>` : ''}
 
                         <div class="jm-guarantees">
@@ -12423,8 +12471,8 @@
                 /* Images empilées : la première visible, les autres masquées */
                 const stackedImgs = photos.map((src, i) => `<img id="card-img-${cardId}-${i}"
                     class="${i===0?'lazy-img':''}"
-                    data-src="${src}"
-                    alt="${title}"
+                    data-src="${escapeHtml(src)}"
+                    alt="${escapeHtml(title)}"
                     style="position:${i===0?'relative':'absolute'};top:0;left:0;width:100%;height:100%;object-fit:cover;display:block;opacity:${i===0?1:0};transition:opacity 0.3s ease;">`).join('');
                 /* Boutons de navigation + indicateur + points (uniquement si plusieurs photos) */
                 const navHTML = hasMultiple ? `
@@ -12452,8 +12500,8 @@
                         ${isSold ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,0.35);border-radius:inherit;display:flex;align-items:center;justify-content:center;z-index:6;"><span style="font-size:12px;font-weight:800;color:#fff;background:rgba(200,0,0,0.8);padding:3px 10px;border-radius:20px;">VENDU</span></div>' : ''}
                     </div>
                     <div class="product-info">
-                        <div class="product-title">${title}</div>
-                        <div class="product-artist" onclick="viewArtistDetail(event,'${artistName}')">par ${artistName}</div>
+                        <div class="product-title">${escapeHtml(title)}</div>
+                        <div class="product-artist" onclick="viewArtistDetail(event,'${escapeJsAttr(artistName)}')">par ${escapeHtml(artistName)}</div>
                         <div class="product-footer">
                             <div class="product-price">${Number(price).toLocaleString('fr-FR')} FCFA</div>
                             ${btnHTML}
@@ -13324,16 +13372,16 @@
 
                         html += `
                             <tr style="border-bottom: 1px solid #333;">
-                                <td style="padding: 10px; font-weight:700; color:#d4af37;">${cmd.order_number}</td>
+                                <td style="padding: 10px; font-weight:700; color:#d4af37;">${escapeHtml(cmd.order_number)}</td>
                                 <td style="padding:8px;">${dateFR}</td>
                                 <td style="padding:8px;">
-                                    <div style="font-weight:700;">${artisteNom}</div>
-                                    ${artistePhone ? `<div style="font-size:12px;color:#4caf50;font-weight:600;margin-top:3px;">📱 ${artistePhone}</div>` : ''}
-                                    ${artisteEmail ? `<div style="font-size:11px;color:#90caf9;margin-top:2px;">✉️ ${artisteEmail}</div>` : ''}
+                                    <div style="font-weight:700;">${escapeHtml(artisteNom)}</div>
+                                    ${artistePhone ? `<div style="font-size:12px;color:#4caf50;font-weight:600;margin-top:3px;">📱 ${escapeHtml(artistePhone)}</div>` : ''}
+                                    ${artisteEmail ? `<div style="font-size:11px;color:#90caf9;margin-top:2px;">✉️ ${escapeHtml(artisteEmail)}</div>` : ''}
                                 </td>
                                 <td style="padding:8px;">
                                     <div style="font-size:12px;opacity:0.7;">${cmd.items && cmd.items.length > 0 ? cmd.items.map(i => i.title||'—').join(', ') : '—'}</div>
-                                    <div style="font-size:11px;color:#aaa;margin-top:2px;">Client : ${cmd.user_name||cmd.user_email||'—'}</div>
+                                    <div style="font-size:11px;color:#aaa;margin-top:2px;">Client : ${escapeHtml(cmd.user_name)||escapeHtml(cmd.user_email)||'—'}</div>
                                 </td>
                                 <td style="color: #ffc107; font-weight: bold; padding:8px;">
                                     ${montantTotal} FCFA
@@ -13396,17 +13444,17 @@
                     const by       = tx.paid_by           || 'admin';
                     return `
                         <tr style="border-bottom:1px solid #2a2a2a;font-size:13px;">
-                            <td style="padding:10px 8px;color:#d4af37;font-weight:600;">${tx.order_number || '#' + tx.order_id}</td>
+                            <td style="padding:10px 8px;color:#d4af37;font-weight:600;">${escapeHtml(tx.order_number) || '#' + tx.order_id}</td>
                             <td style="padding:10px 8px;">${date}</td>
-                            <td style="padding:10px 8px;">${tx.artist_name || tx.artist_id || '—'}</td>
+                            <td style="padding:10px 8px;">${escapeHtml(tx.artist_name) || tx.artist_id || '—'}</td>
                             <td style="padding:10px 8px;color:#ffc107;font-weight:700;">
                                 ${montant} FCFA
                                 <br><span style="font-size:11px;color:#777;font-weight:normal;">(Art: ${oeuvre} + Port: ${port})</span>
                             </td>
                             <td style="padding:10px 8px;">
-                                <span style="background:rgba(255,255,255,0.08);padding:3px 8px;border-radius:6px;font-size:12px;">${method}</span>
+                                <span style="background:rgba(255,255,255,0.08);padding:3px 8px;border-radius:6px;font-size:12px;">${escapeHtml(method)}</span>
                             </td>
-                            <td style="padding:10px 8px;font-family:monospace;color:#90caf9;">${ref}</td>
+                            <td style="padding:10px 8px;font-family:monospace;color:#90caf9;">${escapeHtml(ref)}</td>
                             <td style="padding:10px 8px;opacity:0.6;font-size:12px;">${note || by}</td>
                         </tr>`;
                 }).join('');
@@ -13469,7 +13517,7 @@
 
                     <!-- Récap commande + contact artiste -->
                     <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:16px;margin-bottom:20px;font-size:13px;line-height:2;">
-                        <div>📦 <strong>${orderNum}</strong> · Client : ${clientNom}</div>
+                        <div>📦 <strong>${escapeHtml(orderNum)}</strong> · Client : ${escapeHtml(clientNom)}</div>
                         <div>🎨 Œuvres : ${items}</div>
                         <div>🎨 Part artiste (65%) : <strong style="color:#d4af37;">${payout > 0 ? payout.toLocaleString('fr-FR') + ' FCFA' : '—'}</strong></div>
                         <div>🚚 Frais de port : <strong>${shipping > 0 ? shipping.toLocaleString('fr-FR') + ' FCFA' : '0 FCFA'}</strong></div>
@@ -13485,12 +13533,12 @@
                         ${cmd.items[0].artist_phone ? `
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
                             <span style="font-size:13px;opacity:0.7;">📱 Téléphone / Mobile Money</span>
-                            <strong style="color:#4caf50;font-size:15px;letter-spacing:1px;">${cmd.items[0].artist_phone}</strong>
+                            <strong style="color:#4caf50;font-size:15px;letter-spacing:1px;">${escapeHtml(cmd.items[0].artist_phone)}</strong>
                         </div>` : ''}
                         ${cmd.items[0].artist_email ? `
                         <div style="display:flex;align-items:center;justify-content:space-between;">
                             <span style="font-size:13px;opacity:0.7;">✉️ Email</span>
-                            <span style="color:#90caf9;font-size:13px;">${cmd.items[0].artist_email}</span>
+                            <span style="color:#90caf9;font-size:13px;">${escapeHtml(cmd.items[0].artist_email)}</span>
                         </div>` : ''}
                         <p style="font-size:11px;color:#aaa;margin:10px 0 0;">Utilisez ces informations pour effectuer le virement Wave/OM/MTN.</p>
                     </div>` : `

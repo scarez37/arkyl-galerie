@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 require_once __DIR__ . '/cors_helper.php';
 
 /**
@@ -6,11 +7,6 @@ require_once __DIR__ . '/cors_helper.php';
  * Ajoute une œuvre au panier d'un client
  */
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
-// Gestion preflight CORS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -37,8 +33,8 @@ try {
     }
     
     $artwork_id = intval($data['artwork_id']);
-    $user_id = $data['user_id'] ?? 'guest_' . uniqid();
-    $quantity = isset($data['quantity']) ? intval($data['quantity']) : 1;
+    $user_id = arkylActorId($data['user_id'] ?? '');   // visiteur anonyme (user_xxx) OU compte connecté vérifié
+    $quantity = max(1, min(10, isset($data['quantity']) ? intval($data['quantity']) : 1));
     
     // 🛠️ SÉCURITÉ : On vérifie (et on crée) la table au cas où
     $db->exec("CREATE TABLE IF NOT EXISTS cart (
@@ -73,7 +69,7 @@ try {
     
     if ($existing) {
         // Mettre à jour la quantité
-        $newQuantity = $existing['quantity'] + $quantity;
+        $newQuantity = min(10, $existing['quantity'] + $quantity);
         $updateStmt = $db->prepare("UPDATE cart SET quantity = :quantity WHERE id = :id");
         $updateStmt->execute([
             ':quantity' => $newQuantity,
@@ -107,7 +103,7 @@ try {
     echo json_encode([
         'success' => false,
         'message' => 'Erreur lors de l\'ajout au panier',
-        'error' => $e->getMessage()
+        'error' => arkylSafeError($e)
     ], JSON_UNESCAPED_UNICODE);
 }
 ?>

@@ -1,32 +1,21 @@
 <?php
+require_once __DIR__ . '/auth_helper.php';
 // ==================== API STRIPE CHECKOUT ====================
 // FIX : clés Stripe lues depuis variables d'environnement Render
 // FIX : success_url utilise l'URL absolue du serveur (pas de chemin relatif)
 // FIX : adresse de livraison ajoutée dans les metadata Stripe
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-header('Cross-Origin-Embedder-Policy: unsafe-none');
-header('Cross-Origin-Opener-Policy: unsafe-none');
-header('Cross-Origin-Resource-Policy: cross-origin');
-
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
-set_exception_handler(function($e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => $e->getMessage(), 'file' => basename($e->getFile()), 'line' => $e->getLine()]);
-    exit;
-});
-set_error_handler(function($errno, $errstr, $errfile, $errline) {
-    throw new ErrorException($errstr, $errno, 0, $errfile, $errline);
-});
+// Gestion des erreurs : voir bootstrap.php (rien de technique n'est renvoyé au navigateur)
 
 require_once __DIR__ . '/db_config.php';
+
+arkylRequireAuth();   // identité d'abord : aucun paiement sans compte connecté
 
 if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
@@ -48,9 +37,9 @@ try {
     $input = file_get_contents('php://input');
     $data  = json_decode($input, true);
 
-    $user_id         = $data['user_id']        ?? '';
+    $user_id         = arkylActorId($data['user_id'] ?? '', false);   // compte connecté vérifié (pas de visiteur anonyme)
     $cart_fallback   = $data['cart_items']     ?? [];
-    $shipping_cost   = intval($data['shipping_cost']  ?? 3000);
+    $shipping_cost   = max(0, min(500000, intval($data['shipping_cost'] ?? 3000)));
     $shipping_mode   = $data['shipping_mode']          ?? 'poste';
     $shipping_label  = $data['shipping_label']         ?? 'Frais de livraison';
     // ✅ FIX : récupérer l'adresse de livraison envoyée depuis le front
@@ -62,7 +51,7 @@ try {
 
     // ÉTAPE 1 — Panier depuis PostgreSQL
     $stmt = $db->prepare("
-        SELECT c.quantity, c.artwork_id, a.title, a.price, a.image_url, a.artist_id
+        SELECT c.quantity, c.artwork_id, a.title, a.price, a.image_url, a.artist_id, a.is_sold
         FROM cart c
         INNER JOIN artworks a ON c.artwork_id = a.id
         WHERE c.user_id = :user_id
@@ -82,10 +71,10 @@ try {
         $validItems = [];
         foreach ($cart_fallback as $fbItem) {
             $artwork_id = intval($fbItem['id']       ?? 0);
-            $quantity   = intval($fbItem['quantity'] ?? 1);
+            $quantity   = max(1, min(10, intval($fbItem['quantity'] ?? 1)));
             if ($artwork_id <= 0) continue;
 
-            $checkStmt = $db->prepare("SELECT id, title, price, artist_id FROM artworks WHERE id = :id");
+            $checkStmt = $db->prepare("SELECT id, title, price, artist_id, is_sold FROM artworks WHERE id = :id");
             $checkStmt->execute([':id' => $artwork_id]);
             $artwork = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -100,7 +89,8 @@ try {
                     'title'      => $artwork['title'],
                     'price'      => $artwork['price'],
                     'quantity'   => $quantity,
-                    'artist_id'  => $artwork['artist_id']
+                    'artist_id'  => $artwork['artist_id'],
+                    'is_sold'    => $artwork['is_sold']
                 ];
             }
         }
@@ -113,6 +103,13 @@ try {
 
     if (empty($cartItems)) {
         throw new Exception("Le panier est vide. Ajoutez des œuvres avant de passer commande.");
+    }
+
+    // Une œuvre unique déjà vendue ne peut plus être achetée (évite la double vente)
+    foreach ($cartItems as $item) {
+        if (!empty($item['is_sold'])) {
+            throw new Exception('L\'œuvre « ' . ($item['title'] ?? '') . ' » n\'est plus disponible.');
+        }
     }
 
     // ÉTAPE 3 — Construire les line_items Stripe
@@ -204,7 +201,7 @@ try {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'message' => $e->getMessage()
+        'message' => arkylSafeError($e)
     ]);
 }
 ?>

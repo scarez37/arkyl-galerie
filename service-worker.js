@@ -1,19 +1,21 @@
-const CACHE_NAME = 'arkyl-v2';
+const CACHE_NAME = 'arkyl-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/style.css',
-  '/favicon.ico'
+  '/favicon.ico',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png'
 ];
 
 // Fichiers JS/HTML principaux → toujours Network First (jamais en cache)
 const NETWORK_FIRST = [
+  '/',
+  '/index.html',
   '/app.js',
   '/auth.js',
-  '/2-pages-content.html',
-  '/3-admin-modales.html',
-  '/1-header-nav.html',
-  '/sections.html'
+  '/api-client.js',
+  '/arkyl-favoris-panier-db.js'
 ];
 
 // Installation : mise en cache UNIQUEMENT des vraies ressources statiques (images, icons)

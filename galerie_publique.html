@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <script src="/api-client.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Galerie Publique - ARKYL</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
@@ -235,6 +236,14 @@
     </div>
 
     <script>
+    // Échappement des textes saisis par les utilisateurs avant insertion dans du HTML
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+</script>
+<script>
         const API_URL = 'api_galerie_publique.php';
         let currentArtwork = null;
 
@@ -252,7 +261,7 @@
                 if (!json.success) {
                     container.innerHTML = `
                         <div class="empty-state">
-                            <p style="color:red;">Erreur : ${json.message}</p>
+                            <p style="color:red;">Erreur : ${escapeHtml(json.message)}</p>
                         </div>
                     `;
                     return;
@@ -278,11 +287,11 @@
                     <div class="artworks-grid">
                         ${artworks.map(art => `
                             <div class="artwork-card" onclick="openModal(${art.id})">
-                                <img src="${art.image_url}" class="artwork-image" alt="${art.title}">
+                                <img src="${escapeHtml(art.image_url)}" class="artwork-image" alt="${escapeHtml(art.title)}">
                                 <div class="artwork-info">
-                                    <div class="artwork-title">${art.title}</div>
-                                    <div class="artwork-artist">par ${art.artist_name}</div>
-                                    <div class="artwork-price">${art.price} €</div>
+                                    <div class="artwork-title">${escapeHtml(art.title)}</div>
+                                    <div class="artwork-artist">par ${escapeHtml(art.artist_name)}</div>
+                                    <div class="artwork-price">${escapeHtml(art.price)} €</div>
                                 </div>
                             </div>
                         `).join('')}
@@ -298,7 +307,7 @@
                 console.error('Erreur:', error);
                 container.innerHTML = `
                     <div class="empty-state">
-                        <p style="color:red;">Erreur de connexion : ${error.message}</p>
+                        <p style="color:red;">Erreur de connexion : ${escapeHtml(error.message)}</p>
                         <button onclick="chargerToutesLesOeuvres()" class="btn-contact">Réessayer</button>
                     </div>
                 `;

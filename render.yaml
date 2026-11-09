@@ -1,7 +1,23 @@
+# Blueprint Render — le site tourne via le Dockerfile (Apache + PHP).
+# La base de données est hébergée chez Supabase (voir docs/MIGRATION_SUPABASE.md).
 services:
   - type: web
     name: arkyl-galerie
-    env: php
+    runtime: docker
     plan: free
-    buildCommand: ""
-    startCommand: php -S 0.0.0.0:$PORT router.php
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: SUPABASE_DB_URL        # chaîne « Session pooler » de Supabase
+        sync: false
+      - key: AUTH_SECRET            # secret de signature des connexions (généré automatiquement)
+        generateValue: true
+      - key: ADMIN_EMAILS           # e-mails administrateurs, séparés par des virgules
+        sync: false
+      - key: APP_URL                # URL publique du site (ex. https://arkyl.site)
+        sync: false
+      - key: ALLOWED_ORIGINS        # origines autorisées pour l'API, séparées par des virgules
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false

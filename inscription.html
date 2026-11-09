@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <script src="/api-client.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inscription Artiste - ARKYL</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -560,6 +561,7 @@
                 };
                 // ✅ FIX : stocker sous toutes les clés utilisées par app.js
                 localStorage.setItem('user_id',    uid);
+                if (result.token) ArkylAPI.setToken(result.token, result.expires_in);   // jeton mis à jour (compte artiste lié)
                 localStorage.setItem('user_name',  result.user_name);
                 localStorage.setItem('user_email', result.user_email);
                 localStorage.setItem(`arkyl_artist_account_${uid}`, JSON.stringify(artistAccount));

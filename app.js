@@ -50,12 +50,43 @@ function safeUrl(value) {
 
         // ======================== PWA INSTALL BUTTON ========================
         let deferredPrompt = null;
-        
+
+        // Vrai quand le site tourne DANS l'application installée (Android/desktop : display-mode,
+        // iOS : navigator.standalone). Dans ce cas on ne propose jamais « Installer l'app ».
+        function isRunningAsInstalledApp() {
+            try {
+                return (window.matchMedia && (
+                            window.matchMedia('(display-mode: standalone)').matches ||
+                            window.matchMedia('(display-mode: fullscreen)').matches ||
+                            window.matchMedia('(display-mode: minimal-ui)').matches
+                        )) ||
+                        window.navigator.standalone === true ||
+                        document.referrer.startsWith('android-app://');
+            } catch (e) { return false; }
+        }
+
+        function setInstallButtonVisible(visible) {
+            const btn = document.getElementById('pwaInstallBtn');
+            if (!btn) return;
+            btn.style.display = (visible && !isRunningAsInstalledApp()) ? 'flex' : 'none';
+        }
+
+        // Dans l'app installée : bouton masqué tout de suite (et si le mode d'affichage change)
+        if (isRunningAsInstalledApp()) {
+            document.documentElement.classList.add('is-installed-app');
+            document.addEventListener('DOMContentLoaded', () => setInstallButtonVisible(false));
+        }
+        try {
+            window.matchMedia('(display-mode: standalone)').addEventListener('change', (e) => {
+                if (e.matches) setInstallButtonVisible(false);
+            });
+        } catch (e) { /* anciens navigateurs : ignoré */ }
+
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
+            if (isRunningAsInstalledApp()) { deferredPrompt = null; return; }
             deferredPrompt = e;
-            const btn = document.getElementById('pwaInstallBtn');
-            if (btn) btn.style.display = 'flex';
+            setInstallButtonVisible(true);
             console.log('📱 PWA: Bouton installation prêt');
         });
 
@@ -68,6 +99,7 @@ function safeUrl(value) {
             deferredPrompt.userChoice.then(({ outcome }) => {
                 if (outcome === 'accepted') {
                     console.log('✅ PWA installée');
+                    setInstallButtonVisible(false);
                 }
                 deferredPrompt = null;
             });
@@ -75,8 +107,8 @@ function safeUrl(value) {
 
         window.addEventListener('appinstalled', () => {
             console.log('✅ PWA app installée avec succès!');
-            const btn = document.getElementById('pwaInstallBtn');
-            if (btn) btn.style.display = 'none';
+            deferredPrompt = null;
+            setInstallButtonVisible(false);
         });
 
         // ── FIX : Favicon dynamique — évite le 404 serveur ──
@@ -7202,7 +7234,9 @@ function safeUrl(value) {
         // ==================== ARTIST DETAIL ====================
         // Load artists data from storage or use defaults
         async function viewArtistDetail(event, artistName) {
-            if (event) event.stopPropagation();
+            // Appel possible sous la forme viewArtistDetail('Nom') (rafraîchissement, restauration de page)
+            if (typeof event === 'string' && artistName === undefined) { artistName = event; event = null; }
+            if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
             if (!artistName || artistName === 'Artiste inconnu') return;
 
             const container = document.getElementById('artistDetailContainer');
@@ -10934,9 +10968,10 @@ function safeUrl(value) {
 
         // ==================== ARTISTE : ARTIST DETAIL ====================
         function artistViewArtistDetail(event, artistName) {
-            event.stopPropagation();
+            if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
             if (!artistName) return;
-            window.location.href = `profil.html?name=${encodeURIComponent(artistName)}`;
+            // (profil.html n'existe pas : la navigation sortait de l'application sur une page 404)
+            viewArtistDetail(null, artistName);
         }
         // ==================== INIT ====================
         // ==================== PULL TO REFRESH ====================
@@ -11108,10 +11143,18 @@ function safeUrl(value) {
         var currentHistoryIndex = window._currentHistoryIndex;
 
         function updateNavigationHistory(page) {
+            const isFirstEntry = currentHistoryIndex < 0;
             // Remove any forward history when navigating to a new page
             navigationHistory.splice(currentHistoryIndex + 1);
             navigationHistory.push(page);
             currentHistoryIndex = navigationHistory.length - 1;
+            // Historique du navigateur : le bouton « retour » du téléphone revient à la page
+            // précédente de l'app au lieu de la fermer.
+            try {
+                const state = { arkylPage: page, arkylIndex: currentHistoryIndex };
+                if (isFirstEntry) history.replaceState(state, '');
+                else history.pushState(state, '');
+            } catch (e) { /* ignoré */ }
             updateBackButton();
         }
 
@@ -11124,7 +11167,15 @@ function safeUrl(value) {
             }
         }
 
+        // Retour dans l'app : passe par l'historique du navigateur pour rester synchronisé
         function goBack() {
+            if (currentHistoryIndex > 0) {
+                try { history.back(); return; } catch (e) { /* repli ci-dessous */ }
+                goBackInApp();
+            }
+        }
+
+        function goBackInApp() {
             if (currentHistoryIndex > 0) {
                 currentHistoryIndex--;
                 const previousPage = navigationHistory[currentHistoryIndex];
@@ -11132,6 +11183,12 @@ function safeUrl(value) {
                 updateBackButton();
             }
         }
+
+        // Bouton « retour » du téléphone / du navigateur
+        window.addEventListener('popstate', () => {
+            if (currentHistoryIndex > 0) goBackInApp();
+            // sinon : on est sur la première page → le navigateur/l'app se ferme normalement
+        });
 
         function navigateToWithoutHistory(page) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));

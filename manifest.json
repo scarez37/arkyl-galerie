@@ -1,11 +1,14 @@
 {
+  "id": "/",
   "name": "ARKYL",
   "short_name": "ARKYL",
   "description": "Galerie d'Art Africain",
+  "lang": "fr",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#c9a84c",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -24,12 +27,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    },
-    {
-      "src": "/favicon.ico",
-      "sizes": "any",
-      "type": "image/x-icon"
     }
-  ],
-  "scope": "/"
+  ]
 }

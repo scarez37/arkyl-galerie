@@ -2131,6 +2131,12 @@
             animation: slideInPWA 0.4s ease-out;
         }
 
+        /* Dans l'application installée : on ne propose jamais « Installer l'app » */
+        @media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
+            #pwaInstallBtn { display: none !important; }
+        }
+        .is-installed-app #pwaInstallBtn { display: none !important; }
+
         @keyframes slideInPWA {
             from {
                 opacity: 0;

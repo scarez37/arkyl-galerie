@@ -1,102 +1,92 @@
-const CACHE_NAME = 'arkyl-v3';
+const CACHE_NAME = 'arkyl-v4';
 const STATIC_ASSETS = [
   '/',
-  '/index.html',
   '/style.css',
   '/favicon.ico',
   '/icons/icon-192.png',
   '/icons/icon-512.png'
 ];
 
-// Fichiers JS/HTML principaux → toujours Network First (jamais en cache)
+// Fichiers principaux (pages, scripts, styles) → toujours Network First :
+// l'application installée reçoit ainsi les mises à jour au lieu de rester figée sur une ancienne version.
 const NETWORK_FIRST = [
   '/',
   '/index.html',
   '/app.js',
   '/auth.js',
   '/api-client.js',
-  '/arkyl-favoris-panier-db.js'
+  '/style.css'
 ];
 
-// Installation : mise en cache UNIQUEMENT des vraies ressources statiques (images, icons)
+// Installation : mise en cache des vraies ressources statiques (icônes)
 self.addEventListener('install', event => {
-  console.log('[ARKYL SW] 🔧 Installation en cours...');
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      console.log('[ARKYL SW] ✅ Cache v3 ouvert — assets statiques uniquement');
-      return cache.addAll(STATIC_ASSETS).catch(err => {
-        console.error('[ARKYL SW] ❌ Erreur cache addAll:', err);
-        // Ne pas échouer l'installation pour quelques assets manquants
-        return Promise.resolve();
-      });
-    })
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(STATIC_ASSETS))
+      .catch(err => console.error('[ARKYL SW] ❌ Erreur cache addAll:', err)) // non bloquant
   );
   self.skipWaiting(); // Prendre le contrôle immédiatement
-  console.log('[ARKYL SW] ✅ Installation complète, skipWaiting déclenché');
 });
 
-// Activation : supprimer TOUS les anciens caches (arkyl-v1, arkyl-v2, etc.)
+// Activation : supprimer TOUS les anciens caches (arkyl-v1, v2, v3…)
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(cacheNames =>
-      Promise.all(
-        cacheNames
-          .filter(name => name !== CACHE_NAME)
-          .map(name => {
-            console.log('[ARKYL SW] Suppression cache obsolète:', name);
-            return caches.delete(name);
-          })
-      )
-    )
+    caches.keys()
+      .then(names => Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 // Stratégie fetch
 self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
+  const request = event.request;
 
-  // 1. Appels API PHP → toujours réseau, jamais de cache
-  if (url.pathname.startsWith('/api') || url.pathname.includes('.php') ||
-      url.hostname.includes('onrender.com') || url.hostname.includes('countriesnow')) {
-    event.respondWith(fetch(event.request));
-    return;
-  }
+  // On ne touche qu'aux lectures (GET) : les envois (POST…) vont directement au serveur
+  if (request.method !== 'GET') return;
 
-  // 2. Fichiers JS/HTML principaux → Network First (on essaie le réseau, fallback cache)
-  const isNetworkFirst = NETWORK_FIRST.some(f => url.pathname === f || url.pathname.endsWith(f));
-  if (isNetworkFirst) {
+  const url = new URL(request.url);
+
+  // Autres sites (Google, Stripe, polices, API Render…) : le navigateur s'en occupe, sans cache
+  if (url.origin !== self.location.origin) return;
+
+  // Appels API PHP du site → toujours réseau, jamais de cache
+  // (attention : « /api-client.js » n'est PAS une API, d'où « api_ » avec le tiret bas)
+  if (url.pathname.endsWith('.php') || url.pathname.startsWith('/api_') || url.pathname.startsWith('/api/')) return;
+
+  // Pages et scripts principaux → Network First (réseau d'abord, cache si hors ligne)
+  const isNavigation = request.mode === 'navigate';
+  const isHome = url.pathname === '/' || url.pathname === '/index.html';
+  if (isNavigation || NETWORK_FIRST.includes(url.pathname)) {
     event.respondWith(
-      fetch(event.request).then(response => {
-        if (response && response.status === 200) {
-          // Mettre à jour le cache avec la version fraîche
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+      fetch(request).then(response => {
+        if (response && response.status === 200 && response.type === 'basic') {
+          // On mémorise l'accueil (sous la clé « / », quelle que soit l'adresse ?session_id=… )
+          // et les scripts/styles ; jamais une autre page à la place de l'accueil.
+          if (!isNavigation || isHome) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(isNavigation ? '/' : request, clone));
+          }
         }
         return response;
-      }).catch(() => {
-        // Hors ligne : retourner version cachée si dispo
-        return caches.match(event.request);
-      })
+      }).catch(() =>
+        // Hors ligne : version en cache (pour une page, l'accueil mémorisé)
+        caches.match(isNavigation ? '/' : request).then(cached => cached || Response.error())
+      )
     );
     return;
   }
 
-  // 3. Autres assets (images, CSS, icons) → Cache First
+  // Autres fichiers du site (images, icônes…) → Cache First
   event.respondWith(
-    caches.match(event.request).then(cached => {
+    caches.match(request).then(cached => {
       if (cached) return cached;
-      return fetch(event.request).then(response => {
+      return fetch(request).then(response => {
         if (response && response.status === 200 && response.type === 'basic') {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
         }
         return response;
       });
-    }).catch(() => {
-      if (event.request.destination === 'document') {
-        return caches.match('/index.html');
-      }
     })
   );
 });
@@ -104,14 +94,20 @@ self.addEventListener('fetch', event => {
 // Notifications push
 self.addEventListener('push', event => {
   if (!event.data) return;
-  const data = event.data.json();
-  self.registration.showNotification(data.title || 'ARKYL', {
-    body: data.body || 'Nouvelle œuvre disponible !',
-    icon: '/favicon.ico'
-  });
+  let data = {};
+  try { data = event.data.json(); } catch (e) { data = { body: event.data.text() }; }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'ARKYL', {
+      body: data.body || 'Nouvelle œuvre disponible !',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { url: data.url || '/' }
+    })
+  );
 });
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  event.waitUntil(clients.openWindow(event.notification.data.url));
+  const target = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(clients.openWindow(target));
 });

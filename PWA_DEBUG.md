@@ -23,16 +23,13 @@ Ouvre la **console du navigateur** (F12) et cherche ces logs :
 
 ### Logs OK ✅
 ```
-[HEAD] SW enregistré
-[PWA] Système d'installation initialisé
-[PWA] beforeinstallprompt déclenché → app installable
-[PWA] Bouton installation visible
-[ARKYL SW] ✅ Installation complète, skipWaiting déclenché
+✅ Service Worker enregistré
+📱 PWA: Bouton installation prêt          (uniquement dans le navigateur, jamais dans l'app installée)
 ```
 
 ### Logs problématiques ❌
 ```
-[PWA] ⚠️ Service Worker échoué: ...
+⚠️ Service Worker échoué: ...
 [ARKYL SW] ❌ Erreur cache addAll: ...
 ```
 
@@ -47,7 +44,7 @@ Ouvre la **console du navigateur** (F12) et cherche ces logs :
 | Domaine HTTPS | ✅ arkyl.site doit être en HTTPS (pas HTTP) |
 | Meta tags PWA | ✅ Présent dans `<head>` (manifest, apple-mobile-web-app-*) |
 | index.html | ✅ Contient le bouton `#pwaInstallBtn` |
-| app.js | ✅ Contient `initPWASystem()` IIFE |
+| app.js | ✅ Contient le bloc « PWA INSTALL BUTTON » (`installPWA`, `isRunningAsInstalledApp`) |
 
 ---
 
@@ -63,7 +60,7 @@ Ouvre la **console du navigateur** (F12) et cherche ces logs :
    - Icons doivent être trouvés
 
 3. **Application** → **Cache Storage**
-   - Doit avoir `arkyl-v3` avec les assets
+   - Doit avoir `arkyl-v4` avec les assets
 
 ---
 
@@ -93,7 +90,8 @@ C'est normal ! Chrome/Edge requiert :
 - ✅ Engagement utilisateur
 - ✅ 5+ secondes sur le site (parfois)
 
-**Le bouton PWA affichera quand même grâce au fallback (ligne 3s dans app.js)**
+Le bouton n'apparaît que si Chrome déclenche `beforeinstallprompt` (il n'y a plus d'affichage forcé).
+Il est **toujours masqué dans l'application installée** (`display-mode: standalone`, `navigator.standalone`).
 
 ### ❌ Erreur "Cannot read property 'prompt' of null"
 
@@ -125,29 +123,21 @@ navigator.serviceWorker.getRegistrations().then(regs => {
 
 ---
 
-## ✨ Améliorations apportées
+## ✨ Comportement actuel
 
-✅ **Bouton PWA** (app.js l.12-89)
-- Écoute `beforeinstallprompt`
-- Détection fallback (manifest + SW)
-- Affichage forcé après 3s (bypass Chrome delays)
-- Gestion du clic + userChoice
+✅ **Bouton PWA** (app.js, bloc « PWA INSTALL BUTTON » + style.css `#pwaInstallBtn`)
+- Écoute `beforeinstallprompt`, gère le clic + `userChoice`
+- Masqué dans l'app installée (JS + règle CSS `@media (display-mode: standalone)`)
 
-✅ **Service Worker** (service-worker.js)
-- Logs améliorés pour débogage
-- Erreur cache non-bloquante
+✅ **Service Worker** (service-worker.js, cache `arkyl-v4`)
+- Pages, `app.js`, `auth.js`, `api-client.js`, `style.css` : réseau d'abord, cache si hors ligne
+- Ne touche jamais aux POST, aux appels `.php` / `/api_*` ni aux autres sites (Google, Stripe…)
+- Les anciens caches sont supprimés à l'activation
 
-✅ **HTML** (index.html)
-- Enregistrement SW précoce dans `<head>`
-- Listener beforeinstallprompt dès le début
+✅ **Bouton « retour » du téléphone** (app.js, `updateNavigationHistory` / `popstate`)
+- Revient à la page précédente de l'app au lieu de la fermer ; depuis l'accueil il quitte l'app normalement
 
-✅ **CSS** (style.css l.2077-2149)
-- Style doré ARKYL avec gradient
-- Animation pulse au chargement
-- Hover effect attractif
-- Responsive
-
----
+✅ **Manifest** : `id`, couleurs sombres (plus d'écran blanc au lancement), icônes PNG 192 / 512 / maskable
 
 ## 🎯 Prochaines étapes (optionnel)
 
